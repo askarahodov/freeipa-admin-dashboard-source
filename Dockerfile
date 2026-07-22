@@ -17,8 +17,9 @@ COPY --from=build --chown=dashboard:dashboard /app/package.json /app/package-loc
 COPY --from=build --chown=dashboard:dashboard /app/node_modules ./node_modules
 COPY --from=build --chown=dashboard:dashboard /app/dist ./dist
 COPY --from=build --chown=dashboard:dashboard /app/.openai ./.openai
+COPY --from=build --chown=dashboard:dashboard /app/scripts/start-worker.mjs ./scripts/start-worker.mjs
 USER dashboard
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD ["node", "-e", "fetch('http://127.0.0.1:3000/api/integrations/status').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
-CMD ["npm", "start"]
+CMD ["npm", "run", "start:docker"]

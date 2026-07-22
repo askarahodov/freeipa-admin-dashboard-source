@@ -72,8 +72,9 @@ reloads the catalog, confirms that the selected process exists and is enabled,
 validates every submitted value, rejects unknown targets, and then builds the
 `run_event` payload. Fields are routed to `params`, `input.data`, or
 `workflowData` according to their XYOps metadata. The API key stays server-side.
-Without XYOps credentials, the same flow uses a demonstrational catalog that
-includes a database-backup Workflow and never changes external systems.
+When XYOps is not configured, the catalog is explicitly marked as unavailable
+and no process can be started. Set `DEMO_MODE=true` only when you intentionally
+want the non-mutating example catalog, including a database-backup Workflow.
 
 ### Inspect a real XYOps contract
 
@@ -99,6 +100,9 @@ secrets:
 
 ```bash
 cp .env.example .env
+# Generate two different values and place them into .env:
+openssl rand -base64 32  # CONFIG_ENCRYPTION_KEY
+openssl rand -base64 32  # ADMIN_TOKEN
 docker compose up -d --build
 docker compose ps
 ```
@@ -107,16 +111,27 @@ Open `http://localhost:3000`. To use another host port, set
 `DASHBOARD_PORT=8080` in `.env`. Stop the service with `docker compose down`.
 
 The container is non-root, read-only, drops Linux capabilities, and exposes
-only the dashboard port. It must have network access to the configured FreeIPA
-and XYOps addresses. FreeIPA needs a certificate trusted by Node.js inside the
-container; for an internal CA, add the CA certificate to a derived image and set
-`NODE_EXTRA_CA_CERTS` to its container path. TLS verification is not disabled.
+only the dashboard port. The named `dashboard-data` volume persists the local
+D1/SQLite database across container restarts. It must have network access to
+the configured FreeIPA and XYOps addresses. FreeIPA needs a certificate trusted
+by Node.js inside the container; for an internal CA, add the CA certificate to a
+derived image and set `NODE_EXTRA_CA_CERTS` to its container path. TLS
+verification is not disabled.
+
+Open **Settings**, enter the `ADMIN_TOKEN` from `.env`, and select **Open
+settings**. Saved non-secret values are stored in D1/SQLite. FreeIPA passwords
+and XYOps API keys are encrypted with AES-256-GCM using
+`CONFIG_ENCRYPTION_KEY`. Empty secret inputs retain the currently stored value;
+the browser never receives it. Changing `CONFIG_ENCRYPTION_KEY` after saving
+settings makes the encrypted values unreadable, so back up both the volume and
+the `.env` file securely.
 
 At runtime, FreeIPA credentials are used only by the server-side proxy for
-`user_find` and `group_find`. The browser never receives the password. When
-FreeIPA is unavailable, the UI labels and displays demo data. Mutations are
-validated server-side and sent to the selected XYOps Event or Workflow route;
-without XYOps credentials they create only a demo job.
+`user_find` and `group_find`. The browser never receives the password. If an
+integration is not configured, the UI displays an explicit `OFF` state and
+does not invent directory records or jobs. Mutations are validated server-side
+and sent to the selected XYOps Event or Workflow route. Demo records and demo
+jobs exist only when `DEMO_MODE=true` is set deliberately.
 
 ## Workspace Auth Headers
 
@@ -182,6 +197,7 @@ actions tied to the current ChatGPT user. Leave public content anonymous.
 - `npm run dev`: start the Vite/Vinext development server
 - `npm run build`: build and validate the deployable Sites artifact
 - `npm run start`: start the built Vinext application
+- `npm run start:docker`: start the built Worker with persistent local D1 (used by Docker)
 - `npm test`: build, validate, and verify the rendered development-preview metadata
 - `npm run validate:artifact`: recheck an existing artifact's manifest and ESM `default.fetch` export
 - `npm run db:generate`: generate Drizzle migrations after schema changes

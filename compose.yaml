@@ -15,8 +15,12 @@ services:
     read_only: true
     tmpfs:
       - /tmp
-      - /app/.wrangler
+    volumes:
+      - dashboard-data:/app/.wrangler
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
+
+volumes:
+  dashboard-data:

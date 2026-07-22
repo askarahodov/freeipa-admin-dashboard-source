@@ -11,6 +11,7 @@ export type RouteField = {
   min?: number;
   max?: number;
   section?: string;
+  groupPath?: string[];
   order?: number;
   visibleWhen?: {
     field: string;

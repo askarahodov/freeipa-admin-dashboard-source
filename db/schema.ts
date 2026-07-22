@@ -18,6 +18,7 @@ export const operationRuns = sqliteTable("operation_runs", {
   actor: text("actor").notNull(),
   subject: text("subject").notNull(),
   error: text("error"),
+  stagesJson: text("stages_json").notNull().default("[]"),
   startedAt: integer("started_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
   completedAt: integer("completed_at"),

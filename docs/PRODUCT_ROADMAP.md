@@ -28,15 +28,16 @@ for the user. FreeIPA is the first domain module, not a limit of the platform.
 
 - [ ] Validate normalization against a sanitized diagnostic export from the target XYOps installation.
 - [x] Support conditional fields, generated sections and allowlisted server-side remote option providers.
-- [ ] Validate nested field collections and multi-level dependencies against the target XYOps contract.
+- [x] Flatten and render nested `group`, `section` and `fieldset` collections as nested form groups.
+- [ ] Validate multi-level dependency expressions against the target XYOps contract.
 - [ ] Add explicit process/version identifiers and a schema compatibility report.
 - [x] Detect route schema drift and refresh a saved route from its source Event or Workflow.
-- [ ] Add a reviewed field-by-field change summary before applying a route refresh.
+- [x] Add a reviewed field-by-field change summary before applying a route refresh.
 - [ ] Add scheduled catalog synchronization and retention of schema history.
 
 ### P1 — execution visualization
 
-- [ ] Add a process run details page with workflow stages, timing and sanitized output.
+- [x] Add a process run details view with workflow stages, timing and sanitized stage errors.
 - [ ] Add retry, cancel and safe re-run where the XYOps contract supports them.
 - [ ] Render process-specific result widgets, files and links from declared output metadata.
 - [ ] Add notifications for completion and failure.

@@ -25,6 +25,7 @@ test("discovers, validates and launches a schema-driven XYOps workflow", async (
           { id: "mode", title: "Mode", type: "select", options: ["basic", "full"], section: "Advanced", order: 10, target: "workflowData" },
           { id: "ticket", title: "Approval ticket", type: "text", required: true, section: "Advanced", visible_when: { field: "mode", equals: "full" }, target: "workflowData" },
           { id: "cluster", title: "Cluster", type: "select", options_endpoint: "/api/app/get_clusters/v1", options_query_param: "search", target: "workflowData" },
+          { type: "group", title: "Connection", children: [{ type: "section", title: "TLS", fields: [{ id: "caProfile", title: "CA profile", type: "text", target: "input" }] }] },
         ],
       }] });
     }
@@ -50,10 +51,12 @@ test("discovers, validates and launches a schema-driven XYOps workflow", async (
       ["mode", "select", "workflowData"],
       ["ticket", "string", "workflowData"],
       ["cluster", "select", "workflowData"],
+      ["caProfile", "string", "input"],
     ]);
     assert.deepEqual(catalog.events[0].fields.find((field) => field.key === "ticket").visibleWhen, { field: "mode", operator: "equals", value: "full" });
     assert.equal(catalog.events[0].fields.find((field) => field.key === "mode").section, "Advanced");
     assert.deepEqual(catalog.events[0].fields.find((field) => field.key === "cluster").optionsSource, { endpoint: "/api/app/get_clusters/v1", queryParam: "search" });
+    assert.deepEqual(catalog.events[0].fields.find((field) => field.key === "caProfile").groupPath, ["Connection", "TLS"]);
 
     const optionsResponse = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog/options?eventId=backup-postgres&fieldKey=cluster&query=prod"), env, {});
     assert.deepEqual((await optionsResponse.json()).options, ["cluster-a", "cluster-b"]);

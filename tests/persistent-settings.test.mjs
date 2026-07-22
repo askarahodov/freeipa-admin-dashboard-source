@@ -73,7 +73,7 @@ test("automation routes require admin auth and persist without secret defaults",
     enabled: true,
     targets: ["freeipa"],
     fields: [
-      { key: "username", label: "Username", type: "string", required: true, target: "params" },
+      { key: "username", label: "Username", type: "string", required: true, target: "params", groupPath: ["Identity", "Account"], visibleWhen: { field: "mode", operator: "equals", value: "manual" } },
       { key: "operator_password", label: "Password", type: "password", default: "must-not-persist", target: "input" },
     ],
   };
@@ -85,6 +85,8 @@ test("automation routes require admin auth and persist without secret defaults",
   assert.equal(saved.status, 200);
   const savedBody = await saved.json();
   assert.equal(savedBody.routes[0].eventId, "event-42");
+  assert.deepEqual(savedBody.routes[0].fields[0].groupPath, ["Identity", "Account"]);
+  assert.deepEqual(savedBody.routes[0].fields[0].visibleWhen, { field: "mode", operator: "equals", value: "manual" });
   assert.equal(savedBody.routes[0].fields[1].default, undefined);
   assert.doesNotMatch(db.row.config_json, /must-not-persist/);
 

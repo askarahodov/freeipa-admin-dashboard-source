@@ -22,6 +22,13 @@
       "when": 1784722587762,
       "tag": "0002_lumpy_husk",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1784724075692,
+      "tag": "0003_rainy_arclight",
+      "breakpoints": true
     }
   ]
 }

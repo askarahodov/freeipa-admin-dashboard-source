@@ -32,6 +32,7 @@ interface ExecutionContext {
 }
 
 type RunStatus = "queued" | "running" | "success" | "failed" | "unknown";
+type RunStage = { id: string; title: string; status: RunStatus; startedAt: number | null; completedAt: number | null; error: string };
 
 type OperationRun = {
   id: string;
@@ -44,6 +45,7 @@ type OperationRun = {
   actor: string;
   subject: string;
   error: string;
+  stages: RunStage[];
   startedAt: number;
   updatedAt: number;
   completedAt: number | null;
@@ -95,6 +97,7 @@ const createOperationRunsTable = `CREATE TABLE IF NOT EXISTS operation_runs (
   actor TEXT NOT NULL,
   subject TEXT NOT NULL,
   error TEXT,
+  stages_json TEXT NOT NULL DEFAULT '[]',
   started_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   completed_at INTEGER
@@ -149,18 +152,19 @@ async function ensureOperationRuns(env: Env): Promise<void> {
 async function saveOperationRun(env: Env, run: OperationRun): Promise<void> {
   if (!env.DB) return;
   await ensureOperationRuns(env);
-  await env.DB.prepare("INSERT INTO operation_runs (id, job_id, event_id, title, kind, mode, status, actor, subject, error, started_at, updated_at, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET job_id = excluded.job_id, status = excluded.status, error = excluded.error, updated_at = excluded.updated_at, completed_at = excluded.completed_at")
-    .bind(run.id, run.jobId, run.eventId, run.title, run.kind, run.mode, run.status, run.actor, run.subject, run.error || null, run.startedAt, run.updatedAt, run.completedAt).run();
+  await env.DB.prepare("INSERT INTO operation_runs (id, job_id, event_id, title, kind, mode, status, actor, subject, error, stages_json, started_at, updated_at, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET job_id = excluded.job_id, status = excluded.status, error = excluded.error, stages_json = excluded.stages_json, updated_at = excluded.updated_at, completed_at = excluded.completed_at")
+    .bind(run.id, run.jobId, run.eventId, run.title, run.kind, run.mode, run.status, run.actor, run.subject, run.error || null, JSON.stringify(run.stages), run.startedAt, run.updatedAt, run.completedAt).run();
 }
 
 async function listOperationRuns(env: Env, limit = 100): Promise<OperationRun[]> {
   if (!env.DB) return [];
   await ensureOperationRuns(env);
-  const result = await env.DB.prepare("SELECT id, job_id, event_id, title, kind, mode, status, actor, subject, error, started_at, updated_at, completed_at FROM operation_runs ORDER BY started_at DESC LIMIT ?").bind(Math.max(1, Math.min(limit, 200))).all<Record<string, unknown>>();
+  const result = await env.DB.prepare("SELECT id, job_id, event_id, title, kind, mode, status, actor, subject, error, stages_json, started_at, updated_at, completed_at FROM operation_runs ORDER BY started_at DESC LIMIT ?").bind(Math.max(1, Math.min(limit, 200))).all<Record<string, unknown>>();
   return (result.results ?? []).map((row) => ({
     id: String(row.id ?? ""), jobId: String(row.job_id ?? ""), eventId: String(row.event_id ?? ""), title: String(row.title ?? ""),
     kind: row.kind === "workflow" ? "workflow" : "event", mode: row.mode === "demo" ? "demo" : "live", status: runStatus(row.status),
     actor: String(row.actor ?? "portal-user"), subject: String(row.subject ?? "—"), error: String(row.error ?? ""),
+    stages: (() => { try { const stages = JSON.parse(String(row.stages_json ?? "[]")); return Array.isArray(stages) ? stages.slice(0, 100) as RunStage[] : []; } catch { return []; } })(),
     startedAt: Number(row.started_at ?? 0), updatedAt: Number(row.updated_at ?? 0), completedAt: row.completed_at == null ? null : Number(row.completed_at),
   })).filter((run) => run.id);
 }
@@ -176,6 +180,24 @@ function extractJobRows(payload: unknown): Array<Record<string, unknown>> {
   return [];
 }
 
+function extractJobStages(row: Record<string, unknown>): RunStage[] {
+  const raw = [row.stages, row.steps, row.tasks, row.nodes, row.workflow_steps].find(Array.isArray) as unknown[] | undefined;
+  if (!raw) return [];
+  const timestamp = (value: unknown): number | null => {
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value === "string" && value) { const parsed = Date.parse(value); return Number.isFinite(parsed) ? parsed : null; }
+    return null;
+  };
+  return raw.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object" && !Array.isArray(item))).slice(0, 100).map((stage, index) => ({
+    id: String(stage.id ?? stage.step_id ?? stage.key ?? index).slice(0, 160),
+    title: String(stage.title ?? stage.name ?? stage.label ?? `Этап ${index + 1}`).slice(0, 240),
+    status: runStatus(stage.status ?? stage.state ?? stage.result),
+    startedAt: timestamp(stage.started_at ?? stage.startedAt),
+    completedAt: timestamp(stage.completed_at ?? stage.completedAt ?? stage.finished_at),
+    error: String(stage.error ?? stage.message ?? "").slice(0, 500),
+  }));
+}
+
 async function syncOperationRuns(env: Env, xyopsUrl: string | null, runs: OperationRun[]): Promise<OperationRun[]> {
   if (!env.DB || !xyopsUrl || !env.XYOPS_API_KEY || !runs.some((run) => run.mode === "live" && ["queued", "running", "unknown"].includes(run.status))) return runs;
   try {
@@ -188,8 +210,11 @@ async function syncOperationRuns(env: Env, xyopsUrl: string | null, runs: Operat
       const row = byId.get(run.jobId);
       if (!row) continue;
       const nextStatus = runStatus(row.status ?? row.state ?? row.result ?? row.outcome);
-      if (nextStatus === "unknown" || nextStatus === run.status) continue;
-      run.status = nextStatus;
+      const nextStages = extractJobStages(row);
+      const stagesChanged = nextStages.length > 0 && JSON.stringify(nextStages) !== JSON.stringify(run.stages);
+      if ((nextStatus === "unknown" || nextStatus === run.status) && !stagesChanged) continue;
+      if (nextStatus !== "unknown") run.status = nextStatus;
+      if (nextStages.length) run.stages = nextStages;
       run.updatedAt = now;
       if (nextStatus === "success" || nextStatus === "failed") run.completedAt = now;
       if (nextStatus === "failed") run.error = String(row.error ?? row.message ?? "XYOps job failed").slice(0, 500);
@@ -538,7 +563,7 @@ function fieldOptions(source: Record<string, unknown>): string[] | undefined {
 }
 
 function fieldCondition(source: Record<string, unknown>): RouteField["visibleWhen"] {
-  const raw = source.visible_when ?? source.show_when ?? source.condition ?? source.depends_on;
+  const raw = source.visibleWhen ?? source.visible_when ?? source.show_when ?? source.condition ?? source.depends_on;
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
   const condition = raw as Record<string, unknown>;
   const field = String(condition.field ?? condition.key ?? condition.dependsOn ?? "").trim().slice(0, 120);
@@ -551,7 +576,7 @@ function fieldCondition(source: Record<string, unknown>): RouteField["visibleWhe
 }
 
 function fieldOptionsSource(source: Record<string, unknown>): RouteField["optionsSource"] {
-  const raw = source.options_source ?? source.data_source;
+  const raw = source.optionsSource ?? source.options_source ?? source.data_source;
   const nested = raw && typeof raw === "object" && !Array.isArray(raw) ? raw as Record<string, unknown> : {};
   const endpoint = String(source.options_endpoint ?? source.options_url ?? nested.endpoint ?? nested.url ?? "").trim();
   if (!endpoint.startsWith("/api/app/") || endpoint.includes("..") || endpoint.length > 240) return undefined;
@@ -592,10 +617,36 @@ function normalizeXyField(raw: unknown): RouteField | null {
     min: typeof source.min === "number" ? source.min : undefined,
     max: typeof source.max === "number" ? source.max : undefined,
     section: String(source.section ?? source.group ?? source.fieldset ?? "").trim().slice(0, 120) || undefined,
+    groupPath: (() => {
+      const rawPath = source.groupPath ?? source.group_path ?? source.section_path ?? source.path;
+      const values = Array.isArray(rawPath) ? rawPath.map(String) : typeof rawPath === "string" ? rawPath.split(/\s*(?:\/|>)\s*/) : [];
+      const path = values.map((value) => value.trim().slice(0, 120)).filter(Boolean).slice(0, 8);
+      return path.length ? path : undefined;
+    })(),
     order: typeof source.order === "number" ? source.order : typeof source.position === "number" ? source.position : undefined,
     visibleWhen: fieldCondition(source),
     optionsSource: fieldOptionsSource(source),
   };
+}
+
+function normalizeXyFields(rawFields: unknown[], parentPath: string[] = []): RouteField[] {
+  const result: RouteField[] = [];
+  for (const raw of rawFields) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
+    const source = raw as Record<string, unknown>;
+    const type = String(source.type ?? "").toLowerCase();
+    const children = [source.children, source.fields, source.items].find(Array.isArray) as unknown[] | undefined;
+    if (["group", "section", "fieldset"].includes(type) && children) {
+      const title = String(source.title ?? source.label ?? source.name ?? "Группа").trim().slice(0, 120);
+      result.push(...normalizeXyFields(children, title ? [...parentPath, title] : parentPath));
+      continue;
+    }
+    const field = normalizeXyField(source);
+    if (!field) continue;
+    if (!field.groupPath?.length && parentPath.length) field.groupPath = parentPath;
+    result.push(field);
+  }
+  return result;
 }
 
 function extractEventRows(payload: unknown): Array<Record<string, unknown>> {
@@ -626,7 +677,7 @@ function catalogItem(event: Record<string, unknown>): CatalogEvent {
     enabled: event.enabled !== false,
     category: String(event.category ?? "general"),
     plugin: kind === "workflow" ? null : String(event.plugin ?? ""),
-    fields: (rawFields ?? []).map(normalizeXyField).filter((field): field is RouteField => field !== null),
+    fields: normalizeXyFields(rawFields ?? []),
     targets: targetValues(event.targets ?? event.target_options),
     dangerous: Boolean(event.dangerous ?? event.requires_confirmation),
   };
@@ -729,12 +780,13 @@ function operationRun(input: {
   values?: Record<string, unknown>;
   targets?: string[];
   error?: string;
+  stages?: RunStage[];
 }): OperationRun {
   const now = Date.now();
   return {
     id: crypto.randomUUID(), jobId: input.jobId || `LOCAL-${now}`, eventId: input.eventId, title: input.title,
     kind: input.kind, mode: input.mode, status: input.status, actor: requestActor(input.request),
-    subject: runSubject(input.values ?? {}, input.targets), error: (input.error ?? "").slice(0, 500),
+    subject: runSubject(input.values ?? {}, input.targets), error: (input.error ?? "").slice(0, 500), stages: input.stages ?? [],
     startedAt: now, updatedAt: now, completedAt: input.status === "success" || input.status === "failed" ? now : null,
   };
 }
@@ -851,7 +903,7 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
         return json({ error: "XYOps run_event failed", runId: run.id }, 502);
       }
       const reported = runStatus(result.status ?? result.state ?? resultData.status ?? resultData.state);
-      const run = operationRun({ request, eventId: event.id, title: event.title, kind: event.kind, mode: "live", jobId, status: reported === "unknown" ? "queued" : reported, values, targets: requestedTargets });
+      const run = operationRun({ request, eventId: event.id, title: event.title, kind: event.kind, mode: "live", jobId, status: reported === "unknown" ? "queued" : reported, values, targets: requestedTargets, stages: extractJobStages(result) });
       await saveOperationRun(baseEnv, run);
       return json({ mode: "live", queued: true, runId: run.id, jobId: run.jobId, status: run.status, process: { id: event.id, title: event.title, kind: event.kind } }, 202);
     } catch (error) {
@@ -934,7 +986,7 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
       const resultData = resultRecord.data && typeof resultRecord.data === "object" ? resultRecord.data as Record<string, unknown> : {};
       const jobId = String(resultRecord.job_id ?? resultRecord.jobId ?? resultRecord.id ?? resultData.job_id ?? "");
       const reported = runStatus(resultRecord.status ?? resultRecord.state ?? resultData.status ?? resultData.state);
-      const run = operationRun({ request, eventId: route.eventId, title: route.title, kind: route.kind, mode: "live", jobId, status: response.ok ? reported === "unknown" ? "queued" : reported : "failed", values: body, targets: route.targets ?? [], error: response.ok ? "" : "XYOps rejected run_event" });
+      const run = operationRun({ request, eventId: route.eventId, title: route.title, kind: route.kind, mode: "live", jobId, status: response.ok ? reported === "unknown" ? "queued" : reported : "failed", values: body, targets: route.targets ?? [], error: response.ok ? "" : "XYOps rejected run_event", stages: extractJobStages(result) });
       await saveOperationRun(baseEnv, run);
       return json({ mode: "live", queued: response.ok, runId: run.id, jobId: run.jobId, status: run.status, ...(response.ok ? {} : { error: "XYOps run_event failed" }) }, response.ok ? 202 : 502);
     } catch (error) {

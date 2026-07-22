@@ -78,6 +78,13 @@ only when the declared endpoint is a relative `/api/app/…` path; arbitrary URL
 are rejected. Saved routes indicate schema drift and can be refreshed from the
 current Event or Workflow without recreating the route.
 
+Nested `group`, `section` and `fieldset` collections are flattened into a safe
+field contract while retaining their hierarchy for the generated form. Before
+a saved route is refreshed, the UI lists added, changed and removed fields for
+explicit review. The operation journal also persists sanitized stage metadata
+from `stages`, `steps`, `tasks`, `nodes` or `workflow_steps` returned by XYOps
+and renders it as a run timeline.
+
 ## Schema-driven XYOps self-service
 
 The **Automation** section is generated from `GET /api/app/get_events/v1` and

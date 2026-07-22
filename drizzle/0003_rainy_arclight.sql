@@ -1,0 +1,1 @@
+ALTER TABLE `operation_runs` ADD `stages_json` text DEFAULT '[]' NOT NULL;

@@ -14,7 +14,7 @@ class RunsD1 {
         if (sql.startsWith("INSERT INTO operation_runs")) {
           const row = {
             id: values[0], job_id: values[1], event_id: values[2], title: values[3], kind: values[4], mode: values[5],
-            status: values[6], actor: values[7], subject: values[8], error: values[9], started_at: values[10], updated_at: values[11], completed_at: values[12],
+            status: values[6], actor: values[7], subject: values[8], error: values[9], stages_json: values[10], started_at: values[11], updated_at: values[12], completed_at: values[13],
           };
           const index = this.rows.findIndex((item) => item.id === row.id);
           if (index >= 0) this.rows[index] = row;
@@ -37,7 +37,7 @@ test("persists XYOps launches and synchronizes their status", async () => {
     const url = new URL(typeof input === "string" ? input : input.url);
     if (url.pathname.endsWith("/get_events/v1")) return Response.json({ events: [{ id: "backup-db", title: "Backup DB", type: "workflow", user_fields: [{ id: "database", title: "Database", required: true, target: "workflowData" }] }] });
     if (url.pathname.endsWith("/run_event/v1")) return Response.json({ job_id: "job-42", status: "queued", internal_secret: "must-not-leak" });
-    if (url.pathname.endsWith("/get_active_jobs/v1")) return Response.json({ jobs: [{ job_id: "job-42", status: activeStatus }] });
+    if (url.pathname.endsWith("/get_active_jobs/v1")) return Response.json({ jobs: [{ job_id: "job-42", status: activeStatus, stages: [{ id: "prepare", title: "Prepare", status: "success" }, { id: "backup", title: "Backup", status: activeStatus }] }] });
     return new Response("not found", { status: 404 });
   };
 
@@ -61,6 +61,7 @@ test("persists XYOps launches and synchronizes their status", async () => {
     assert.equal(runningResponse.status, 200);
     const running = await runningResponse.json();
     assert.equal(running.runs[0].status, "running");
+    assert.deepEqual(running.runs[0].stages.map((stage) => [stage.id, stage.status]), [["prepare", "success"], ["backup", "running"]]);
     assert.equal(running.stats.queued, 1);
 
     activeStatus = "success";

@@ -39,6 +39,25 @@ as failures without preventing creation of the report. Failure of the Event
 catalog sets a non-zero exit code because that contract is required by the
 portal.
 
+Inspector version 2 also classifies failures that happen before an HTTP
+response. The report records only a safe category, an allowlisted system error
+code and a generic hint; it never stores the raw error message or target
+address. Common categories are `dns`, `tls`, `timeout`,
+`connection_refused`, `connection_reset` and `network`.
+
+If every probe has `status: 0`, first read `results[].error.category` and
+`results[].error.hint`. This means no XYOps API contract was received yet:
+
+- `dns`: run the inspector on a computer connected to the required DNS/VPN;
+- `tls`: add the organization's CA certificate to Node.js trust with
+  `NODE_EXTRA_CA_CERTS=/path/to/company-ca.pem` and run again;
+- `connection_refused`: verify the XYOps scheme and port;
+- `timeout`: verify routing, firewall/VPN and increase `--timeout` if needed;
+- `network`: verify Node.js meets the version in `package.json`, then check the
+  URL, proxy and TLS configuration.
+
+Do not disable TLS verification and do not add credentials to the URL.
+
 To choose the output path:
 
 ```bash

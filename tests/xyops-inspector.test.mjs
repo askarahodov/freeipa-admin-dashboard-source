@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { collectShape, inspectXyops, sanitize } from "../scripts/xyops-inspect.mjs";
+import { collectShape, describeRequestError, inspectXyops, sanitize } from "../scripts/xyops-inspect.mjs";
 
 test("inspector preserves contracts while redacting secrets and identities", async () => {
   const payload = { events: [{ id: "event-secret-id", title: "Production DB Backup", enabled: true, user_fields: [{ id: "database", type: "menu", required: true, options: ["billing", "crm"], api_key: "must-not-leak" }] }] };
@@ -27,4 +27,24 @@ test("inspector preserves contracts while redacting secrets and identities", asy
 test("standalone helpers report array shape and optionally retain names", () => {
   assert.deepEqual(sanitize({ title: "Backup", type: "workflow", callback_url: "https://example.test/path?token=secret" }, { includeNames: true }), { title: "Backup", type: "workflow", callback_url: "[REDACTED_URL]" });
   assert.deepEqual(collectShape({ rows: [{ enabled: true }] }).map((entry) => entry.path), ["$", "$.rows", "$.rows[]", "$.rows[].enabled"]);
+});
+
+test("network failures are actionable without leaking raw messages or hosts", async () => {
+  const failure = new TypeError("fetch failed for https://secret.xyops.internal", { cause: Object.assign(new Error("certificate details"), { code: "SELF_SIGNED_CERT_IN_CHAIN" }) });
+  assert.deepEqual(describeRequestError(failure), {
+    name: "TypeError",
+    category: "tls",
+    code: "SELF_SIGNED_CERT_IN_CHAIN",
+    hint: "XYOps uses a certificate chain that Node.js does not trust.",
+  });
+
+  const report = await inspectXyops({
+    baseUrl: "https://secret.xyops.internal",
+    apiKey: "secret-key",
+    probes: [{ name: "events", path: "/api/app/get_events/v1", required: true }],
+    fetchImpl: async () => { throw failure; },
+  });
+  assert.equal(report.inspector.version, 2);
+  assert.equal(report.results[0].error.category, "tls");
+  assert.doesNotMatch(JSON.stringify(report), /secret\.xyops\.internal|secret-key|certificate details/);
 });

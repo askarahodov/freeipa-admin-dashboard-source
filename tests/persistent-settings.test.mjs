@@ -61,6 +61,24 @@ test("explicit demo mode is required for demo catalog", async () => {
   assert.ok(demoBody.events.some((event) => event.id === "database-backup"));
 });
 
+test("FreeIPA connection test replaces opaque runtime failures with actionable diagnostics", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => { throw new Error("internal error; reference = must-not-leak"); };
+  try {
+    const response = await worker.fetch(new Request("https://dashboard.test/api/integrations/settings/test", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-admin-token": "admin-token" },
+      body: JSON.stringify({ service: "freeipa", ipaUrl: "https://ipa.example.test", ipaUsername: "reader", ipaPassword: "secret" }),
+    }), { ADMIN_TOKEN: "admin-token" }, {});
+    assert.equal(response.status, 502);
+    const body = await response.json();
+    assert.match(body.error, /FreeIPA недоступен из среды портала на этапе «вход»/);
+    assert.doesNotMatch(body.error, /reference|must-not-leak/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("automation routes require admin auth and persist without secret defaults", async () => {
   const db = new MemoryD1();
   const env = { DB: db, ADMIN_TOKEN: "admin-token", CONFIG_ENCRYPTION_KEY: Buffer.alloc(32, 9).toString("base64") };

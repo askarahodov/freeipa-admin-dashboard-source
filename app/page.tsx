@@ -1,11 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { RouteField, AutomationRoute, CatalogEvent } from "../automation-types";
 
 type Page = "overview" | "automation" | "users" | "groups" | "operations" | "settings";
-type RouteField = { key: string; label: string; type: "string" | "password" | "textarea" | "boolean" | "number" | "select" | "multiselect" | "date" | "datetime" | "json"; required?: boolean; target?: "params" | "input" | "workflowData"; options?: string[]; default?: string | number | boolean | string[]; description?: string; placeholder?: string; min?: number; max?: number };
-type AutomationRoute = { key: string; title: string; operation: string; kind: "event" | "workflow"; eventId: string; enabled: boolean; targets: string[]; fields: RouteField[] };
-type CatalogEvent = { id: string; title: string; description: string; kind: "event" | "workflow"; enabled: boolean; category: string; plugin: string | null; fields: RouteField[]; targets: string[]; dangerous: boolean };
 type RunRecord = { jobId: string; title: string; kind: "event" | "workflow"; mode: "demo" | "live"; startedAt: string };
 type DirectoryUser = { uid: string; name: string; email: string; groups: number; active: boolean };
 type DirectoryGroup = { name: string; description: string; members: number; type: string };

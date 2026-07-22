@@ -4,6 +4,7 @@ CONFIG_ENCRYPTION_KEY=replace-with-32-byte-base64-key
 DEMO_MODE=false
 IPA_USERNAME=xyops-freeipa-reader
 IPA_PASSWORD=change-me
+IPA_VERIFY_TLS=true
 
 XYOPS_URL=https://xyops.company.local
 XYOPS_API_KEY=change-me

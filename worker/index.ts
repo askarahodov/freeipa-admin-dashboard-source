@@ -299,43 +299,7 @@ async function ipaRpc(env: Env, ipaUrl: string, method: string, args: unknown[] 
   return payload.result?.result ?? [];
 }
 
-type RouteField = {
-  key: string;
-  label: string;
-  type: "string" | "password" | "textarea" | "boolean" | "number" | "select" | "multiselect" | "date" | "datetime" | "json";
-  required?: boolean;
-  target?: "params" | "input" | "workflowData";
-  options?: string[];
-  default?: string | number | boolean | string[];
-  description?: string;
-  placeholder?: string;
-  min?: number;
-  max?: number;
-};
-
-type CatalogEvent = {
-  id: string;
-  title: string;
-  description: string;
-  kind: "event" | "workflow";
-  enabled: boolean;
-  category: string;
-  plugin: string | null;
-  fields: RouteField[];
-  targets: string[];
-  dangerous: boolean;
-};
-
-type AutomationRoute = {
-  key: string;
-  title: string;
-  operation: string;
-  kind: "event" | "workflow";
-  eventId: string;
-  enabled?: boolean;
-  targets?: string[];
-  fields?: RouteField[];
-};
+import type { RouteField, CatalogEvent, AutomationRoute } from "./automation-types";
 
 const allowedOperations = new Set(["user_add", "user_enable", "user_disable", "user_del", "group_add", "group_del", "group_add_member", "group_remove_member"]);
 

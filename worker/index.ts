@@ -10,6 +10,8 @@ interface Env {
   IPA_USERNAME?: string;
   IPA_PASSWORD?: string;
   IPA_VERIFY_TLS?: string;
+  IPA_NODE_GATEWAY_URL?: string;
+  IPA_NODE_GATEWAY_TOKEN?: string;
   XYOPS_URL?: string;
   XYOPS_API_KEY?: string;
   XYOPS_EVENT_ID?: string;
@@ -502,7 +504,7 @@ async function handleSettingsApi(request: Request, env: Env, url: URL): Promise<
   return json({ error: "Not found" }, 404);
 }
 
-function freeIpaNetworkError(error: unknown, stage: "вход" | "JSON-RPC"): Error {
+function freeIpaNetworkError(error: unknown, stage: "вход" | "JSON-RPC" | "Node Gateway"): Error {
   const name = error instanceof Error ? error.name : "RequestError";
   const cause = error && typeof error === "object" && "cause" in error ? (error as { cause?: unknown }).cause : null;
   const rawCode = cause && typeof cause === "object" && "code" in cause ? (cause as { code?: unknown }).code : error && typeof error === "object" && "code" in error ? (error as { code?: unknown }).code : "";
@@ -521,6 +523,20 @@ async function freeIpaFetch(url: string, init: RequestInit, stage: "вход" | 
 
 async function ipaRpc(env: Env, ipaUrl: string, method: string, args: unknown[] = [""], options: Record<string, unknown> = {}): Promise<Array<Record<string, unknown>>> {
   if (!env.IPA_USERNAME || !env.IPA_PASSWORD) throw new Error("FreeIPA credentials are not configured");
+  if (env.IPA_NODE_GATEWAY_URL && env.IPA_NODE_GATEWAY_TOKEN) {
+    let gatewayResponse: Response;
+    try {
+      gatewayResponse = await fetch(`${env.IPA_NODE_GATEWAY_URL}/rpc`, {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${env.IPA_NODE_GATEWAY_TOKEN}` },
+        body: JSON.stringify({ ipaUrl, username: env.IPA_USERNAME, password: env.IPA_PASSWORD, method, args, options }),
+        signal: AbortSignal.timeout(35000),
+      });
+    } catch (error) { throw freeIpaNetworkError(error, "Node Gateway"); }
+    const gatewayPayload = await gatewayResponse.json().catch(() => null) as { result?: Array<Record<string, unknown>>; error?: string } | null;
+    if (!gatewayResponse.ok) throw new Error(gatewayPayload?.error || `FreeIPA Node Gateway вернул HTTP ${gatewayResponse.status}`);
+    return Array.isArray(gatewayPayload?.result) ? gatewayPayload.result : [];
+  }
   const login = await freeIpaFetch(`${ipaUrl}/ipa/session/login_password`, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded", accept: "text/plain", referer: `${ipaUrl}/ipa/ui/` },

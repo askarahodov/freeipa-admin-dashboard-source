@@ -348,11 +348,12 @@ function base64ToBytes(value: string): Uint8Array {
 }
 
 async function encryptionKey(value?: string): Promise<CryptoKey> {
-  if (!value) throw new Error("CONFIG_ENCRYPTION_KEY is not configured");
+  const normalized = value?.trim();
+  if (!normalized) throw new Error("CONFIG_ENCRYPTION_KEY is not configured");
   let bytes: Uint8Array;
-  if (/^[0-9a-f]{64}$/i.test(value)) bytes = Uint8Array.from(value.match(/.{2}/g) ?? [], (pair) => Number.parseInt(pair, 16));
+  if (/^[0-9a-f]{64}$/i.test(normalized)) bytes = Uint8Array.from(normalized.match(/.{2}/g) ?? [], (pair) => Number.parseInt(pair, 16));
   else {
-    try { bytes = base64ToBytes(value); } catch { throw new Error("CONFIG_ENCRYPTION_KEY must be 32-byte base64 or 64-character hex"); }
+    try { bytes = base64ToBytes(normalized); } catch { throw new Error("CONFIG_ENCRYPTION_KEY must be 32-byte base64 or 64-character hex"); }
   }
   if (bytes.byteLength !== 32) throw new Error("CONFIG_ENCRYPTION_KEY must decode to exactly 32 bytes");
   return crypto.subtle.importKey("raw", bytes, "AES-GCM", false, ["encrypt", "decrypt"]);

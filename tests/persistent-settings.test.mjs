@@ -22,7 +22,7 @@ class MemoryD1 {
 
 test("settings require admin auth, encrypt secrets and persist across requests", async () => {
   const db = new MemoryD1();
-  const env = { DB: db, ADMIN_TOKEN: "admin-token", CONFIG_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64") };
+  const env = { DB: db, ADMIN_TOKEN: "admin-token", CONFIG_ENCRYPTION_KEY: `  ${Buffer.alloc(32, 7).toString("base64")}  ` };
 
   const unauthorized = await worker.fetch(new Request("https://dashboard.test/api/integrations/settings"), env, {});
   assert.equal(unauthorized.status, 401);

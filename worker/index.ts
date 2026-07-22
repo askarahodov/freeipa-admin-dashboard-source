@@ -875,6 +875,7 @@ function operationRun(input: {
 }
 
 async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): Promise<Response> {
+  if (request.method === "GET" && url.pathname === "/api/integrations/health") return json({ ok: true });
   if (url.pathname === "/api/integrations/settings" || url.pathname === "/api/integrations/settings/test") return handleSettingsApi(request, baseEnv, url);
   const env = await effectiveEnv(baseEnv);
   const ipaUrl = cleanBaseUrl(env.IPA_URL);

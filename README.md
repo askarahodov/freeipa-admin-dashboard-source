@@ -148,11 +148,11 @@ docker compose up -d --build
 docker compose ps
 ```
 
-Open `http://localhost:3000`. Stop the service with `docker compose down`.
+Open `http://localhost:3001`. Stop the service with `docker compose down`.
 The local Compose service uses `network_mode: host`, so on Linux it shares the
 host network stack and can use the host's VPN routes and network interfaces.
 Port publishing is intentionally omitted because it is incompatible with host
-networking. Port 3000 on the host must be available. Docker Desktop requires
+networking. Port 3001 on the host must be available. Docker Desktop requires
 host networking support to be enabled explicitly; Linux Docker Engine supports
 it directly.
 

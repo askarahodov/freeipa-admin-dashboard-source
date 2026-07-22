@@ -1,0 +1,22 @@
+services:
+  dashboard:
+    build:
+      context: .
+    image: freeipa-admin-dashboard:local
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOST: 0.0.0.0
+    ports:
+      - "${DASHBOARD_PORT:-3000}:3000"
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/.wrangler
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL

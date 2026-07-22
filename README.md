@@ -156,6 +156,14 @@ networking. Port 3001 on the host must be available. Docker Desktop requires
 host networking support to be enabled explicitly; Linux Docker Engine supports
 it directly.
 
+The Docker entrypoint also starts a private FreeIPA Node Gateway on a random
+`127.0.0.1` port. The Worker calls this gateway with an ephemeral bearer token,
+and the gateway performs the documented FreeIPA password login, retains the
+session cookie, and executes allowlisted read-only JSON-RPC methods. This avoids
+local Workerd outbound-fetch incompatibilities while keeping FreeIPA passwords
+encrypted at rest and off external interfaces. The gateway is not exposed as a
+Docker or public port.
+
 The container is non-root, read-only, drops Linux capabilities, and exposes
 only the dashboard port. The named `dashboard-data` volume persists the local
 D1/SQLite database across container restarts. It must have network access to

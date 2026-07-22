@@ -4,6 +4,7 @@ services:
       context: .
     image: freeipa-admin-dashboard:local
     restart: unless-stopped
+    network_mode: host
     env_file:
       - .env
     environment:
@@ -12,10 +13,6 @@ services:
       HOST: 0.0.0.0
       # Public development-only key. Replace it before any non-local deployment.
       CONFIG_ENCRYPTION_KEY: d0ee92e4c9b6b9e1282d4808ff08e03de28087b1b0b3b5f44198f7bdbe782ec5
-    ports:
-      - "${DASHBOARD_PORT:-3000}:3000"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     volumes:
       - dashboard-data:/app/.wrangler
     security_opt:

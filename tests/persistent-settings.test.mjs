@@ -20,6 +20,16 @@ class MemoryD1 {
   }
 }
 
+test("healthcheck does not depend on database or external integrations", async () => {
+  const response = await worker.fetch(new Request("https://dashboard.test/api/integrations/health"), {
+    DB: { prepare() { throw new Error("database must not be touched"); } },
+    IPA_URL: "https://unreachable.example.test",
+    XYOPS_URL: "https://unreachable.example.test",
+  }, {});
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { ok: true });
+});
+
 test("settings require admin auth, encrypt secrets and persist across requests", async () => {
   const db = new MemoryD1();
   const env = { DB: db, ADMIN_TOKEN: "admin-token", CONFIG_ENCRYPTION_KEY: `  ${Buffer.alloc(32, 7).toString("base64")}  ` };

@@ -12,6 +12,8 @@ services:
       HOST: 0.0.0.0
     ports:
       - "${DASHBOARD_PORT:-3000}:3000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - dashboard-data:/app/.wrangler
     security_opt:

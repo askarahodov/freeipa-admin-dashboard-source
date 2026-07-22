@@ -76,6 +76,14 @@ When XYOps is not configured, the catalog is explicitly marked as unavailable
 and no process can be started. Set `DEMO_MODE=true` only when you intentionally
 want the non-mutating example catalog, including a database-backup Workflow.
 
+Every accepted or rejected launch is recorded in the `operation_runs` D1 table
+without raw XYOps response bodies or submitted secret fields. The Operations
+page reads this persistent journal from `GET /api/integrations/runs`. While a
+job is active, the server compares its ID with the read-only
+`GET /api/app/get_active_jobs/v1` response and normalizes XYOps states to
+`queued`, `running`, `success`, `failed`, or `unknown`. The UI refreshes the
+journal automatically and derives overview counters from the stored records.
+
 ### Inspect a real XYOps contract
 
 Before enabling the portal against a real instance, run the read-only contract

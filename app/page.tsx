@@ -1,31 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import type { RouteField, AutomationRoute, CatalogEvent } from "../automation-types";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { AutomationRoute as SourceAutomationRoute, CatalogEvent, RouteField } from "../automation-types";
 
 type Page = "overview" | "automation" | "users" | "groups" | "operations" | "settings";
-type RunRecord = { jobId: string; title: string; kind: "event" | "workflow"; mode: "demo" | "live"; startedAt: string };
+type AutomationRoute = SourceAutomationRoute & { enabled: boolean; targets: string[]; fields: RouteField[] };
+type RunStatus = "queued" | "running" | "success" | "failed" | "unknown";
+type RunRecord = { id: string; jobId: string; eventId: string; title: string; kind: "event" | "workflow"; mode: "demo" | "live"; status: RunStatus; actor: string; subject: string; error: string | null; startedAt: number; updatedAt: number; completedAt: number | null };
+type RunStats = { today: number; queued: number; success: number; failed: number };
 type DirectoryUser = { uid: string; name: string; email: string; groups: number; active: boolean };
 type DirectoryGroup = { name: string; description: string; members: number; type: string };
 type IntegrationMode = "demo" | "live" | "unconfigured";
 type SettingsData = { source: "database" | "environment"; persistenceAvailable: boolean; encryptionConfigured: boolean; updatedAt: number | null; demoMode: boolean; freeipa: { url: string; username: string; passwordConfigured: boolean }; xyops: { url: string; apiKeyConfigured: boolean } };
-
-const defaultRoutes: AutomationRoute[] = [
-  { key: "user-create", title: "Создание пользователя", operation: "user_add", kind: "event", eventId: "freeipa-user-create", enabled: true, targets: [], fields: [
-    { key: "username", label: "Логин", type: "string", required: true, target: "params" },
-    { key: "firstName", label: "Имя", type: "string", required: true, target: "params" },
-    { key: "lastName", label: "Фамилия", type: "string", required: true, target: "params" },
-    { key: "email", label: "Email", type: "string", target: "params" },
-  ] },
-  { key: "user-onboarding", title: "Полный onboarding", operation: "user_add", kind: "workflow", eventId: "freeipa-user-onboarding", enabled: true, targets: [], fields: [
-    { key: "username", label: "Логин", type: "string", required: true, target: "params" },
-    { key: "department", label: "Отдел", type: "select", required: true, target: "workflowData", options: ["development", "devops", "security"] },
-  ] },
-  { key: "group-create", title: "Создание группы", operation: "group_add", kind: "event", eventId: "freeipa-group-create", enabled: true, targets: [], fields: [
-    { key: "group", label: "Группа", type: "string", required: true, target: "params" },
-    { key: "description", label: "Описание", type: "string", target: "params" },
-  ] },
-];
 
 const nav: { id: Page; label: string; icon: string }[] = [
   { id: "overview", label: "Обзор", icon: "⌂" },
@@ -51,14 +37,6 @@ const demoGroups: DirectoryGroup[] = [
   { name: "marketing", description: "Отдел маркетинга", members: 21, type: "Non-POSIX" },
 ];
 
-const operations = [
-  { action: "Создание пользователя", object: "jpetrov", status: "Успешно", actor: "admin", time: "10:24:15", tone: "success" },
-  { action: "Добавление в группу", object: "jpetrov → developers", status: "Успешно", actor: "admin", time: "10:21:03", tone: "success" },
-  { action: "Блокировка пользователя", object: "asmirnov", status: "Предупреждение", actor: "security_bot", time: "10:18:47", tone: "warning" },
-  { action: "Создание пользователя", object: "mivanova", status: "Успешно", actor: "admin", time: "10:15:22", tone: "success" },
-  { action: "Удаление группы", object: "legacy-support", status: "Ошибка", actor: "admin", time: "09:52:10", tone: "error" },
-];
-
 function Status({ children, tone = "success" }: { children: React.ReactNode; tone?: string }) {
   return <span className={`status ${tone}`}>{children}</span>;
 }
@@ -66,15 +44,17 @@ function Status({ children, tone = "success" }: { children: React.ReactNode; ton
 export default function Home() {
   const [page, setPage] = useState<Page>("overview");
   const [query, setQuery] = useState("");
-  const [modal, setModal] = useState<"user" | "group" | "test" | null>(null);
+  const [modal, setModal] = useState<"user" | "group" | null>(null);
   const [toast, setToast] = useState("");
-  const [integration, setIntegration] = useState<{ mode: IntegrationMode; freeipa: { reachable: boolean }; xyops: { reachable: boolean } }>({ mode: "unconfigured", freeipa: { reachable: false }, xyops: { reachable: false } });
-  const [routes, setRoutes] = useState<AutomationRoute[]>(defaultRoutes);
+  const [integration, setIntegration] = useState<{ mode: IntegrationMode; viewer: string; freeipa: { reachable: boolean }; xyops: { reachable: boolean } }>({ mode: "unconfigured", viewer: "Пользователь", freeipa: { reachable: false }, xyops: { reachable: false } });
+  const [routes, setRoutes] = useState<AutomationRoute[]>([]);
   const [catalog, setCatalog] = useState<CatalogEvent[]>([]);
   const [catalogMode, setCatalogMode] = useState<IntegrationMode>("unconfigured");
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [selectedProcess, setSelectedProcess] = useState<CatalogEvent | null>(null);
   const [recentRuns, setRecentRuns] = useState<RunRecord[]>([]);
+  const [runStats, setRunStats] = useState<RunStats>({ today: 0, queued: 0, success: 0, failed: 0 });
+  const [runsLoading, setRunsLoading] = useState(false);
   const [directoryUsers, setDirectoryUsers] = useState<DirectoryUser[]>([]);
   const [directoryGroups, setDirectoryGroups] = useState<DirectoryGroup[]>([]);
   const [directorySource, setDirectorySource] = useState<"demo" | "live" | "unconfigured">("unconfigured");
@@ -83,11 +63,11 @@ export default function Home() {
     fetch("/api/integrations/status", { cache: "no-store" })
       .then((response) => response.ok ? response.json() : Promise.reject())
       .then((data) => setIntegration(data))
-      .catch(() => setIntegration({ mode: "unconfigured", freeipa: { reachable: false }, xyops: { reachable: false } }));
+      .catch(() => setIntegration({ mode: "unconfigured", viewer: "Пользователь", freeipa: { reachable: false }, xyops: { reachable: false } }));
     fetch("/api/integrations/routes", { cache: "no-store" })
       .then((response) => response.ok ? response.json() : Promise.reject())
       .then((data) => Array.isArray(data.routes) && setRoutes(data.routes))
-      .catch(() => setRoutes(defaultRoutes));
+      .catch(() => setRoutes([]));
     fetch("/api/integrations/catalog", { cache: "no-store" })
       .then((response) => response.ok ? response.json() : Promise.reject())
       .then((data) => { setCatalog(Array.isArray(data.events) ? data.events : []); setCatalogMode(data.mode === "live" || data.mode === "demo" ? data.mode : "unconfigured"); })
@@ -116,12 +96,32 @@ export default function Home() {
       setDirectorySource("live");
     }).catch(() => {
       if (cancelled) return;
-      setDirectoryUsers(demoUsers);
-      setDirectoryGroups(demoGroups);
-      setDirectorySource("demo");
+      setDirectoryUsers([]);
+      setDirectoryGroups([]);
+      setDirectorySource("unconfigured");
     });
     return () => { cancelled = true; };
   }, [integration.freeipa.reachable, integration.mode]);
+
+  const loadRuns = useCallback(async (sync = true) => {
+    setRunsLoading(true);
+    try {
+      const response = await fetch(`/api/integrations/runs?limit=100&sync=${sync ? "1" : "0"}`, { cache: "no-store" });
+      if (!response.ok) throw new Error("Журнал операций недоступен");
+      const data = await response.json();
+      setRecentRuns(Array.isArray(data.runs) ? data.runs : []);
+      setRunStats(data.stats ?? { today: 0, queued: 0, success: 0, failed: 0 });
+    } catch {
+      setRecentRuns([]);
+      setRunStats({ today: 0, queued: 0, success: 0, failed: 0 });
+    } finally { setRunsLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    const initial = window.setTimeout(() => void loadRuns(true), 0);
+    const timer = window.setInterval(() => void loadRuns(true), 15000);
+    return () => { window.clearTimeout(initial); window.clearInterval(timer); };
+  }, [loadRuns]);
 
   async function syncCatalog() {
     setCatalogLoading(true);
@@ -154,9 +154,11 @@ export default function Home() {
       const response = await fetch("/api/integrations/actions", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ operation, ...payload }) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error);
+      await loadRuns(false);
       notify(result.mode === "live" ? "Задание отправлено в XYOps" : `Демо-задание создано: ${result.jobId}`);
-    } catch {
-      notify("Не удалось отправить задание");
+    } catch (error) {
+      await loadRuns(false);
+      notify(error instanceof Error ? error.message : "Не удалось отправить задание");
     }
   }
 
@@ -165,12 +167,12 @@ export default function Home() {
       const response = await fetch("/api/integrations/catalog/run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ eventId: event.id, values, targets }) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error);
-      const record: RunRecord = { jobId: result.jobId || "XYOps job", title: event.title, kind: event.kind, mode: result.mode === "live" ? "live" : "demo", startedAt: new Date().toLocaleTimeString("ru-RU") };
-      setRecentRuns((items) => [record, ...items].slice(0, 6));
+      await loadRuns(false);
       setSelectedProcess(null);
-      notify(record.mode === "live" ? `XYOps запущен: ${record.jobId}` : `Демо-задание создано: ${record.jobId}`);
+      notify(result.mode === "live" ? `XYOps запущен: ${result.jobId}` : `Демо-задание создано: ${result.jobId}`);
       return true;
     } catch (error) {
+      await loadRuns(false);
       notify(error instanceof Error ? error.message : "Не удалось запустить процесс");
       return false;
     }
@@ -181,20 +183,20 @@ export default function Home() {
       <aside className="sidebar">
         <div className="brand"><span className="brand-mark">◇</span><div><strong>FreeIPA Admin</strong><small>XYOps</small></div></div>
         <nav>{nav.map((item) => <button key={item.id} className={page === item.id ? "active" : ""} onClick={() => { setPage(item.id); setQuery(""); }}><span>{item.icon}</span>{item.label}</button>)}</nav>
-        <div className="sidebar-bottom"><div className="system-ok"><i /> <div><strong>Система в норме</strong><small>Все сервисы работают</small></div></div><p>© 2026 XYOps</p></div>
+        <div className="sidebar-bottom"><div className="system-ok"><i className={integration.freeipa.reachable && integration.xyops.reachable ? "" : "warning"} /> <div><strong>{integration.freeipa.reachable && integration.xyops.reachable ? "Система в норме" : "Требуется настройка"}</strong><small>{integration.freeipa.reachable && integration.xyops.reachable ? "FreeIPA и XYOps доступны" : "Проверьте подключения"}</small></div></div><p>© 2026 XYOps</p></div>
       </aside>
 
       <main className="main">
         <header className="topbar">
           <div><h1>{page === "overview" ? "Обзор инфраструктуры" : title}</h1><p>{page === "overview" ? "Управление FreeIPA через XYOps" : `Управление разделом «${title}»`}</p></div>
-          <div className="header-actions"><label className="global-search"><span>⌕</span><input aria-label="Глобальный поиск" placeholder="Поиск процессов, пользователей, групп…" value={query} onChange={(e) => setQuery(e.target.value)} /></label><button className="bell" onClick={() => notify("Новых уведомлений: 2")}>♢<b>2</b></button><button className="profile">AD <span>admin⌄</span></button></div>
+          <div className="header-actions"><label className="global-search"><span>⌕</span><input aria-label="Глобальный поиск" placeholder="Поиск процессов, пользователей, групп…" value={query} onChange={(e) => setQuery(e.target.value)} /></label><button className="bell" aria-label="Ошибки операций" onClick={() => notify(runStats.failed ? `Ошибок сегодня: ${runStats.failed}` : "Новых ошибок нет")}>♢{runStats.failed > 0 && <b>{runStats.failed}</b>}</button><button className="profile">{integration.viewer.slice(0, 2).toUpperCase()} <span>{integration.viewer}</span></button></div>
         </header>
 
-        {page === "overview" && <Overview goTo={setPage} integration={integration} userCount={directoryUsers.length} groupCount={directoryGroups.length} directorySource={directorySource} />}
+        {page === "overview" && <Overview goTo={setPage} integration={integration} userCount={directoryUsers.length} groupCount={directoryGroups.length} directorySource={directorySource} runs={recentRuns} runStats={runStats} />}
         {page === "automation" && <AutomationCatalog items={filteredCatalog} mode={catalogMode} loading={catalogLoading} recentRuns={recentRuns} onSync={() => void syncCatalog()} onLaunch={setSelectedProcess} />}
-        {page === "users" && <Users items={filteredUsers} total={directoryUsers.length} source={directorySource} onCreate={() => setModal("user")} onAction={notify} />}
-        {page === "groups" && <Groups items={filteredGroups} source={directorySource} onCreate={() => setModal("group")} onAction={notify} />}
-        {page === "operations" && <Operations />}
+        {page === "users" && <Users items={filteredUsers} total={directoryUsers.length} source={directorySource} onCreate={() => setModal("user")} />}
+        {page === "groups" && <Groups items={filteredGroups} source={directorySource} onCreate={() => setModal("group")} />}
+        {page === "operations" && <Operations runs={recentRuns} stats={runStats} loading={runsLoading} refresh={() => void loadRuns(true)} />}
         {page === "settings" && <Settings routes={routes} catalog={catalog} catalogLoading={catalogLoading} onSync={() => void syncCatalog()} notify={notify} />}
       </main>
 
@@ -205,13 +207,13 @@ export default function Home() {
   );
 }
 
-function Overview({ goTo, integration, userCount, groupCount, directorySource }: { goTo: (page: Page) => void; integration: { mode: IntegrationMode; freeipa: { reachable: boolean }; xyops: { reachable: boolean } }; userCount: number; groupCount: number; directorySource: "demo" | "live" | "unconfigured" }) {
+function Overview({ goTo, integration, userCount, groupCount, directorySource, runs, runStats }: { goTo: (page: Page) => void; integration: { mode: IntegrationMode; freeipa: { reachable: boolean }; xyops: { reachable: boolean } }; userCount: number; groupCount: number; directorySource: "demo" | "live" | "unconfigured"; runs: RunRecord[]; runStats: RunStats }) {
   return <div className="content-stack">
     <section className="metrics">
       <Metric icon="♙" label="Пользователи" value={userCount.toLocaleString("ru-RU")} delta={directorySource === "live" ? "FreeIPA" : directorySource === "demo" ? "Демо" : "Не настроено"} color="violet" />
       <Metric icon="♣" label="Группы" value={groupCount.toLocaleString("ru-RU")} delta={directorySource === "live" ? "FreeIPA" : directorySource === "demo" ? "Демо" : "Не настроено"} color="blue" />
-      <Metric icon="⌁" label="Активные операции" value="12" delta="↑ 20%" color="teal" />
-      <Metric icon="△" label="Ошибки за 24 ч" value="3" delta="↓ 25%" color="red" />
+      <Metric icon="⌁" label="Активные операции" value={String(runStats.queued)} delta="сегодня" color="teal" />
+      <Metric icon="△" label="Ошибки сегодня" value={String(runStats.failed)} delta="журнал XYOps" color="red" />
     </section>
     <section className="panel connections"><h2>Состояние подключения</h2><div className="connection-grid">
       <div className="service"><span className="service-icon teal">▤</span><div><h3><i className={`dot ${integration.freeipa.reachable ? "green" : "amber"}`} />FreeIPA {integration.freeipa.reachable ? "подключён" : integration.mode === "demo" ? "демо-режим" : "не настроен"}</h3><small>Источник данных</small><strong>{integration.freeipa.reachable ? "Сохранённая конфигурация" : integration.mode === "demo" ? "Демонстрационные данные" : "Требуется настройка"}</strong></div></div>
@@ -219,7 +221,7 @@ function Overview({ goTo, integration, userCount, groupCount, directorySource }:
       <div className="service"><span className="service-icon violet">⚙</span><div><h3><i className={`dot ${integration.xyops.reachable ? "violet-dot" : "amber"}`} />XYOps {integration.xyops.reachable ? "подключён" : integration.mode === "demo" ? "демо-режим" : "не настроен"}</h3><small>Исполнение операций</small><strong>{integration.xyops.reachable ? "Задания отправляются" : integration.mode === "demo" ? "Без внешних изменений" : "Требуется настройка"}</strong></div></div>
       <div className="pulse purple"><span><i className={`dot ${integration.xyops.reachable ? "violet-dot" : "amber"}`} /> {integration.xyops.reachable ? "LIVE" : integration.mode === "demo" ? "DEMO" : "OFF"}</span><b>⌁⌁⌁⌁</b><small>Проверено автоматически</small></div>
     </div></section>
-    <section className="panel table-panel"><div className="panel-title"><h2>Последние операции</h2><button onClick={() => goTo("operations")}>Смотреть все операции →</button></div><OperationTable rows={operations.slice(0, 4)} /></section>
+    <section className="panel table-panel"><div className="panel-title"><h2>Последние операции</h2><button onClick={() => goTo("operations")}>Смотреть все операции →</button></div><OperationTable rows={runs.slice(0, 4)} /></section>
   </div>;
 }
 
@@ -227,12 +229,14 @@ function Metric({ icon, label, value, delta, color }: { icon: string; label: str
   return <article className="metric"><div className={`metric-icon ${color}`}>{icon}</div><div><span>{label}</span><strong>{value}</strong></div><small className={color === "red" ? "down" : "up"}>{delta} <em>{color === "red" ? "по сравнению со вчера" : "за 7 дней"}</em></small></article>;
 }
 
-function Users({ items, total, source, onCreate, onAction }: { items: DirectoryUser[]; total: number; source: "demo" | "live" | "unconfigured"; onCreate: () => void; onAction: (s: string) => void }) {
-  return <section className="panel table-panel section-page"><div className="panel-title"><div><h2>Пользователи FreeIPA</h2><p>{`${items.length} из ${total} учетных записей · ${source === "live" ? "данные FreeIPA" : source === "demo" ? "демо-данные" : "FreeIPA не настроен"}`}</p></div><button className="primary" disabled={source === "unconfigured"} onClick={onCreate}>＋ Создать пользователя</button></div><div className="filter-row"><button className="filter active-filter">Все</button><button className="filter">Активные</button><button className="filter">Отключённые</button></div><div className="data-table"><div className="tr th users-row"><span>Пользователь</span><span>Логин</span><span>Группы</span><span>Статус</span><span /></div>{items.map((u) => <div className="tr users-row" key={u.uid}><span className="person"><b>{u.name.split(" ").map(x => x[0]).join("")}</b><span><strong>{u.name}</strong><small>{u.email}</small></span></span><span className="mono">{u.uid}</span><span>{u.groups}</span><span><Status tone={u.active ? "success" : "neutral"}>{u.active ? "Активен" : "Отключён"}</Status></span><span className="row-actions"><button onClick={() => onAction(`Открыт профиль ${u.uid}`)}>Открыть</button><button onClick={() => onAction(u.active ? `Пользователь ${u.uid} отключён` : `Пользователь ${u.uid} включён`)}>•••</button></span></div>)}</div>{source === "unconfigured" && <div className="catalog-empty"><strong>FreeIPA не настроен</strong><span>Сохраните подключение в разделе «Настройки».</span></div>}</section>;
+function Users({ items, total, source, onCreate }: { items: DirectoryUser[]; total: number; source: "demo" | "live" | "unconfigured"; onCreate: () => void }) {
+  const [filter, setFilter] = useState<"all" | "active" | "disabled">("all");
+  const visible = items.filter((user) => filter === "all" || (filter === "active" ? user.active : !user.active));
+  return <section className="panel table-panel section-page"><div className="panel-title"><div><h2>Пользователи FreeIPA</h2><p>{`${visible.length} из ${total} учетных записей · ${source === "live" ? "данные FreeIPA" : source === "demo" ? "демо-данные" : "FreeIPA не настроен"}`}</p></div><button className="primary" disabled={source === "unconfigured"} onClick={onCreate}>＋ Создать пользователя</button></div><div className="filter-row"><button className={`filter ${filter === "all" ? "active-filter" : ""}`} onClick={() => setFilter("all")}>Все</button><button className={`filter ${filter === "active" ? "active-filter" : ""}`} onClick={() => setFilter("active")}>Активные</button><button className={`filter ${filter === "disabled" ? "active-filter" : ""}`} onClick={() => setFilter("disabled")}>Отключённые</button></div><div className="data-table"><div className="tr th users-row"><span>Пользователь</span><span>Логин</span><span>Группы</span><span>Статус</span><span /></div>{visible.map((u) => <div className="tr users-row" key={u.uid}><span className="person"><b>{u.name.split(" ").map(x => x[0]).join("")}</b><span><strong>{u.name}</strong><small>{u.email}</small></span></span><span className="mono">{u.uid}</span><span>{u.groups}</span><span><Status tone={u.active ? "success" : "neutral"}>{u.active ? "Активен" : "Отключён"}</Status></span><span className="row-actions"><Status tone="neutral">Только чтение</Status></span></div>)}</div>{source === "unconfigured" && <div className="catalog-empty"><strong>FreeIPA не настроен</strong><span>Сохраните подключение в разделе «Настройки».</span></div>}</section>;
 }
 
-function Groups({ items, source, onCreate, onAction }: { items: DirectoryGroup[]; source: "demo" | "live" | "unconfigured"; onCreate: () => void; onAction: (s: string) => void }) {
-  return <div className="content-stack"><div className="page-tools"><div><h2>Группы доступа</h2><p>{`${items.length} групп · ${source === "live" ? "данные FreeIPA" : source === "demo" ? "демо-данные" : "FreeIPA не настроен"}`}</p></div><button className="primary" disabled={source === "unconfigured"} onClick={onCreate}>＋ Создать группу</button></div>{source === "unconfigured" ? <section className="panel catalog-empty"><strong>FreeIPA не настроен</strong><span>Сохраните подключение в разделе «Настройки».</span></section> : <section className="group-grid">{items.map((g, i) => <article className="group-card" key={g.name}><div className={`group-avatar c${i % 4}`}>♣</div><button onClick={() => onAction(`Меню группы ${g.name}`)}>•••</button><h3>{g.name}</h3><p>{g.description}</p><div><span><strong>{g.members}</strong><small>участников</small></span><Status tone="violet">{g.type}</Status></div><button className="open-group" onClick={() => onAction(`Открыта группа ${g.name}`)}>Управление участниками →</button></article>)}</section>}</div>;
+function Groups({ items, source, onCreate }: { items: DirectoryGroup[]; source: "demo" | "live" | "unconfigured"; onCreate: () => void }) {
+  return <div className="content-stack"><div className="page-tools"><div><h2>Группы доступа</h2><p>{`${items.length} групп · ${source === "live" ? "данные FreeIPA" : source === "demo" ? "демо-данные" : "FreeIPA не настроен"}`}</p></div><button className="primary" disabled={source === "unconfigured"} onClick={onCreate}>＋ Создать группу</button></div>{source === "unconfigured" ? <section className="panel catalog-empty"><strong>FreeIPA не настроен</strong><span>Сохраните подключение в разделе «Настройки».</span></section> : <section className="group-grid">{items.map((g, i) => <article className="group-card" key={g.name}><div className={`group-avatar c${i % 4}`}>♣</div><h3>{g.name}</h3><p>{g.description}</p><div><span><strong>{g.members}</strong><small>участников</small></span><Status tone="violet">{g.type}</Status></div><span className="settings-note">Управление участниками будет доступно через маршрут XYOps</span></article>)}</section>}</div>;
 }
 
 function AutomationCatalog({ items, mode, loading, recentRuns, onSync, onLaunch }: { items: CatalogEvent[]; mode: IntegrationMode; loading: boolean; recentRuns: RunRecord[]; onSync: () => void; onLaunch: (event: CatalogEvent) => void }) {
@@ -240,15 +244,23 @@ function AutomationCatalog({ items, mode, loading, recentRuns, onSync, onLaunch 
   return <div className="content-stack automation-page">
     <section className="automation-hero"><div><span className="eyebrow">XYOPS SELF-SERVICE</span><h2>Каталог рабочих процессов</h2><p>Формы создаются автоматически из полей Events и Workflows. Новые процессы появляются после синхронизации без изменения кода.</p></div><button className="secondary" disabled={loading} onClick={onSync}>{loading ? "Синхронизация…" : "⟳ Обновить каталог"}</button></section>
     <section className="catalog-summary"><article><span>⌘</span><div><strong>{items.length}</strong><small>доступных процессов</small></div></article><article><span>▦</span><div><strong>{categories}</strong><small>категорий</small></div></article><article><span>◇</span><div><strong>{items.reduce((sum, event) => sum + event.fields.length, 0)}</strong><small>динамических полей</small></div></article><article><span className={`source-dot ${mode}`} /><div><strong>{mode === "live" ? "LIVE" : mode === "demo" ? "DEMO" : "OFF"}</strong><small>источник каталога</small></div></article></section>
-    <div className="automation-layout"><section className="process-grid">{items.map((event) => <article className="process-card" key={event.id}><div className="process-top"><span className={`route-kind ${event.kind}`}>{event.kind === "workflow" ? "⌘" : "▶"}</span><div><Status tone={event.kind === "workflow" ? "violet" : "success"}>{event.kind === "workflow" ? "Workflow" : "Event"}</Status>{event.dangerous && <Status tone="warning">Подтверждение</Status>}</div></div><small className="process-category">{event.category}{event.plugin ? ` · ${event.plugin}` : ""}</small><h3>{event.title}</h3><p>{event.description || "Описание будет загружено из XYOps."}</p><div className="process-meta"><span>{event.fields.length} полей</span><span>{event.targets.length ? `${event.targets.length} targets` : "Targets из XYOps"}</span></div><button className="primary" disabled={!event.enabled} onClick={() => onLaunch(event)}>Сформировать и запустить →</button></article>)}</section><aside className="runs-panel panel"><div><h3>Последние запуски</h3><small>Текущая сессия</small></div>{recentRuns.length ? recentRuns.map((run) => <article key={`${run.jobId}-${run.startedAt}`}><i /><div><strong>{run.title}</strong><small>{run.startedAt} · {run.kind}</small><code>{run.jobId}</code></div><Status tone={run.mode === "live" ? "success" : "neutral"}>{run.mode === "live" ? "Отправлено" : "Демо"}</Status></article>) : <div className="runs-empty"><span>◷</span><strong>Запусков пока нет</strong><small>Выберите процесс из каталога</small></div>}</aside></div>
+    <div className="automation-layout"><section className="process-grid">{items.map((event) => <article className="process-card" key={event.id}><div className="process-top"><span className={`route-kind ${event.kind}`}>{event.kind === "workflow" ? "⌘" : "▶"}</span><div><Status tone={event.kind === "workflow" ? "violet" : "success"}>{event.kind === "workflow" ? "Workflow" : "Event"}</Status>{event.dangerous && <Status tone="warning">Подтверждение</Status>}</div></div><small className="process-category">{event.category}{event.plugin ? ` · ${event.plugin}` : ""}</small><h3>{event.title}</h3><p>{event.description || "Описание будет загружено из XYOps."}</p><div className="process-meta"><span>{event.fields.length} полей</span><span>{event.targets.length ? `${event.targets.length} targets` : "Targets из XYOps"}</span></div><button className="primary" disabled={!event.enabled} onClick={() => onLaunch(event)}>Сформировать и запустить →</button></article>)}</section><aside className="runs-panel panel"><div><h3>Последние запуски</h3><small>Постоянный журнал D1</small></div>{recentRuns.length ? recentRuns.slice(0, 6).map((run) => <article key={run.id}><i className={run.status} /><div><strong>{run.title}</strong><small>{formatDateTime(run.startedAt)} · {run.kind}</small><code>{run.jobId}</code></div><RunStatusBadge status={run.status} /></article>) : <div className="runs-empty"><span>◷</span><strong>Запусков пока нет</strong><small>Выберите процесс из каталога</small></div>}</aside></div>
     {!loading && !items.length && <section className="panel catalog-empty"><strong>Процессы не найдены</strong><span>Проверьте подключение XYOps или измените поисковый запрос.</span></section>}
   </div>;
 }
 
-function Operations() { return <section className="panel table-panel section-page"><div className="panel-title"><div><h2>Журнал операций XYOps</h2><p>История административных изменений и заданий</p></div><button className="secondary">⟳ Обновить</button></div><div className="stats-strip"><span><b>247</b> операций сегодня</span><span><i className="dot green" /><b>239</b> успешно</span><span><i className="dot amber" /><b>5</b> предупреждений</span><span><i className="dot red-dot" /><b>3</b> ошибки</span></div><OperationTable rows={operations} detailed /></section>; }
+function Operations({ runs, stats, loading, refresh }: { runs: RunRecord[]; stats: RunStats; loading: boolean; refresh: () => void }) { return <section className="panel table-panel section-page"><div className="panel-title"><div><h2>Журнал операций XYOps</h2><p>Постоянная история запусков и актуальные состояния заданий</p></div><button className="secondary" disabled={loading} onClick={refresh}>{loading ? "Обновление…" : "⟳ Обновить"}</button></div><div className="stats-strip"><span><b>{stats.today}</b> операций сегодня</span><span><i className="dot green" /><b>{stats.success}</b> успешно</span><span><i className="dot amber" /><b>{stats.queued}</b> выполняются</span><span><i className="dot red-dot" /><b>{stats.failed}</b> ошибки</span></div><OperationTable rows={runs} detailed /></section>; }
 
-function OperationTable({ rows, detailed = false }: { rows: typeof operations; detailed?: boolean }) {
-  return <div className="data-table"><div className={`tr th ${detailed ? "ops-detailed" : "ops-row"}`}><span>Операция</span><span>Объект</span><span>Статус</span><span>Инициатор</span><span>Время</span>{detailed && <span>Job</span>}</div>{rows.map((o, i) => <div className={`tr ${detailed ? "ops-detailed" : "ops-row"}`} key={`${o.action}-${i}`}><span className="operation"><i className={o.tone}>↗</i>{o.action}</span><span>{o.object}</span><span><Status tone={o.tone}>{o.status}</Status></span><span>{o.actor}</span><span><strong>{o.time}</strong><small>22.07.2026</small></span>{detailed && <span className="mono">#XY-{4821 - i}</span>}</div>)}</div>;
+function formatDateTime(value: number) { return value ? new Date(value).toLocaleString("ru-RU") : "—"; }
+
+function RunStatusBadge({ status }: { status: RunStatus }) {
+  const labels: Record<RunStatus, string> = { queued: "В очереди", running: "Выполняется", success: "Успешно", failed: "Ошибка", unknown: "Неизвестно" };
+  const tones: Record<RunStatus, string> = { queued: "warning", running: "violet", success: "success", failed: "error", unknown: "neutral" };
+  return <Status tone={tones[status]}>{labels[status]}</Status>;
+}
+
+function OperationTable({ rows, detailed = false }: { rows: RunRecord[]; detailed?: boolean }) {
+  return <div className="data-table"><div className={`tr th ${detailed ? "ops-detailed" : "ops-row"}`}><span>Операция</span><span>Объект</span><span>Статус</span><span>Инициатор</span><span>Время</span>{detailed && <span>Job</span>}</div>{rows.map((run) => <div className={`tr ${detailed ? "ops-detailed" : "ops-row"}`} key={run.id} title={run.error ?? ""}><span className="operation"><i className={run.status}>↗</i>{run.title}</span><span>{run.subject}</span><span><RunStatusBadge status={run.status} /></span><span>{run.actor}</span><span><strong>{new Date(run.startedAt).toLocaleTimeString("ru-RU")}</strong><small>{new Date(run.startedAt).toLocaleDateString("ru-RU")}</small></span>{detailed && <span className="mono">{run.jobId}</span>}</div>)}{!rows.length && <div className="catalog-empty"><strong>Операций пока нет</strong><span>Запуски Events и Workflows появятся здесь автоматически.</span></div>}</div>;
 }
 
 function PersistentConnectionSettings({ notify }: { notify: (message: string) => void }) {
@@ -326,13 +338,12 @@ function Settings({ routes, catalog, catalogLoading, onSync, notify }: { routes:
   </div>;
 }
 
-function Modal({ type, routes, close, submit }: { type: "user" | "group" | "test"; routes: AutomationRoute[]; close: () => void; submit: (s: string, payload?: { operation: string; data: Record<string, string> }) => void }) {
+function Modal({ type, routes, close, submit }: { type: "user" | "group"; routes: AutomationRoute[]; close: () => void; submit: (s: string, payload?: { operation: string; data: Record<string, string> }) => void }) {
   const isUser = type === "user";
   const operation = isUser ? "user_add" : "group_add";
   const availableRoutes = routes.filter((route) => route.operation === operation && route.enabled);
   const [selectedKey, setSelectedKey] = useState(availableRoutes[0]?.key ?? "");
   const selectedRoute = availableRoutes.find((route) => route.key === selectedKey) ?? availableRoutes[0];
-  if (type === "test") return <div className="modal-backdrop"><div className="modal small-modal"><button className="modal-x" onClick={close}>×</button><div className="checkmark">✓</div><h2>Соединение установлено</h2><p>FreeIPA и XYOps отвечают, учётные данные действительны.</p><button className="primary full" onClick={() => submit("Проверка подключений завершена")}>Готово</button></div></div>;
   return <div className="modal-backdrop"><form className="modal dynamic-modal" onSubmit={(e) => { e.preventDefault(); const form = new FormData(e.currentTarget); const data = Object.fromEntries(Array.from(form.entries()).map(([key, value]) => [key, String(value)])); submit("", { operation, data }); }}><button type="button" className="modal-x" onClick={close}>×</button><h2>{isUser ? "Новый пользователь" : "Новая группа"}</h2><p>Форма сформирована из схемы выбранного маршрута XYOps.</p><label>Маршрут автоматизации<select name="routeKey" value={selectedRoute?.key ?? ""} onChange={(event) => setSelectedKey(event.target.value)}>{availableRoutes.map((route) => <option key={route.key} value={route.key}>{route.title} · {route.kind === "workflow" ? "Workflow" : "Event"}</option>)}</select></label>{selectedRoute ? <><div className="selected-route"><span className={`route-kind ${selectedRoute.kind}`}>{selectedRoute.kind === "workflow" ? "⌘" : "▶"}</span><div><strong>{selectedRoute.title}</strong><code>{selectedRoute.eventId}</code></div><Status tone={selectedRoute.kind === "workflow" ? "violet" : "success"}>{selectedRoute.fields.length} полей</Status></div><div className="dynamic-fields" key={selectedRoute.key}>{selectedRoute.fields.map((field) => <DynamicField field={field} key={field.key} />)}</div></> : <div className="catalog-empty"><strong>Нет доступного маршрута</strong><span>Создайте привязку для операции {operation}.</span></div>}<div className="modal-actions"><button type="button" className="secondary" onClick={close}>Отмена</button><button className="primary" disabled={!selectedRoute}>Запустить</button></div></form></div>;
 }
 

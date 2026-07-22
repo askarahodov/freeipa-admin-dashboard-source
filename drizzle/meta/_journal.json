@@ -8,6 +8,13 @@
       "when": 1784717975495,
       "tag": "0000_overjoyed_gladiator",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1784720307438,
+      "tag": "0001_freezing_ghost_rider",
+      "breakpoints": true
     }
   ]
 }

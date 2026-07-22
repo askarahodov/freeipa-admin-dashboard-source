@@ -1,6 +1,7 @@
 /** Cloudflare Worker entry point for the vinext-starter template. */
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
+import type { AutomationRoute, CatalogEvent, RouteField } from "../automation-types";
 
 interface Env {
   ASSETS: Fetcher;
@@ -29,6 +30,24 @@ interface ExecutionContext {
   waitUntil(promise: Promise<unknown>): void;
   passThroughOnException(): void;
 }
+
+type RunStatus = "queued" | "running" | "success" | "failed" | "unknown";
+
+type OperationRun = {
+  id: string;
+  jobId: string;
+  eventId: string;
+  title: string;
+  kind: "event" | "workflow";
+  mode: "demo" | "live";
+  status: RunStatus;
+  actor: string;
+  subject: string;
+  error: string;
+  startedAt: number;
+  updatedAt: number;
+  completedAt: number | null;
+};
 
 // Image security config. SVG sources with .svg extension auto-skip the
 // optimization endpoint on the client side (served directly, no proxy).
@@ -62,8 +81,113 @@ const worker = {
 
 const jsonHeaders = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
 
+const createOperationRunsTable = `CREATE TABLE IF NOT EXISTS operation_runs (
+  id TEXT PRIMARY KEY NOT NULL,
+  job_id TEXT NOT NULL,
+  event_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  mode TEXT NOT NULL,
+  status TEXT NOT NULL,
+  actor TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  error TEXT,
+  started_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  completed_at INTEGER
+)`;
+
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status, headers: jsonHeaders });
+}
+
+function requestActor(request: Request): string {
+  const encodedName = request.headers.get("oai-authenticated-user-full-name");
+  if (encodedName && request.headers.get("oai-authenticated-user-full-name-encoding") === "percent-encoded-utf-8") {
+    try { return decodeURIComponent(encodedName).slice(0, 160); } catch {}
+  }
+  return (request.headers.get("oai-authenticated-user-email") || "portal-user").slice(0, 160);
+}
+
+function runStatus(value: unknown): RunStatus {
+  const normalized = String(value ?? "").toLowerCase().replace(/[\s-]+/g, "_");
+  if (["success", "succeeded", "completed", "complete", "done", "ok"].includes(normalized)) return "success";
+  if (["failed", "failure", "error", "cancelled", "canceled", "timeout", "timed_out"].includes(normalized)) return "failed";
+  if (["running", "active", "processing", "in_progress", "executing"].includes(normalized)) return "running";
+  if (["queued", "pending", "created", "scheduled", "waiting"].includes(normalized)) return "queued";
+  return "unknown";
+}
+
+function runSubject(values: Record<string, unknown>, targets: string[] = []): string {
+  for (const key of ["username", "uid", "group", "database", "server", "hostname", "name"]) {
+    const value = values[key];
+    if (typeof value === "string" && value.trim()) return value.trim().slice(0, 240);
+  }
+  return targets.filter(Boolean).slice(0, 3).join(", ").slice(0, 240) || "—";
+}
+
+function publicRun(run: OperationRun) {
+  return { ...run, error: run.error || null };
+}
+
+async function ensureOperationRuns(env: Env): Promise<void> {
+  if (!env.DB) return;
+  await env.DB.prepare(createOperationRunsTable).run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS operation_runs_started_at_idx ON operation_runs(started_at DESC)").run();
+  await env.DB.prepare("CREATE INDEX IF NOT EXISTS operation_runs_job_id_idx ON operation_runs(job_id)").run();
+}
+
+async function saveOperationRun(env: Env, run: OperationRun): Promise<void> {
+  if (!env.DB) return;
+  await ensureOperationRuns(env);
+  await env.DB.prepare("INSERT INTO operation_runs (id, job_id, event_id, title, kind, mode, status, actor, subject, error, started_at, updated_at, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET job_id = excluded.job_id, status = excluded.status, error = excluded.error, updated_at = excluded.updated_at, completed_at = excluded.completed_at")
+    .bind(run.id, run.jobId, run.eventId, run.title, run.kind, run.mode, run.status, run.actor, run.subject, run.error || null, run.startedAt, run.updatedAt, run.completedAt).run();
+}
+
+async function listOperationRuns(env: Env, limit = 100): Promise<OperationRun[]> {
+  if (!env.DB) return [];
+  await ensureOperationRuns(env);
+  const result = await env.DB.prepare("SELECT id, job_id, event_id, title, kind, mode, status, actor, subject, error, started_at, updated_at, completed_at FROM operation_runs ORDER BY started_at DESC LIMIT ?").bind(Math.max(1, Math.min(limit, 200))).all<Record<string, unknown>>();
+  return (result.results ?? []).map((row) => ({
+    id: String(row.id ?? ""), jobId: String(row.job_id ?? ""), eventId: String(row.event_id ?? ""), title: String(row.title ?? ""),
+    kind: row.kind === "workflow" ? "workflow" : "event", mode: row.mode === "demo" ? "demo" : "live", status: runStatus(row.status),
+    actor: String(row.actor ?? "portal-user"), subject: String(row.subject ?? "—"), error: String(row.error ?? ""),
+    startedAt: Number(row.started_at ?? 0), updatedAt: Number(row.updated_at ?? 0), completedAt: row.completed_at == null ? null : Number(row.completed_at),
+  })).filter((run) => run.id);
+}
+
+function extractJobRows(payload: unknown): Array<Record<string, unknown>> {
+  if (Array.isArray(payload)) return payload.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object"));
+  if (!payload || typeof payload !== "object") return [];
+  const source = payload as Record<string, unknown>;
+  for (const key of ["jobs", "active_jobs", "rows", "data", "result"]) if (source[key] !== payload) {
+    const rows = extractJobRows(source[key]);
+    if (rows.length) return rows;
+  }
+  return [];
+}
+
+async function syncOperationRuns(env: Env, xyopsUrl: string | null, runs: OperationRun[]): Promise<OperationRun[]> {
+  if (!env.DB || !xyopsUrl || !env.XYOPS_API_KEY || !runs.some((run) => run.mode === "live" && ["queued", "running", "unknown"].includes(run.status))) return runs;
+  try {
+    const response = await fetch(`${xyopsUrl}/api/app/get_active_jobs/v1`, { headers: { "x-api-key": env.XYOPS_API_KEY, accept: "application/json" }, signal: AbortSignal.timeout(12000) });
+    if (!response.ok) return runs;
+    const rows = extractJobRows(await response.json().catch(() => null));
+    const byId = new Map(rows.map((row) => [String(row.job_id ?? row.jobId ?? row.id ?? ""), row]));
+    const now = Date.now();
+    for (const run of runs) {
+      const row = byId.get(run.jobId);
+      if (!row) continue;
+      const nextStatus = runStatus(row.status ?? row.state ?? row.result ?? row.outcome);
+      if (nextStatus === "unknown" || nextStatus === run.status) continue;
+      run.status = nextStatus;
+      run.updatedAt = now;
+      if (nextStatus === "success" || nextStatus === "failed") run.completedAt = now;
+      if (nextStatus === "failed") run.error = String(row.error ?? row.message ?? "XYOps job failed").slice(0, 500);
+      await saveOperationRun(env, run);
+    }
+  } catch {}
+  return runs;
 }
 
 function cleanBaseUrl(value?: string): string | null {
@@ -299,8 +423,6 @@ async function ipaRpc(env: Env, ipaUrl: string, method: string, args: unknown[] 
   return payload.result?.result ?? [];
 }
 
-import type { RouteField, CatalogEvent, AutomationRoute } from "./automation-types";
-
 const allowedOperations = new Set(["user_add", "user_enable", "user_disable", "user_del", "group_add", "group_del", "group_add_member", "group_remove_member"]);
 
 function automationRoutes(env: Env): AutomationRoute[] {
@@ -460,6 +582,27 @@ function coerceField(field: RouteField, raw: unknown): unknown | null {
   return value;
 }
 
+function operationRun(input: {
+  request: Request;
+  eventId: string;
+  title: string;
+  kind: "event" | "workflow";
+  mode: "demo" | "live";
+  jobId: string;
+  status: RunStatus;
+  values?: Record<string, unknown>;
+  targets?: string[];
+  error?: string;
+}): OperationRun {
+  const now = Date.now();
+  return {
+    id: crypto.randomUUID(), jobId: input.jobId || `LOCAL-${now}`, eventId: input.eventId, title: input.title,
+    kind: input.kind, mode: input.mode, status: input.status, actor: requestActor(input.request),
+    subject: runSubject(input.values ?? {}, input.targets), error: (input.error ?? "").slice(0, 500),
+    startedAt: now, updatedAt: now, completedAt: input.status === "success" || input.status === "failed" ? now : null,
+  };
+}
+
 async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): Promise<Response> {
   if (url.pathname === "/api/integrations/settings" || url.pathname === "/api/integrations/settings/test") return handleSettingsApi(request, baseEnv, url);
   const env = await effectiveEnv(baseEnv);
@@ -471,7 +614,21 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
     const ipaConfigured = Boolean(ipaUrl && env.IPA_USERNAME && env.IPA_PASSWORD);
     const xyopsConfigured = Boolean(xyopsUrl && env.XYOPS_API_KEY);
     const [ipaReachable, xyopsReachable] = await Promise.all([!demoMode && ipaConfigured ? reachable(ipaUrl) : false, !demoMode && xyopsConfigured ? reachable(xyopsUrl) : false]);
-    return json({ mode: demoMode ? "demo" : ipaConfigured || xyopsConfigured ? "live" : "unconfigured", persistence: { available: Boolean(baseEnv.DB), configured: Boolean(baseEnv.CONFIG_ENCRYPTION_KEY) }, freeipa: { configured: ipaConfigured, reachable: ipaReachable }, xyops: { configured: xyopsConfigured, reachable: xyopsReachable } });
+    return json({ mode: demoMode ? "demo" : ipaConfigured || xyopsConfigured ? "live" : "unconfigured", viewer: requestActor(request), persistence: { available: Boolean(baseEnv.DB), configured: Boolean(baseEnv.CONFIG_ENCRYPTION_KEY) }, freeipa: { configured: ipaConfigured, reachable: ipaReachable }, xyops: { configured: xyopsConfigured, reachable: xyopsReachable } });
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/integrations/runs") {
+    const limit = Number(url.searchParams.get("limit") ?? 100);
+    let runs = await listOperationRuns(baseEnv, Number.isFinite(limit) ? limit : 100);
+    if (url.searchParams.get("sync") !== "0") runs = await syncOperationRuns(env, xyopsUrl, runs);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const todayRuns = runs.filter((run) => run.startedAt >= today.getTime());
+    return json({ persistenceAvailable: Boolean(baseEnv.DB), runs: runs.map(publicRun), stats: {
+      today: todayRuns.length,
+      queued: todayRuns.filter((run) => run.status === "queued" || run.status === "running").length,
+      success: todayRuns.filter((run) => run.status === "success").length,
+      failed: todayRuns.filter((run) => run.status === "failed").length,
+    } });
   }
 
   if (request.method === "GET" && url.pathname === "/api/integrations/routes") {
@@ -511,14 +668,29 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
         else params[field.key] = value;
       }
       const launchPayload = { id: event.id, params, input: { data: inputData }, ...(event.kind === "workflow" ? { workflowData } : {}), ...(requestedTargets.length ? { targets: requestedTargets } : event.targets.length === 1 ? { targets: event.targets } : {}) };
-      if (catalog.mode === "demo" || !xyopsUrl || !env.XYOPS_API_KEY) return json({ mode: "demo", queued: true, jobId: `DEMO-${Date.now()}`, process: { id: event.id, title: event.title, kind: event.kind } }, 202);
+      if (catalog.mode === "demo" || !xyopsUrl || !env.XYOPS_API_KEY) {
+        const run = operationRun({ request, eventId: event.id, title: event.title, kind: event.kind, mode: "demo", jobId: `DEMO-${Date.now()}`, status: "success", values, targets: requestedTargets });
+        await saveOperationRun(baseEnv, run);
+        return json({ mode: "demo", queued: true, runId: run.id, jobId: run.jobId, status: run.status, process: { id: event.id, title: event.title, kind: event.kind } }, 202);
+      }
       const response = await fetch(`${xyopsUrl}/api/app/run_event/v1`, { method: "POST", headers: { "content-type": "application/json", "x-api-key": env.XYOPS_API_KEY }, body: JSON.stringify(launchPayload), signal: AbortSignal.timeout(15000) });
       const result = await response.json().catch(() => ({})) as Record<string, unknown>;
-      if (!response.ok) return json({ error: "XYOps run_event failed", result }, 502);
       const resultData = result.data && typeof result.data === "object" ? result.data as Record<string, unknown> : {};
-      return json({ mode: "live", queued: true, jobId: String(result.job_id ?? result.jobId ?? result.id ?? resultData.job_id ?? ""), process: { id: event.id, title: event.title, kind: event.kind }, result }, 202);
+      const jobId = String(result.job_id ?? result.jobId ?? result.id ?? resultData.job_id ?? "");
+      if (!response.ok) {
+        const run = operationRun({ request, eventId: event.id, title: event.title, kind: event.kind, mode: "live", jobId, status: "failed", values, targets: requestedTargets, error: "XYOps rejected run_event" });
+        await saveOperationRun(baseEnv, run);
+        return json({ error: "XYOps run_event failed", runId: run.id }, 502);
+      }
+      const reported = runStatus(result.status ?? result.state ?? resultData.status ?? resultData.state);
+      const run = operationRun({ request, eventId: event.id, title: event.title, kind: event.kind, mode: "live", jobId, status: reported === "unknown" ? "queued" : reported, values, targets: requestedTargets });
+      await saveOperationRun(baseEnv, run);
+      return json({ mode: "live", queued: true, runId: run.id, jobId: run.jobId, status: run.status, process: { id: event.id, title: event.title, kind: event.kind } }, 202);
     } catch (error) {
-      return json({ error: error instanceof Error ? error.message : "XYOps request failed" }, 502);
+      const message = error instanceof Error ? error.message : "XYOps request failed";
+      const run = operationRun({ request, eventId: eventId || "unknown", title: eventId || "XYOps process", kind: "event", mode: "live", jobId: "", status: "failed", values, error: message });
+      await saveOperationRun(baseEnv, run);
+      return json({ error: message, runId: run.id }, 502);
     }
   }
 
@@ -577,7 +749,9 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
       else params[field.key] = value;
     }
     if (boolValue(env.DEMO_MODE)) {
-      return json({ mode: "demo", queued: true, jobId: `DEMO-${Date.now()}` }, 202);
+      const run = operationRun({ request, eventId: route.eventId, title: route.title, kind: route.kind, mode: "demo", jobId: `DEMO-${Date.now()}`, status: "success", values: body, targets: route.targets ?? [] });
+      await saveOperationRun(baseEnv, run);
+      return json({ mode: "demo", queued: true, runId: run.id, jobId: run.jobId, status: run.status }, 202);
     }
     if (!xyopsUrl || !env.XYOPS_API_KEY) return json({ error: "XYOps is not configured" }, 503);
     try {
@@ -588,9 +762,18 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
         signal: AbortSignal.timeout(15000),
       });
       const result = await response.json().catch(() => ({}));
-      return json({ mode: "live", queued: response.ok, result }, response.ok ? 202 : 502);
-    } catch {
-      return json({ error: "XYOps request failed" }, 502);
+      const resultRecord = result && typeof result === "object" ? result as Record<string, unknown> : {};
+      const resultData = resultRecord.data && typeof resultRecord.data === "object" ? resultRecord.data as Record<string, unknown> : {};
+      const jobId = String(resultRecord.job_id ?? resultRecord.jobId ?? resultRecord.id ?? resultData.job_id ?? "");
+      const reported = runStatus(resultRecord.status ?? resultRecord.state ?? resultData.status ?? resultData.state);
+      const run = operationRun({ request, eventId: route.eventId, title: route.title, kind: route.kind, mode: "live", jobId, status: response.ok ? reported === "unknown" ? "queued" : reported : "failed", values: body, targets: route.targets ?? [], error: response.ok ? "" : "XYOps rejected run_event" });
+      await saveOperationRun(baseEnv, run);
+      return json({ mode: "live", queued: response.ok, runId: run.id, jobId: run.jobId, status: run.status, ...(response.ok ? {} : { error: "XYOps run_event failed" }) }, response.ok ? 202 : 502);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "XYOps request failed";
+      const run = operationRun({ request, eventId: route.eventId, title: route.title, kind: route.kind, mode: "live", jobId: "", status: "failed", values: body, targets: route.targets ?? [], error: message });
+      await saveOperationRun(baseEnv, run);
+      return json({ error: message, runId: run.id }, 502);
     }
   }
 

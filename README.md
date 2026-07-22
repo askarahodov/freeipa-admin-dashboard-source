@@ -148,12 +148,13 @@ docker compose up -d --build
 docker compose ps
 ```
 
-Open `http://localhost:3000`. To use another host port, set
-`DASHBOARD_PORT=8080` in `.env`. Stop the service with `docker compose down`.
-If XYOps or FreeIPA runs on the same computer as Docker, use
-`http://host.docker.internal:<port>` instead of `localhost`; inside the
-container, `localhost` points to the dashboard itself. The Compose file maps
-`host.docker.internal` to the host gateway on Linux.
+Open `http://localhost:3000`. Stop the service with `docker compose down`.
+The local Compose service uses `network_mode: host`, so on Linux it shares the
+host network stack and can use the host's VPN routes and network interfaces.
+Port publishing is intentionally omitted because it is incompatible with host
+networking. Port 3000 on the host must be available. Docker Desktop requires
+host networking support to be enabled explicitly; Linux Docker Engine supports
+it directly.
 
 The container is non-root, read-only, drops Linux capabilities, and exposes
 only the dashboard port. The named `dashboard-data` volume persists the local

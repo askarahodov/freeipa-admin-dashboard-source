@@ -35,6 +35,8 @@ Scripts that need writable project-scoped home, npm, XDG, and temporary paths us
 The dashboard reads directory data from FreeIPA on the server side and routes
 mutating operations through xyOps. xyOps workflows use the same `run_event`
 endpoint as regular events, so the dashboard models both as automation routes.
+The long-term product contract and prioritized delivery backlog are maintained
+in [docs/PRODUCT_ROADMAP.md](docs/PRODUCT_ROADMAP.md).
 
 Copy `.dev.vars.example` to `.dev.vars` for local development. Routes can be
 created in **Settings → Automation routes** by selecting a catalog Event or
@@ -63,6 +65,11 @@ their inputs from the selected route schema rather than from hard-coded forms.
 User enable/disable/delete and group add/remove-member/delete controls appear
 only when a matching enabled route exists; every mutation is sent to the chosen
 XYOps Event or Workflow.
+
+The normalized catalog is persisted as a safe D1/SQLite snapshot. Every live
+synchronization compares process schemas and reports added, changed and removed
+items. If XYOps is temporarily unavailable, the portal can still visualize the
+last snapshot, but execution is disabled until a live contract is available.
 
 ## Schema-driven XYOps self-service
 

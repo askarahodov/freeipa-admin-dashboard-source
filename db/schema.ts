@@ -22,3 +22,9 @@ export const operationRuns = sqliteTable("operation_runs", {
   updatedAt: integer("updated_at").notNull(),
   completedAt: integer("completed_at"),
 });
+
+export const xyopsCatalogSnapshot = sqliteTable("xyops_catalog_snapshot", {
+  id: text("id").primaryKey(),
+  catalogJson: text("catalog_json").notNull(),
+  syncedAt: integer("synced_at").notNull(),
+});

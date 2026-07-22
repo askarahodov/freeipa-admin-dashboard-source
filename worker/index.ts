@@ -49,6 +49,9 @@ type OperationRun = {
   completedAt: number | null;
 };
 
+type CatalogChange = { id: string; title: string; kind: "new" | "changed" | "removed" };
+type CatalogSnapshot = { events: CatalogEvent[]; syncedAt: number };
+
 // Image security config. SVG sources with .svg extension auto-skip the
 // optimization endpoint on the client side (served directly, no proxy).
 // To route SVGs through the optimizer (with security headers), set
@@ -95,6 +98,12 @@ const createOperationRunsTable = `CREATE TABLE IF NOT EXISTS operation_runs (
   started_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   completed_at INTEGER
+)`;
+
+const createCatalogSnapshotTable = `CREATE TABLE IF NOT EXISTS xyops_catalog_snapshot (
+  id TEXT PRIMARY KEY NOT NULL,
+  catalog_json TEXT NOT NULL,
+  synced_at INTEGER NOT NULL
 )`;
 
 function json(data: unknown, status = 200): Response {
@@ -188,6 +197,37 @@ async function syncOperationRuns(env: Env, xyopsUrl: string | null, runs: Operat
     }
   } catch {}
   return runs;
+}
+
+async function readCatalogSnapshot(env: Env): Promise<CatalogSnapshot | null> {
+  if (!env.DB) return null;
+  await env.DB.prepare(createCatalogSnapshotTable).run();
+  const row = await env.DB.prepare("SELECT catalog_json, synced_at FROM xyops_catalog_snapshot WHERE id = ?").bind("current").first<{ catalog_json: string; synced_at: number }>();
+  if (!row) return null;
+  try {
+    const events = JSON.parse(row.catalog_json) as CatalogEvent[];
+    return Array.isArray(events) ? { events: events.filter((event) => event && typeof event.id === "string"), syncedAt: Number(row.synced_at) } : null;
+  } catch { return null; }
+}
+
+async function saveCatalogSnapshot(env: Env, events: CatalogEvent[], syncedAt: number): Promise<void> {
+  if (!env.DB) return;
+  await env.DB.prepare(createCatalogSnapshotTable).run();
+  await env.DB.prepare("INSERT INTO xyops_catalog_snapshot (id, catalog_json, synced_at) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET catalog_json = excluded.catalog_json, synced_at = excluded.synced_at")
+    .bind("current", JSON.stringify(events), syncedAt).run();
+}
+
+function catalogChanges(previous: CatalogEvent[], current: CatalogEvent[]): CatalogChange[] {
+  const before = new Map(previous.map((event) => [event.id, event]));
+  const after = new Map(current.map((event) => [event.id, event]));
+  const changes: CatalogChange[] = [];
+  for (const event of current) {
+    const old = before.get(event.id);
+    if (!old) changes.push({ id: event.id, title: event.title, kind: "new" });
+    else if (JSON.stringify(old) !== JSON.stringify(event)) changes.push({ id: event.id, title: event.title, kind: "changed" });
+  }
+  for (const event of previous) if (!after.has(event.id)) changes.push({ id: event.id, title: event.title, kind: "removed" });
+  return changes;
 }
 
 function cleanBaseUrl(value?: string): string | null {
@@ -585,6 +625,25 @@ async function loadCatalog(env: Env, xyopsUrl: string | null): Promise<{ mode: "
   return { mode: "live", events: extractEventRows(payload).map(catalogItem).filter((event) => event.id) };
 }
 
+async function portalCatalog(env: Env, xyopsUrl: string | null): Promise<{ mode: "demo" | "live" | "cached" | "unconfigured"; source: "demo" | "xyops" | "cache" | "none"; events: CatalogEvent[]; syncedAt: string | null; stale: boolean; changes: CatalogChange[] }> {
+  if (boolValue(env.DEMO_MODE)) return { mode: "demo", source: "demo", events: demoCatalog(env), syncedAt: new Date().toISOString(), stale: false, changes: [] };
+  const previous = await readCatalogSnapshot(env).catch(() => null);
+  if (!xyopsUrl || !env.XYOPS_API_KEY) return previous
+    ? { mode: "cached", source: "cache", events: previous.events, syncedAt: new Date(previous.syncedAt).toISOString(), stale: true, changes: [] }
+    : { mode: "unconfigured", source: "none", events: [], syncedAt: null, stale: false, changes: [] };
+  try {
+    const live = await loadCatalog(env, xyopsUrl);
+    const events = [...live.events].sort((left, right) => `${left.category}\0${left.title}\0${left.id}`.localeCompare(`${right.category}\0${right.title}\0${right.id}`));
+    const syncedAt = Date.now();
+    const changes = previous ? catalogChanges(previous.events, events) : events.map((event) => ({ id: event.id, title: event.title, kind: "new" as const }));
+    await saveCatalogSnapshot(env, events, syncedAt);
+    return { mode: "live", source: "xyops", events, syncedAt: new Date(syncedAt).toISOString(), stale: false, changes };
+  } catch (error) {
+    if (previous) return { mode: "cached", source: "cache", events: previous.events, syncedAt: new Date(previous.syncedAt).toISOString(), stale: true, changes: [] };
+    throw error;
+  }
+}
+
 function coerceField(field: RouteField, raw: unknown): unknown | null {
   if ((raw === undefined || raw === null || raw === "") && field.default !== undefined) raw = field.default;
   if (raw === undefined || raw === null || raw === "") return field.required ? null : "";
@@ -674,8 +733,7 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
 
   if (request.method === "GET" && url.pathname === "/api/integrations/catalog") {
     try {
-      const catalog = await loadCatalog(env, xyopsUrl);
-      return json({ ...catalog, syncedAt: new Date().toISOString() });
+      return json(await portalCatalog(env, xyopsUrl));
     } catch (error) {
       return json({ error: error instanceof Error ? error.message : "XYOps catalog request failed" }, 502);
     }

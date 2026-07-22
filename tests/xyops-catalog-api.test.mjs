@@ -62,3 +62,54 @@ test("discovers, validates and launches a schema-driven XYOps workflow", async (
     globalThis.fetch = originalFetch;
   }
 });
+
+class CatalogMemoryD1 {
+  snapshot = null;
+  prepare(sql) {
+    let values = [];
+    const statement = {
+      bind: (...args) => { values = args; return statement; },
+      run: async () => {
+        if (sql.startsWith("INSERT INTO xyops_catalog_snapshot")) this.snapshot = { catalog_json: values[1], synced_at: values[2] };
+        return { success: true };
+      },
+      first: async () => {
+        if (sql.startsWith("SELECT catalog_json")) return this.snapshot;
+        return null;
+      },
+    };
+    return statement;
+  }
+}
+
+test("persists catalog snapshots, detects schema changes and falls back safely", async () => {
+  const originalFetch = globalThis.fetch;
+  const db = new CatalogMemoryD1();
+  let revision = 1;
+  globalThis.fetch = async (input) => {
+    const url = new URL(typeof input === "string" ? input : input.url);
+    if (!url.pathname.endsWith("/get_events/v1")) return new Response("not found", { status: 404 });
+    if (revision === 3) throw new Error("XYOps offline");
+    return Response.json({ events: revision === 1
+      ? [{ id: "backup", title: "Backup", type: "workflow", category: "Databases", user_fields: [{ id: "database", type: "text" }] }]
+      : [{ id: "backup", title: "Backup", type: "workflow", category: "Databases", user_fields: [{ id: "database", type: "text", required: true }] }, { id: "restart", title: "Restart", type: "event", category: "Servers" }] });
+  };
+  const env = { DB: db, XYOPS_URL: "https://xyops.example.test", XYOPS_API_KEY: "secret" };
+  try {
+    const first = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog"), env, {}).then((response) => response.json());
+    assert.equal(first.source, "xyops");
+    assert.deepEqual(first.changes.map((change) => [change.id, change.kind]), [["backup", "new"]]);
+
+    revision = 2;
+    const second = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog"), env, {}).then((response) => response.json());
+    assert.deepEqual(second.changes.map((change) => [change.id, change.kind]), [["backup", "changed"], ["restart", "new"]]);
+
+    revision = 3;
+    const cached = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog"), env, {}).then((response) => response.json());
+    assert.equal(cached.mode, "cached");
+    assert.equal(cached.stale, true);
+    assert.deepEqual(cached.events.map((event) => event.id), ["backup", "restart"]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

@@ -1,1 +1,215 @@
-aW1wb3J0IGFzc2VydCBmcm9tICJub2RlOmFzc2VydC9zdHJpY3QiOwppbXBvcnQgdGVzdCBmcm9tICJub2RlOnRlc3QiOwoKaW1wb3J0IHdvcmtlciBmcm9tICIuLi9kaXN0L3NlcnZlci9pbmRleC5qcyI7Cgp0ZXN0KCJkaXNjb3ZlcnMsIHZhbGlkYXRlcyBhbmQgbGF1bmNoZXMgYSBzY2hlbWEtZHJpdmVuIFhZT3BzIHdvcmtmbG93IiwgYXN5bmMgKCkgPT4gewogIGNvbnN0IG9yaWdpbmFsRmV0Y2ggPSBnbG9iYWxUaGlzLmZldGNoOwogIGxldCBsYXVuY2hQYXlsb2FkOwogIGdsb2JhbFRoaXMuZmV0Y2ggPSBhc3luYyAoaW5wdXQsIGluaXQgPSB7fSkgPT4gewogICAgY29uc3QgdXJsID0gbmV3IFVSTCh0eXBlb2YgaW5wdXQgPT09ICJzdHJpbmciID8gaW5wdXQgOiBpbnB1dCBpbnN0YW5jZW9mIFVSTCA/IGlucHV0LmhyZWYgOiBpbnB1dC51cmwpOwogICAgaWYgKHVybC5wYXRobmFtZS5lbmRzV2l0aCgiL2dldF9ldmVudHMvdjEiKSkgewogICAgICByZXR1cm4gUmVzcG9uc2UuanNvbih7IGV2ZW50czogW3sKICAgICAgICBpZDogImJhY2t1cC1wb3N0Z3JlcyIsCiAgICAgICAgdGl0bGU6ICJCYWNrdXAgUG9zdGdyZVNRTCIsCiAgICAgICAgZGVzY3JpcHRpb246ICJDcmVhdGUgZGF0YWJhc2UgYmFja3VwIiwKICAgICAgICB0eXBlOiAid29ya2Zsb3ciLAogICAgICAgIGNhdGVnb3J5OiAiRGF0YWJhc2VzIiwKICAgICAgICB0YXJnZXRzOiBbImRiLTAxIiwgImRiLTAyIl0sCiAgICAgICAgdXNlcl9maWVsZHM6IFsKICAgICAgICAgIHsgaWQ6ICJkYXRhYmFzZSIsIHRpdGxlOiAiRGF0YWJhc2UiLCB0eXBlOiAidGV4dCIsIHJlcXVpcmVkOiB0cnVlLCB0YXJnZXQ6ICJ3b3JrZmxvd0RhdGEiIH0sCiAgICAgICAgICB7IGlkOiAicmV0ZW50aW9uIiwgdGl0bGU6ICJSZXRlbnRpb24iLCB0eXBlOiAibnVtYmVyIiwgcmVxdWlyZWQ6IHRydWUsIG1pbjogMSwgbWF4OiAzNjUsIGRlc3RpbmF0aW9uOiAid29ya2Zsb3dEYXRhIiB9LAogICAgICAgICAgeyBpZDogInZlcmlmeSIsIHRpdGxlOiAiVmVyaWZ5IiwgdHlwZTogImNoZWNrYm94IiwgZGVmYXVsdDogdHJ1ZSwgc2NvcGU6ICJ3b3JrZmxvd0RhdGEiIH0sCiAgICAgICAgICB7IGlkOiAiZm9ybWF0cyIsIHRpdGxlOiAiRm9ybWF0cyIsIHR5cGU6ICJtdWx0aW1lbnUiLCBvcHRpb25zOiBbImN1c3RvbSIsICJzcWwiXSwgdGFyZ2V0OiAid29ya2Zsb3dEYXRhIiB9LAogICAgICAgICAgeyBpZDogIm1ldGFkYXRhIiwgdGl0bGU6ICJNZXRhZGF0YSIsIHR5cGU6ICJqc29uIiwgdGFyZ2V0OiAiaW5wdXQiIH0sCiAgICAgICAgICB7IGlkOiAibW9kZSIsIHRpdGxlOiAiTW9kZSIsIHR5cGU6ICJzZWxlY3QiLCBvcHRpb25zOiBbImJhc2ljIiwgImZ1bGwiXSwgc2VjdGlvbjogIkFkdmFuY2VkIiwgb3JkZXI6IDEwLCB0YXJnZXQ6ICJ3b3JrZmxvd0RhdGEiIH0sCiAgICAgICAgICB7IGlkOiAidGlja2V0IiwgdGl0bGU6ICJBcHByb3ZhbCB0aWNrZXQiLCB0eXBlOiAidGV4dCIsIHJlcXVpcmVkOiB0cnVlLCBzZWN0aW9uOiAiQWR2YW5jZWQiLCB2aXNpYmxlX3doZW46IHsgZmllbGQ6ICJtb2RlIiwgZXF1YWxzOiAiZnVsbCIgfSwgdGFyZ2V0OiAid29ya2Zsb3dEYXRhIiB9LAogICAgICAgICAgeyBpZDogImNsdXN0ZXIiLCB0aXRsZTogIkNsdXN0ZXIiLCB0eXBlOiAic2VsZWN0Iiwgb3B0aW9uc19lbmRwb2ludDogIi9hcGkvYXBwL2dldF9jbHVzdGVycy92MSIsIG9wdGlvbnNfcXVlcnlfcGFyYW06ICJzZWFyY2giLCB0YXJnZXQ6ICJ3b3JrZmxvd0RhdGEiIH0sCiAgICAgICAgICB7IHR5cGU6ICJncm91cCIsIHRpdGxlOiAiQ29ubmVjdGlvbiIsIGNoaWxkcmVuOiBbeyB0eXBlOiAic2VjdGlvbiIsIHRpdGxlOiAiVExTIiwgZmllbGRzOiBbeyBpZDogImNhUHJvZmlsZSIsIHRpdGxlOiAiQ0EgcHJvZmlsZSIsIHR5cGU6ICJ0ZXh0IiwgdGFyZ2V0OiAiaW5wdXQiIH1dIH1dIH0sCiAgICAgICAgXSwKICAgICAgfV0gfSk7CiAgICB9CiAgICBpZiAodXJsLnBhdGhuYW1lLmVuZHNXaXRoKCIvZ2V0X2NsdXN0ZXJzL3YxIikpIHJldHVybiBSZXNwb25zZS5qc29uKHsgaXRlbXM6IFt7IGlkOiAiY2x1c3Rlci1hIiB9LCB7IGlkOiAiY2x1c3Rlci1iIiB9XSB9KTsKICAgIGlmICh1cmwucGF0aG5hbWUuZW5kc1dpdGgoIi9ydW5fZXZlbnQvdjEiKSkgewogICAgICBsYXVuY2hQYXlsb2FkID0gSlNPTi5wYXJzZShTdHJpbmcoaW5pdC5ib2R5KSk7CiAgICAgIHJldHVybiBSZXNwb25zZS5qc29uKHsgam9iX2lkOiAiam9iLTQyIiB9KTsKICAgIH0KICAgIHJldHVybiBuZXcgUmVzcG9uc2UoIm5vdCBmb3VuZCIsIHsgc3RhdHVzOiA0MDQgfSk7CiAgfTsKCiAgY29uc3QgZW52ID0geyBYWU9QU19VUkw6ICJodHRwczovL3h5b3BzLmV4YW1wbGUudGVzdCIsIFhZT1BTX0FQSV9LRVk6ICJhcGktc2VjcmV0IiB9OwogIHRyeSB7CiAgICBjb25zdCBjYXRhbG9nUmVzcG9uc2UgPSBhd2FpdCB3b3JrZXIuZmV0Y2gobmV3IFJlcXVlc3QoImh0dHBzOi8vZGFzaGJvYXJkLnRlc3QvYXBpL2ludGVncmF0aW9ucy9jYXRhbG9nIiksIGVudiwge30pOwogICAgY29uc3QgY2F0YWxvZyA9IGF3YWl0IGNhdGFsb2dSZXNwb25zZS5qc29uKCk7CiAgICBhc3NlcnQuZXF1YWwoY2F0YWxvZy5tb2RlLCAibGl2ZSIpOwogICAgYXNzZXJ0LmRlZXBFcXVhbChjYXRhbG9nLmV2ZW50c1swXS5maWVsZHMubWFwKChmaWVsZCkgPT4gW2ZpZWxkLmtleSwgZmllbGQudHlwZSwgZmllbGQudGFyZ2V0XSksIFsKICAgICAgWyJkYXRhYmFzZSIsICJzdHJpbmciLCAid29ya2Zsb3dEYXRhIl0sCiAgICAgIFsicmV0ZW50aW9uIiwgIm51bWJlciIsICJ3b3JrZmxvd0RhdGEiXSwKICAgICAgWyJ2ZXJpZnkiLCAiYm9vbGVhbiIsICJ3b3JrZmxvd0RhdGEiXSwKICAgICAgWyJmb3JtYXRzIiwgIm11bHRpc2VsZWN0IiwgIndvcmtmbG93RGF0YSJdLAogICAgICBbIm1ldGFkYXRhIiwgImpzb24iLCAiaW5wdXQiXSwKICAgICAgWyJtb2RlIiwgInNlbGVjdCIsICJ3b3JrZmxvd0RhdGEiXSwKICAgICAgWyJ0aWNrZXQiLCAic3RyaW5nIiwgIndvcmtmbG93RGF0YSJdLAogICAgICBbImNsdXN0ZXIiLCAic2VsZWN0IiwgIndvcmtmbG93RGF0YSJdLAogICAgICBbImNhUHJvZmlsZSIsICJzdHJpbmciLCAiaW5wdXQiXSwKICAgIF0pOwogICAgYXNzZXJ0LmRlZXBFcXVhbChjYXRhbG9nLmV2ZW50c1swXS5maWVsZHMuZmluZCgoZmllbGQpID0+IGZpZWxkLmtleSA9PT0gInRpY2tldCIpLnZpc2libGVXaGVuLCB7IGZpZWxkOiAibW9kZSIsIG9wZXJhdG9yOiAiZXF1YWxzIiwgdmFsdWU6ICJmdWxsIiB9KTsKICAgIGFzc2VydC5lcXVhbChjYXRhbG9nLmV2ZW50c1swXS5maWVsZHMuZmluZCgoZmllbGQpID0+IGZpZWxkLmtleSA9PT0gIm1vZGUiKS5zZWN0aW9uLCAiQWR2YW5jZWQiKTsKICAgIGFzc2VydC5kZWVwRXF1YWwoY2F0YWxvZy5ldmVudHNbMF0uZmllbGRzLmZpbmQoKGZpZWxkKSA9PiBmaWVsZC5rZXkgPT09ICJjbHVzdGVyIikub3B0aW9uc1NvdXJjZSwgeyBlbmRwb2ludDogIi9hcGkvYXBwL2dldF9jbHVzdGVycy92MSIsIHF1ZXJ5UGFyYW06ICJzZWFyY2giIH0pOwogICAgYXNzZXJ0LmRlZXBFcXVhbChjYXRhbG9nLmV2ZW50c1swXS5maWVsZHMuZmluZCgoZmllbGQpID0+IGZpZWxkLmtleSA9PT0gImNhUHJvZmlsZSIpLmdyb3VwUGF0aCwgWyJDb25uZWN0aW9uIiwgIlRMUyJdKTsKCiAgICBjb25zdCBvcHRpb25zUmVzcG9uc2UgPSBhd2FpdCB3b3JrZXIuZmV0Y2gobmV3IFJlcXVlc3QoImh0dHBzOi8vZGFzaGJvYXJkLnRlc3QvYXBpL2ludGVncmF0aW9ucy9jYXRhbG9nL29wdGlvbnM/ZXZlbnRJZD1iYWNrdXAtcG9zdGdyZXMmZmllbGRLZXk9Y2x1c3RlciZxdWVyeT1wcm9kIiksIGVudiwge30pOwogICAgYXNzZXJ0LmRlZXBFcXVhbCgoYXdhaXQgb3B0aW9uc1Jlc3BvbnNlLmpzb24oKSkub3B0aW9ucywgWyJjbHVzdGVyLWEiLCAiY2x1c3Rlci1iIl0pOwoKICAgIGNvbnN0IHJ1blJlc3BvbnNlID0gYXdhaXQgd29ya2VyLmZldGNoKG5ldyBSZXF1ZXN0KCJodHRwczovL2Rhc2hib2FyZC50ZXN0L2FwaS9pbnRlZ3JhdGlvbnMvY2F0YWxvZy9ydW4iLCB7IG1ldGhvZDogIlBPU1QiLCBoZWFkZXJzOiB7ICJjb250ZW50LXR5cGUiOiAiYXBwbGljYXRpb24vanNvbiIgfSwgYm9keTogSlNPTi5zdHJpbmdpZnkoeyBldmVudElkOiAiYmFja3VwLXBvc3RncmVzIiwgdGFyZ2V0czogWyJkYi0wMiJdLCB2YWx1ZXM6IHsgZGF0YWJhc2U6ICJiaWxsaW5nIiwgcmV0ZW50aW9uOiAiMzAiLCB2ZXJpZnk6IHRydWUsIGZvcm1hdHM6IFsiY3VzdG9tIl0sIG1ldGFkYXRhOiAie1widGlja2V0XCI6XCJPUFMtN1wifSIsIG1vZGU6ICJmdWxsIiwgdGlja2V0OiAiT1BTLTgiLCBjbHVzdGVyOiAiY2x1c3Rlci1hIiB9IH0pIH0pLCBlbnYsIHt9KTsKICAgIGFzc2VydC5lcXVhbChydW5SZXNwb25zZS5zdGF0dXMsIDIwMik7CiAgICBhc3NlcnQuZXF1YWwoKGF3YWl0IHJ1blJlc3BvbnNlLmpzb24oKSkuam9iSWQsICJqb2ItNDIiKTsKICAgIGFzc2VydC5kZWVwRXF1YWwobGF1bmNoUGF5bG9hZCwgewogICAgICBpZDogImJhY2t1cC1wb3N0Z3JlcyIsCiAgICAgIHBhcmFtczogeyBzb3VyY2U6ICJ4eW9wcy1zZWxmLXNlcnZpY2UiIH0sCiAgICAgIGlucHV0OiB7IGRhdGE6IHsgc291cmNlOiAieHlvcHMtc2VsZi1zZXJ2aWNlIiwgbWV0YWRhdGE6IHsgdGlja2V0OiAiT1BTLTciIH0gfSB9LAogICAgICB3b3JrZmxvd0RhdGE6IHsgZGF0YWJhc2U6ICJiaWxsaW5nIiwgcmV0ZW50aW9uOiAzMCwgdmVyaWZ5OiB0cnVlLCBmb3JtYXRzOiBbImN1c3RvbSJdLCBtb2RlOiAiZnVsbCIsIHRpY2tldDogIk9QUy04IiwgY2x1c3RlcjogImNsdXN0ZXItYSIgfSwKICAgICAgdGFyZ2V0czogWyJkYi0wMiJdLAogICAgfSk7CgogICAgY29uc3QgY29uZGl0aW9uYWwgPSBhd2FpdCB3b3JrZXIuZmV0Y2gobmV3IFJlcXVlc3QoImh0dHBzOi8vZGFzaGJvYXJkLnRlc3QvYXBpL2ludGVncmF0aW9ucy9jYXRhbG9nL3J1biIsIHsgbWV0aG9kOiAiUE9TVCIsIGhlYWRlcnM6IHsgImNvbnRlbnQtdHlwZSI6ICJhcHBsaWNhdGlvbi9qc29uIiB9LCBib2R5OiBKU09OLnN0cmluZ2lmeSh7IGV2ZW50SWQ6ICJiYWNrdXAtcG9zdGdyZXMiLCB2YWx1ZXM6IHsgZGF0YWJhc2U6ICJiaWxsaW5nIiwgcmV0ZW50aW9uOiA3LCBtb2RlOiAiYmFzaWMiIH0gfSkgfSksIGVudiwge30pOwogICAgYXNzZXJ0LmVxdWFsKGNvbmRpdGlvbmFsLnN0YXR1cywgMjAyKTsKICAgIGFzc2VydC5lcXVhbCgidGlja2V0IiBpbiBsYXVuY2hQYXlsb2FkLndvcmtmbG93RGF0YSwgZmFsc2UpOwoKICAgIGNvbnN0IG1pc3NpbmdDb25kaXRpb25hbCA9IGF3YWl0IHdvcmtlci5mZXRjaChuZXcgUmVxdWVzdCgiaHR0cHM6Ly9kYXNoYm9hcmQudGVzdC9hcGkvaW50ZWdyYXRpb25zL2NhdGFsb2cvcnVuIiwgeyBtZXRob2Q6ICJQT1NUIiwgaGVhZGVyczogeyAiY29udGVudC10eXBlIjogImFwcGxpY2F0aW9uL2pzb24iIH0sIGJvZHk6IEpTT04uc3RyaW5naWZ5KHsgZXZlbnRJZDogImJhY2t1cC1wb3N0Z3JlcyIsIHZhbHVlczogeyBkYXRhYmFzZTogImJpbGxpbmciLCByZXRlbnRpb246IDcsIG1vZGU6ICJmdWxsIiB9IH0pIH0pLCBlbnYsIHt9KTsKICAgIGFzc2VydC5lcXVhbChtaXNzaW5nQ29uZGl0aW9uYWwuc3RhdHVzLCA0MDApOwoKICAgIGNvbnN0IHJlamVjdGVkID0gYXdhaXQgd29ya2VyLmZldGNoKG5ldyBSZXF1ZXN0KCJodHRwczovL2Rhc2hib2FyZC50ZXN0L2FwaS9pbnRlZ3JhdGlvbnMvY2F0YWxvZy9ydW4iLCB7IG1ldGhvZDogIlBPU1QiLCBoZWFkZXJzOiB7ICJjb250ZW50LXR5cGUiOiAiYXBwbGljYXRpb24vanNvbiIgfSwgYm9keTogSlNPTi5zdHJpbmdpZnkoeyBldmVudElkOiAidW5rbm93bi1wcm9jZXNzIiwgdmFsdWVzOiB7fSB9KSB9KSwgZW52LCB7fSk7CiAgICBhc3NlcnQuZXF1YWwocmVqZWN0ZWQuc3RhdHVzLCA0MDQpOwogIH0gZmluYWxseSB7CiAgICBnbG9iYWxUaGlzLmZldGNoID0gb3JpZ2luYWxGZXRjaDsKICB9Cn0pOwoKdGVzdCgibm9ybWFsaXplcyB0aGUgaW5zdGFsbGVkIFhZT3BzIGZpZWxkcyBjb250cmFjdCBmcm9tIHJvd3MgYW5kIHdvcmtmbG93IG1ldGFkYXRhIiwgYXN5bmMgKCkgPT4gewogIGNvbnN0IG9yaWdpbmFsRmV0Y2ggPSBnbG9iYWxUaGlzLmZldGNoOwogIGxldCBsYXVuY2hQYXlsb2FkOwogIGdsb2JhbFRoaXMuZmV0Y2ggPSBhc3luYyAoaW5wdXQsIGluaXQgPSB7fSkgPT4gewogICAgY29uc3QgdXJsID0gbmV3IFVSTCh0eXBlb2YgaW5wdXQgPT09ICJzdHJpbmciID8gaW5wdXQgOiBpbnB1dCBpbnN0YW5jZW9mIFVSTCA/IGlucHV0LmhyZWYgOiBpbnB1dC51cmwpOwogICAgaWYgKHVybC5wYXRobmFtZS5lbmRzV2l0aCgiL2dldF9ldmVudHMvdjEiKSkgcmV0dXJuIFJlc3BvbnNlLmpzb24oeyBjb2RlOiAwLCByb3dzOiBbewogICAgICBpZDogIndvcmtmbG93LXVzZXItY3JlYXRlIiwKICAgICAgdGl0bGU6ICJDcmVhdGUgdXNlciBhbmQgZ3JhbnQgYWNjZXNzIiwKICAgICAgZW5hYmxlZDogdHJ1ZSwKICAgICAgdHlwZTogIndvcmtmbG93IiwKICAgICAgcGx1Z2luOiAiX3dvcmtmbG93IiwKICAgICAgY2F0ZWdvcnk6ICJjYXRlZ29yeS1pZCIsCiAgICAgIG5vdGVzOiAiUHJvdmlzaW9uIHRoZSBpZGVudGl0eSBhY3Jvc3MgY29ubmVjdGVkIHN5c3RlbXMuIiwKICAgICAgZmllbGRzOiBbCiAgICAgICAgeyBpZDogImlwYV91cmwiLCB0aXRsZTogIkZyZWVJUEEgVVJMIiwgdHlwZTogInRleHQiLCB2YXJpYW50OiAidXJsIiwgcmVxdWlyZWQ6IHRydWUsIHZhbHVlOiAiaHR0cHM6Ly9pcGEuZXhhbXBsZSIsIGNhcHRpb246ICJGcmVlSVBBIGVuZHBvaW50IiwgcmVnZXg6ICJodHRwczovLy4rIiB9LAogICAgICAgIHsgaWQ6ICJtYWlsIiwgdGl0bGU6ICJFbWFpbCIsIHR5cGU6ICJ0ZXh0IiwgdmFyaWFudDogImVtYWlsIiwgcmVxdWlyZWQ6IGZhbHNlLCB2YWx1ZTogIiIgfSwKICAgICAgICB7IGlkOiAiaW5pdGlhbF9wYXNzd29yZCIsIHRpdGxlOiAiSW5pdGlhbCBwYXNzd29yZCIsIHR5cGU6ICJ0ZXh0IiwgdmFyaWFudDogInBhc3N3b3JkIiwgcmVxdWlyZWQ6IHRydWUsIHZhbHVlOiAibXVzdC1ub3QtcGVyc2lzdCIsIGNhcHRpb246ICJUZW1wb3JhcnkgcGFzc3dvcmQiIH0sCiAgICAgICAgeyBpZDogIm1vZGUiLCB0aXRsZTogIk1vZGUiLCB0eXBlOiAic2VsZWN0IiwgbXVsdGlwbGU6IGZhbHNlLCB2YWx1ZTogInNhZmUiLCBjYXB0aW9uOiAiWFlPcHMgZG9lcyBub3QgcHVibGlzaCBjaG9pY2VzIGZvciB0aGlzIGZpZWxkIiB9LAogICAgICAgIHsgaWQ6ICJ1aWQiLCB0aXRsZTogIkxvZ2luIiwgdHlwZTogInRleHQiLCByZXF1aXJlZDogdHJ1ZSwgbG9ja2VkOiB0cnVlLCB2YWx1ZTogIm9wZXJhdG9yIiB9LAogICAgICBdLAogICAgICB3b3JrZmxvdzogeyBub2RlczogW3sgaWQ6ICJ0cmlnZ2VyIiwgdHlwZTogInRyaWdnZXIiIH0sIHsgaWQ6ICJjcmVhdGUiLCB0eXBlOiAiam9iIiwgZGF0YTogeyBwbHVnaW46ICJpcGFfY3JlYXRlIiwgcGFyYW1zOiB7IHVpZDogIiR7dWlkfSIgfSB9IH1dLCBjb25uZWN0aW9uczogW3sgc291cmNlOiAidHJpZ2dlciIsIGRlc3Q6ICJjcmVhdGUiIH1dIH0sCiAgICB9XSB9KTsKICAgIGlmICh1cmwucGF0aG5hbWUuZW5kc1dpdGgoIi9ydW5fZXZlbnQvdjEiKSkgeyBsYXVuY2hQYXlsb2FkID0gSlNPTi5wYXJzZShTdHJpbmcoaW5pdC5ib2R5KSk7IHJldHVybiBSZXNwb25zZS5qc29uKHsgY29kZTogMCwgam9iX2lkOiAiam9iLXJlYWwtY29udHJhY3QiIH0pOyB9CiAgICByZXR1cm4gbmV3IFJlc3BvbnNlKCJub3QgZm91bmQiLCB7IHN0YXR1czogNDA0IH0pOwogIH07CgogIHRyeSB7CiAgICBjb25zdCBlbnYgPSB7IFhZT1BTX1VSTDogImh0dHA6Ly94eW9wcy5leGFtcGxlLnRlc3QiLCBYWU9QU19BUElfS0VZOiAiYXBpLXNlY3JldCIgfTsKICAgIGNvbnN0IGNhdGFsb2cgPSBhd2FpdCB3b3JrZXIuZmV0Y2gobmV3IFJlcXVlc3QoImh0dHBzOi8vZGFzaGJvYXJkLnRlc3QvYXBpL2ludGVncmF0aW9ucy9jYXRhbG9nIiksIGVudiwge30pLnRoZW4oKHJlc3BvbnNlKSA9PiByZXNwb25zZS5qc29uKCkpOwogICAgYXNzZXJ0LmVxdWFsKGNhdGFsb2cuZXZlbnRzWzBdLmRlc2NyaXB0aW9uLCAiUHJvdmlzaW9uIHRoZSBpZGVudGl0eSBhY3Jvc3MgY29ubmVjdGVkIHN5c3RlbXMuIik7CiAgICBhc3NlcnQuZGVlcEVxdWFsKGNhdGFsb2cuZXZlbnRzWzBdLmZpZWxkcy5tYXAoKGZpZWxkKSA9PiBbZmllbGQua2V5LCBmaWVsZC50eXBlXSksIFtbImlwYV91cmwiLCAidXJsIl0sIFsibWFpbCIsICJlbWFpbCJdLCBbImluaXRpYWxfcGFzc3dvcmQiLCAicGFzc3dvcmQiXSwgWyJtb2RlIiwgInNlbGVjdCJdLCBbInVpZCIsICJzdHJpbmciXV0pOwogICAgYXNzZXJ0LmVxdWFsKGNhdGFsb2cuZXZlbnRzWzBdLmZpZWxkc1swXS5kZXNjcmlwdGlvbiwgIkZyZWVJUEEgZW5kcG9pbnQiKTsKICAgIGFzc2VydC5lcXVhbChjYXRhbG9nLmV2ZW50c1swXS5maWVsZHNbMF0ucGF0dGVybiwgImh0dHBzOi8vLisiKTsKICAgIGFzc2VydC5lcXVhbChjYXRhbG9nLmV2ZW50c1swXS5maWVsZHNbMl0uZGVmYXVsdCwgdW5kZWZpbmVkKTsKICAgIGFzc2VydC5lcXVhbChjYXRhbG9nLmV2ZW50c1swXS5maWVsZHNbNF0ucmVhZE9ubHksIHRydWUpOwoKICAgIGNvbnN0IHJlc3BvbnNlID0gYXdhaXQgd29ya2VyLmZldGNoKG5ldyBSZXF1ZXN0KCJodHRwczovL2Rhc2hib2FyZC50ZXN0L2FwaS9pbnRlZ3JhdGlvbnMvY2F0YWxvZy9ydW4iLCB7IG1ldGhvZDogIlBPU1QiLCBoZWFkZXJzOiB7ICJjb250ZW50LXR5cGUiOiAiYXBwbGljYXRpb24vanNvbiIgfSwgYm9keTogSlNPTi5zdHJpbmdpZnkoeyBldmVudElkOiAid29ya2Zsb3ctdXNlci1jcmVhdGUiLCB2YWx1ZXM6IHsgaXBhX3VybDogImh0dHBzOi8vaXBhLmV4YW1wbGUiLCBtYWlsOiAib3BzQGV4YW1wbGUudGVzdCIsIGluaXRpYWxfcGFzc3dvcmQ6ICJvbmUtdGltZSIsIG1vZGU6ICJzYWZlIiwgdWlkOiAib3BlcmF0b3IiIH0gfSkgfSksIGVudiwge30pOwogICAgYXNzZXJ0LmVxdWFsKHJlc3BvbnNlLnN0YXR1cywgMjAyKTsKICAgIGFzc2VydC5kZWVwRXF1YWwobGF1bmNoUGF5bG9hZC5wYXJhbXMsIHsgc291cmNlOiAieHlvcHMtc2VsZi1zZXJ2aWNlIiwgaXBhX3VybDogImh0dHBzOi8vaXBhLmV4YW1wbGUiLCBtYWlsOiAib3BzQGV4YW1wbGUudGVzdCIsIGluaXRpYWxfcGFzc3dvcmQ6ICJvbmUtdGltZSIsIG1vZGU6ICJzYWZlIiwgdWlkOiAib3BlcmF0b3IiIH0pOwogIH0gZmluYWxseSB7CiAgICBnbG9iYWxUaGlzLmZldGNoID0gb3JpZ2luYWxGZXRjaDsKICB9Cn0pOwoKdGVzdCgicmVqZWN0cyBhbiBYWU9wcyBjYXRhbG9nIHJlc3BvbnNlIHdpdGggYSBub24temVybyBhcHBsaWNhdGlvbiBjb2RlIiwgYXN5bmMgKCkgPT4gewogIGNvbnN0IG9yaWdpbmFsRmV0Y2ggPSBnbG9iYWxUaGlzLmZldGNoOwogIGdsb2JhbFRoaXMuZmV0Y2ggPSBhc3luYyAoKSA9PiBSZXNwb25zZS5qc29uKHsgY29kZTogMSwgZGVzY3JpcHRpb246ICJBUEkgZXJyb3IiIH0pOwogIHRyeSB7CiAgICBjb25zdCByZXNwb25zZSA9IGF3YWl0IHdvcmtlci5mZXRjaChuZXcgUmVxdWVzdCgiaHR0cHM6Ly9kYXNoYm9hcmQudGVzdC9hcGkvaW50ZWdyYXRpb25zL2NhdGFsb2ciKSwgeyBYWU9QU19VUkw6ICJodHRwOi8veHlvcHMuZXhhbXBsZS50ZXN0IiwgWFlPUFNfQVBJX0tFWTogImFwaS1zZWNyZXQiIH0sIHt9KTsKICAgIGFzc2VydC5lcXVhbChyZXNwb25zZS5zdGF0dXMsIDUwMik7CiAgICBhc3NlcnQuZXF1YWwoKGF3YWl0IHJlc3BvbnNlLmpzb24oKSkuZXJyb3IsICJYWU9wcyBnZXRfZXZlbnRzINCy0LXRgNC90YPQuyDQutC+0LQgQVBJIDEiKTsKICB9IGZpbmFsbHkgewogICAgZ2xvYmFsVGhpcy5mZXRjaCA9IG9yaWdpbmFsRmV0Y2g7CiAgfQp9KTsKCnRlc3QoInJldHVybnMgYW4gYWN0aW9uYWJsZSBjYXRhbG9nIGVycm9yIHdoZW4gdGhlIHBvcnRhbCBydW50aW1lIGNhbm5vdCByZWFjaCBYWU9wcyIsIGFzeW5jICgpID0+IHsKICBjb25zdCBvcmlnaW5hbEZldGNoID0gZ2xvYmFsVGhpcy5mZXRjaDsKICBnbG9iYWxUaGlzLmZldGNoID0gYXN5bmMgKCkgPT4geyB0aHJvdyBuZXcgVHlwZUVycm9yKCJmZXRjaCBmYWlsZWQiKTsgfTsKICB0cnkgewogICAgY29uc3QgcmVzcG9uc2UgPSBhd2FpdCB3b3JrZXIuZmV0Y2gobmV3IFJlcXVlc3QoImh0dHBzOi8vZGFzaGJvYXJkLnRlc3QvYXBpL2ludGVncmF0aW9ucy9jYXRhbG9nIiksIHsgWFlPUFNfVVJMOiAiaHR0cDovL3h5b3BzLmV4YW1wbGUudGVzdCIsIFhZT1BTX0FQSV9LRVk6ICJhcGktc2VjcmV0IiB9LCB7fSk7CiAgICBhc3NlcnQuZXF1YWwocmVzcG9uc2Uuc3RhdHVzLCA1MDIpOwogICAgYXNzZXJ0LmVxdWFsKChhd2FpdCByZXNwb25zZS5qc29uKCkpLmVycm9yLCAiWFlPcHMg0L3QtdC00L7RgdGC0YPQv9C10L0g0LjQtyDRgdGA0LXQtNGLINC/0L7RgNGC0LDQu9CwOiDQv9GA0L7QstC10YDRjNGC0LUg0LDQtNGA0LXRgSwgRE5TINC4INC80LDRgNGI0YDRg9GCIERvY2tlciIpOwogIH0gZmluYWxseSB7CiAgICBnbG9iYWxUaGlzLmZldGNoID0gb3JpZ2luYWxGZXRjaDsKICB9Cn0pOwoKY2xhc3MgQ2F0YWxvZ01lbW9yeUQxIHsKICBzbmFwc2hvdCA9IG51bGw7CiAgaGlzdG9yeSA9IFtdOwogIHByZXBhcmUoc3FsKSB7CiAgICBsZXQgdmFsdWVzID0gW107CiAgICBjb25zdCBzdGF0ZW1lbnQgPSB7CiAgICAgIGJpbmQ6ICguLi5hcmdzKSA9PiB7IHZhbHVlcyA9IGFyZ3M7IHJldHVybiBzdGF0ZW1lbnQ7IH0sCiAgICAgIHJ1bjogYXN5bmMgKCkgPT4gewogICAgICAgIGlmIChzcWwuc3RhcnRzV2l0aCgiSU5TRVJUIElOVE8geHlvcHNfY2F0YWxvZ19zbmFwc2hvdCIpKSB0aGlzLnNuYXBzaG90ID0geyBjYXRhbG9nX2pzb246IHZhbHVlc1sxXSwgc3luY2VkX2F0OiB2YWx1ZXNbMl0gfTsKICAgICAgICBpZiAoc3FsLnN0YXJ0c1dpdGgoIklOU0VSVCBJTlRPIHh5b3BzX2NhdGFsb2dfaGlzdG9yeSIpKSB0aGlzLmhpc3RvcnkucHVzaCh7IGlkOiB2YWx1ZXNbMF0sIHN5bmNlZF9hdDogdmFsdWVzWzFdLCBjaGFuZ2VzX2pzb246IHZhbHVlc1syXSwgY2F0YWxvZ19qc29uOiB2YWx1ZXNbM10gfSk7CiAgICAgICAgcmV0dXJuIHsgc3VjY2VzczogdHJ1ZSB9OwogICAgICB9LAogICAgICBhbGw6IGFzeW5jICgpID0+ICh7IHJlc3VsdHM6IFsuLi50aGlzLmhpc3RvcnldLnNvcnQoKGEsIGIpID0+IGIuc3luY2VkX2F0IC0gYS5zeW5jZWRfYXQpLnNsaWNlKDAsIE51bWJlcih2YWx1ZXNbMF0gPz8gMjApKSB9KSwKICAgICAgZmlyc3Q6IGFzeW5jICgpID0+IHsKICAgICAgICBpZiAoc3FsLnN0YXJ0c1dpdGgoIlNFTEVDVCBjYXRhbG9nX2pzb24iKSkgcmV0dXJuIHRoaXMuc25hcHNob3Q7CiAgICAgICAgcmV0dXJuIG51bGw7CiAgICAgIH0sCiAgICB9OwogICAgcmV0dXJuIHN0YXRlbWVudDsKICB9Cn0KCnRlc3QoInBlcnNpc3RzIGNhdGFsb2cgc25hcHNob3RzLCBkZXRlY3RzIHNjaGVtYSBjaGFuZ2VzIGFuZCBmYWxscyBiYWNrIHNhZmVseSIsIGFzeW5jICgpID0+IHsKICBjb25zdCBvcmlnaW5hbEZldGNoID0gZ2xvYmFsVGhpcy5mZXRjaDsKICBjb25zdCBkYiA9IG5ldyBDYXRhbG9nTWVtb3J5RDEoKTsKICBsZXQgcmV2aXNpb24gPSAxOwogIGdsb2JhbFRoaXMuZmV0Y2ggPSBhc3luYyAoaW5wdXQpID0+IHsKICAgIGNvbnN0IHVybCA9IG5ldyBVUkwodHlwZW9mIGlucHV0ID09PSAic3RyaW5nIiA/IGlucHV0IDogaW5wdXQgaW5zdGFuY2VvZiBVUkwgPyBpbnB1dC5ocmVmIDogaW5wdXQudXJsKTsKICAgIGlmICghdXJsLnBhdGhuYW1lLmVuZHNXaXRoKCIvZ2V0X2V2ZW50cy92MSIpKSByZXR1cm4gbmV3IFJlc3BvbnNlKCJub3QgZm91bmQiLCB7IHN0YXR1czogNDA0IH0pOwogICAgaWYgKHJldmlzaW9uID09PSAzKSB0aHJvdyBuZXcgRXJyb3IoIlhZT3BzIG9mZmxpbmUiKTsKICAgIHJldHVybiBSZXNwb25zZS5qc29uKHsgZXZlbnRzOiByZXZpc2lvbiA9PT0gMQogICAgICA/IFt7IGlkOiAiYmFja3VwIiwgdGl0bGU6ICJCYWNrdXAiLCB0eXBlOiAid29ya2Zsb3ciLCBjYXRlZ29yeTogIkRhdGFiYXNlcyIsIHVzZXJfZmllbGRzOiBbeyBpZDogImRhdGFiYXNlIiwgdHlwZTogInRleHQiIH1dIH1dCiAgICAgIDogW3sgaWQ6ICJiYWNrdXAiLCB0aXRsZTogIkJhY2t1cCIsIHR5cGU6ICJ3b3JrZmxvdyIsIGNhdGVnb3J5OiAiRGF0YWJhc2VzIiwgdXNlcl9maWVsZHM6IFt7IGlkOiAiZGF0YWJhc2UiLCB0eXBlOiAidGV4dCIsIHJlcXVpcmVkOiB0cnVlIH1dIH0sIHsgaWQ6ICJyZXN0YXJ0IiwgdGl0bGU6ICJSZXN0YXJ0IiwgdHlwZTogImV2ZW50IiwgY2F0ZWdvcnk6ICJTZXJ2ZXJzIiB9XSB9KTsKICB9OwogIGNvbnN0IGVudiA9IHsgREI6IGRiLCBYWU9QU19VUkw6ICJodHRwczovL3h5b3BzLmV4YW1wbGUudGVzdCIsIFhZT1BTX0FQSV9LRVk6ICJzZWNyZXQiIH07CiAgdHJ5IHsKICAgIGNvbnN0IGZpcnN0ID0gYXdhaXQgd29ya2VyLmZldGNoKG5ldyBSZXF1ZXN0KCJodHRwczovL2Rhc2hib2FyZC50ZXN0L2FwaS9pbnRlZ3JhdGlvbnMvY2F0YWxvZyIpLCBlbnYsIHt9KS50aGVuKChyZXNwb25zZSkgPT4gcmVzcG9uc2UuanNvbigpKTsKICAgIGFzc2VydC5lcXVhbChmaXJzdC5zb3VyY2UsICJ4eW9wcyIpOwogICAgYXNzZXJ0Lm1hdGNoKGZpcnN0LmV2ZW50c1swXS5zY2hlbWFWZXJzaW9uLCAvXnYxLVswLTlhLWZdezh9JC8pOwogICAgYXNzZXJ0LmRlZXBFcXVhbChmaXJzdC5jaGFuZ2VzLm1hcCgoY2hhbmdlKSA9PiBbY2hhbmdlLmlkLCBjaGFuZ2Uua2luZF0pLCBbWyJiYWNrdXAiLCAibmV3Il1dKTsKCiAgICByZXZpc2lvbiA9IDI7CiAgICBjb25zdCBzZWNvbmQgPSBhd2FpdCB3b3JrZXIuZmV0Y2gobmV3IFJlcXVlc3QoImh0dHBzOi8vZGFzaGJvYXJkLnRlc3QvYXBpL2ludGVncmF0aW9ucy9jYXRhbG9nIiksIGVudiwge30pLnRoZW4oKHJlc3BvbnNlKSA9PiByZXNwb25zZS5qc29uKCkpOwogICAgYXNzZXJ0LmRlZXBFcXVhbChzZWNvbmQuY2hhbmdlcy5tYXAoKGNoYW5nZSkgPT4gW2NoYW5nZS5pZCwgY2hhbmdlLmtpbmRdKSwgW1siYmFja3VwIiwgImNoYW5nZWQiXSwgWyJyZXN0YXJ0IiwgIm5ldyJdXSk7CgogICAgY29uc3QgaGlzdG9yeSA9IGF3YWl0IHdvcmtlci5mZXRjaChuZXcgUmVxdWVzdCgiaHR0cHM6Ly9kYXNoYm9hcmQudGVzdC9hcGkvaW50ZWdyYXRpb25zL2NhdGFsb2cvaGlzdG9yeSIpLCBlbnYsIHt9KS50aGVuKChyZXNwb25zZSkgPT4gcmVzcG9uc2UuanNvbigpKTsKICAgIGFzc2VydC5lcXVhbChoaXN0b3J5Lmhpc3RvcnkubGVuZ3RoLCAyKTsKICAgIGNvbnN0IGN1cnJlbnRIaXN0b3J5ID0gaGlzdG9yeS5oaXN0b3J5LmZpbmQoKGVudHJ5KSA9PiBlbnRyeS5wcm9jZXNzQ291bnQgPT09IDIpOwogICAgYXNzZXJ0LmRlZXBFcXVhbChjdXJyZW50SGlzdG9yeS5jaGFuZ2VzLm1hcCgoY2hhbmdlKSA9PiBjaGFuZ2Uua2luZCksIFsiY2hhbmdlZCIsICJuZXciXSk7CgogICAgcmV2aXNpb24gPSAzOwogICAgY29uc3QgY2FjaGVkID0gYXdhaXQgd29ya2VyLmZldGNoKG5ldyBSZXF1ZXN0KCJodHRwczovL2Rhc2hib2FyZC50ZXN0L2FwaS9pbnRlZ3JhdGlvbnMvY2F0YWxvZyIpLCBlbnYsIHt9KS50aGVuKChyZXNwb25zZSkgPT4gcmVzcG9uc2UuanNvbigpKTsKICAgIGFzc2VydC5lcXVhbChjYWNoZWQubW9kZSwgImNhY2hlZCIpOwogICAgYXNzZXJ0LmVxdWFsKGNhY2hlZC5zdGFsZSwgdHJ1ZSk7CiAgICBhc3NlcnQuZGVlcEVxdWFsKGNhY2hlZC5ldmVudHMubWFwKChldmVudCkgPT4gZXZlbnQuaWQpLCBbImJhY2t1cCIsICJyZXN0YXJ0Il0pOwogIH0gZmluYWxseSB7CiAgICBnbG9iYWxUaGlzLmZldGNoID0gb3JpZ2luYWxGZXRjaDsKICB9Cn0pOwo=
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import worker from "../dist/server/index.js";
+
+test("discovers, validates and launches a schema-driven XYOps workflow", async () => {
+  const originalFetch = globalThis.fetch;
+  let launchPayload;
+  globalThis.fetch = async (input, init = {}) => {
+    const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
+    if (url.pathname.endsWith("/get_events/v1")) {
+      return Response.json({ events: [{
+        id: "backup-postgres",
+        title: "Backup PostgreSQL",
+        description: "Create database backup",
+        type: "workflow",
+        category: "Databases",
+        targets: ["db-01", "db-02"],
+        user_fields: [
+          { id: "database", title: "Database", type: "text", required: true, target: "workflowData" },
+          { id: "retention", title: "Retention", type: "number", required: true, min: 1, max: 365, destination: "workflowData" },
+          { id: "verify", title: "Verify", type: "checkbox", default: true, scope: "workflowData" },
+          { id: "formats", title: "Formats", type: "multimenu", options: ["custom", "sql"], target: "workflowData" },
+          { id: "metadata", title: "Metadata", type: "json", target: "input" },
+          { id: "mode", title: "Mode", type: "select", options: ["basic", "full"], section: "Advanced", order: 10, target: "workflowData" },
+          { id: "ticket", title: "Approval ticket", type: "text", required: true, section: "Advanced", visible_when: { field: "mode", equals: "full" }, target: "workflowData" },
+          { id: "cluster", title: "Cluster", type: "select", options_endpoint: "/api/app/get_clusters/v1", options_query_param: "search", target: "workflowData" },
+          { type: "group", title: "Connection", children: [{ type: "section", title: "TLS", fields: [{ id: "caProfile", title: "CA profile", type: "text", target: "input" }] }] },
+        ],
+      }] });
+    }
+    if (url.pathname.endsWith("/get_clusters/v1")) return Response.json({ items: [{ id: "cluster-a" }, { id: "cluster-b" }] });
+    if (url.pathname.endsWith("/run_event/v1")) {
+      launchPayload = JSON.parse(String(init.body));
+      return Response.json({ job_id: "job-42" });
+    }
+    return new Response("not found", { status: 404 });
+  };
+
+  const env = { XYOPS_URL: "https://xyops.example.test", XYOPS_API_KEY: "api-secret" };
+  try {
+    const catalogResponse = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog"), env, {});
+    const catalog = await catalogResponse.json();
+    assert.equal(catalog.mode, "live");
+    assert.deepEqual(catalog.events[0].fields.map((field) => [field.key, field.type, field.target]), [
+      ["database", "string", "workflowData"],
+      ["retention", "number", "workflowData"],
+      ["verify", "boolean", "workflowData"],
+      ["formats", "multiselect", "workflowData"],
+      ["metadata", "json", "input"],
+      ["mode", "select", "workflowData"],
+      ["ticket", "string", "workflowData"],
+      ["cluster", "select", "workflowData"],
+      ["caProfile", "string", "input"],
+    ]);
+    assert.deepEqual(catalog.events[0].fields.find((field) => field.key === "ticket").visibleWhen, { field: "mode", operator: "equals", value: "full" });
+    assert.equal(catalog.events[0].fields.find((field) => field.key === "mode").section, "Advanced");
+    assert.deepEqual(catalog.events[0].fields.find((field) => field.key === "cluster").optionsSource, { endpoint: "/api/app/get_clusters/v1", queryParam: "search" });
+    assert.deepEqual(catalog.events[0].fields.find((field) => field.key === "caProfile").groupPath, ["Connection", "TLS"]);
+
+    const optionsResponse = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog/options?eventId=backup-postgres&fieldKey=cluster&query=prod"), env, {});
+    assert.deepEqual((await optionsResponse.json()).options, ["cluster-a", "cluster-b"]);
+
+    const runResponse = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog/run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ eventId: "backup-postgres", targets: ["db-02"], values: { database: "billing", retention: "30", verify: true, formats: ["custom"], metadata: "{\"ticket\":\"OPS-7\"}", mode: "full", ticket: "OPS-8", cluster: "cluster-a" } }) }), env, {});
+    assert.equal(runResponse.status, 202);
+    assert.equal((await runResponse.json()).jobId, "job-42");
+    assert.deepEqual(launchPayload, {
+      id: "backup-postgres",
+      params: { source: "xyops-self-service" },
+      input: { data: { source: "xyops-self-service", metadata: { ticket: "OPS-7" } } },
+      workflowData: { database: "billing", retention: 30, verify: true, formats: ["custom"], mode: "full", ticket: "OPS-8", cluster: "cluster-a" },
+      targets: ["db-02"],
+    });
+
+    const conditional = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog/run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ eventId: "backup-postgres", values: { database: "billing", retention: 7, mode: "basic" } }) }), env, {});
+    assert.equal(conditional.status, 202);
+    assert.equal("ticket" in launchPayload.workflowData, false);
+
+    const missingConditional = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog/run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ eventId: "backup-postgres", values: { database: "billing", retention: 7, mode: "full" } }) }), env, {});
+    assert.equal(missingConditional.status, 400);
+
+    const rejected = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog/run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ eventId: "unknown-process", values: {} }) }), env, {});
+    assert.equal(rejected.status, 404);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("normalizes the installed XYOps fields contract from rows and workflow metadata", async () => {
+  const originalFetch = globalThis.fetch;
+  let launchPayload;
+  globalThis.fetch = async (input, init = {}) => {
+    const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
+    if (url.pathname.endsWith("/get_events/v1")) return Response.json({ code: 0, rows: [{
+      id: "workflow-user-create",
+      title: "Create user and grant access",
+      enabled: true,
+      type: "workflow",
+      plugin: "_workflow",
+      category: "category-id",
+      notes: "Provision the identity across connected systems.",
+      fields: [
+        { id: "ipa_url", title: "FreeIPA URL", type: "text", variant: "url", required: true, value: "https://ipa.example", caption: "FreeIPA endpoint", regex: "https://.+" },
+        { id: "mail", title: "Email", type: "text", variant: "email", required: false, value: "" },
+        { id: "initial_password", title: "Initial password", type: "text", variant: "password", required: true, value: "must-not-persist", caption: "Temporary password" },
+        { id: "mode", title: "Mode", type: "select", multiple: false, value: "safe", caption: "XYOps does not publish choices for this field" },
+        { id: "uid", title: "Login", type: "text", required: true, locked: true, value: "operator" },
+      ],
+      workflow: { nodes: [{ id: "trigger", type: "trigger" }, { id: "create", type: "job", data: { plugin: "ipa_create", params: { uid: "${uid}" } } }], connections: [{ source: "trigger", dest: "create" }] },
+    }] });
+    if (url.pathname.endsWith("/run_event/v1")) { launchPayload = JSON.parse(String(init.body)); return Response.json({ code: 0, job_id: "job-real-contract" }); }
+    return new Response("not found", { status: 404 });
+  };
+
+  try {
+    const env = { XYOPS_URL: "http://xyops.example.test", XYOPS_API_KEY: "api-secret" };
+    const catalog = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog"), env, {}).then((response) => response.json());
+    assert.equal(catalog.events[0].description, "Provision the identity across connected systems.");
+    assert.deepEqual(catalog.events[0].fields.map((field) => [field.key, field.type]), [["ipa_url", "url"], ["mail", "email"], ["initial_password", "password"], ["mode", "select"], ["uid", "string"]]);
+    assert.equal(catalog.events[0].fields[0].description, "FreeIPA endpoint");
+    assert.equal(catalog.events[0].fields[0].pattern, "https://.+");
+    assert.equal(catalog.events[0].fields[2].default, undefined);
+    assert.equal(catalog.events[0].fields[4].readOnly, true);
+
+    const response = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog/run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ eventId: "workflow-user-create", values: { ipa_url: "https://ipa.example", mail: "ops@example.test", initial_password: "one-time", mode: "safe", uid: "operator" } }) }), env, {});
+    assert.equal(response.status, 202);
+    assert.deepEqual(launchPayload.params, { source: "xyops-self-service", ipa_url: "https://ipa.example", mail: "ops@example.test", initial_password: "one-time", mode: "safe", uid: "operator" });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("rejects an XYOps catalog response with a non-zero application code", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => Response.json({ code: 1, description: "API error" });
+  try {
+    const response = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog"), { XYOPS_URL: "http://xyops.example.test", XYOPS_API_KEY: "api-secret" }, {});
+    assert.equal(response.status, 502);
+    assert.equal((await response.json()).error, "XYOps get_events вернул код API 1");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("returns an actionable catalog error when the portal runtime cannot reach XYOps", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => { throw new TypeError("fetch failed"); };
+  try {
+    const response = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog"), { XYOPS_URL: "http://xyops.example.test", XYOPS_API_KEY: "api-secret" }, {});
+    assert.equal(response.status, 502);
+    assert.equal((await response.json()).error, "XYOps недоступен из среды портала: проверьте адрес, DNS и маршрут Docker");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+class CatalogMemoryD1 {
+  snapshot = null;
+  history = [];
+  prepare(sql) {
+    let values = [];
+    const statement = {
+      bind: (...args) => { values = args; return statement; },
+      run: async () => {
+        if (sql.startsWith("INSERT INTO xyops_catalog_snapshot")) this.snapshot = { catalog_json: values[1], synced_at: values[2] };
+        if (sql.startsWith("INSERT INTO xyops_catalog_history")) this.history.push({ id: values[0], synced_at: values[1], changes_json: values[2], catalog_json: values[3] });
+        return { success: true };
+      },
+      all: async () => ({ results: [...this.history].sort((a, b) => b.synced_at - a.synced_at).slice(0, Number(values[0] ?? 20)) }),
+      first: async () => {
+        if (sql.startsWith("SELECT catalog_json")) return this.snapshot;
+        return null;
+      },
+    };
+    return statement;
+  }
+}
+
+test("persists catalog snapshots, detects schema changes and falls back safely", async () => {
+  const originalFetch = globalThis.fetch;
+  const db = new CatalogMemoryD1();
+  let revision = 1;
+  globalThis.fetch = async (input) => {
+    const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
+    if (!url.pathname.endsWith("/get_events/v1")) return new Response("not found", { status: 404 });
+    if (revision === 3) throw new Error("XYOps offline");
+    return Response.json({ events: revision === 1
+      ? [{ id: "backup", title: "Backup", type: "workflow", category: "Databases", user_fields: [{ id: "database", type: "text" }] }]
+      : [{ id: "backup", title: "Backup", type: "workflow", category: "Databases", user_fields: [{ id: "database", type: "text", required: true }] }, { id: "restart", title: "Restart", type: "event", category: "Servers" }] });
+  };
+  const env = { DB: db, XYOPS_URL: "https://xyops.example.test", XYOPS_API_KEY: "secret" };
+  try {
+    const first = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog"), env, {}).then((response) => response.json());
+    assert.equal(first.source, "xyops");
+    assert.match(first.events[0].schemaVersion, /^v1-[0-9a-f]{8}$/);
+    assert.deepEqual(first.changes.map((change) => [change.id, change.kind]), [["backup", "new"]]);
+
+    revision = 2;
+    const second = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog"), env, {}).then((response) => response.json());
+    assert.deepEqual(second.changes.map((change) => [change.id, change.kind]), [["backup", "changed"], ["restart", "new"]]);
+
+    const history = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog/history"), env, {}).then((response) => response.json());
+    assert.equal(history.history.length, 2);
+    const currentHistory = history.history.find((entry) => entry.processCount === 2);
+    assert.deepEqual(currentHistory.changes.map((change) => change.kind), ["changed", "new"]);
+
+    revision = 3;
+    const cached = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog"), env, {}).then((response) => response.json());
+    assert.equal(cached.mode, "cached");
+    assert.equal(cached.stale, true);
+    assert.deepEqual(cached.events.map((event) => event.id), ["backup", "restart"]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

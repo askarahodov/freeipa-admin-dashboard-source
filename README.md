@@ -36,9 +36,12 @@ The dashboard reads directory data from FreeIPA on the server side and routes
 mutating operations through xyOps. xyOps workflows use the same `run_event`
 endpoint as regular events, so the dashboard models both as automation routes.
 
-Copy `.dev.vars.example` to `.dev.vars` for local development. The
-`XYOPS_ROUTES_JSON` array may contain multiple routes for the same dashboard
-operation. Each route declares:
+Copy `.dev.vars.example` to `.dev.vars` for local development. Routes can be
+created in **Settings → Automation routes** by selecting a catalog Event or
+Workflow and mapping it to a dashboard operation. They are stored persistently
+in D1/SQLite and may contain multiple routes for the same operation. The
+`XYOPS_ROUTES_JSON` environment value remains available as a bootstrap fallback
+when no routes have been saved. Each route declares:
 
 - a stable `key` and user-facing `title`;
 - the dashboard `operation` it accepts;
@@ -57,6 +60,9 @@ When xyOps is configured, the dashboard also calls `GET
 normalized into a safe public catalog containing IDs, titles, kind, category,
 and user-field schemas. The API key is never exposed. Launch dialogs render
 their inputs from the selected route schema rather than from hard-coded forms.
+User enable/disable/delete and group add/remove-member/delete controls appear
+only when a matching enabled route exists; every mutation is sent to the chosen
+XYOps Event or Workflow.
 
 ## Schema-driven XYOps self-service
 

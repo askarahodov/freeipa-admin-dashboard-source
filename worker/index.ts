@@ -226,6 +226,7 @@ type StoredConfig = {
   ipaUrl: string;
   ipaUsername: string;
   xyopsUrl: string;
+  routes?: AutomationRoute[];
 };
 
 type StoredSecrets = {
@@ -293,7 +294,7 @@ async function readStoredSettings(env: Env): Promise<StoredSettings | null> {
   if (!row) return null;
   const config = JSON.parse(row.config_json) as Partial<StoredConfig>;
   const secrets = await decryptSecrets(row.encrypted_secrets, env.CONFIG_ENCRYPTION_KEY);
-  return { config: { demoMode: config.demoMode === true, ipaUrl: String(config.ipaUrl ?? ""), ipaUsername: String(config.ipaUsername ?? ""), xyopsUrl: String(config.xyopsUrl ?? "") }, secrets, updatedAt: Number(row.updated_at) };
+  return { config: { demoMode: config.demoMode === true, ipaUrl: String(config.ipaUrl ?? ""), ipaUsername: String(config.ipaUsername ?? ""), xyopsUrl: String(config.xyopsUrl ?? ""), routes: Array.isArray(config.routes) ? sanitizeRoutes(config.routes) : undefined }, secrets, updatedAt: Number(row.updated_at) };
 }
 
 async function saveStoredSettings(env: Env, settings: StoredSettings): Promise<void> {
@@ -304,7 +305,7 @@ async function saveStoredSettings(env: Env, settings: StoredSettings): Promise<v
 }
 
 function envSettings(env: Env): StoredSettings {
-  return { config: { demoMode: boolValue(env.DEMO_MODE), ipaUrl: cleanBaseUrl(env.IPA_URL) ?? "", ipaUsername: env.IPA_USERNAME ?? "", xyopsUrl: cleanBaseUrl(env.XYOPS_URL) ?? "" }, secrets: { ipaPassword: env.IPA_PASSWORD ?? "", xyopsApiKey: env.XYOPS_API_KEY ?? "" }, updatedAt: 0 };
+  return { config: { demoMode: boolValue(env.DEMO_MODE), ipaUrl: cleanBaseUrl(env.IPA_URL) ?? "", ipaUsername: env.IPA_USERNAME ?? "", xyopsUrl: cleanBaseUrl(env.XYOPS_URL) ?? "", routes: undefined }, secrets: { ipaPassword: env.IPA_PASSWORD ?? "", xyopsApiKey: env.XYOPS_API_KEY ?? "" }, updatedAt: 0 };
 }
 
 async function effectiveSettings(env: Env): Promise<StoredSettings> {
@@ -313,7 +314,7 @@ async function effectiveSettings(env: Env): Promise<StoredSettings> {
 
 async function effectiveEnv(env: Env): Promise<Env> {
   const settings = await effectiveSettings(env);
-  return { ...env, DEMO_MODE: settings.config.demoMode ? "true" : "false", IPA_URL: settings.config.ipaUrl, IPA_USERNAME: settings.config.ipaUsername, IPA_PASSWORD: settings.secrets.ipaPassword, XYOPS_URL: settings.config.xyopsUrl, XYOPS_API_KEY: settings.secrets.xyopsApiKey };
+  return { ...env, DEMO_MODE: settings.config.demoMode ? "true" : "false", IPA_URL: settings.config.ipaUrl, IPA_USERNAME: settings.config.ipaUsername, IPA_PASSWORD: settings.secrets.ipaPassword, XYOPS_URL: settings.config.xyopsUrl, XYOPS_API_KEY: settings.secrets.xyopsApiKey, XYOPS_ROUTES_JSON: settings.config.routes ? JSON.stringify(settings.config.routes) : env.XYOPS_ROUTES_JSON };
 }
 
 function publicSettings(settings: StoredSettings, env: Env, source: "database" | "environment") {
@@ -345,7 +346,7 @@ function mergeSettingsInput(current: StoredSettings, body: Record<string, unknow
   const ipaPassword = body.clearIpaPassword === true ? "" : typeof body.ipaPassword === "string" && body.ipaPassword ? body.ipaPassword.slice(0, 4096) : current.secrets.ipaPassword;
   const xyopsApiKey = body.clearXyopsApiKey === true ? "" : typeof body.xyopsApiKey === "string" && body.xyopsApiKey ? body.xyopsApiKey.slice(0, 4096) : current.secrets.xyopsApiKey;
   return {
-    config: { demoMode: body.demoMode === undefined ? current.config.demoMode : body.demoMode === true, ipaUrl, ipaUsername: body.ipaUsername === undefined ? current.config.ipaUsername : settingString(body.ipaUsername, "ipaUsername", 256), xyopsUrl },
+    config: { demoMode: body.demoMode === undefined ? current.config.demoMode : body.demoMode === true, ipaUrl, ipaUsername: body.ipaUsername === undefined ? current.config.ipaUsername : settingString(body.ipaUsername, "ipaUsername", 256), xyopsUrl, routes: current.config.routes },
     secrets: { ipaPassword, xyopsApiKey },
     updatedAt: Date.now(),
   };
@@ -425,6 +426,25 @@ async function ipaRpc(env: Env, ipaUrl: string, method: string, args: unknown[] 
 
 const allowedOperations = new Set(["user_add", "user_enable", "user_disable", "user_del", "group_add", "group_del", "group_add_member", "group_remove_member"]);
 
+function sanitizeRoutes(raw: unknown): AutomationRoute[] {
+  if (!Array.isArray(raw) || raw.length > 100) throw new Error("routes must be an array with at most 100 items");
+  const keys = new Set<string>();
+  return raw.map((item, index) => {
+    if (!item || typeof item !== "object") throw new Error(`routes[${index}] must be an object`);
+    const source = item as Record<string, unknown>;
+    const key = String(source.key ?? "").trim().slice(0, 120);
+    const title = String(source.title ?? "").trim().slice(0, 240);
+    const operation = String(source.operation ?? "");
+    const kind = source.kind === "workflow" ? "workflow" : source.kind === "event" ? "event" : null;
+    const eventId = String(source.eventId ?? "").trim().slice(0, 240);
+    if (!key || keys.has(key) || !title || !eventId || !kind || !allowedOperations.has(operation)) throw new Error(`routes[${index}] is invalid or duplicated`);
+    keys.add(key);
+    const fields = Array.isArray(source.fields) ? source.fields.map(normalizeXyField).filter((field): field is RouteField => field !== null).slice(0, 100) : [];
+    const targets = Array.isArray(source.targets) ? source.targets.map(String).map((value) => value.trim().slice(0, 240)).filter(Boolean).slice(0, 100) : [];
+    return { key, title, operation, kind, eventId, enabled: source.enabled !== false, fields, targets };
+  });
+}
+
 function automationRoutes(env: Env): AutomationRoute[] {
   const fallback: AutomationRoute[] = [
     { key: "user-create", title: "Создание пользователя", operation: "user_add", kind: "event", eventId: env.XYOPS_EVENT_ID ?? "freeipa-user-create", enabled: true, fields: [
@@ -451,11 +471,11 @@ function automationRoutes(env: Env): AutomationRoute[] {
   }
   try {
     const parsed = JSON.parse(env.XYOPS_ROUTES_JSON) as AutomationRoute[];
-    if (!Array.isArray(parsed)) return fallback;
+    if (!Array.isArray(parsed)) return boolValue(env.DEMO_MODE) ? fallback : [];
     const valid = parsed.filter((route) => route && typeof route.key === "string" && typeof route.title === "string" && typeof route.eventId === "string" && (route.kind === "event" || route.kind === "workflow") && allowedOperations.has(route.operation));
-    return valid.length ? valid : fallback;
+    return valid;
   } catch {
-    return fallback;
+    return boolValue(env.DEMO_MODE) ? fallback : [];
   }
 }
 
@@ -503,7 +523,8 @@ function normalizeXyField(raw: unknown): RouteField | null {
     required: Boolean(source.required),
     target,
     options: fieldOptions(source),
-    default: (source.value ?? source.default) as string | number | boolean | string[] | undefined,
+    // Secret defaults must never be persisted in routes or returned to the browser.
+    default: type === "password" ? undefined : (source.value ?? source.default) as string | number | boolean | string[] | undefined,
     description: String(source.description ?? source.help ?? source.hint ?? ""),
     placeholder: String(source.placeholder ?? ""),
     min: typeof source.min === "number" ? source.min : undefined,
@@ -632,7 +653,23 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
   }
 
   if (request.method === "GET" && url.pathname === "/api/integrations/routes") {
-    return json({ mode: boolValue(env.DEMO_MODE) ? "demo" : env.XYOPS_ROUTES_JSON || env.XYOPS_EVENT_ID ? "live" : "unconfigured", routes: automationRoutes(env).map(publicRoute) });
+    const routes = automationRoutes(env);
+    return json({ mode: boolValue(env.DEMO_MODE) ? "demo" : routes.length ? "live" : "unconfigured", routes: routes.map(publicRoute) });
+  }
+
+  if (request.method === "PUT" && url.pathname === "/api/integrations/routes") {
+    if (!baseEnv.ADMIN_TOKEN || !await adminAuthorized(request, baseEnv)) return json({ error: "Administrator authorization required" }, 401);
+    if (!baseEnv.DB || !baseEnv.CONFIG_ENCRYPTION_KEY) return json({ error: "Persistent encrypted storage is unavailable" }, 503);
+    try {
+      const body = await request.json() as Record<string, unknown>;
+      const routes = sanitizeRoutes(body.routes);
+      const current = await readStoredSettings(baseEnv) ?? envSettings(baseEnv);
+      const next = { ...current, config: { ...current.config, routes }, updatedAt: Date.now() };
+      await saveStoredSettings(baseEnv, next);
+      return json({ mode: routes.length ? "live" : "unconfigured", routes: routes.map(publicRoute) });
+    } catch (error) {
+      return json({ error: error instanceof Error ? error.message : "Cannot save routes" }, 400);
+    }
   }
 
   if (request.method === "GET" && url.pathname === "/api/integrations/catalog") {

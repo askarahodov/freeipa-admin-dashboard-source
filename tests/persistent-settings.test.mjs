@@ -60,3 +60,39 @@ test("explicit demo mode is required for demo catalog", async () => {
   assert.equal(demoBody.mode, "demo");
   assert.ok(demoBody.events.some((event) => event.id === "database-backup"));
 });
+
+test("automation routes require admin auth and persist without secret defaults", async () => {
+  const db = new MemoryD1();
+  const env = { DB: db, ADMIN_TOKEN: "admin-token", CONFIG_ENCRYPTION_KEY: Buffer.alloc(32, 9).toString("base64") };
+  const route = {
+    key: "disable-user",
+    title: "Disable user",
+    operation: "user_disable",
+    eventId: "event-42",
+    kind: "workflow",
+    enabled: true,
+    targets: ["freeipa"],
+    fields: [
+      { key: "username", label: "Username", type: "string", required: true, target: "params" },
+      { key: "operator_password", label: "Password", type: "password", default: "must-not-persist", target: "input" },
+    ],
+  };
+
+  const unauthorized = await worker.fetch(new Request("https://dashboard.test/api/integrations/routes", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ routes: [route] }) }), env, {});
+  assert.equal(unauthorized.status, 401);
+
+  const saved = await worker.fetch(new Request("https://dashboard.test/api/integrations/routes", { method: "PUT", headers: { "content-type": "application/json", "x-admin-token": "admin-token" }, body: JSON.stringify({ routes: [route] }) }), env, {});
+  assert.equal(saved.status, 200);
+  const savedBody = await saved.json();
+  assert.equal(savedBody.routes[0].eventId, "event-42");
+  assert.equal(savedBody.routes[0].fields[1].default, undefined);
+  assert.doesNotMatch(db.row.config_json, /must-not-persist/);
+
+  const loaded = await worker.fetch(new Request("https://dashboard.test/api/integrations/routes"), env, {});
+  assert.equal(loaded.status, 200);
+  assert.deepEqual(await loaded.json().then((body) => body.routes.map((item) => item.key)), ["disable-user"]);
+
+  await worker.fetch(new Request("https://dashboard.test/api/integrations/routes", { method: "PUT", headers: { "content-type": "application/json", "x-admin-token": "admin-token" }, body: JSON.stringify({ routes: [] }) }), env, {});
+  const empty = await worker.fetch(new Request("https://dashboard.test/api/integrations/routes"), env, {});
+  assert.deepEqual(await empty.json().then((body) => ({ mode: body.mode, routes: body.routes })), { mode: "unconfigured", routes: [] });
+});

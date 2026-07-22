@@ -34,3 +34,15 @@ nav { display:flex;flex-direction:column;gap:8px; } nav button { border:0;backgr
 @media (max-width:760px) { .sidebar nav{grid-template-columns:repeat(6,1fr)}.process-grid,.catalog-summary{grid-template-columns:1fr}.automation-hero{align-items:flex-start;flex-direction:column}.automation-hero .secondary{width:100%} }
 @media (max-width:760px) { .inspector-panel{grid-template-columns:44px 1fr}.inspector-panel>code,.inspector-panel>.status{grid-column:1/-1} }
 @media (max-width:760px) { .settings-access{grid-template-columns:1fr}.settings-savebar{align-items:stretch;flex-direction:column}.demo-switch{margin-left:0} }
+.row-actions .danger-link,.danger-link { color:#c63840; }
+.group-card .group-actions { display:flex;flex-wrap:wrap;gap:7px;margin:14px 0 0;padding-top:13px;border-top:1px solid var(--line); }
+.group-actions button { border:1px solid #ddd8ed;background:#faf9fe;color:#6847d1;border-radius:7px;padding:7px 9px;font-size:10px; }
+.group-actions .danger-link { color:#c63840;border-color:#efd0d2;background:#fff8f8; }
+.route-editor { padding:16px 18px;display:grid;grid-template-columns:1fr 1.4fr 1.2fr 1fr auto;gap:10px;align-items:end;background:#fafafd;border-bottom:1px solid var(--line); }
+.route-editor label { display:flex;flex-direction:column;gap:6px;color:#656974;font-size:10px;font-weight:600; }
+.route-editor input,.route-editor select { min-width:0;border:1px solid #d8dae0;background:#fff;border-radius:8px;padding:10px 11px;color:var(--ink);outline:none; }
+.route-editor input:focus,.route-editor select:focus { border-color:#937be9;box-shadow:0 0 0 3px #7656e815; }
+.route-actions { display:flex;gap:8px;margin-top:18px; }
+.danger-button { border:1px solid #e8aeb1;background:#fff5f5;color:#c63840;border-radius:8px;padding:9px 12px; }
+@media (max-width:1250px) { .route-editor{grid-template-columns:repeat(2,1fr)}.route-editor>.primary{align-self:end} }
+@media (max-width:760px) { .route-editor{grid-template-columns:1fr}.route-actions{flex-direction:column}.users-row{grid-template-columns:1.6fr .8fr .7fr}.users-row>span:nth-child(3),.users-row>span:nth-child(4){display:none} }

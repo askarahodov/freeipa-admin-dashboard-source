@@ -1,13 +1,15 @@
 export type RouteField = {
   key: string;
   label: string;
-  type: "string" | "password" | "textarea" | "boolean" | "number" | "select" | "multiselect" | "date" | "datetime" | "json";
+  type: "string" | "email" | "url" | "password" | "textarea" | "boolean" | "number" | "select" | "multiselect" | "date" | "datetime" | "json";
   required?: boolean;
   target?: "params" | "input" | "workflowData";
   options?: string[];
   default?: string | number | boolean | string[];
   description?: string;
   placeholder?: string;
+  pattern?: string;
+  readOnly?: boolean;
   min?: number;
   max?: number;
   section?: string;

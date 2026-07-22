@@ -86,6 +86,62 @@ test("discovers, validates and launches a schema-driven XYOps workflow", async (
   }
 });
 
+test("normalizes the installed XYOps fields contract from rows and workflow metadata", async () => {
+  const originalFetch = globalThis.fetch;
+  let launchPayload;
+  globalThis.fetch = async (input, init = {}) => {
+    const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
+    if (url.pathname.endsWith("/get_events/v1")) return Response.json({ code: 0, rows: [{
+      id: "workflow-user-create",
+      title: "Create user and grant access",
+      enabled: true,
+      type: "workflow",
+      plugin: "_workflow",
+      category: "category-id",
+      notes: "Provision the identity across connected systems.",
+      fields: [
+        { id: "ipa_url", title: "FreeIPA URL", type: "text", variant: "url", required: true, value: "https://ipa.example", caption: "FreeIPA endpoint", regex: "https://.+" },
+        { id: "mail", title: "Email", type: "text", variant: "email", required: false, value: "" },
+        { id: "initial_password", title: "Initial password", type: "text", variant: "password", required: true, value: "must-not-persist", caption: "Temporary password" },
+        { id: "mode", title: "Mode", type: "select", multiple: false, value: "safe", caption: "XYOps does not publish choices for this field" },
+        { id: "uid", title: "Login", type: "text", required: true, locked: true, value: "operator" },
+      ],
+      workflow: { nodes: [{ id: "trigger", type: "trigger" }, { id: "create", type: "job", data: { plugin: "ipa_create", params: { uid: "${uid}" } } }], connections: [{ source: "trigger", dest: "create" }] },
+    }] });
+    if (url.pathname.endsWith("/run_event/v1")) { launchPayload = JSON.parse(String(init.body)); return Response.json({ code: 0, job_id: "job-real-contract" }); }
+    return new Response("not found", { status: 404 });
+  };
+
+  try {
+    const env = { XYOPS_URL: "http://xyops.example.test", XYOPS_API_KEY: "api-secret" };
+    const catalog = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog"), env, {}).then((response) => response.json());
+    assert.equal(catalog.events[0].description, "Provision the identity across connected systems.");
+    assert.deepEqual(catalog.events[0].fields.map((field) => [field.key, field.type]), [["ipa_url", "url"], ["mail", "email"], ["initial_password", "password"], ["mode", "select"], ["uid", "string"]]);
+    assert.equal(catalog.events[0].fields[0].description, "FreeIPA endpoint");
+    assert.equal(catalog.events[0].fields[0].pattern, "https://.+");
+    assert.equal(catalog.events[0].fields[2].default, undefined);
+    assert.equal(catalog.events[0].fields[4].readOnly, true);
+
+    const response = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog/run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ eventId: "workflow-user-create", values: { ipa_url: "https://ipa.example", mail: "ops@example.test", initial_password: "one-time", mode: "safe", uid: "operator" } }) }), env, {});
+    assert.equal(response.status, 202);
+    assert.deepEqual(launchPayload.params, { source: "xyops-self-service", ipa_url: "https://ipa.example", mail: "ops@example.test", initial_password: "one-time", mode: "safe", uid: "operator" });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("rejects an XYOps catalog response with a non-zero application code", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => Response.json({ code: 1, description: "API error" });
+  try {
+    const response = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog"), { XYOPS_URL: "http://xyops.example.test", XYOPS_API_KEY: "api-secret" }, {});
+    assert.equal(response.status, 502);
+    assert.equal((await response.json()).error, "XYOps get_events failed");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 class CatalogMemoryD1 {
   snapshot = null;
   history = [];

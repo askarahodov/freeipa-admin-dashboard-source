@@ -120,6 +120,12 @@ function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status, headers: jsonHeaders });
 }
 
+function xyopsPayloadSucceeded(payload: unknown): boolean {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return true;
+  const code = (payload as Record<string, unknown>).code;
+  return typeof code !== "number" || code === 0;
+}
+
 function requestActor(request: Request): string {
   const encodedName = request.headers.get("oai-authenticated-user-full-name");
   if (encodedName && request.headers.get("oai-authenticated-user-full-name-encoding") === "percent-encoded-utf-8") {
@@ -484,7 +490,8 @@ async function handleSettingsApi(request: Request, env: Env, url: URL): Promise<
       } else {
         if (!draft.config.xyopsUrl || !draft.secrets.xyopsApiKey) return json({ error: "XYOps settings are incomplete" }, 400);
         const response = await fetch(`${draft.config.xyopsUrl}/api/app/get_events/v1`, { method: "GET", headers: { "x-api-key": draft.secrets.xyopsApiKey, accept: "application/json" }, signal: AbortSignal.timeout(15000) });
-        if (!response.ok) throw new Error("XYOps rejected the connection test");
+        const payload = await response.json().catch(() => null);
+        if (!response.ok || !xyopsPayloadSucceeded(payload)) throw new Error("XYOps rejected the connection test");
       }
       return json({ ok: true, service, latencyMs: Date.now() - started });
     } catch (error) {
@@ -623,6 +630,8 @@ function normalizeXyField(raw: unknown): RouteField | null {
   else if (xyType === "multimenu" || xyType === "multiselect" || source.multiple === true) type = "multiselect";
   else if (xyType === "menu" || xyType === "select" || xyType === "radio") type = "select";
   else if (variant === "number" || xyType === "number") type = "number";
+  else if (xyType === "email" || variant === "email") type = "email";
+  else if (xyType === "url" || variant === "url") type = "url";
   else if (xyType === "password" || variant === "password" || source.secret === true) type = "password";
   else if (xyType === "textarea" || xyType === "multiline") type = "textarea";
   else if (xyType === "date" || variant === "date") type = "date";
@@ -639,8 +648,10 @@ function normalizeXyField(raw: unknown): RouteField | null {
     options: fieldOptions(source),
     // Secret defaults must never be persisted in routes or returned to the browser.
     default: type === "password" ? undefined : (source.value ?? source.default) as string | number | boolean | string[] | undefined,
-    description: String(source.description ?? source.help ?? source.hint ?? ""),
+    description: String(source.description ?? source.help ?? source.hint ?? source.caption ?? ""),
     placeholder: String(source.placeholder ?? ""),
+    pattern: (() => { const value = String(source.pattern ?? source.regex ?? "").trim(); return value ? value.slice(0, 240) : undefined; })(),
+    readOnly: source.locked === true || source.readOnly === true || source.read_only === true,
     min: typeof source.min === "number" ? source.min : undefined,
     max: typeof source.max === "number" ? source.max : undefined,
     section: String(source.section ?? source.group ?? source.fieldset ?? "").trim().slice(0, 120) || undefined,
@@ -706,7 +717,7 @@ function catalogItem(event: Record<string, unknown>): CatalogEvent {
   const item: CatalogEvent = {
     id,
     title: String(event.title ?? event.name ?? workflow?.title ?? (id || "Untitled")),
-    description: String(event.description ?? event.help ?? workflow?.description ?? ""),
+    description: String(event.description ?? event.help ?? event.notes ?? workflow?.description ?? ""),
     kind,
     enabled: event.enabled !== false,
     category: String(event.category ?? "general"),
@@ -735,7 +746,7 @@ async function loadCatalog(env: Env, xyopsUrl: string | null): Promise<{ mode: "
   if (!xyopsUrl || !env.XYOPS_API_KEY) return { mode: "unconfigured", events: [] };
   const response = await fetch(`${xyopsUrl}/api/app/get_events/v1`, { method: "GET", headers: { "x-api-key": env.XYOPS_API_KEY, accept: "application/json" }, signal: AbortSignal.timeout(15000) });
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error("XYOps get_events failed");
+  if (!response.ok || !xyopsPayloadSucceeded(payload)) throw new Error("XYOps get_events failed");
   return { mode: "live", events: extractEventRows(payload).map(catalogItem).filter((event) => event.id) };
 }
 

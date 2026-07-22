@@ -39,7 +39,7 @@ as failures without preventing creation of the report. Failure of the Event
 catalog sets a non-zero exit code because that contract is required by the
 portal.
 
-Inspector version 2 also classifies failures that happen before an HTTP
+Inspector version 3 also classifies failures that happen before an HTTP
 response. The report records only a safe category, an allowlisted system error
 code and a generic hint; it never stores the raw error message or target
 address. Common categories are `dns`, `tls`, `timeout`,
@@ -57,6 +57,10 @@ If every probe has `status: 0`, first read `results[].error.category` and
   URL, proxy and TLS configuration.
 
 Do not disable TLS verification and do not add credentials to the URL.
+
+XYOps can return HTTP 200 with a non-zero JSON `code`. Version 3 records both
+`httpOk` and `apiCode`, and treats these application-level errors as failed
+probes instead of successful API contracts.
 
 To choose the output path:
 

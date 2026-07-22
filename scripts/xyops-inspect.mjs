@@ -5,7 +5,7 @@ import { mkdir, rename, writeFile } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-const INSPECTOR_VERSION = 2;
+const INSPECTOR_VERSION = 3;
 const DEFAULT_PROBES = [
   { name: "events", path: "/api/app/get_events/v1", required: true },
   { name: "servers", path: "/api/app/get_servers/v1" },
@@ -103,7 +103,9 @@ export async function inspectXyops({ baseUrl, apiKey, includeNames = false, time
       const response = await fetchImpl(`${origin}${probe.path}`, { method: "GET", headers: { "x-api-key": apiKey, accept: "application/json" }, signal: AbortSignal.timeout(timeoutMs), redirect: "manual" });
       const text = await response.text();
       const payload = parseJson(text);
-      results.push({ name: probe.name, path: probe.path, required: probe.required === true, ok: response.ok, status: response.status, durationMs: Date.now() - started, contentType: response.headers.get("content-type") ?? "", shape: collectShape(payload), sample: sanitize(payload, { includeNames }) });
+      const apiCode = payload && typeof payload === "object" && !Array.isArray(payload) && typeof payload.code === "number" ? payload.code : null;
+      const ok = response.ok && (apiCode === null || apiCode === 0);
+      results.push({ name: probe.name, path: probe.path, required: probe.required === true, ok, httpOk: response.ok, status: response.status, apiCode, durationMs: Date.now() - started, contentType: response.headers.get("content-type") ?? "", shape: collectShape(payload), sample: sanitize(payload, { includeNames }) });
     } catch (error) {
       results.push({ name: probe.name, path: probe.path, required: probe.required === true, ok: false, status: 0, durationMs: Date.now() - started, error: describeRequestError(error), shape: [], sample: null });
     }

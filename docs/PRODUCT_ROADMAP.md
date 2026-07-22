@@ -26,7 +26,7 @@ for the user. FreeIPA is the first domain module, not a limit of the platform.
 
 ### P1 — real XYOps contract hardening
 
-- [ ] Validate normalization against a sanitized diagnostic export from the target XYOps installation.
+- [x] Validate normalization against a sanitized diagnostic export from the target XYOps installation.
 - [x] Support conditional fields, generated sections and allowlisted server-side remote option providers.
 - [x] Flatten and render nested `group`, `section` and `fieldset` collections as nested form groups.
 - [ ] Validate multi-level dependency expressions against the target XYOps contract.

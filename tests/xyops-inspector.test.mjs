@@ -44,7 +44,20 @@ test("network failures are actionable without leaking raw messages or hosts", as
     probes: [{ name: "events", path: "/api/app/get_events/v1", required: true }],
     fetchImpl: async () => { throw failure; },
   });
-  assert.equal(report.inspector.version, 2);
+  assert.equal(report.inspector.version, 3);
   assert.equal(report.results[0].error.category, "tls");
   assert.doesNotMatch(JSON.stringify(report), /secret\.xyops\.internal|secret-key|certificate details/);
+});
+
+test("HTTP 200 with a non-zero XYOps application code is reported as a failed probe", async () => {
+  const report = await inspectXyops({
+    baseUrl: "http://xyops.internal",
+    apiKey: "secret",
+    probes: [{ name: "toolsets", path: "/api/app/get_toolsets/v1" }],
+    fetchImpl: async () => Response.json({ code: 1, description: "Unsupported method" }),
+  });
+  assert.equal(report.results[0].httpOk, true);
+  assert.equal(report.results[0].apiCode, 1);
+  assert.equal(report.results[0].ok, false);
+  assert.equal(report.summary.failed, 1);
 });

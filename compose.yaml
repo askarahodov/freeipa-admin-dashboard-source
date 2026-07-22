@@ -10,6 +10,8 @@ services:
       NODE_ENV: production
       PORT: 3000
       HOST: 0.0.0.0
+      # Public development-only key. Replace it before any non-local deployment.
+      CONFIG_ENCRYPTION_KEY: d0ee92e4c9b6b9e1282d4808ff08e03de28087b1b0b3b5f44198f7bdbe782ec5
     ports:
       - "${DASHBOARD_PORT:-3000}:3000"
     extra_hosts:

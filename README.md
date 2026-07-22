@@ -169,9 +169,11 @@ and XYOps API keys are encrypted with AES-256-GCM using
 `CONFIG_ENCRYPTION_KEY`. Empty secret inputs retain the currently stored value;
 the browser never receives it. Changing `CONFIG_ENCRYPTION_KEY` after saving
 settings makes the encrypted values unreadable, so back up both the volume and
-the `.env` file securely. The fixed `CONFIG_ENCRYPTION_KEY` in the example is
-public and intended only for an isolated local test environment. Replace it
-with `openssl rand -hex 32` before any production or shared deployment.
+the key securely. For predictable local startup, `compose.yaml` explicitly
+overrides `CONFIG_ENCRYPTION_KEY` with a fixed public development key; a stale
+value in `.env` therefore cannot break settings persistence. This key is only
+for an isolated local test environment. Replace the Compose value with
+`openssl rand -hex 32` before any production or shared deployment.
 
 At runtime, FreeIPA credentials are used only by the server-side proxy for
 `user_find` and `group_find`. The browser never receives the password. If an

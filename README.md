@@ -141,9 +141,9 @@ secrets:
 
 ```bash
 cp .env.example .env
-# Generate two different values and place them into .env:
-openssl rand -base64 32  # CONFIG_ENCRYPTION_KEY
-openssl rand -base64 32  # ADMIN_TOKEN
+# .env.example includes a fixed public encryption key for local testing.
+# Generate a private administrator token and place it into .env:
+openssl rand -hex 32  # ADMIN_TOKEN
 docker compose up -d --build
 docker compose ps
 ```
@@ -165,7 +165,9 @@ and XYOps API keys are encrypted with AES-256-GCM using
 `CONFIG_ENCRYPTION_KEY`. Empty secret inputs retain the currently stored value;
 the browser never receives it. Changing `CONFIG_ENCRYPTION_KEY` after saving
 settings makes the encrypted values unreadable, so back up both the volume and
-the `.env` file securely.
+the `.env` file securely. The fixed `CONFIG_ENCRYPTION_KEY` in the example is
+public and intended only for an isolated local test environment. Replace it
+with `openssl rand -hex 32` before any production or shared deployment.
 
 At runtime, FreeIPA credentials are used only by the server-side proxy for
 `user_find` and `group_find`. The browser never receives the password. If an

@@ -17,7 +17,7 @@ COPY --from=build --chown=dashboard:dashboard /app/package.json /app/package-loc
 COPY --from=build --chown=dashboard:dashboard /app/node_modules ./node_modules
 COPY --from=build --chown=dashboard:dashboard /app/dist ./dist
 COPY --from=build --chown=dashboard:dashboard /app/.openai ./.openai
-COPY --from=build --chown=dashboard:dashboard /app/scripts/start-worker.mjs ./scripts/start-worker.mjs
+COPY --from=build --chown=dashboard:dashboard /app/scripts/start-worker.mjs /app/scripts/freeipa-gateway.mjs ./scripts/
 USER dashboard
 EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \

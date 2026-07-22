@@ -35,6 +35,7 @@ export type CatalogEvent = {
   fields: RouteField[];
   targets: string[];
   dangerous: boolean;
+  schemaVersion?: string;
 };
 
 export type AutomationRoute = {
@@ -43,6 +44,7 @@ export type AutomationRoute = {
   operation: string;
   kind: "event" | "workflow";
   eventId: string;
+  schemaVersion?: string;
   enabled?: boolean;
   targets?: string[];
   fields?: RouteField[];

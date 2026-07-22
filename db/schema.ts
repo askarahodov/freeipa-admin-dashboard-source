@@ -29,3 +29,10 @@ export const xyopsCatalogSnapshot = sqliteTable("xyops_catalog_snapshot", {
   catalogJson: text("catalog_json").notNull(),
   syncedAt: integer("synced_at").notNull(),
 });
+
+export const xyopsCatalogHistory = sqliteTable("xyops_catalog_history", {
+  id: text("id").primaryKey(),
+  syncedAt: integer("synced_at").notNull(),
+  changesJson: text("changes_json").notNull(),
+  catalogJson: text("catalog_json").notNull(),
+});

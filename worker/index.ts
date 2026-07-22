@@ -53,6 +53,7 @@ type OperationRun = {
 
 type CatalogChange = { id: string; title: string; kind: "new" | "changed" | "removed" };
 type CatalogSnapshot = { events: CatalogEvent[]; syncedAt: number };
+type CatalogHistoryEntry = { id: string; syncedAt: number; changes: CatalogChange[]; processCount: number };
 
 // Image security config. SVG sources with .svg extension auto-skip the
 // optimization endpoint on the client side (served directly, no proxy).
@@ -107,6 +108,12 @@ const createCatalogSnapshotTable = `CREATE TABLE IF NOT EXISTS xyops_catalog_sna
   id TEXT PRIMARY KEY NOT NULL,
   catalog_json TEXT NOT NULL,
   synced_at INTEGER NOT NULL
+)`;
+const createCatalogHistoryTable = `CREATE TABLE IF NOT EXISTS xyops_catalog_history (
+  id TEXT PRIMARY KEY NOT NULL,
+  synced_at INTEGER NOT NULL,
+  changes_json TEXT NOT NULL,
+  catalog_json TEXT NOT NULL
 )`;
 
 function json(data: unknown, status = 200): Response {
@@ -240,6 +247,26 @@ async function saveCatalogSnapshot(env: Env, events: CatalogEvent[], syncedAt: n
   await env.DB.prepare(createCatalogSnapshotTable).run();
   await env.DB.prepare("INSERT INTO xyops_catalog_snapshot (id, catalog_json, synced_at) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET catalog_json = excluded.catalog_json, synced_at = excluded.synced_at")
     .bind("current", JSON.stringify(events), syncedAt).run();
+}
+
+async function saveCatalogHistory(env: Env, events: CatalogEvent[], changes: CatalogChange[], syncedAt: number): Promise<void> {
+  if (!env.DB || !changes.length) return;
+  await env.DB.prepare(createCatalogHistoryTable).run();
+  await env.DB.prepare("INSERT INTO xyops_catalog_history (id, synced_at, changes_json, catalog_json) VALUES (?, ?, ?, ?)")
+    .bind(crypto.randomUUID(), syncedAt, JSON.stringify(changes), JSON.stringify(events)).run();
+  await env.DB.prepare("DELETE FROM xyops_catalog_history WHERE id NOT IN (SELECT id FROM xyops_catalog_history ORDER BY synced_at DESC LIMIT 30)").run();
+}
+
+async function listCatalogHistory(env: Env, limit = 20): Promise<CatalogHistoryEntry[]> {
+  if (!env.DB) return [];
+  await env.DB.prepare(createCatalogHistoryTable).run();
+  const result = await env.DB.prepare("SELECT id, synced_at, changes_json, catalog_json FROM xyops_catalog_history ORDER BY synced_at DESC LIMIT ?").bind(Math.max(1, Math.min(limit, 30))).all<Record<string, unknown>>();
+  return (result.results ?? []).map((row) => {
+    let changes: CatalogChange[] = []; let processCount = 0;
+    try { const parsed = JSON.parse(String(row.changes_json ?? "[]")); if (Array.isArray(parsed)) changes = parsed.slice(0, 500); } catch {}
+    try { const parsed = JSON.parse(String(row.catalog_json ?? "[]")); if (Array.isArray(parsed)) processCount = parsed.length; } catch {}
+    return { id: String(row.id ?? ""), syncedAt: Number(row.synced_at ?? 0), changes, processCount };
+  }).filter((entry) => entry.id);
 }
 
 function catalogChanges(previous: CatalogEvent[], current: CatalogEvent[]): CatalogChange[] {
@@ -506,7 +533,7 @@ function sanitizeRoutes(raw: unknown): AutomationRoute[] {
     keys.add(key);
     const fields = Array.isArray(source.fields) ? source.fields.map(normalizeXyField).filter((field): field is RouteField => field !== null).slice(0, 100) : [];
     const targets = Array.isArray(source.targets) ? source.targets.map(String).map((value) => value.trim().slice(0, 240)).filter(Boolean).slice(0, 100) : [];
-    return { key, title, operation, kind, eventId, enabled: source.enabled !== false, fields, targets };
+    return { key, title, operation, kind, eventId, schemaVersion: String(source.schemaVersion ?? "").slice(0, 64) || undefined, enabled: source.enabled !== false, fields, targets };
   });
 }
 
@@ -545,7 +572,7 @@ function automationRoutes(env: Env): AutomationRoute[] {
 }
 
 function publicRoute(route: AutomationRoute) {
-  return { key: route.key, title: route.title, operation: route.operation, kind: route.kind, eventId: route.eventId, enabled: route.enabled !== false, targets: route.targets ?? [], fields: route.fields ?? [] };
+  return { key: route.key, title: route.title, operation: route.operation, kind: route.kind, eventId: route.eventId, schemaVersion: route.schemaVersion ?? null, enabled: route.enabled !== false, targets: route.targets ?? [], fields: route.fields ?? [] };
 }
 
 function fieldOptions(source: Record<string, unknown>): string[] | undefined {
@@ -664,12 +691,19 @@ function targetValues(raw: unknown): string[] {
   return raw.map((item) => typeof item === "string" ? item : item && typeof item === "object" ? String((item as Record<string, unknown>).id ?? (item as Record<string, unknown>).name ?? "") : "").filter(Boolean);
 }
 
+function schemaFingerprint(event: Pick<CatalogEvent, "kind" | "fields" | "targets" | "dangerous">): string {
+  const value = JSON.stringify({ kind: event.kind, fields: event.fields, targets: event.targets, dangerous: event.dangerous });
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) { hash ^= value.charCodeAt(index); hash = Math.imul(hash, 16777619); }
+  return `v1-${(hash >>> 0).toString(16).padStart(8, "0")}`;
+}
+
 function catalogItem(event: Record<string, unknown>): CatalogEvent {
   const workflow = event.workflow && typeof event.workflow === "object" ? event.workflow as Record<string, unknown> : null;
   const kind = String(event.type ?? event.kind ?? "").toLowerCase() === "workflow" || Boolean(workflow) ? "workflow" : "event";
   const rawFields = [event.user_fields, event.fields, event.params, workflow?.user_fields, workflow?.fields].find(Array.isArray) as unknown[] | undefined;
   const id = String(event.id ?? event.event_id ?? workflow?.id ?? "");
-  return {
+  const item: CatalogEvent = {
     id,
     title: String(event.title ?? event.name ?? workflow?.title ?? (id || "Untitled")),
     description: String(event.description ?? event.help ?? workflow?.description ?? ""),
@@ -681,16 +715,19 @@ function catalogItem(event: Record<string, unknown>): CatalogEvent {
     targets: targetValues(event.targets ?? event.target_options),
     dangerous: Boolean(event.dangerous ?? event.requires_confirmation),
   };
+  item.schemaVersion = schemaFingerprint(item);
+  return item;
 }
 
 function demoCatalog(env: Env): CatalogEvent[] {
   const routeEvents = automationRoutes(env).map((route) => ({ id: route.eventId, title: route.title, description: "Маршрут администрирования FreeIPA", kind: route.kind, enabled: route.enabled !== false, category: "FreeIPA", plugin: route.kind === "workflow" ? null : "freeipa", fields: route.fields ?? [], targets: route.targets ?? [], dangerous: false }));
-  return [...routeEvents, { id: "database-backup", title: "Резервное копирование базы данных", description: "Создание и проверка резервной копии выбранной БД", kind: "workflow", enabled: true, category: "Databases", plugin: null, targets: ["db-prod-01", "db-stage-01"], dangerous: false, fields: [
+  const events: CatalogEvent[] = [...routeEvents, { id: "database-backup", title: "Резервное копирование базы данных", description: "Создание и проверка резервной копии выбранной БД", kind: "workflow", enabled: true, category: "Databases", plugin: null, targets: ["db-prod-01", "db-stage-01"], dangerous: false, fields: [
     { key: "database", label: "База данных", type: "string", required: true, target: "workflowData", placeholder: "billing" },
     { key: "backupType", label: "Тип копии", type: "select", required: true, target: "workflowData", options: ["full", "incremental"], default: "full" },
     { key: "retentionDays", label: "Хранить, дней", type: "number", required: true, target: "workflowData", default: 14, min: 1, max: 365 },
     { key: "verify", label: "Проверить копию после создания", type: "boolean", target: "workflowData", default: true },
   ] }];
+  return events.map((event) => ({ ...event, schemaVersion: schemaFingerprint(event) }));
 }
 
 async function loadCatalog(env: Env, xyopsUrl: string | null): Promise<{ mode: "demo" | "live" | "unconfigured"; events: CatalogEvent[] }> {
@@ -714,6 +751,7 @@ async function portalCatalog(env: Env, xyopsUrl: string | null): Promise<{ mode:
     const syncedAt = Date.now();
     const changes = previous ? catalogChanges(previous.events, events) : events.map((event) => ({ id: event.id, title: event.title, kind: "new" as const }));
     await saveCatalogSnapshot(env, events, syncedAt);
+    await saveCatalogHistory(env, events, changes, syncedAt);
     return { mode: "live", source: "xyops", events, syncedAt: new Date(syncedAt).toISOString(), stale: false, changes };
   } catch (error) {
     if (previous) return { mode: "cached", source: "cache", events: previous.events, syncedAt: new Date(previous.syncedAt).toISOString(), stale: true, changes: [] };
@@ -845,6 +883,12 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
     } catch (error) {
       return json({ error: error instanceof Error ? error.message : "XYOps catalog request failed" }, 502);
     }
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/integrations/catalog/history") {
+    const limit = Number(url.searchParams.get("limit") ?? 20);
+    try { return json({ persistenceAvailable: Boolean(baseEnv.DB), history: await listCatalogHistory(baseEnv, Number.isFinite(limit) ? limit : 20) }); }
+    catch { return json({ persistenceAvailable: Boolean(baseEnv.DB), history: [] }); }
   }
 
   if (request.method === "GET" && url.pathname === "/api/integrations/catalog/options") {

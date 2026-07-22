@@ -30,10 +30,11 @@ for the user. FreeIPA is the first domain module, not a limit of the platform.
 - [x] Support conditional fields, generated sections and allowlisted server-side remote option providers.
 - [x] Flatten and render nested `group`, `section` and `fieldset` collections as nested form groups.
 - [ ] Validate multi-level dependency expressions against the target XYOps contract.
-- [ ] Add explicit process/version identifiers and a schema compatibility report.
+- [x] Add deterministic schema-version identifiers and a route compatibility report.
 - [x] Detect route schema drift and refresh a saved route from its source Event or Workflow.
 - [x] Add a reviewed field-by-field change summary before applying a route refresh.
-- [ ] Add scheduled catalog synchronization and retention of schema history.
+- [x] Persist catalog-change history with bounded retention.
+- [ ] Add scheduled catalog synchronization.
 
 ### P1 — execution visualization
 

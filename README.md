@@ -85,6 +85,12 @@ explicit review. The operation journal also persists sanitized stage metadata
 from `stages`, `steps`, `tasks`, `nodes` or `workflow_steps` returned by XYOps
 and renders it as a run timeline.
 
+Each normalized Event and Workflow receives a deterministic `schemaVersion`
+derived from its executable contract. Saved routes retain the version they were
+reviewed against. Catalog changes are stored in a bounded D1 history, and the
+Settings screen reports compatibility plus the added, changed and removed
+process counts for every retained synchronization.
+
 ## Schema-driven XYOps self-service
 
 The **Automation** section is generated from `GET /api/app/get_events/v1` and

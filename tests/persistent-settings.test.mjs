@@ -69,6 +69,7 @@ test("automation routes require admin auth and persist without secret defaults",
     title: "Disable user",
     operation: "user_disable",
     eventId: "event-42",
+    schemaVersion: "v1-deadbeef",
     kind: "workflow",
     enabled: true,
     targets: ["freeipa"],
@@ -85,6 +86,7 @@ test("automation routes require admin auth and persist without secret defaults",
   assert.equal(saved.status, 200);
   const savedBody = await saved.json();
   assert.equal(savedBody.routes[0].eventId, "event-42");
+  assert.equal(savedBody.routes[0].schemaVersion, "v1-deadbeef");
   assert.deepEqual(savedBody.routes[0].fields[0].groupPath, ["Identity", "Account"]);
   assert.deepEqual(savedBody.routes[0].fields[0].visibleWhen, { field: "mode", operator: "equals", value: "manual" });
   assert.equal(savedBody.routes[0].fields[1].default, undefined);

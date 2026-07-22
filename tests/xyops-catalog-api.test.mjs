@@ -88,14 +88,17 @@ test("discovers, validates and launches a schema-driven XYOps workflow", async (
 
 class CatalogMemoryD1 {
   snapshot = null;
+  history = [];
   prepare(sql) {
     let values = [];
     const statement = {
       bind: (...args) => { values = args; return statement; },
       run: async () => {
         if (sql.startsWith("INSERT INTO xyops_catalog_snapshot")) this.snapshot = { catalog_json: values[1], synced_at: values[2] };
+        if (sql.startsWith("INSERT INTO xyops_catalog_history")) this.history.push({ id: values[0], synced_at: values[1], changes_json: values[2], catalog_json: values[3] });
         return { success: true };
       },
+      all: async () => ({ results: [...this.history].sort((a, b) => b.synced_at - a.synced_at).slice(0, Number(values[0] ?? 20)) }),
       first: async () => {
         if (sql.startsWith("SELECT catalog_json")) return this.snapshot;
         return null;
@@ -121,11 +124,17 @@ test("persists catalog snapshots, detects schema changes and falls back safely",
   try {
     const first = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog"), env, {}).then((response) => response.json());
     assert.equal(first.source, "xyops");
+    assert.match(first.events[0].schemaVersion, /^v1-[0-9a-f]{8}$/);
     assert.deepEqual(first.changes.map((change) => [change.id, change.kind]), [["backup", "new"]]);
 
     revision = 2;
     const second = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog"), env, {}).then((response) => response.json());
     assert.deepEqual(second.changes.map((change) => [change.id, change.kind]), [["backup", "changed"], ["restart", "new"]]);
+
+    const history = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog/history"), env, {}).then((response) => response.json());
+    assert.equal(history.history.length, 2);
+    const currentHistory = history.history.find((entry) => entry.processCount === 2);
+    assert.deepEqual(currentHistory.changes.map((change) => change.kind), ["changed", "new"]);
 
     revision = 3;
     const cached = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog"), env, {}).then((response) => response.json());

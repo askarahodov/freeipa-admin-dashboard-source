@@ -10,6 +10,17 @@ export type RouteField = {
   placeholder?: string;
   min?: number;
   max?: number;
+  section?: string;
+  order?: number;
+  visibleWhen?: {
+    field: string;
+    operator: "equals" | "notEquals" | "in" | "truthy" | "falsy";
+    value?: string | string[];
+  };
+  optionsSource?: {
+    endpoint: string;
+    queryParam?: string;
+  };
 };
 
 export type CatalogEvent = {

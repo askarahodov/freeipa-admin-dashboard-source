@@ -537,6 +537,28 @@ function fieldOptions(source: Record<string, unknown>): string[] | undefined {
   return values.length ? values : undefined;
 }
 
+function fieldCondition(source: Record<string, unknown>): RouteField["visibleWhen"] {
+  const raw = source.visible_when ?? source.show_when ?? source.condition ?? source.depends_on;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const condition = raw as Record<string, unknown>;
+  const field = String(condition.field ?? condition.key ?? condition.dependsOn ?? "").trim().slice(0, 120);
+  if (!field) return undefined;
+  const rawOperator = String(condition.operator ?? (condition.equals !== undefined ? "equals" : "truthy"));
+  const operator: NonNullable<RouteField["visibleWhen"]>["operator"] = ["equals", "notEquals", "in", "truthy", "falsy"].includes(rawOperator) ? rawOperator as NonNullable<RouteField["visibleWhen"]>["operator"] : "equals";
+  const rawValue = condition.value ?? condition.equals ?? condition.values;
+  const value = Array.isArray(rawValue) ? rawValue.map(String).slice(0, 100) : rawValue === undefined ? undefined : String(rawValue);
+  return { field, operator, value };
+}
+
+function fieldOptionsSource(source: Record<string, unknown>): RouteField["optionsSource"] {
+  const raw = source.options_source ?? source.data_source;
+  const nested = raw && typeof raw === "object" && !Array.isArray(raw) ? raw as Record<string, unknown> : {};
+  const endpoint = String(source.options_endpoint ?? source.options_url ?? nested.endpoint ?? nested.url ?? "").trim();
+  if (!endpoint.startsWith("/api/app/") || endpoint.includes("..") || endpoint.length > 240) return undefined;
+  const queryParam = String(source.options_query_param ?? nested.queryParam ?? nested.query_param ?? "query").trim().slice(0, 80);
+  return { endpoint, queryParam: queryParam || "query" };
+}
+
 function normalizeXyField(raw: unknown): RouteField | null {
   if (!raw || typeof raw !== "object") return null;
   const source = raw as Record<string, unknown>;
@@ -569,6 +591,10 @@ function normalizeXyField(raw: unknown): RouteField | null {
     placeholder: String(source.placeholder ?? ""),
     min: typeof source.min === "number" ? source.min : undefined,
     max: typeof source.max === "number" ? source.max : undefined,
+    section: String(source.section ?? source.group ?? source.fieldset ?? "").trim().slice(0, 120) || undefined,
+    order: typeof source.order === "number" ? source.order : typeof source.position === "number" ? source.position : undefined,
+    visibleWhen: fieldCondition(source),
+    optionsSource: fieldOptionsSource(source),
   };
 }
 
@@ -662,6 +688,36 @@ function coerceField(field: RouteField, raw: unknown): unknown | null {
   return value;
 }
 
+function fieldVisible(field: RouteField, values: Record<string, unknown>): boolean {
+  const condition = field.visibleWhen;
+  if (!condition) return true;
+  const current = values[condition.field];
+  const truthy = current === true || current === "true" || current === "1" || current === "on" || Array.isArray(current) && current.length > 0 || typeof current === "string" && current.trim().length > 0;
+  if (condition.operator === "truthy") return truthy;
+  if (condition.operator === "falsy") return !truthy;
+  const actual = Array.isArray(current) ? current.map(String) : String(current ?? "");
+  const expected = Array.isArray(condition.value) ? condition.value.map(String) : String(condition.value ?? "");
+  if (condition.operator === "in") return Array.isArray(expected) && (Array.isArray(actual) ? actual.some((value) => expected.includes(value)) : expected.includes(actual));
+  const equal = Array.isArray(actual) ? actual.includes(String(expected)) : actual === expected;
+  return condition.operator === "notEquals" ? !equal : equal;
+}
+
+function extractOptionValues(payload: unknown): string[] {
+  if (Array.isArray(payload)) return payload.map((item) => {
+    if (typeof item === "string" || typeof item === "number") return String(item);
+    if (item && typeof item === "object") { const row = item as Record<string, unknown>; return String(row.value ?? row.id ?? row.name ?? row.title ?? row.label ?? ""); }
+    return "";
+  }).filter(Boolean).slice(0, 500);
+  if (!payload || typeof payload !== "object") return [];
+  const source = payload as Record<string, unknown>;
+  for (const key of ["options", "items", "values", "rows", "data", "result"]) {
+    if (source[key] === payload) continue;
+    const values = extractOptionValues(source[key]);
+    if (values.length) return values;
+  }
+  return [];
+}
+
 function operationRun(input: {
   request: Request;
   eventId: string;
@@ -739,6 +795,22 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
     }
   }
 
+  if (request.method === "GET" && url.pathname === "/api/integrations/catalog/options") {
+    if (!xyopsUrl || !env.XYOPS_API_KEY) return json({ error: "XYOps is not configured" }, 503);
+    try {
+      const catalog = await loadCatalog(env, xyopsUrl);
+      const event = catalog.events.find((item) => item.id === url.searchParams.get("eventId"));
+      const field = event?.fields.find((item) => item.key === url.searchParams.get("fieldKey"));
+      if (!field?.optionsSource) return json({ error: "Dynamic option source not found" }, 404);
+      const endpoint = new URL(`${xyopsUrl}${field.optionsSource.endpoint}`);
+      const query = String(url.searchParams.get("query") ?? "").slice(0, 200);
+      if (query) endpoint.searchParams.set(field.optionsSource.queryParam ?? "query", query);
+      const response = await fetch(endpoint, { headers: { "x-api-key": env.XYOPS_API_KEY, accept: "application/json" }, signal: AbortSignal.timeout(12000) });
+      if (!response.ok) return json({ error: "XYOps option provider failed" }, 502);
+      return json({ options: extractOptionValues(await response.json().catch(() => null)) });
+    } catch (error) { return json({ error: error instanceof Error ? error.message : "Cannot load options" }, 502); }
+  }
+
   if (request.method === "POST" && url.pathname === "/api/integrations/catalog/run") {
     let body: Record<string, unknown>;
     try { body = await request.json() as Record<string, unknown>; } catch { return json({ error: "Invalid JSON" }, 400); }
@@ -755,6 +827,7 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
       const inputData: Record<string, unknown> = { source: "xyops-self-service" };
       const workflowData: Record<string, unknown> = {};
       for (const field of event.fields) {
+        if (!fieldVisible(field, values)) continue;
         const value = coerceField(field, values[field.key]);
         if (value === null) return json({ error: `Invalid or missing field: ${field.key}` }, 400);
         if (value === "" && !field.required) continue;

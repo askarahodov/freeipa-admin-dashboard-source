@@ -71,6 +71,13 @@ synchronization compares process schemas and reports added, changed and removed
 items. If XYOps is temporarily unavailable, the portal can still visualize the
 last snapshot, but execution is disabled until a live contract is available.
 
+Generated forms also understand section metadata, ordering and common
+`visible_when` / `show_when` dependency shapes. Select fields may declare an
+XYOps-side option provider. Those requests are proxied with the server API key
+only when the declared endpoint is a relative `/api/app/…` path; arbitrary URLs
+are rejected. Saved routes indicate schema drift and can be refreshed from the
+current Event or Workflow without recreating the route.
+
 ## Schema-driven XYOps self-service
 
 The **Automation** section is generated from `GET /api/app/get_events/v1` and

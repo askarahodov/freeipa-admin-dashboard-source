@@ -7,7 +7,7 @@ test("discovers, validates and launches a schema-driven XYOps workflow", async (
   const originalFetch = globalThis.fetch;
   let launchPayload;
   globalThis.fetch = async (input, init = {}) => {
-    const url = new URL(typeof input === "string" ? input : input.url);
+    const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
     if (url.pathname.endsWith("/get_events/v1")) {
       return Response.json({ events: [{
         id: "backup-postgres",
@@ -22,9 +22,13 @@ test("discovers, validates and launches a schema-driven XYOps workflow", async (
           { id: "verify", title: "Verify", type: "checkbox", default: true, scope: "workflowData" },
           { id: "formats", title: "Formats", type: "multimenu", options: ["custom", "sql"], target: "workflowData" },
           { id: "metadata", title: "Metadata", type: "json", target: "input" },
+          { id: "mode", title: "Mode", type: "select", options: ["basic", "full"], section: "Advanced", order: 10, target: "workflowData" },
+          { id: "ticket", title: "Approval ticket", type: "text", required: true, section: "Advanced", visible_when: { field: "mode", equals: "full" }, target: "workflowData" },
+          { id: "cluster", title: "Cluster", type: "select", options_endpoint: "/api/app/get_clusters/v1", options_query_param: "search", target: "workflowData" },
         ],
       }] });
     }
+    if (url.pathname.endsWith("/get_clusters/v1")) return Response.json({ items: [{ id: "cluster-a" }, { id: "cluster-b" }] });
     if (url.pathname.endsWith("/run_event/v1")) {
       launchPayload = JSON.parse(String(init.body));
       return Response.json({ job_id: "job-42" });
@@ -43,18 +47,34 @@ test("discovers, validates and launches a schema-driven XYOps workflow", async (
       ["verify", "boolean", "workflowData"],
       ["formats", "multiselect", "workflowData"],
       ["metadata", "json", "input"],
+      ["mode", "select", "workflowData"],
+      ["ticket", "string", "workflowData"],
+      ["cluster", "select", "workflowData"],
     ]);
+    assert.deepEqual(catalog.events[0].fields.find((field) => field.key === "ticket").visibleWhen, { field: "mode", operator: "equals", value: "full" });
+    assert.equal(catalog.events[0].fields.find((field) => field.key === "mode").section, "Advanced");
+    assert.deepEqual(catalog.events[0].fields.find((field) => field.key === "cluster").optionsSource, { endpoint: "/api/app/get_clusters/v1", queryParam: "search" });
 
-    const runResponse = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog/run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ eventId: "backup-postgres", targets: ["db-02"], values: { database: "billing", retention: "30", verify: true, formats: ["custom"], metadata: "{\"ticket\":\"OPS-7\"}" } }) }), env, {});
+    const optionsResponse = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog/options?eventId=backup-postgres&fieldKey=cluster&query=prod"), env, {});
+    assert.deepEqual((await optionsResponse.json()).options, ["cluster-a", "cluster-b"]);
+
+    const runResponse = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog/run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ eventId: "backup-postgres", targets: ["db-02"], values: { database: "billing", retention: "30", verify: true, formats: ["custom"], metadata: "{\"ticket\":\"OPS-7\"}", mode: "full", ticket: "OPS-8", cluster: "cluster-a" } }) }), env, {});
     assert.equal(runResponse.status, 202);
     assert.equal((await runResponse.json()).jobId, "job-42");
     assert.deepEqual(launchPayload, {
       id: "backup-postgres",
       params: { source: "xyops-self-service" },
       input: { data: { source: "xyops-self-service", metadata: { ticket: "OPS-7" } } },
-      workflowData: { database: "billing", retention: 30, verify: true, formats: ["custom"] },
+      workflowData: { database: "billing", retention: 30, verify: true, formats: ["custom"], mode: "full", ticket: "OPS-8", cluster: "cluster-a" },
       targets: ["db-02"],
     });
+
+    const conditional = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog/run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ eventId: "backup-postgres", values: { database: "billing", retention: 7, mode: "basic" } }) }), env, {});
+    assert.equal(conditional.status, 202);
+    assert.equal("ticket" in launchPayload.workflowData, false);
+
+    const missingConditional = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog/run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ eventId: "backup-postgres", values: { database: "billing", retention: 7, mode: "full" } }) }), env, {});
+    assert.equal(missingConditional.status, 400);
 
     const rejected = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog/run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ eventId: "unknown-process", values: {} }) }), env, {});
     assert.equal(rejected.status, 404);
@@ -87,7 +107,7 @@ test("persists catalog snapshots, detects schema changes and falls back safely",
   const db = new CatalogMemoryD1();
   let revision = 1;
   globalThis.fetch = async (input) => {
-    const url = new URL(typeof input === "string" ? input : input.url);
+    const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
     if (!url.pathname.endsWith("/get_events/v1")) return new Response("not found", { status: 404 });
     if (revision === 3) throw new Error("XYOps offline");
     return Response.json({ events: revision === 1

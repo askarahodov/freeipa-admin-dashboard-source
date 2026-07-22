@@ -58,3 +58,11 @@ nav { display:flex;flex-direction:column;gap:8px; } nav button { border:0;backgr
 .category-tabs button.active { border-color:#8d74e6;background:#f3efff;color:#6743d4; }
 .category-tabs b { margin-left:5px;font-size:9px;padding:2px 6px;border-radius:10px;background:#efeff3; }
 @media (max-width:760px) { .catalog-sync{align-items:flex-start;flex-wrap:wrap}.catalog-sync>div{min-width:calc(100% - 40px)} }
+.route-main>b.schema-warning { color:#c37808; }
+.route-actions { flex-wrap:wrap; }
+.generated-form { display:flex;flex-direction:column;gap:16px; }
+.generated-section { display:flex;flex-direction:column;gap:11px; }
+.generated-section-title { display:flex;justify-content:space-between;align-items:center;padding:8px 1px 6px;border-bottom:1px solid var(--line); }
+.generated-section-title strong { font-size:12px;color:#5f4ca4; }
+.generated-section-title span { font-size:9px;color:var(--muted); }
+.dynamic-fields .option-search { padding:8px 10px;background:#fafafd;font-size:11px; }

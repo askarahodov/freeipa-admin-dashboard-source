@@ -27,9 +27,11 @@ for the user. FreeIPA is the first domain module, not a limit of the platform.
 ### P1 — real XYOps contract hardening
 
 - [ ] Validate normalization against a sanitized diagnostic export from the target XYOps installation.
-- [ ] Support conditional fields, nested groups, dependencies and remote option providers exposed by XYOps.
+- [x] Support conditional fields, generated sections and allowlisted server-side remote option providers.
+- [ ] Validate nested field collections and multi-level dependencies against the target XYOps contract.
 - [ ] Add explicit process/version identifiers and a schema compatibility report.
-- [ ] Refresh route schemas from their source Event or Workflow with a reviewed change summary.
+- [x] Detect route schema drift and refresh a saved route from its source Event or Workflow.
+- [ ] Add a reviewed field-by-field change summary before applying a route refresh.
 - [ ] Add scheduled catalog synchronization and retention of schema history.
 
 ### P1 — execution visualization

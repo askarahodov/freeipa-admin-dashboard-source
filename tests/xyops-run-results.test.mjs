@@ -71,8 +71,10 @@ test("captures sanitized XYOps result widgets and proxies output files", async (
   let fileApiKey = "";
 
   globalThis.fetch = async (input, init = {}) => {
-    const url = new URL(typeof input === "string" ? input : input.url);
-    const headers = new Headers(init.headers ?? (typeof input === "string" ? undefined : input.headers));
+    const rawUrl = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    const requestHeaders = typeof input === "string" || input instanceof URL ? undefined : input.headers;
+    const url = new URL(rawUrl);
+    const headers = new Headers(init.headers ?? requestHeaders);
     if (url.pathname.endsWith("/get_events/v1")) return Response.json({ events: [{ id: "backup-db", title: "Backup DB", type: "workflow", user_fields: [{ id: "database", title: "Database", required: true, target: "workflowData" }] }] });
     if (url.pathname.endsWith("/run_event/v1")) return Response.json({ id: "job_result_42", status: "queued" });
     if (url.pathname.endsWith("/get_active_jobs/v1")) return Response.json({ code: 0, rows: [] });

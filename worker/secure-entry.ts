@@ -15,6 +15,9 @@ type SecureEnv = BaseEnv & {
   PORTAL_PROXY_SHARED_SECRET?: string;
   PORTAL_STATIC_IDENTITY?: string;
   PORTAL_STATIC_NAME?: string;
+  PORTAL_STATIC_GROUPS?: string;
+  PORTAL_GROUPS_HEADER?: string;
+  PORTAL_GROUPS_JSON?: string;
   PORTAL_DEFAULT_ROLE?: string;
   PORTAL_RBAC_JSON?: string;
   ADMIN_TOKEN?: string;
@@ -72,6 +75,23 @@ function normalizedName(value: string | null | undefined): string | null {
   const normalized = value?.trim() ?? "";
   if (!normalized || normalized.length > 160 || /[\u0000-\u001f\u007f]/.test(normalized)) return null;
   return normalized;
+}
+
+function normalizedGroups(value: string | null | undefined): string[] {
+  return Array.from(new Set(String(value ?? "").split(/[;,]/).map((item) => item.trim().toLowerCase()).filter((item) => item && item.length <= 120 && !/[\r\n]/.test(item)))).slice(0, 100);
+}
+
+function mappedGroups(identity: string, value: string | undefined): string[] {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return [];
+    const entries = Object.fromEntries(Object.entries(parsed as Record<string, unknown>).map(([key, groups]) => [key.trim().toLowerCase(), groups]));
+    const selected = entries[identity] ?? entries["*"];
+    return Array.isArray(selected) ? normalizedGroups(selected.map(String).join(",")) : normalizedGroups(String(selected ?? ""));
+  } catch {
+    return [];
+  }
 }
 
 async function secretsMatch(provided: string | null, expected: string | undefined): Promise<boolean> {
@@ -133,9 +153,11 @@ async function secureContext(request: Request, sourceEnv: SecureEnv): Promise<{ 
   headers.delete("oai-authenticated-user-email");
   headers.delete("oai-authenticated-user-full-name");
   headers.delete("oai-authenticated-user-full-name-encoding");
+  headers.delete("oai-authenticated-user-groups");
 
   let identity: string | null = null;
   let displayName: string | null = null;
+  let groups: string[] = [];
 
   if (mode === "workspace") {
     identity = normalizedIdentity(workspaceEmail);
@@ -145,21 +167,29 @@ async function secureContext(request: Request, sourceEnv: SecureEnv): Promise<{ 
   } else if (mode === "proxy") {
     const identityHeader = safeHeaderName(sourceEnv.PORTAL_IDENTITY_HEADER, "x-auth-request-email");
     const nameHeader = safeHeaderName(sourceEnv.PORTAL_IDENTITY_NAME_HEADER, "x-auth-request-user");
+    const groupsHeader = safeHeaderName(sourceEnv.PORTAL_GROUPS_HEADER, "x-auth-request-groups");
     const secretHeader = safeHeaderName(sourceEnv.PORTAL_PROXY_SECRET_HEADER, "x-portal-proxy-secret");
     const trusted = await secretsMatch(headers.get(secretHeader), sourceEnv.PORTAL_PROXY_SHARED_SECRET);
     if (trusted) {
       identity = normalizedIdentity(headers.get(identityHeader));
       displayName = normalizedName(headers.get(nameHeader));
+      groups = normalizedGroups(headers.get(groupsHeader));
     }
     headers.delete(identityHeader);
     headers.delete(nameHeader);
+    headers.delete(groupsHeader);
     headers.delete(secretHeader);
   } else if (mode === "static") {
     identity = normalizedIdentity(sourceEnv.PORTAL_STATIC_IDENTITY);
     displayName = normalizedName(sourceEnv.PORTAL_STATIC_NAME);
+    groups = normalizedGroups(sourceEnv.PORTAL_STATIC_GROUPS);
   }
 
-  if (identity) headers.set("oai-authenticated-user-email", identity);
+  if (identity) {
+    groups = Array.from(new Set([...groups, ...mappedGroups(identity, sourceEnv.PORTAL_GROUPS_JSON)])).slice(0, 100);
+    headers.set("oai-authenticated-user-email", identity);
+    if (groups.length) headers.set("oai-authenticated-user-groups", groups.join(","));
+  }
   if (displayName) {
     headers.set("oai-authenticated-user-full-name", encodeURIComponent(displayName));
     headers.set("oai-authenticated-user-full-name-encoding", "percent-encoded-utf-8");

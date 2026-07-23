@@ -6,6 +6,7 @@ import { fieldConditionMatches, normalizeFieldCondition } from "../field-conditi
 import { listRunReplaySummaries, readRunReplay, saveRunReplay, type RunReplaySummary } from "../run-replays";
 import { listRunResults, readRunResultFile, saveRunResult, type PublicRunResult } from "../run-results";
 import { listRunNotifications, markRunNotificationsRead, saveRunNotification } from "../run-notifications";
+import { catalogEventAllowed, readCatalogPolicySet, saveCatalogPolicySet } from "../catalog-policies";
 
 interface Env {
   ASSETS: Fetcher;
@@ -26,6 +27,7 @@ interface Env {
   DEMO_MODE?: string;
   PORTAL_DEFAULT_ROLE?: string;
   PORTAL_RBAC_JSON?: string;
+  PORTAL_CATALOG_POLICIES_JSON?: string;
   IMAGES: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {
@@ -161,8 +163,9 @@ function portalRole(value: unknown): PortalRole | null {
   return value === "viewer" || value === "operator" || value === "admin" ? value : null;
 }
 
-function portalAccess(request: Request, env: Env): { identity: string; role: PortalRole; permissions: PortalPermission[] } {
+function portalAccess(request: Request, env: Env): { identity: string; role: PortalRole; groups: string[]; permissions: PortalPermission[] } {
   const identity = (request.headers.get("oai-authenticated-user-email") || "portal-user").trim().toLowerCase().slice(0, 160);
+  const groups = Array.from(new Set(String(request.headers.get("oai-authenticated-user-groups") ?? "").split(",").map((value) => value.trim().toLowerCase()).filter((value) => value && value.length <= 120 && !/[\r\n]/.test(value)))).slice(0, 100);
   let role = portalRole(String(env.PORTAL_DEFAULT_ROLE || "").trim().toLowerCase()) ?? "admin";
   if (env.PORTAL_RBAC_JSON) {
     try {
@@ -176,7 +179,7 @@ function portalAccess(request: Request, env: Env): { identity: string; role: Por
       // Invalid RBAC configuration never grants more than the explicit default role.
     }
   }
-  return { identity, role, permissions: rolePermissions[role] };
+  return { identity, role, groups, permissions: rolePermissions[role] };
 }
 
 function requirePortalPermission(request: Request, env: Env, permission: PortalPermission): Response | null {
@@ -1129,6 +1132,31 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
     return json({ mode: demoMode ? "demo" : ipaConfigured || xyopsConfigured ? "live" : "unconfigured", viewer: requestActor(request), access: { identity: access.identity, role: access.role, permissions: access.permissions }, persistence: { available: Boolean(baseEnv.DB), configured: Boolean(baseEnv.CONFIG_ENCRYPTION_KEY) }, freeipa: { configured: ipaConfigured, reachable: ipaProbe.reachable, error: ipaProbe.error }, xyops: { configured: xyopsConfigured, reachable: xyopsReachable } });
   }
 
+  if (url.pathname === "/api/integrations/catalog/policies") {
+    const denied = requirePortalPermission(request, baseEnv, "settings.manage");
+    if (denied) return denied;
+    if (!baseEnv.ADMIN_TOKEN || !await adminAuthorized(request, baseEnv)) return json({ error: "Administrator authorization required" }, 401);
+    if (request.method === "GET") {
+      try {
+        const state = await readCatalogPolicySet(baseEnv);
+        return json({ ...state, persistenceAvailable: Boolean(baseEnv.DB) });
+      } catch (error) {
+        return json({ error: error instanceof Error ? error.message : "Cannot load catalog policies" }, 503);
+      }
+    }
+    if (request.method === "PUT") {
+      if (!baseEnv.DB) return json({ error: "Persistent database is unavailable" }, 503);
+      try {
+        const body = await request.json() as Record<string, unknown>;
+        const saved = await saveCatalogPolicySet(baseEnv, body.policy);
+        return json({ policy: saved.policy, source: "database", updatedAt: saved.updatedAt, persistenceAvailable: true });
+      } catch (error) {
+        return json({ error: error instanceof Error ? error.message : "Cannot save catalog policies" }, 400);
+      }
+    }
+    return json({ error: "Method not allowed" }, 405);
+  }
+
   if (request.method === "GET" && url.pathname === "/api/integrations/notifications") {
     const denied = requirePortalPermission(request, baseEnv, "directory.read");
     if (denied) return denied;
@@ -1237,6 +1265,9 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
       if (catalog.mode === "unconfigured") return json({ error: "XYOps is not configured" }, 503);
       const event = catalog.events.find((item) => item.id === replay.spec?.eventId && item.enabled);
       if (!event) return json({ error: "Исходный процесс отсутствует или отключён" }, 409);
+      const access = portalAccess(request, baseEnv);
+      const policyState = await readCatalogPolicySet(baseEnv);
+      if (!catalogEventAllowed(policyState.policy, access, event)) return json({ error: "Процесс недоступен по политике каталога" }, 404);
       if (!event.schemaVersion || event.schemaVersion !== replay.summary.schemaVersion) return json({ error: "Схема процесса изменилась. Откройте актуальную форму и проверьте параметры заново.", schemaChanged: true }, 409);
       let actionBody: Record<string, unknown> = {};
       try { actionBody = await request.json() as Record<string, unknown>; } catch {}
@@ -1276,6 +1307,8 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
   }
 
   if (request.method === "GET" && url.pathname === "/api/integrations/routes") {
+    const denied = requirePortalPermission(request, baseEnv, "settings.manage");
+    if (denied) return denied;
     const routes = automationRoutes(env);
     return json({ mode: boolValue(env.DEMO_MODE) ? "demo" : routes.length ? "live" : "unconfigured", routes: routes.map(publicRoute) });
   }
@@ -1299,7 +1332,13 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
 
   if (request.method === "GET" && url.pathname === "/api/integrations/catalog") {
     try {
-      return json(await portalCatalog(env, xyopsUrl));
+      const catalog = await portalCatalog(env, xyopsUrl);
+      const access = portalAccess(request, baseEnv);
+      const policyState = await readCatalogPolicySet(baseEnv);
+      const events = catalog.events.filter((event) => catalogEventAllowed(policyState.policy, access, event));
+      const visibleIds = new Set(events.map((event) => event.id));
+      const changes = catalog.changes.filter((change) => visibleIds.has(change.id) || catalogEventAllowed(policyState.policy, access, { id: change.id, category: "" }));
+      return json({ ...catalog, events, changes, policy: { source: policyState.source, filtered: events.length !== catalog.events.length } });
     } catch (error) {
       return json({ error: error instanceof Error ? error.message : "XYOps catalog request failed" }, 502);
     }
@@ -1316,7 +1355,10 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
     try {
       const catalog = await loadCatalog(env, xyopsUrl);
       const event = catalog.events.find((item) => item.id === url.searchParams.get("eventId"));
-      const field = event?.fields.find((item) => item.key === url.searchParams.get("fieldKey"));
+      const access = portalAccess(request, baseEnv);
+      const policyState = await readCatalogPolicySet(baseEnv);
+      if (!event || !catalogEventAllowed(policyState.policy, access, event)) return json({ error: "XYOps process not found" }, 404);
+      const field = event.fields.find((item) => item.key === url.searchParams.get("fieldKey"));
       if (!field?.optionsSource) return json({ error: "Dynamic option source not found" }, 404);
       const endpoint = new URL(`${xyopsUrl}${field.optionsSource.endpoint}`);
       const query = String(url.searchParams.get("query") ?? "").slice(0, 200);
@@ -1339,6 +1381,9 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
       if (catalog.mode === "unconfigured") return json({ error: "XYOps is not configured" }, 503);
       const event = catalog.events.find((item) => item.id === eventId && item.enabled);
       if (!event) return json({ error: "XYOps process not found or disabled" }, 404);
+      const access = portalAccess(request, baseEnv);
+      const policyState = await readCatalogPolicySet(baseEnv);
+      if (!catalogEventAllowed(policyState.policy, access, event)) return json({ error: "XYOps process not found or disabled" }, 404);
       const requestedTargets = Array.isArray(body.targets) ? body.targets.map(String) : [];
       if (event.targets.length && requestedTargets.some((target) => !event.targets.includes(target))) return json({ error: "Unsupported target" }, 400);
       const params: Record<string, unknown> = { source: "xyops-self-service" };

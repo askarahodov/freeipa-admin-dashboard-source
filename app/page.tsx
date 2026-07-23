@@ -26,7 +26,9 @@ type CatalogHistoryEntry = { id: string; syncedAt: number; processCount: number;
 type SettingsData = { source: "database" | "environment"; persistenceAvailable: boolean; encryptionConfigured: boolean; updatedAt: number | null; demoMode: boolean; freeipa: { url: string; username: string; passwordConfigured: boolean }; xyops: { url: string; apiKeyConfigured: boolean } };
 type PortalRole = "viewer" | "operator" | "admin";
 type PortalPermission = "directory.read" | "freeipa.write" | "freeipa.delete" | "xyops.run" | "settings.manage";
-type PortalAccess = { identity: string; role: PortalRole; permissions: PortalPermission[] };
+type PortalAccess = { identity: string; role: PortalRole; groups?: string[]; permissions: PortalPermission[] };
+type CatalogPolicyRule = { id: string; effect: "allow" | "deny"; users: string[]; groups: string[]; roles: PortalRole[]; categories: string[]; processes: string[] };
+type CatalogPolicySet = { version: 1; defaultEffect: "allow" | "deny"; adminBypass: boolean; rules: CatalogPolicyRule[] };
 type AutomationSection = { category: string; slug: string; count: number; events: number; workflows: number };
 
 const nav: { id: Page; label: string; icon: string }[] = [
@@ -551,6 +553,57 @@ function PersistentConnectionSettings({ notify }: { notify: (message: string) =>
   </>;
 }
 
+
+const exampleCatalogPolicy: CatalogPolicySet = {
+  version: 1,
+  defaultEffect: "allow",
+  adminBypass: true,
+  rules: [
+    { id: "hide-production", effect: "deny", users: [], groups: ["interns"], roles: [], categories: ["Production"], processes: [] },
+    { id: "allow-dba-backups", effect: "allow", users: [], groups: ["dba"], roles: [], categories: [], processes: ["database-backup"] },
+  ],
+};
+
+function CatalogPolicyEditor({ notify }: { notify: (message: string) => void }) {
+  const [adminToken, setAdminToken] = useState(() => typeof window === "undefined" ? "" : window.sessionStorage.getItem("xyops-admin-token") ?? "");
+  const [text, setText] = useState(JSON.stringify(exampleCatalogPolicy, null, 2));
+  const [source, setSource] = useState<"database" | "environment" | "default" | null>(null);
+  const [updatedAt, setUpdatedAt] = useState<number | null>(null);
+  const [busy, setBusy] = useState<"load" | "save" | null>(null);
+
+  async function loadPolicies() {
+    setBusy("load");
+    try {
+      const response = await fetch("/api/integrations/catalog/policies", { headers: { "x-admin-token": adminToken }, cache: "no-store" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Не удалось загрузить политики");
+      window.sessionStorage.setItem("xyops-admin-token", adminToken);
+      setText(JSON.stringify(data.policy, null, 2));
+      setSource(data.source ?? "default");
+      setUpdatedAt(data.updatedAt ?? null);
+    } catch (error) { notify(error instanceof Error ? error.message : "Ошибка загрузки политик"); }
+    finally { setBusy(null); }
+  }
+
+  async function savePolicies() {
+    setBusy("save");
+    try {
+      const policy = JSON.parse(text) as CatalogPolicySet;
+      const response = await fetch("/api/integrations/catalog/policies", { method: "PUT", headers: { "content-type": "application/json", "x-admin-token": adminToken }, body: JSON.stringify({ policy }) });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Не удалось сохранить политики");
+      window.sessionStorage.setItem("xyops-admin-token", adminToken);
+      setText(JSON.stringify(data.policy, null, 2));
+      setSource("database");
+      setUpdatedAt(data.updatedAt ?? Date.now());
+      notify("Политики каталога сохранены");
+    } catch (error) { notify(error instanceof Error ? error.message : "Некорректный JSON политик"); }
+    finally { setBusy(null); }
+  }
+
+  return <section className="panel policy-editor"><div className="panel-title"><div><span className="eyebrow">CATALOG ACCESS</span><h2>Видимость категорий и процессов</h2><p>Правила применяются сервером к каталогу, dynamic options, запуску и safe re-run. Deny имеет приоритет над allow.</p></div>{source && <Status tone={source === "database" ? "success" : "neutral"}>{source === "database" ? "D1" : source === "environment" ? "ENV" : "По умолчанию"}</Status>}</div><div className="policy-toolbar"><label>ADMIN_TOKEN<input type="password" value={adminToken} onChange={(event) => setAdminToken(event.target.value)} placeholder="Токен администратора" autoComplete="off" /></label><button className="secondary" disabled={!adminToken || Boolean(busy)} onClick={() => void loadPolicies()}>{busy === "load" ? "Загрузка…" : "Загрузить"}</button><button className="primary" disabled={!adminToken || Boolean(busy)} onClick={() => void savePolicies()}>{busy === "save" ? "Сохранение…" : "Сохранить политики"}</button></div><textarea className="policy-json" value={text} onChange={(event) => setText(event.target.value)} spellCheck={false} aria-label="JSON политик каталога" /><div className="policy-help"><span>Субъекты: <code>users</code>, <code>groups</code>, <code>roles</code></span><span>Ресурсы: <code>categories</code>, <code>processes</code></span><span>{updatedAt ? `Сохранено: ${new Date(updatedAt).toLocaleString("ru-RU")}` : "defaultEffect: allow сохраняет текущую доступность"}</span></div></section>;
+}
+
 function Settings({ routes, catalog, catalogLoading, onSync, onRoutesChange, notify }: { routes: AutomationRoute[]; catalog: CatalogEvent[]; catalogLoading: boolean; onSync: () => void; onRoutesChange: (routes: AutomationRoute[]) => void; notify: (message: string) => void }) {
   const [expanded, setExpanded] = useState<string | null>(routes[0]?.key ?? null);
   const [operation, setOperation] = useState<string>(routeOperations[0][0]);
@@ -590,6 +643,7 @@ function Settings({ routes, catalog, catalogLoading, onSync, onRoutesChange, not
   }
   return <div className="settings-page">
     <PersistentConnectionSettings notify={notify} />
+    <CatalogPolicyEditor notify={notify} />
     <section className="panel inspector-panel"><span className="service-icon violet">◇</span><div><span className="eyebrow">CONTRACT INSPECTOR</span><h2>Проверка реальной схемы XYOps</h2><p>Read-only утилита собирает структуру Events, Workflows, Toolsets, targets и jobs, удаляя ключ API, заголовки, сырые ответы и секретные значения.</p></div><code>npm run inspect:xyops</code><Status tone="neutral">Запуск локально</Status></section>
     <section className="panel contract-history"><div className="panel-title"><div><h2>История контрактов XYOps</h2><p>Сохраняются только синхронизации, в которых изменился каталог</p></div><Status tone="violet">{catalogHistory.length} версий</Status></div><div className="history-list">{catalogHistory.map((entry) => <article key={entry.id}><i>⌁</i><div><strong>{new Date(entry.syncedAt).toLocaleString("ru-RU")}</strong><small>{entry.processCount} процессов</small></div><span><b className="new">＋{entry.changes.filter((change) => change.kind === "new").length}</b><b className="changed">△{entry.changes.filter((change) => change.kind === "changed").length}</b><b className="removed">−{entry.changes.filter((change) => change.kind === "removed").length}</b></span></article>)}{!catalogHistory.length && <div className="catalog-empty"><strong>История пока пуста</strong><span>Первая версия появится после синхронизации реального каталога XYOps.</span></div>}</div></section>
     <section className="panel routes-panel"><div className="panel-title"><div><h2>Маршруты автоматизации</h2><p>Привяжите действие интерфейса к любому Event или Workflow из каталога XYOps</p></div><Status tone="success">D1 / SQLite</Status></div>

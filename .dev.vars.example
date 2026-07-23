@@ -23,3 +23,13 @@ XYOPS_CATALOG_SYNC_LOCK_TTL_SECONDS=900
 
 # Array of server-side routing profiles. Keep the JSON on one line.
 XYOPS_ROUTES_JSON=[{"key":"user-create","title":"Создание пользователя","operation":"user_add","kind":"event","eventId":"freeipa-user-create","enabled":true,"fields":[{"key":"username","label":"Логин","type":"string","required":true,"target":"params"},{"key":"firstName","label":"Имя","type":"string","required":true,"target":"params"},{"key":"lastName","label":"Фамилия","type":"string","required":true,"target":"params"},{"key":"email","label":"Email","type":"string","target":"params"}]},{"key":"user-onboarding","title":"Полный onboarding","operation":"user_add","kind":"workflow","eventId":"freeipa-user-onboarding","enabled":true,"fields":[{"key":"username","label":"Логин","type":"string","required":true,"target":"params"},{"key":"department","label":"Отдел","type":"select","required":true,"target":"workflowData","options":["development","devops","security"]}]}]
+
+
+# Catalog visibility policies. The JSON editor in Settings persists an override in D1.
+# PORTAL_CATALOG_POLICIES_JSON={"version":1,"defaultEffect":"allow","adminBypass":true,"rules":[]}
+# Static identity groups, comma-separated.
+# PORTAL_STATIC_GROUPS=ops,dba
+# Identity-to-groups mapping for workspace/static/proxy modes.
+# PORTAL_GROUPS_JSON={"operator@example.test":["ops"],"*":["employees"]}
+# Trusted proxy groups header; accepted only after PORTAL_PROXY_SHARED_SECRET validation.
+# PORTAL_GROUPS_HEADER=x-auth-request-groups

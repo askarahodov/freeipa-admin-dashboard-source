@@ -155,3 +155,14 @@ nav { display:flex;flex-direction:column;gap:8px; } nav button { border:0;backgr
 .notification-empty>span { font-size:28px; color:var(--muted); }
 .notification-empty small { color:var(--muted); }
 @media (max-width:720px) { .notification-panel { position:fixed; top:72px; right:12px; left:12px; width:auto; max-height:calc(100vh - 92px); } }
+
+
+/* CATALOG_VISIBILITY_POLICIES */
+.policy-editor { display:flex; flex-direction:column; gap:16px; }
+.policy-toolbar { display:grid; grid-template-columns:minmax(240px,1fr) auto auto; gap:12px; align-items:end; }
+.policy-toolbar label { display:flex; flex-direction:column; gap:7px; color:var(--muted); font-size:12px; font-weight:700; }
+.policy-json { width:100%; min-height:360px; resize:vertical; border:1px solid var(--line); border-radius:14px; padding:16px; background:var(--soft); color:var(--text); font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace; tab-size:2; }
+.policy-json:focus { outline:2px solid rgba(124,92,255,.22); border-color:var(--violet); }
+.policy-help { display:flex; flex-wrap:wrap; gap:10px 20px; color:var(--muted); font-size:12px; }
+.policy-help code { color:var(--violet); }
+@media (max-width:800px) { .policy-toolbar { grid-template-columns:1fr; } .policy-toolbar button { width:100%; } }

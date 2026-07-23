@@ -30,11 +30,13 @@ Scripts that need writable project-scoped home, npm, XDG, and temporary paths us
 - `examples/d1/` contains an optional D1 example surface
 - `drizzle.config.ts` supports local migration generation when needed
 
-## FreeIPA and xyOps integration
+## FreeIPA and XYOps modules
 
-The dashboard reads directory data from FreeIPA on the server side and routes
-mutating operations through xyOps. xyOps workflows use the same `run_event`
-endpoint as regular events, so the dashboard models both as automation routes.
+The dashboard treats FreeIPA and XYOps as independent integrations. The
+FreeIPA module reads and mutates users, groups and membership directly through
+an allowlisted server-side JSON-RPC Gateway. It continues to work when XYOps is
+unconfigured or unavailable. XYOps remains the optional orchestrator for
+Events, Workflows and cross-system automation.
 The long-term product contract and prioritized delivery backlog are maintained
 in [docs/PRODUCT_ROADMAP.md](docs/PRODUCT_ROADMAP.md).
 
@@ -52,19 +54,18 @@ when no routes have been saved. Each route declares:
 - a field schema with type, required flag and destination (`params`, `input`,
   or `workflowData`).
 
-The browser receives only the public route schema. The API key and FreeIPA
-password remain server-side. The action endpoint rejects unknown operations,
-unknown routes, missing required fields, invalid select values, and route / operation
-mismatches before calling xyOps.
+The browser receives only the public route schema. The XYOps API key and
+FreeIPA password remain server-side. Direct FreeIPA mutations are validated
+before the allowlisted JSON-RPC method is called. XYOps action endpoints
+separately reject unknown operations, routes and invalid generated form values.
 
 When xyOps is configured, the dashboard also calls `GET
 /api/app/get_events/v1` through its server-side proxy. Event definitions are
 normalized into a safe public catalog containing IDs, titles, kind, category,
 and user-field schemas. The API key is never exposed. Launch dialogs render
 their inputs from the selected route schema rather than from hard-coded forms.
-User enable/disable/delete and group add/remove-member/delete controls appear
-only when a matching enabled route exists; every mutation is sent to the chosen
-XYOps Event or Workflow.
+Generated XYOps forms are confined to the Automation section. Core user and
+group controls never depend on a matching Event or Workflow.
 
 The normalized catalog is persisted as a safe D1/SQLite snapshot. Every live
 synchronization compares process schemas and reports added, changed and removed
@@ -159,7 +160,8 @@ it directly.
 The Docker entrypoint also starts a private FreeIPA Node Gateway on a random
 `127.0.0.1` port. The Worker calls this gateway with an ephemeral bearer token,
 and the gateway performs the documented FreeIPA password login, retains the
-session cookie, and executes allowlisted read-only JSON-RPC methods. This avoids
+session cookie, and executes explicitly allowlisted read and mutation JSON-RPC
+methods. This avoids
 local Workerd outbound-fetch incompatibilities while keeping FreeIPA passwords
 encrypted at rest and off external interfaces. The gateway is not exposed as a
 Docker or public port.

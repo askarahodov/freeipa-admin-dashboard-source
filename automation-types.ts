@@ -30,6 +30,7 @@ export type CatalogEvent = {
   id: string;
   title: string;
   description: string;
+  operation?: string;
   kind: "event" | "workflow";
   enabled: boolean;
   category: string;

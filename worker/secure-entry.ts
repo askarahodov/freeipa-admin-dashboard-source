@@ -206,11 +206,7 @@ async function acquireCatalogSyncLock(env: SecureEnv, acquiredAt: number): Promi
     .bind("catalog", acquiredAt - catalogSyncLockTtlMs(env)).run();
   const result = await env.DB.prepare("INSERT OR IGNORE INTO xyops_catalog_sync_lock (id, acquired_at) VALUES (?, ?)")
     .bind("catalog", acquiredAt).run() as unknown as { meta?: { changes?: number }; changes?: number };
-  const changes = Number(result.meta?.changes ?? result.changes ?? 0);
-  if (changes > 0) return true;
-  const row = await env.DB.prepare("SELECT acquired_at FROM xyops_catalog_sync_lock WHERE id = ?")
-    .bind("catalog").first<{ acquired_at: number }>();
-  return Number(row?.acquired_at ?? 0) === acquiredAt;
+  return Number(result.meta?.changes ?? result.changes ?? 0) > 0;
 }
 
 async function releaseCatalogSyncLock(env: SecureEnv, acquiredAt: number): Promise<void> {

@@ -63,6 +63,14 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+      - name: Upload XYOps catalog test source
+        uses: actions/upload-artifact@v4
+        with:
+          name: xyops-catalog-test-source
+          path: tests/xyops-catalog-api.test.mjs
+          if-no-files-found: error
+          retention-days: 1
+
   test:
     name: Test ${{ matrix.test }}
     needs: [discover-tests, build]

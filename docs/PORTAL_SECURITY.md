@@ -2,7 +2,7 @@
 
 The portal applies authorization in two layers:
 
-1. `worker/secure-entry.ts` decides whether an incoming identity is trusted and removes spoofable identity headers.
+1. `worker/secure-entry.ts` decides whether an incoming identity and group context are trusted and removes spoofable headers.
 2. The application worker maps the resulting identity to `viewer`, `operator`, or `admin` and checks permissions on every mutation endpoint.
 
 An unauthenticated request is always `viewer`. A missing or invalid identity configuration never grants administrator rights, even when an old `PORTAL_DEFAULT_ROLE=admin` or wildcard RBAC assignment remains in the environment.
@@ -11,7 +11,7 @@ An unauthenticated request is always `viewer`. A missing or invalid identity con
 
 ### `anonymous`
 
-This is the application default. All identity headers are removed and every request is read-only.
+This is the application default. All identity and group headers are removed and every request is read-only.
 
 ```env
 PORTAL_IDENTITY_MODE=anonymous
@@ -28,39 +28,44 @@ Use only on OpenAI Sites, where the hosting platform injects trusted `oai-authen
 PORTAL_IDENTITY_MODE=workspace
 PORTAL_DEFAULT_ROLE=viewer
 PORTAL_RBAC_JSON={"admin@company.local":"admin","ops@company.local":"operator"}
+PORTAL_GROUPS_JSON={"ops@company.local":["operations","linux"],"*":["employees"]}
 ```
 
 Do not use this mode on a directly exposed generic web server, because such a server does not guarantee that the `oai-*` headers were added by a trusted platform.
 
 ### `proxy`
 
-Use behind an authenticated reverse proxy. The proxy must remove any client-supplied identity and secret headers, authenticate the user, and then inject fresh values.
+Use behind an authenticated reverse proxy. The proxy must remove any client-supplied identity, group, and secret headers, authenticate the user, and then inject fresh values.
 
 ```env
 PORTAL_IDENTITY_MODE=proxy
 PORTAL_IDENTITY_HEADER=x-auth-request-email
 PORTAL_IDENTITY_NAME_HEADER=x-auth-request-user
+PORTAL_GROUPS_HEADER=x-auth-request-groups
 PORTAL_PROXY_SECRET_HEADER=x-portal-proxy-secret
 PORTAL_PROXY_SHARED_SECRET=replace-with-a-long-random-secret
 PORTAL_DEFAULT_ROLE=viewer
 PORTAL_RBAC_JSON={"admin@company.local":"admin","ops@company.local":"operator","audit@company.local":"viewer"}
 ```
 
-The portal accepts the proxy identity only when the shared-secret header matches `PORTAL_PROXY_SHARED_SECRET`. A forged `oai-authenticated-user-email` header is discarded in this mode.
+The portal accepts the proxy identity and group list only when the shared-secret header matches `PORTAL_PROXY_SHARED_SECRET`. Forged `oai-authenticated-user-email` and `oai-authenticated-user-groups` headers are discarded.
 
-Example Nginx rules after the authentication layer has produced `$authenticated_email` and `$authenticated_name`:
+Example Nginx rules after the authentication layer has produced `$authenticated_email`, `$authenticated_name`, and `$authenticated_groups`:
 
 ```nginx
 # Never forward identity values supplied by the client.
 proxy_set_header Oai-Authenticated-User-Email "";
 proxy_set_header Oai-Authenticated-User-Full-Name "";
+proxy_set_header Oai-Authenticated-User-Groups "";
 proxy_set_header X-Auth-Request-Email "";
 proxy_set_header X-Auth-Request-User "";
+proxy_set_header X-Auth-Request-Groups "";
 proxy_set_header X-Portal-Proxy-Secret "";
 
 # Inject values created by the trusted authentication layer.
 proxy_set_header X-Auth-Request-Email $authenticated_email;
 proxy_set_header X-Auth-Request-User $authenticated_name;
+proxy_set_header X-Auth-Request-Groups $authenticated_groups;
 proxy_set_header X-Portal-Proxy-Secret "replace-with-the-same-long-random-secret";
 proxy_pass http://127.0.0.1:3001;
 ```
@@ -69,16 +74,28 @@ The dashboard port should not be reachable directly when proxy mode is used. Fir
 
 ### `static`
 
-This mode assigns one server-configured identity to every request. It exists for an isolated developer workstation and local Compose testing only.
+This mode assigns one server-configured identity and optional group list to every request. It exists for an isolated developer workstation and local Compose testing only.
 
 ```env
 PORTAL_IDENTITY_MODE=static
 PORTAL_STATIC_IDENTITY=admin@company.local
+PORTAL_STATIC_GROUPS=operations,dba
 PORTAL_DEFAULT_ROLE=viewer
 PORTAL_RBAC_JSON={"admin@company.local":"admin"}
 ```
 
 Never use static mode on a shared or internet-accessible deployment.
+
+## Trusted groups
+
+The security entry point always deletes incoming `oai-authenticated-user-groups`.
+It then builds the internal group list from one or more trusted sources:
+
+- `PORTAL_STATIC_GROUPS` in static mode;
+- `PORTAL_GROUPS_JSON` identity mapping in any authenticated mode;
+- `PORTAL_GROUPS_HEADER` in proxy mode after shared-secret validation.
+
+Group names are normalized to lowercase, deduplicated, limited to 100 entries, and cannot contain line breaks. The internal header is never accepted directly from the client.
 
 ## Roles
 
@@ -86,7 +103,7 @@ Never use static mode on a shared or internet-accessible deployment.
 | --- | --- |
 | `viewer` | Read users, groups, catalog, and operation history |
 | `operator` | Viewer permissions, non-destructive FreeIPA changes, XYOps launches |
-| `admin` | Operator permissions, deletion, persistent settings, route management |
+| `admin` | Operator permissions, deletion, persistent settings, route and policy management |
 
 Keep `PORTAL_DEFAULT_ROLE=viewer`. Grant wider roles only through explicit email assignments in `PORTAL_RBAC_JSON`.
 
@@ -96,7 +113,8 @@ Keep `PORTAL_DEFAULT_ROLE=viewer`. Grant wider roles only through explicit email
 - Keep the dashboard application port inaccessible from untrusted networks.
 - Use `workspace` only on OpenAI Sites; use `proxy` for a normal reverse proxy.
 - Generate independent random values for `ADMIN_TOKEN`, `CONFIG_ENCRYPTION_KEY`, and `PORTAL_PROXY_SHARED_SECRET`.
-- Strip incoming identity headers at the proxy boundary before injecting trusted values.
+- Strip incoming identity and group headers at the proxy boundary before injecting trusted values.
 - Keep the default role as `viewer` and avoid wildcard administrator assignments.
 - Test direct calls to mutation APIs and confirm that anonymous requests receive HTTP 403.
+- Test catalog policy denies through both the UI and direct `catalog/run` API calls.
 - Back up the encrypted settings database together with `CONFIG_ENCRYPTION_KEY`.

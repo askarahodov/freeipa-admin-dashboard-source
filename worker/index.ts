@@ -8,6 +8,7 @@ import { listRunResults, readRunResultFile, saveRunResult, type PublicRunResult 
 import { listRunNotifications, markRunNotificationsRead, saveRunNotification } from "../run-notifications";
 import { catalogEventAllowed, readCatalogPolicySet, saveCatalogPolicySet } from "../catalog-policies";
 import { approvalExecutionMatches, approvalRequirement, cancelApproval, claimApprovalExecution, createApprovalRequest, decideApproval, finishApprovalExecution, listApprovals, readApprovalPolicySet, readExecutingApproval, saveApprovalPolicySet } from "../approval-gates";
+import { appendAuditEvent, auditCorrelationFor, auditErrorCode, createAuditContext, listAuditEvents, withAuditCorrelation, type AuditContext } from "../audit-log";
 
 interface Env {
   ASSETS: Fetcher;
@@ -102,7 +103,7 @@ const worker = {
       }, allowedWidths);
     }
 
-    if (request.method === "GET" && request.headers.get("accept")?.includes("text/html") && /^\/(?:automation(?:\/[^/]+)?|users|groups|operations|approvals|settings)\/?$/.test(url.pathname)) {
+    if (request.method === "GET" && request.headers.get("accept")?.includes("text/html") && /^\/(?:automation(?:\/[^/]+)?|users|groups|operations|approvals|audit|settings)\/?$/.test(url.pathname)) {
       const appUrl = new URL(request.url);
       appUrl.pathname = "/";
       return handler.fetch(new Request(appUrl, request), env, ctx);
@@ -358,6 +359,11 @@ async function syncOperationRuns(env: Env, xyopsUrl: string | null, runs: Operat
         if (["success", "failed", "cancelled"].includes(run.status)) run.completedAt = jobTimestamp(row.completed ?? row.completed_at ?? row.finished_at) ?? now;
         if (run.status === "failed") run.error = String(row.description ?? row.error ?? row.message ?? "XYOps job failed").slice(0, 500);
         await saveOperationRun(env, run);
+        if (statusChanged) {
+          const correlationId = await auditCorrelationFor(env, { runId: run.id }).catch(() => null);
+          const systemAudit = createAuditContext({ identity: "system@portal.local", role: "system", groups: [] }, correlationId ?? undefined);
+          await appendAuditEvent(env, systemAudit, { action: "xyops.run.status_changed", resourceType: "xyops_run", resourceId: run.id, eventId: run.eventId, runId: run.id, jobId: run.jobId, outcome: run.status === "success" ? "success" : run.status === "failed" || run.status === "cancelled" ? "failure" : "info", errorCode: run.status === "failed" ? "xyops_job_failed" : "", metadata: { status: run.status, stageCount: run.stages.length } }).catch(() => {});
+        }
       }
       if (["success", "failed"].includes(run.status)) await saveRunResult(env, run.id, run.jobId, row);
     }
@@ -579,7 +585,7 @@ function mergeSettingsInput(current: StoredSettings, body: Record<string, unknow
   };
 }
 
-async function handleSettingsApi(request: Request, env: Env, url: URL): Promise<Response> {
+async function handleSettingsApi(request: Request, env: Env, url: URL, audit: AuditContext): Promise<Response> {
   const denied = requirePortalPermission(request, env, "settings.manage");
   if (denied) return denied;
   if (!env.ADMIN_TOKEN) return json({ error: "ADMIN_TOKEN is not configured on the server" }, 503);
@@ -601,6 +607,7 @@ async function handleSettingsApi(request: Request, env: Env, url: URL): Promise<
       const current = await readStoredSettings(env) ?? envSettings(env);
       const next = mergeSettingsInput(current, body);
       await saveStoredSettings(env, next);
+      await appendAuditEvent(env, audit, { action: "settings.updated", resourceType: "portal_settings", resourceId: "main", outcome: "success", metadata: { demoMode: next.config.demoMode, freeipaUrlConfigured: Boolean(next.config.ipaUrl), freeipaUsernameConfigured: Boolean(next.config.ipaUsername), freeipaPasswordConfigured: Boolean(next.secrets.ipaPassword), xyopsUrlConfigured: Boolean(next.config.xyopsUrl), xyopsApiKeyConfigured: Boolean(next.secrets.xyopsApiKey) } }).catch(() => {});
       return json(publicSettings(next, env, "database"));
     } catch (error) {
       return json({ error: error instanceof Error ? error.message : "Cannot save settings" }, 400);
@@ -624,8 +631,11 @@ async function handleSettingsApi(request: Request, env: Env, url: URL): Promise<
         const payload = await response.json().catch(() => null);
         if (!response.ok || !xyopsPayloadSucceeded(payload)) throw new Error("XYOps rejected the connection test");
       }
-      return json({ ok: true, service, latencyMs: Date.now() - started });
+      const latencyMs = Date.now() - started;
+      await appendAuditEvent(env, audit, { action: "settings.connection_test", resourceType: "integration", resourceId: service, outcome: "success", metadata: { service, latencyMs } }).catch(() => {});
+      return json({ ok: true, service, latencyMs });
     } catch (error) {
+      await appendAuditEvent(env, audit, { action: "settings.connection_test", resourceType: "integration", resourceId: String(body.service ?? "unknown"), outcome: "failure", errorCode: auditErrorCode(error, "connection_test_failed") }).catch(() => {});
       return json({ error: error instanceof Error ? error.message : "Connection test failed" }, 502);
     }
   }
@@ -1113,12 +1123,28 @@ function operationRun(input: {
   };
 }
 
-async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): Promise<Response> {
+async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL, inheritedAudit?: AuditContext): Promise<Response> {
   if (request.method === "GET" && url.pathname === "/api/integrations/health") return json({ ok: true });
-  if (url.pathname === "/api/integrations/settings" || url.pathname === "/api/integrations/settings/test") return handleSettingsApi(request, baseEnv, url);
+  const audit = inheritedAudit ?? createAuditContext(portalAccess(request, baseEnv));
+  if (url.pathname === "/api/integrations/settings" || url.pathname === "/api/integrations/settings/test") return handleSettingsApi(request, baseEnv, url, audit);
   const env = await effectiveEnv(baseEnv);
   const ipaUrl = cleanBaseUrl(env.IPA_URL);
   const xyopsUrl = cleanBaseUrl(env.XYOPS_URL);
+
+  if (url.pathname === "/api/integrations/audit") {
+    const denied = requirePortalPermission(request, baseEnv, "settings.manage");
+    if (denied) return denied;
+    if (request.method !== "GET") return json({ error: "Method not allowed" }, 405);
+    const numberParam = (name: string) => { const value = Number(url.searchParams.get(name) ?? ""); return Number.isFinite(value) ? value : undefined; };
+    try {
+      return json(await listAuditEvents(baseEnv, {
+        limit: numberParam("limit"), actor: url.searchParams.get("actor") ?? undefined, action: url.searchParams.get("action") ?? undefined,
+        outcome: url.searchParams.get("outcome") ?? undefined, eventId: url.searchParams.get("eventId") ?? undefined,
+        approvalId: url.searchParams.get("approvalId") ?? undefined, runId: url.searchParams.get("runId") ?? undefined,
+        correlationId: url.searchParams.get("correlationId") ?? undefined, dateFrom: numberParam("dateFrom"), dateTo: numberParam("dateTo"),
+      }));
+    } catch (error) { return json({ error: error instanceof Error ? error.message : "Cannot load audit log" }, 503); }
+  }
 
   if (request.method === "GET" && url.pathname === "/api/integrations/status") {
     const demoMode = boolValue(env.DEMO_MODE);
@@ -1151,6 +1177,7 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
       try {
         const body = await request.json() as Record<string, unknown>;
         const saved = await saveCatalogPolicySet(baseEnv, body.policy);
+        await appendAuditEvent(baseEnv, audit, { action: "catalog.policy.updated", resourceType: "policy", resourceId: "catalog_visibility", outcome: "success", metadata: { version: saved.policy.version, defaultEffect: saved.policy.defaultEffect, adminBypass: saved.policy.adminBypass, ruleCount: saved.policy.rules.length } }).catch(() => {});
         return json({ policy: saved.policy, source: "database", updatedAt: saved.updatedAt, persistenceAvailable: true });
       } catch (error) {
         return json({ error: error instanceof Error ? error.message : "Cannot save catalog policies" }, 400);
@@ -1172,6 +1199,7 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
       try {
         const body = await request.json() as Record<string, unknown>;
         const saved = await saveApprovalPolicySet(baseEnv, body.policy);
+        await appendAuditEvent(baseEnv, audit, { action: "approval.policy.updated", resourceType: "policy", resourceId: "xyops_approval", outcome: "success", metadata: { version: saved.policy.version, dangerousDefaultEnabled: Boolean(saved.policy.dangerousDefaults), ruleCount: saved.policy.rules.length } }).catch(() => {});
         return json({ policy: saved.policy, source: "database", updatedAt: saved.updatedAt, persistenceAvailable: true });
       } catch (error) { return json({ error: error instanceof Error ? error.message : "Cannot save approval policies" }, 400); }
     }
@@ -1200,11 +1228,21 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
     try {
       if (action === "approve" || action === "reject") {
         const approval = await decideApproval(baseEnv, approvalId, access, action, String(body.comment ?? ""));
+        const correlationId = await auditCorrelationFor(baseEnv, { approvalId }).catch(() => null);
+        const linkedAudit = withAuditCorrelation(audit, correlationId);
+        await appendAuditEvent(baseEnv, linkedAudit, { action: `approval.${action}`, resourceType: "approval", resourceId: approvalId, eventId: approval.eventId, schemaVersion: approval.schemaVersion, approvalId, runId: approval.runId, outcome: "success", metadata: { decision: action, commentProvided: Boolean(String(body.comment ?? "").trim()), approvals: approval.approvals, rejections: approval.rejections, requiredApprovals: approval.requiredApprovals, status: approval.status } }).catch(() => {});
         return json({ approval });
       }
-      if (action === "cancel") return json({ approval: await cancelApproval(baseEnv, approvalId, access) });
+      if (action === "cancel") {
+        const approval = await cancelApproval(baseEnv, approvalId, access);
+        const correlationId = await auditCorrelationFor(baseEnv, { approvalId }).catch(() => null);
+        await appendAuditEvent(baseEnv, withAuditCorrelation(audit, correlationId), { action: "approval.cancel", resourceType: "approval", resourceId: approvalId, eventId: approval.eventId, schemaVersion: approval.schemaVersion, approvalId, outcome: "success", metadata: { status: approval.status } }).catch(() => {});
+        return json({ approval });
+      }
 
       const claimed = await claimApprovalExecution(baseEnv, approvalId, access);
+      const approvalCorrelation = await auditCorrelationFor(baseEnv, { approvalId }).catch(() => null);
+      const executionAudit = withAuditCorrelation(audit, approvalCorrelation);
       const secretValues = body.secretValues && typeof body.secretValues === "object" && !Array.isArray(body.secretValues) ? body.secretValues as Record<string, unknown> : {};
       const allowedSecretFields = new Set(claimed.spec.secretFields);
       if (Object.keys(secretValues).some((key) => !allowedSecretFields.has(key))) {
@@ -1246,13 +1284,16 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
       const launchResponse = await handleIntegrationApi(new Request(runUrl, {
         method: "POST", headers,
         body: JSON.stringify({ eventId: claimed.spec.eventId, values, targets: claimed.spec.targets, replayOf: claimed.spec.parentRunId }),
-      }), baseEnv, runUrl);
+      }), baseEnv, runUrl, executionAudit);
       const payload = await launchResponse.json().catch(() => ({})) as Record<string, unknown>;
       if (launchResponse.ok && typeof payload.runId === "string") {
         await finishApprovalExecution(baseEnv, approvalId, "executed", payload.runId);
+        await appendAuditEvent(baseEnv, executionAudit, { action: "approval.execute", resourceType: "approval", resourceId: approvalId, eventId: claimed.spec.eventId, schemaVersion: claimed.spec.schemaVersion, approvalId, runId: payload.runId, jobId: String(payload.jobId ?? ""), outcome: "success", metadata: { status: "executed", secretFieldCount: claimed.spec.secretFields.length, parentRunId: claimed.spec.parentRunId } }).catch(() => {});
         return json({ ...payload, approvalId, approvalExecuted: true }, launchResponse.status);
       }
+      const executionOutcome = launchResponse.status >= 500 ? "unknown" : "failure";
       await finishApprovalExecution(baseEnv, approvalId, launchResponse.status >= 500 ? "unknown" : "failed", String(payload.runId ?? ""), String(payload.error ?? "XYOps launch failed"));
+      await appendAuditEvent(baseEnv, executionAudit, { action: "approval.execute", resourceType: "approval", resourceId: approvalId, eventId: claimed.spec.eventId, schemaVersion: claimed.spec.schemaVersion, approvalId, runId: String(payload.runId ?? ""), outcome: executionOutcome, errorCode: "xyops_launch_failed", metadata: { httpStatus: launchResponse.status } }).catch(() => {});
       return json({ ...payload, approvalId }, launchResponse.status);
     } catch (error) {
       return json({ error: error instanceof Error ? error.message : "Approval action failed" }, 409);
@@ -1333,6 +1374,8 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
     const action = runActionMatch[2];
     const run = (await listOperationRuns(baseEnv, 200)).find((item) => item.id === runId);
     if (!run) return json({ error: "Запуск не найден" }, 404);
+    const runCorrelation = await auditCorrelationFor(baseEnv, { runId }).catch(() => null);
+    const runAudit = withAuditCorrelation(audit, runCorrelation);
 
     if (action === "cancel") {
       if (run.mode !== "live" || !["queued", "running", "unknown"].includes(run.status)) return json({ error: "Остановить можно только активное задание XYOps" }, 409);
@@ -1353,6 +1396,7 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
         run.updatedAt = now;
         run.completedAt = now;
         await saveOperationRun(baseEnv, run);
+        await appendAuditEvent(baseEnv, runAudit, { action: "xyops.run.cancel", resourceType: "xyops_run", resourceId: run.id, eventId: run.eventId, runId: run.id, jobId: run.jobId, outcome: "success", metadata: { status: run.status } }).catch(() => {});
         return json({ ok: true, action: "cancel", run: publicRun(run, undefined, undefined, true) });
       } catch {
         return json({ error: "Не удалось отправить команду остановки в XYOps" }, 502);
@@ -1379,11 +1423,12 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
       rerunUrl.search = "";
       const headers = new Headers(request.headers);
       headers.set("content-type", "application/json");
+      await appendAuditEvent(baseEnv, audit, { action: "xyops.run.rerun_requested", resourceType: "xyops_run", resourceId: run.id, eventId: replay.spec.eventId, schemaVersion: replay.summary.schemaVersion, runId: run.id, jobId: run.jobId, outcome: "pending", metadata: { previousStatus: run.status } }).catch(() => {});
       return handleIntegrationApi(new Request(rerunUrl, {
         method: "POST",
         headers,
         body: JSON.stringify({ eventId: replay.spec.eventId, values: replay.spec.values, targets: replay.spec.targets, replayOf: run.id }),
-      }), baseEnv, rerunUrl);
+      }), baseEnv, rerunUrl, audit);
     } catch {
       return json({ error: "Не удалось подготовить безопасный повтор запуска" }, 502);
     }
@@ -1426,6 +1471,7 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
       const current = await readStoredSettings(baseEnv) ?? envSettings(baseEnv);
       const next = { ...current, config: { ...current.config, routes }, updatedAt: Date.now() };
       await saveStoredSettings(baseEnv, next);
+      await appendAuditEvent(baseEnv, audit, { action: "routes.updated", resourceType: "automation_routes", resourceId: "current", outcome: "success", metadata: { routeCount: routes.length, enabledCount: routes.filter((route) => route.enabled !== false).length, eventIds: routes.map((route) => route.eventId).slice(0, 100) } }).catch(() => {});
       return json({ mode: routes.length ? "live" : "unconfigured", routes: routes.map(publicRoute) });
     } catch (error) {
       return json({ error: error instanceof Error ? error.message : "Cannot save routes" }, 400);
@@ -1510,6 +1556,7 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
         const requirement = approvalRequirement(approvalPolicy.policy, access, event);
         if (requirement) {
           const approval = await createApprovalRequest(baseEnv, event, access, values, requestedTargets, requirement, typeof body.replayOf === "string" ? body.replayOf : "");
+          await appendAuditEvent(baseEnv, audit, { action: "approval.requested", resourceType: "approval", resourceId: approval.id, eventId: event.id, schemaVersion: event.schemaVersion, approvalId: approval.id, outcome: "pending", metadata: { category: event.category, kind: event.kind, targets: requestedTargets, fieldKeys: event.fields.filter((field) => fieldVisible(field, values)).map((field) => field.key), requiredApprovals: requirement.requiredApprovals, ruleId: requirement.ruleId, replayOf: typeof body.replayOf === "string" ? body.replayOf : "" } }).catch(() => {});
           return json({ approvalRequired: true, approvalId: approval.id, status: approval.status, approval }, 202);
         }
       }
@@ -1517,6 +1564,7 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
         const run = operationRun({ request, eventId: event.id, title: event.title, kind: event.kind, mode: "demo", jobId: `DEMO-${Date.now()}`, status: "success", values, targets: requestedTargets });
         await saveOperationRun(baseEnv, run);
         await saveRunReplay(baseEnv, run.id, event, values, requestedTargets, typeof body.replayOf === "string" ? body.replayOf.slice(0, 160) : "");
+        await appendAuditEvent(baseEnv, audit, { action: "xyops.run", resourceType: "xyops_run", resourceId: run.id, eventId: event.id, schemaVersion: event.schemaVersion, approvalId: approvalExecutionId, runId: run.id, jobId: run.jobId, outcome: "success", metadata: { mode: "demo", kind: event.kind, targets: requestedTargets, replayOf: typeof body.replayOf === "string" ? body.replayOf : "" } }).catch(() => {});
         return json({ mode: "demo", queued: true, runId: run.id, jobId: run.jobId, status: run.status, process: { id: event.id, title: event.title, kind: event.kind } }, 202);
       }
       const response = await fetch(`${xyopsUrl}/api/app/run_event/v1`, { method: "POST", headers: { "content-type": "application/json", "x-api-key": env.XYOPS_API_KEY }, body: JSON.stringify(launchPayload), signal: AbortSignal.timeout(15000) });
@@ -1527,17 +1575,20 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
         const run = operationRun({ request, eventId: event.id, title: event.title, kind: event.kind, mode: "live", jobId, status: "failed", values, targets: requestedTargets, error: "XYOps rejected run_event" });
         await saveOperationRun(baseEnv, run);
         await saveRunReplay(baseEnv, run.id, event, values, requestedTargets, typeof body.replayOf === "string" ? body.replayOf.slice(0, 160) : "");
+        await appendAuditEvent(baseEnv, audit, { action: "xyops.run", resourceType: "xyops_run", resourceId: run.id, eventId: event.id, schemaVersion: event.schemaVersion, approvalId: approvalExecutionId, runId: run.id, jobId, outcome: "failure", errorCode: "xyops_run_event_rejected", metadata: { httpStatus: response.status, kind: event.kind, targets: requestedTargets } }).catch(() => {});
         return json({ error: "XYOps run_event failed", runId: run.id }, 502);
       }
       const reported = runStatus(result.status ?? result.state ?? resultData.status ?? resultData.state);
       const run = operationRun({ request, eventId: event.id, title: event.title, kind: event.kind, mode: "live", jobId, status: reported === "unknown" ? "queued" : reported, values, targets: requestedTargets, stages: extractJobStages(result) });
       await saveOperationRun(baseEnv, run);
       await saveRunReplay(baseEnv, run.id, event, values, requestedTargets, typeof body.replayOf === "string" ? body.replayOf.slice(0, 160) : "");
+      await appendAuditEvent(baseEnv, audit, { action: "xyops.run", resourceType: "xyops_run", resourceId: run.id, eventId: event.id, schemaVersion: event.schemaVersion, approvalId: approvalExecutionId, runId: run.id, jobId: run.jobId, outcome: "success", metadata: { mode: "live", initialStatus: run.status, kind: event.kind, targets: requestedTargets, replayOf: typeof body.replayOf === "string" ? body.replayOf : "" } }).catch(() => {});
       return json({ mode: "live", queued: true, runId: run.id, jobId: run.jobId, status: run.status, process: { id: event.id, title: event.title, kind: event.kind } }, 202);
     } catch (error) {
       const message = error instanceof Error ? error.message : "XYOps request failed";
       const run = operationRun({ request, eventId: eventId || "unknown", title: eventId || "XYOps process", kind: "event", mode: "live", jobId: "", status: "failed", values, error: message });
       await saveOperationRun(baseEnv, run);
+      await appendAuditEvent(baseEnv, audit, { action: "xyops.run", resourceType: "xyops_run", resourceId: run.id, eventId: eventId || "unknown", runId: run.id, outcome: "unknown", errorCode: auditErrorCode(error, "xyops_request_failed"), metadata: { fieldKeys: Object.keys(values).filter((key) => !/pass|secret|token|key/i.test(key)) } }).catch(() => {});
       return json({ error: message, runId: run.id }, 502);
     }
   }
@@ -1617,17 +1668,20 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
     if (boolValue(env.DEMO_MODE)) {
       const run = operationRun({ request, eventId: `freeipa:${body.operation}`, title: call.title, kind: "event", mode: "demo", jobId: `IPA-DEMO-${Date.now()}`, status: "success", values: call.values });
       await saveOperationRun(baseEnv, run);
+      await appendAuditEvent(baseEnv, audit, { action: `freeipa.${body.operation}`, resourceType: String(body.operation).startsWith("group_") ? "freeipa_group" : "freeipa_user", resourceId: run.subject, eventId: run.eventId, runId: run.id, jobId: run.jobId, outcome: "success", metadata: { mode: "demo", operation: body.operation, fieldKeys: Object.keys(call.values).filter((key) => !/pass|secret|token|key/i.test(key)) } }).catch(() => {});
       return json({ mode: "demo", direct: true, ok: true, runId: run.id, status: run.status });
     }
     try {
       await ipaRpc(env, ipaUrl as string, call.method, call.args, call.options);
       const run = operationRun({ request, eventId: `freeipa:${body.operation}`, title: call.title, kind: "event", mode: "live", jobId: `IPA-${Date.now()}`, status: "success", values: call.values });
       await saveOperationRun(baseEnv, run);
+      await appendAuditEvent(baseEnv, audit, { action: `freeipa.${body.operation}`, resourceType: String(body.operation).startsWith("group_") ? "freeipa_group" : "freeipa_user", resourceId: run.subject, eventId: run.eventId, runId: run.id, jobId: run.jobId, outcome: "success", metadata: { mode: "live", operation: body.operation, fieldKeys: Object.keys(call.values).filter((key) => !/pass|secret|token|key/i.test(key)) } }).catch(() => {});
       return json({ mode: "live", direct: true, ok: true, runId: run.id, status: run.status });
     } catch (error) {
       const message = error instanceof Error ? error.message : "FreeIPA request failed";
       const run = operationRun({ request, eventId: `freeipa:${body.operation}`, title: call.title, kind: "event", mode: "live", jobId: "", status: "failed", values: call.values, error: message });
       await saveOperationRun(baseEnv, run);
+      await appendAuditEvent(baseEnv, audit, { action: `freeipa.${body.operation}`, resourceType: String(body.operation).startsWith("group_") ? "freeipa_group" : "freeipa_user", resourceId: run.subject, eventId: run.eventId, runId: run.id, outcome: "failure", errorCode: auditErrorCode(error, "freeipa_request_failed"), metadata: { operation: body.operation, fieldKeys: Object.keys(call.values).filter((key) => !/pass|secret|token|key/i.test(key)) } }).catch(() => {});
       return json({ error: message, runId: run.id }, 502);
     }
   }
@@ -1649,7 +1703,7 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
     return handleIntegrationApi(new Request(runUrl, {
       method: "POST", headers,
       body: JSON.stringify({ eventId: route.eventId, values: body, targets: route.targets ?? [] }),
-    }), baseEnv, runUrl);
+    }), baseEnv, runUrl, audit);
   }
 
   return json({ error: "Not found" }, 404);

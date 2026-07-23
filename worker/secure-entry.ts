@@ -1,4 +1,5 @@
 import runtime from "./index";
+import { appendAuditEvent, createAuditContext, type AuditContext } from "../audit-log";
 
 type BaseEnv = NonNullable<Parameters<typeof runtime.fetch>[1]>;
 type RuntimeContext = Parameters<typeof runtime.fetch>[2];
@@ -270,8 +271,9 @@ async function listCatalogSyncRuns(env: SecureEnv, limit = 20): Promise<CatalogS
   })).filter((run) => run.id);
 }
 
-async function runCatalogSynchronization(env: SecureEnv, trigger: string, ctx: RuntimeContext): Promise<CatalogSyncRun> {
+async function runCatalogSynchronization(env: SecureEnv, trigger: string, ctx: RuntimeContext, inheritedAudit?: AuditContext): Promise<CatalogSyncRun> {
   const startedAt = Date.now();
+  const audit = inheritedAudit ?? createAuditContext({ identity: "system@portal.local", role: "system", groups: [] });
   const run: CatalogSyncRun = {
     id: crypto.randomUUID(), trigger: trigger.slice(0, 160), status: "running", startedAt,
     completedAt: null, processCount: 0, changeCount: 0, error: "",
@@ -310,6 +312,7 @@ async function runCatalogSynchronization(env: SecureEnv, trigger: string, ctx: R
     run.completedAt = Date.now();
     await releaseCatalogSyncLock(env, startedAt);
     await saveCatalogSyncRun(env, run);
+    await appendAuditEvent(env, audit, { action: "catalog.sync", resourceType: "xyops_catalog", resourceId: run.id, outcome: run.status === "success" ? "success" : run.status === "failed" ? "failure" : "info", errorCode: run.status === "failed" ? "catalog_sync_failed" : "", metadata: { trigger: run.trigger, status: run.status, processCount: run.processCount, changeCount: run.changeCount } }).catch(() => {});
   }
   return run;
 }
@@ -323,7 +326,9 @@ async function handleCatalogSyncApi(request: Request, env: SecureEnv, ctx: Runti
   }
   if (request.method === "POST") {
     if (!env.DB) return json({ error: "Persistent database is unavailable" }, 503);
-    const run = await runCatalogSynchronization(env, `manual:${requestActor(request)}`, ctx);
+    const groups = String(request.headers.get("oai-authenticated-user-groups") ?? "").split(",").map((item) => item.trim().toLowerCase()).filter(Boolean).slice(0, 100);
+    const audit = createAuditContext({ identity: requestActor(request), role: requestRole(request, env), groups });
+    const run = await runCatalogSynchronization(env, `manual:${requestActor(request)}`, ctx, audit);
     return json({ run }, run.status === "failed" ? 502 : 200);
   }
   return json({ error: "Method not allowed" }, 405);

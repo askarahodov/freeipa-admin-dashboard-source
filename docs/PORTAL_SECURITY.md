@@ -124,3 +124,5 @@ Keep `PORTAL_DEFAULT_ROLE=viewer`. Grant wider roles only through explicit email
 - Test that dangerous processes create approval requests and do not call XYOps before an independent decision.
 - Test that an approval cannot be reused and that a dangerous safe re-run creates a new request.
 - Back up the encrypted settings database together with `CONFIG_ENCRYPTION_KEY`.
+- Ограничьте доступ к `/audit` администраторами и проверяйте correlation-цепочки для опасных операций.
+- Не добавляйте UPDATE/DELETE API для `portal_audit_events`; таблица защищена append-only триггерами.

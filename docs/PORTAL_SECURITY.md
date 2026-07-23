@@ -2,7 +2,7 @@
 
 The portal applies authorization in two layers:
 
-1. `worker/secure-entry.ts` decides whether an incoming identity and group context are trusted and removes spoofable headers.
+1. `worker/secure-entry.ts` decides whether an incoming identity is trusted and removes spoofable identity headers.
 2. The application worker maps the resulting identity to `viewer`, `operator`, or `admin` and checks permissions on every mutation endpoint.
 
 An unauthenticated request is always `viewer`. A missing or invalid identity configuration never grants administrator rights, even when an old `PORTAL_DEFAULT_ROLE=admin` or wildcard RBAC assignment remains in the environment.
@@ -11,7 +11,7 @@ An unauthenticated request is always `viewer`. A missing or invalid identity con
 
 ### `anonymous`
 
-This is the application default. All identity and group headers are removed and every request is read-only.
+This is the application default. All identity headers are removed and every request is read-only.
 
 ```env
 PORTAL_IDENTITY_MODE=anonymous
@@ -28,7 +28,7 @@ Use only on OpenAI Sites, where the hosting platform injects trusted `oai-authen
 PORTAL_IDENTITY_MODE=workspace
 PORTAL_DEFAULT_ROLE=viewer
 PORTAL_RBAC_JSON={"admin@company.local":"admin","ops@company.local":"operator"}
-PORTAL_GROUPS_JSON={"ops@company.local":["operations","linux"],"*":["employees"]}
+PORTAL_GROUPS_JSON={"admin@company.local":["ops-leads"],"ops@company.local":["operations"]}
 ```
 
 Do not use this mode on a directly exposed generic web server, because such a server does not guarantee that the `oai-*` headers were added by a trusted platform.
@@ -48,7 +48,7 @@ PORTAL_DEFAULT_ROLE=viewer
 PORTAL_RBAC_JSON={"admin@company.local":"admin","ops@company.local":"operator","audit@company.local":"viewer"}
 ```
 
-The portal accepts the proxy identity and group list only when the shared-secret header matches `PORTAL_PROXY_SHARED_SECRET`. Forged `oai-authenticated-user-email` and `oai-authenticated-user-groups` headers are discarded.
+The portal accepts proxy identity and groups only when the shared-secret header matches `PORTAL_PROXY_SHARED_SECRET`. Forged `oai-authenticated-user-*` headers are discarded in this mode.
 
 Example Nginx rules after the authentication layer has produced `$authenticated_email`, `$authenticated_name`, and `$authenticated_groups`:
 
@@ -74,7 +74,7 @@ The dashboard port should not be reachable directly when proxy mode is used. Fir
 
 ### `static`
 
-This mode assigns one server-configured identity and optional group list to every request. It exists for an isolated developer workstation and local Compose testing only.
+This mode assigns one server-configured identity to every request. It exists for an isolated developer workstation and local Compose testing only.
 
 ```env
 PORTAL_IDENTITY_MODE=static
@@ -101,9 +101,13 @@ Group names are normalized to lowercase, deduplicated, limited to 100 entries, a
 
 | Role | Permissions |
 | --- | --- |
-| `viewer` | Read users, groups, catalog, and operation history |
-| `operator` | Viewer permissions, non-destructive FreeIPA changes, XYOps launches |
-| `admin` | Operator permissions, deletion, persistent settings, route and policy management |
+| `viewer` | Read users, groups, catalog, operation history, notifications, and visible approval requests |
+| `operator` | Viewer permissions, non-destructive FreeIPA changes, XYOps launches, and management of the operator's own approval requests |
+| `admin` | Operator permissions, deletion, `xyops.approve`, persistent settings, route and policy management |
+
+`xyops.approve` only permits submitting a decision. The approval policy still checks approver roles/groups and normally forbids the requester from approving the request they created.
+
+`ADMIN_TOKEN` is not an approval credential. It protects policy and connection settings; daily approve/reject actions use the authenticated portal identity.
 
 Keep `PORTAL_DEFAULT_ROLE=viewer`. Grant wider roles only through explicit email assignments in `PORTAL_RBAC_JSON`.
 
@@ -117,4 +121,6 @@ Keep `PORTAL_DEFAULT_ROLE=viewer`. Grant wider roles only through explicit email
 - Keep the default role as `viewer` and avoid wildcard administrator assignments.
 - Test direct calls to mutation APIs and confirm that anonymous requests receive HTTP 403.
 - Test catalog policy denies through both the UI and direct `catalog/run` API calls.
+- Test that dangerous processes create approval requests and do not call XYOps before an independent decision.
+- Test that an approval cannot be reused and that a dangerous safe re-run creates a new request.
 - Back up the encrypted settings database together with `CONFIG_ENCRYPTION_KEY`.

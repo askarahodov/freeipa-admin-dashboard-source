@@ -25,15 +25,13 @@ jobs:
           node-version: 22.13.0
           cache: npm
 
-      - name: Apply approval gate patch
-        run: python scripts/apply-approval-gates-patch.py
-
-      - name: Verify implementation
+      - name: Apply and verify implementation
         id: verify
         shell: bash
         run: |
           set +e
           {
+            python scripts/apply-approval-gates-patch.py &&
             npm ci &&
             npm run lint &&
             npm test
@@ -51,6 +49,7 @@ jobs:
             rm -f scripts/apply-approval-gates-patch.py
             rm -f .github/workflows/apply-approval-gates.yml
             rm -f .github/approval-gates-ci-failure.txt
+            rm -f .github/approval-gates-trigger.txt
             git add -A
             git commit -m "Add independent approval gates for dangerous XYOps processes"
           else

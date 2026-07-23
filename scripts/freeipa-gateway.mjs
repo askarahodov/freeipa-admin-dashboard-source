@@ -1,7 +1,19 @@
 import { createServer } from "node:http";
 import { timingSafeEqual } from "node:crypto";
 
-const allowedMethods = new Set(["user_find", "group_find"]);
+const allowedMethods = new Set([
+  "user_find",
+  "user_add",
+  "user_mod",
+  "user_enable",
+  "user_disable",
+  "user_del",
+  "group_find",
+  "group_add",
+  "group_del",
+  "group_add_member",
+  "group_remove_member",
+]);
 
 function jsonResponse(response, status, payload) {
   response.writeHead(status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });

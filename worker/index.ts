@@ -9,7 +9,7 @@ import { listRunNotifications, markRunNotificationsRead, saveRunNotification } f
 import { catalogEventAllowed, readCatalogPolicySet, saveCatalogPolicySet } from "../catalog-policies";
 import { approvalExecutionMatches, approvalRequirement, cancelApproval, claimApprovalExecution, createApprovalRequest, decideApproval, finishApprovalExecution, listApprovals, readApprovalPolicySet, readExecutingApproval, saveApprovalPolicySet } from "../approval-gates";
 import { appendAuditEvent, auditCorrelationFor, auditErrorCode, createAuditContext, listAuditEvents, withAuditCorrelation, type AuditContext } from "../audit-log";
-import { applyProcessPresentation, readProcessPresentationSet, saveProcessPresentationSet } from "../process-presentation";
+import { applyProcessPresentation, availableProcessPresentationLocales, presentationLocalePreferences, readProcessPresentationSet, resolveProcessPresentationLocale, saveProcessPresentationSet } from "../process-presentation";
 
 interface Env {
   ASSETS: Fetcher;
@@ -1169,7 +1169,7 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL, in
     if (request.method === "GET") {
       try {
         const state = await readProcessPresentationSet(baseEnv);
-        return json({ ...state, persistenceAvailable: Boolean(baseEnv.DB) });
+        return json({ ...state, availableLocales: availableProcessPresentationLocales(state.metadata), persistenceAvailable: Boolean(baseEnv.DB) });
       } catch (error) {
         return json({ error: error instanceof Error ? error.message : "Cannot load process presentation metadata" }, 503);
       }
@@ -1180,8 +1180,9 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL, in
         const body = await request.json() as Record<string, unknown>;
         const saved = await saveProcessPresentationSet(baseEnv, body.metadata);
         const processIds = Object.keys(saved.metadata.processes);
-        await appendAuditEvent(baseEnv, audit, { action: "catalog.presentation.updated", resourceType: "process_presentation", resourceId: "current", outcome: "success", metadata: { version: saved.metadata.version, processCount: processIds.length, processIds: processIds.slice(0, 100) } }).catch(() => {});
-        return json({ ...saved, persistenceAvailable: true });
+        const availableLocales = availableProcessPresentationLocales(saved.metadata);
+        await appendAuditEvent(baseEnv, audit, { action: "catalog.presentation.updated", resourceType: "process_presentation", resourceId: "current", outcome: "success", metadata: { version: saved.metadata.version, processCount: processIds.length, processIds: processIds.slice(0, 100), defaultLocale: saved.metadata.defaultLocale ?? "", localeCount: availableLocales.length } }).catch(() => {});
+        return json({ ...saved, availableLocales, persistenceAvailable: true });
       } catch (error) {
         return json({ error: error instanceof Error ? error.message : "Cannot save process presentation metadata" }, 400);
       }
@@ -1516,8 +1517,14 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL, in
       const visibleIds = new Set(sourceEvents.map((event) => event.id));
       const changes = catalog.changes.filter((change) => visibleIds.has(change.id) || catalogEventAllowed(policyState.policy, access, { id: change.id, category: "" }));
       const presentationState = await readProcessPresentationSet(baseEnv);
-      const events = applyProcessPresentation(sourceEvents, presentationState.metadata);
-      return json({ ...catalog, events, changes, policy: { source: policyState.source, filtered: sourceEvents.length !== catalog.events.length }, presentation: { source: presentationState.source, updatedAt: presentationState.updatedAt } });
+      const localePreferences = presentationLocalePreferences(url.searchParams.get("locale"), request.headers.get("accept-language"));
+      const resolvedLocale = resolveProcessPresentationLocale(presentationState.metadata, localePreferences);
+      const availableLocales = availableProcessPresentationLocales(presentationState.metadata);
+      const events = applyProcessPresentation(sourceEvents, presentationState.metadata, localePreferences);
+      const response = json({ ...catalog, events, changes, policy: { source: policyState.source, filtered: sourceEvents.length !== catalog.events.length }, presentation: { source: presentationState.source, updatedAt: presentationState.updatedAt, locale: resolvedLocale, availableLocales } });
+      response.headers.set("vary", "Accept-Language");
+      if (resolvedLocale) response.headers.set("content-language", resolvedLocale);
+      return response;
     } catch (error) {
       return json({ error: error instanceof Error ? error.message : "XYOps catalog request failed" }, 502);
     }
@@ -1564,7 +1571,7 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL, in
       const policyState = await readCatalogPolicySet(baseEnv);
       if (!catalogEventAllowed(policyState.policy, access, event)) return json({ error: "XYOps process not found or disabled" }, 404);
       const presentationState = await readProcessPresentationSet(baseEnv);
-      const displayEvent = applyProcessPresentation([event], presentationState.metadata)[0] ?? event;
+      const displayEvent = applyProcessPresentation([event], presentationState.metadata, presentationLocalePreferences(url.searchParams.get("locale"), request.headers.get("accept-language")))[0] ?? event;
       const requestedTargets = Array.isArray(body.targets) ? body.targets.map(String) : [];
       if (event.targets.length && requestedTargets.some((target) => !event.targets.includes(target))) return json({ error: "Unsupported target" }, 400);
       const params: Record<string, unknown> = { source: "xyops-self-service" };

@@ -32,7 +32,8 @@ type AuditEvent = { id: string; createdAt: number; correlationId: string; actorI
 type ApprovalRecord = { id: string; eventId: string; title: string; category: string; schemaVersion: string; requesterIdentity: string; requesterRole: PortalRole; status: ApprovalStatus; requiredApprovals: number; approvals: number; rejections: number; approverRoles: PortalRole[]; approverGroups: string[]; requesterCannotApprove: boolean; summary: { subject: string; targets: string[]; values: Array<{ key: string; label: string; value: string }>; hiddenSecrets: number; secretFields: Array<{ key: string; label: string }> }; expiresAt: number; createdAt: number; updatedAt: number; approvedAt: number | null; executedAt: number | null; runId: string; parentRunId: string; error: string; myDecision: "approve" | "reject" | null; actions: { approve: boolean; reject: boolean; cancel: boolean; execute: boolean } };
 type CatalogPolicyRule = { id: string; effect: "allow" | "deny"; users: string[]; groups: string[]; roles: PortalRole[]; categories: string[]; processes: string[] };
 type CatalogPolicySet = { version: 1; defaultEffect: "allow" | "deny"; adminBypass: boolean; rules: CatalogPolicyRule[] };
-type ProcessPresentationSet = { version: 1; processes: Record<string, { title?: string; description?: string; category?: string; icon?: string; order?: number; help?: string }> };
+type LocalizedProcessPresentation = { title?: string; description?: string; category?: string; help?: string };
+type ProcessPresentationSet = { version: 1; defaultLocale?: string; processes: Record<string, LocalizedProcessPresentation & { icon?: string; order?: number; locales?: Record<string, LocalizedProcessPresentation> }> };
 type AutomationSection = { category: string; slug: string; count: number; events: number; workflows: number; order: number };
 
 const nav: { id: Page; label: string; icon: string }[] = [
@@ -669,8 +670,12 @@ function AuditLog() {
 
 const exampleProcessPresentation: ProcessPresentationSet = {
   version: 1,
+  defaultLocale: "ru",
   processes: {
-    "database-backup": { title: "Резервное копирование БД", category: "Базы данных", icon: "backup", order: 10, help: "Ограничения выполнения настраиваются в XYOps." },
+    "database-backup": {
+      title: "Резервное копирование БД", category: "Базы данных", icon: "backup", order: 10, help: "Ограничения выполнения настраиваются в XYOps.",
+      locales: { en: { title: "Database backup", category: "Databases", help: "Execution limits are configured in XYOps." }, "en-GB": { title: "Database backup (UK)" } },
+    },
   },
 };
 
@@ -679,6 +684,7 @@ function ProcessPresentationEditor({ catalog, onChanged, notify }: { catalog: Ca
   const [text, setText] = useState(JSON.stringify(exampleProcessPresentation, null, 2));
   const [source, setSource] = useState<"database" | "environment" | "default" | null>(null);
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
+  const [availableLocales, setAvailableLocales] = useState<string[]>([]);
   const [busy, setBusy] = useState<"load" | "save" | null>(null);
   async function request(method: "GET" | "PUT") {
     setBusy(method === "GET" ? "load" : "save");
@@ -688,13 +694,13 @@ function ProcessPresentationEditor({ catalog, onChanged, notify }: { catalog: Ca
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Не удалось обработать презентационные метаданные");
       window.sessionStorage.setItem("xyops-admin-token", adminToken);
-      setText(JSON.stringify(data.metadata, null, 2)); setSource(data.source ?? "default"); setUpdatedAt(data.updatedAt ?? null);
+      setText(JSON.stringify(data.metadata, null, 2)); setSource(data.source ?? "default"); setUpdatedAt(data.updatedAt ?? null); setAvailableLocales(Array.isArray(data.availableLocales) ? data.availableLocales : []);
       if (method === "PUT") { onChanged(); notify("Презентационные метаданные сохранены"); }
       else notify("Презентационные метаданные загружены");
     } catch (error) { notify(error instanceof Error ? error.message : "Некорректные метаданные процессов"); }
     finally { setBusy(null); }
   }
-  return <section className="panel policy-editor"><div className="panel-title"><div><span className="eyebrow">PROCESS PRESENTATION</span><h2>Названия, категории, значки и справка</h2><p>Изменяется только UI. Process ID, schemaVersion, visibility, approval, targets и выполнение остаются под контролем XYOps.</p></div>{source && <Status tone={source === "database" ? "success" : "neutral"}>{source === "database" ? "D1" : source === "environment" ? "ENV" : "XYOps"}</Status>}</div><div className="policy-toolbar"><label>ADMIN_TOKEN<input type="password" value={adminToken} onChange={(event) => setAdminToken(event.target.value)} placeholder="Токен администратора" autoComplete="off" /></label><button className="secondary" disabled={!adminToken || Boolean(busy)} onClick={() => void request("GET")}>{busy === "load" ? "Загрузка…" : "Загрузить"}</button><button className="primary" disabled={!adminToken || Boolean(busy)} onClick={() => void request("PUT")}>{busy === "save" ? "Сохранение…" : "Сохранить представление"}</button></div><textarea className="policy-json" value={text} onChange={(event) => setText(event.target.value)} spellCheck={false} aria-label="JSON презентационных метаданных процессов" /><div className="policy-help"><span>Процессов в текущем каталоге: <b>{catalog.length}</b></span><span>Поля: title / description / category / icon / order / help</span><span>{updatedAt ? `Сохранено: ${new Date(updatedAt).toLocaleString("ru-RU")}` : "D1 имеет приоритет над PORTAL_PROCESS_METADATA_JSON"}</span></div></section>;
+  return <section className="panel policy-editor"><div className="panel-title"><div><span className="eyebrow">PROCESS PRESENTATION</span><h2>Многоязычное представление процессов</h2><p>Браузер выбирает локализованные title, description, category и help через Accept-Language. Process ID, schemaVersion, visibility, approval, targets и выполнение остаются под контролем XYOps.</p></div>{source && <Status tone={source === "database" ? "success" : "neutral"}>{source === "database" ? "D1" : source === "environment" ? "ENV" : "XYOps"}</Status>}</div><div className="policy-toolbar"><label>ADMIN_TOKEN<input type="password" value={adminToken} onChange={(event) => setAdminToken(event.target.value)} placeholder="Токен администратора" autoComplete="off" /></label><button className="secondary" disabled={!adminToken || Boolean(busy)} onClick={() => void request("GET")}>{busy === "load" ? "Загрузка…" : "Загрузить"}</button><button className="primary" disabled={!adminToken || Boolean(busy)} onClick={() => void request("PUT")}>{busy === "save" ? "Сохранение…" : "Сохранить представление"}</button></div><textarea className="policy-json" value={text} onChange={(event) => setText(event.target.value)} spellCheck={false} aria-label="JSON презентационных метаданных процессов" /><div className="policy-help"><span>Процессов в текущем каталоге: <b>{catalog.length}</b></span><span>Поля: defaultLocale / locales / title / description / category / help / icon / order</span><span>Языки: <b>{availableLocales.length ? availableLocales.join(", ") : "не заданы"}</b></span><span>{updatedAt ? `Сохранено: ${new Date(updatedAt).toLocaleString("ru-RU")}` : "D1 имеет приоритет над PORTAL_PROCESS_METADATA_JSON"}</span></div></section>;
 }
 
 const exampleCatalogPolicy: CatalogPolicySet = {

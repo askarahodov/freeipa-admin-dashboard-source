@@ -90,13 +90,7 @@ boundary. Портал создаёт внутренний список груп
 - заголовок `PORTAL_GROUPS_HEADER` в proxy-режиме, но только после успешной проверки
   `PORTAL_PROXY_SHARED_SECRET`.
 
-Пример отображения identity:
-
-```env
-PORTAL_GROUPS_JSON={"operator@company.local":["ops","linux"],"* ":["employees"]}
-```
-
-Для wildcard используйте ключ `"*"` без пробела:
+Пример отображения identity; ключ `"*"` задаёт группы по умолчанию:
 
 ```env
 PORTAL_GROUPS_JSON={"operator@company.local":["ops","linux"],"*":["employees"]}

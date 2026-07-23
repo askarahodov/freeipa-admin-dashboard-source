@@ -607,7 +607,7 @@ async function ipaRpc(env: Env, ipaUrl: string, method: string, args: unknown[] 
   return payload.result?.result ?? [];
 }
 
-const allowedOperations = new Set(["user_add", "user_enable", "user_disable", "user_del", "group_add", "group_del", "group_add_member", "group_remove_member"]);
+const allowedOperations = new Set(["user_add", "user_mod", "user_enable", "user_disable", "user_del", "group_add", "group_del", "group_add_member", "group_remove_member"]);
 
 function sanitizeRoutes(raw: unknown): AutomationRoute[] {
   if (!Array.isArray(raw) || raw.length > 100) throw new Error("routes must be an array with at most 100 items");
@@ -786,11 +786,40 @@ function targetValues(raw: unknown): string[] {
   return raw.map((item) => typeof item === "string" ? item : item && typeof item === "object" ? String((item as Record<string, unknown>).id ?? (item as Record<string, unknown>).name ?? "") : "").filter(Boolean);
 }
 
-function schemaFingerprint(event: Pick<CatalogEvent, "kind" | "fields" | "targets" | "dangerous">): string {
-  const value = JSON.stringify({ kind: event.kind, fields: event.fields, targets: event.targets, dangerous: event.dangerous });
+function schemaFingerprint(event: Pick<CatalogEvent, "operation" | "kind" | "fields" | "targets" | "dangerous">): string {
+  const value = JSON.stringify({ operation: event.operation, kind: event.kind, fields: event.fields, targets: event.targets, dangerous: event.dangerous });
   let hash = 2166136261;
   for (let index = 0; index < value.length; index += 1) { hash ^= value.charCodeAt(index); hash = Math.imul(hash, 16777619); }
   return `v1-${(hash >>> 0).toString(16).padStart(8, "0")}`;
+}
+
+function inferCatalogOperation(event: Record<string, unknown>): string | undefined {
+  const hints: string[] = [String(event.id ?? ""), String(event.title ?? ""), String(event.name ?? ""), String(event.operation ?? "")];
+  const visit = (value: unknown, depth = 0) => {
+    if (!value || typeof value !== "object" || depth > 6) return;
+    if (Array.isArray(value)) {
+      for (const item of value.slice(0, 100)) visit(item, depth + 1);
+      return;
+    }
+    for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+      if (["operation", "action", "freeipa_tool", "command", "task"].includes(key.toLowerCase()) && (typeof nested === "string" || typeof nested === "number")) hints.push(String(nested));
+      else if (["params", "workflow", "nodes", "data"].includes(key.toLowerCase())) visit(nested, depth + 1);
+    }
+  };
+  visit(event);
+  const compact = hints.join(" ").toLowerCase().replace(/[^a-zа-яё0-9]+/g, "");
+  const mappings: Array<[string, string[]]> = [
+    ["group_add_member", ["addusertogroup", "addusertogroups", "groupaddmember", "добавитьпользователявгруппу"]],
+    ["group_remove_member", ["removeuserfromgroup", "removeuserfromgroups", "groupremovemember", "удалитьпользователяизгруппы"]],
+    ["user_disable", ["disableuser", "userdisable", "отключитьпользователя", "заблокироватьпользователя"]],
+    ["user_enable", ["enableuser", "userenable", "включитьпользователя", "разблокироватьпользователя"]],
+    ["user_del", ["deleteuser", "deluser", "userdel", "удалитьпользователя"]],
+    ["user_mod", ["modifyuser", "updateuser", "edituser", "usermod", "редактироватьпользователя", "изменитьпользователя"]],
+    ["user_add", ["createuser", "adduser", "useradd", "создатьпользователя", "добавитьпользователя"]],
+    ["group_del", ["deletegroup", "delgroup", "groupdel", "удалитьгруппу"]],
+    ["group_add", ["creategroup", "addgroup", "groupadd", "создатьгруппу", "добавитьгруппу"]],
+  ];
+  return mappings.find(([, aliases]) => aliases.some((alias) => compact.includes(alias)))?.[0];
 }
 
 function catalogItem(event: Record<string, unknown>): CatalogEvent {
@@ -802,6 +831,7 @@ function catalogItem(event: Record<string, unknown>): CatalogEvent {
     id,
     title: String(event.title ?? event.name ?? workflow?.title ?? (id || "Untitled")),
     description: String(event.description ?? event.help ?? event.notes ?? workflow?.description ?? ""),
+    operation: inferCatalogOperation(event),
     kind,
     enabled: event.enabled !== false,
     category: String(event.category ?? "general"),
@@ -815,7 +845,7 @@ function catalogItem(event: Record<string, unknown>): CatalogEvent {
 }
 
 function demoCatalog(env: Env): CatalogEvent[] {
-  const routeEvents = automationRoutes(env).map((route) => ({ id: route.eventId, title: route.title, description: "Маршрут администрирования FreeIPA", kind: route.kind, enabled: route.enabled !== false, category: "FreeIPA", plugin: route.kind === "workflow" ? null : "freeipa", fields: route.fields ?? [], targets: route.targets ?? [], dangerous: false }));
+  const routeEvents = automationRoutes(env).map((route) => ({ id: route.eventId, title: route.title, description: "Маршрут администрирования FreeIPA", operation: route.operation, kind: route.kind, enabled: route.enabled !== false, category: "FreeIPA", plugin: route.kind === "workflow" ? null : "freeipa", fields: route.fields ?? [], targets: route.targets ?? [], dangerous: false }));
   const events: CatalogEvent[] = [...routeEvents, { id: "database-backup", title: "Резервное копирование базы данных", description: "Создание и проверка резервной копии выбранной БД", kind: "workflow", enabled: true, category: "Databases", plugin: null, targets: ["db-prod-01", "db-stage-01"], dangerous: false, fields: [
     { key: "database", label: "База данных", type: "string", required: true, target: "workflowData", placeholder: "billing" },
     { key: "backupType", label: "Тип копии", type: "select", required: true, target: "workflowData", options: ["full", "incremental"], default: "full" },

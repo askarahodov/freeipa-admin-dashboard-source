@@ -5,6 +5,7 @@ import type { AutomationRoute, CatalogEvent, RouteField } from "../automation-ty
 import { fieldConditionMatches, normalizeFieldCondition } from "../field-conditions";
 import { listRunReplaySummaries, readRunReplay, saveRunReplay, type RunReplaySummary } from "../run-replays";
 import { listRunResults, readRunResultFile, saveRunResult, type PublicRunResult } from "../run-results";
+import { listRunNotifications, markRunNotificationsRead, saveRunNotification } from "../run-notifications";
 
 interface Env {
   ASSETS: Fetcher;
@@ -256,6 +257,7 @@ async function saveOperationRun(env: Env, run: OperationRun): Promise<void> {
   await ensureOperationRuns(env);
   await env.DB.prepare("INSERT INTO operation_runs (id, job_id, event_id, title, kind, mode, status, actor, subject, error, stages_json, started_at, updated_at, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET job_id = excluded.job_id, status = excluded.status, error = excluded.error, stages_json = excluded.stages_json, updated_at = excluded.updated_at, completed_at = excluded.completed_at")
     .bind(run.id, run.jobId, run.eventId, run.title, run.kind, run.mode, run.status, run.actor, run.subject, run.error || null, JSON.stringify(run.stages), run.startedAt, run.updatedAt, run.completedAt).run();
+  await saveRunNotification(env, run).catch(() => {});
 }
 
 async function listOperationRuns(env: Env, limit = 100): Promise<OperationRun[]> {
@@ -1125,6 +1127,32 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
     ]);
     const access = portalAccess(request, baseEnv);
     return json({ mode: demoMode ? "demo" : ipaConfigured || xyopsConfigured ? "live" : "unconfigured", viewer: requestActor(request), access: { identity: access.identity, role: access.role, permissions: access.permissions }, persistence: { available: Boolean(baseEnv.DB), configured: Boolean(baseEnv.CONFIG_ENCRYPTION_KEY) }, freeipa: { configured: ipaConfigured, reachable: ipaProbe.reachable, error: ipaProbe.error }, xyops: { configured: xyopsConfigured, reachable: xyopsReachable } });
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/integrations/notifications") {
+    const denied = requirePortalPermission(request, baseEnv, "directory.read");
+    if (denied) return denied;
+    const access = portalAccess(request, baseEnv);
+    const limit = Number(url.searchParams.get("limit") ?? 50);
+    try { return json(await listRunNotifications(baseEnv, access.identity, Number.isFinite(limit) ? limit : 50)); }
+    catch { return json({ notifications: [], unread: 0, persistenceAvailable: Boolean(baseEnv.DB) }); }
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/integrations/notifications/read") {
+    const denied = requirePortalPermission(request, baseEnv, "directory.read");
+    if (denied) return denied;
+    let body: Record<string, unknown> = {};
+    try { body = await request.json() as Record<string, unknown>; } catch { return json({ error: "Invalid JSON" }, 400); }
+    const ids = Array.isArray(body.ids) ? body.ids.map(String).filter(Boolean).slice(0, 100) : [];
+    const all = body.all === true;
+    if (!all && !ids.length) return json({ error: "Укажите ids или all=true" }, 400);
+    const access = portalAccess(request, baseEnv);
+    try {
+      await markRunNotificationsRead(baseEnv, access.identity, all ? null : ids);
+      return json(await listRunNotifications(baseEnv, access.identity, 50));
+    } catch {
+      return json({ error: "Не удалось обновить уведомления" }, 503);
+    }
   }
 
   const runFileMatch = url.pathname.match(/^\/api\/integrations\/runs\/([A-Za-z0-9_-]{1,160})\/files\/([A-Za-z0-9_-]{1,160})$/);

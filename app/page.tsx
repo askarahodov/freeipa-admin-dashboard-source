@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AutomationRoute as SourceAutomationRoute, CatalogEvent, RouteField } from "../automation-types";
 import { conditionFieldNames, fieldConditionMatches } from "../field-conditions";
 
@@ -14,6 +14,7 @@ type RunResultFile = { id: string; filename: string; size: number; mimeType: str
 type RunResult = { available: boolean; summary: string; values: RunResultValue[]; links: RunResultLink[]; files: RunResultFile[]; table: { columns: string[]; rows: string[][] } | null; capturedAt: number; truncated: boolean };
 type RunRecord = { id: string; jobId: string; eventId: string; title: string; kind: "event" | "workflow"; mode: "demo" | "live"; status: RunStatus; actor: string; subject: string; error: string | null; stages: RunStage[]; startedAt: number; updatedAt: number; completedAt: number | null; result: RunResult | null; actions: { cancel: boolean; rerun: boolean; rerunLabel: string; reason: string; parentRunId: string } };
 type RunStats = { today: number; queued: number; success: number; failed: number };
+type PortalNotification = { id: string; runId: string; status: "success" | "failed" | "cancelled"; title: string; message: string; createdAt: number; readAt: number | null };
 type DirectoryUser = { uid: string; name: string; firstName: string; lastName: string; email: string; groups: number; groupNames: string[]; active: boolean };
 type DirectoryGroup = { name: string; description: string; members: number; memberUids: string[]; type: string };
 type FreeIpaOperation = "user_add" | "user_mod" | "user_password" | "user_enable" | "user_disable" | "user_del" | "group_add" | "group_del" | "group_add_member" | "group_remove_member";
@@ -99,6 +100,11 @@ export default function Home() {
   const [directoryUsers, setDirectoryUsers] = useState<DirectoryUser[]>([]);
   const [directoryGroups, setDirectoryGroups] = useState<DirectoryGroup[]>([]);
   const [directorySource, setDirectorySource] = useState<"demo" | "live" | "unconfigured">("unconfigured");
+  const [notifications, setNotifications] = useState<PortalNotification[]>([]);
+  const [notificationUnread, setNotificationUnread] = useState(0);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | "unsupported">("default");
+  const shownNotificationIds = useRef(new Set<string>());
 
   useEffect(() => {
     fetch("/api/integrations/status", { cache: "no-store" })
@@ -145,6 +151,35 @@ export default function Home() {
     const timer = window.setTimeout(() => void loadDirectory(), 0);
     return () => window.clearTimeout(timer);
   }, [loadDirectory]);
+
+  const loadNotifications = useCallback(async (announce = true) => {
+    try {
+      const response = await fetch("/api/integrations/notifications?limit=50", { cache: "no-store" });
+      if (!response.ok) throw new Error("Notification request failed");
+      const data = await response.json();
+      const items: PortalNotification[] = Array.isArray(data.notifications) ? data.notifications : [];
+      const browserSupported = typeof window !== "undefined" && "Notification" in window;
+      setNotificationPermission(browserSupported ? window.Notification.permission : "unsupported");
+      if (announce && browserSupported && window.Notification.permission === "granted") {
+        for (const item of items) {
+          if (item.readAt || shownNotificationIds.current.has(item.id)) continue;
+          new window.Notification(item.title, { body: item.message, tag: item.id });
+        }
+      }
+      for (const item of items) shownNotificationIds.current.add(item.id);
+      setNotifications(items);
+      setNotificationUnread(Math.max(0, Number(data.unread ?? 0)));
+    } catch {
+      setNotifications([]);
+      setNotificationUnread(0);
+    }
+  }, []);
+
+  useEffect(() => {
+    const initial = window.setTimeout(() => void loadNotifications(false), 0);
+    const timer = window.setInterval(() => void loadNotifications(true), 15000);
+    return () => { window.clearTimeout(initial); window.clearInterval(timer); };
+  }, [loadNotifications]);
 
   const loadRuns = useCallback(async (sync = true) => {
     setRunsLoading(true);
@@ -288,6 +323,42 @@ export default function Home() {
     }
   }
 
+
+  async function updateNotificationReads(ids: string[] | null) {
+    try {
+      const response = await fetch("/api/integrations/notifications/read", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(ids ? { ids } : { all: true }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Не удалось отметить уведомления");
+      setNotifications(Array.isArray(data.notifications) ? data.notifications : []);
+      setNotificationUnread(Math.max(0, Number(data.unread ?? 0)));
+      return true;
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Не удалось обновить уведомления");
+      return false;
+    }
+  }
+
+  async function openPortalNotification(item: PortalNotification) {
+    if (!item.readAt) await updateNotificationReads([item.id]);
+    setNotificationsOpen(false);
+    navigateTo("operations");
+  }
+
+  async function enableSystemNotifications() {
+    if (!("Notification" in window)) {
+      setNotificationPermission("unsupported");
+      notify("Системные уведомления не поддерживаются браузером");
+      return;
+    }
+    const permission = await window.Notification.requestPermission();
+    setNotificationPermission(permission);
+    notify(permission === "granted" ? "Системные уведомления включены" : "Браузер не разрешил системные уведомления");
+  }
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -299,7 +370,7 @@ export default function Home() {
       <main className="main">
         <header className="topbar">
           <div><h1>{page === "overview" ? "Обзор инфраструктуры" : title}</h1><p>{page === "overview" ? "FreeIPA и портал автоматизаций XYOps" : `Управление разделом «${title}»`}</p></div>
-          <div className="header-actions"><label className="global-search"><span>⌕</span><input aria-label="Глобальный поиск" placeholder="Поиск процессов, пользователей, групп…" value={query} onChange={(e) => setQuery(e.target.value)} /></label><button className="bell" aria-label="Ошибки операций" onClick={() => notify(runStats.failed ? `Ошибок сегодня: ${runStats.failed}` : "Новых ошибок нет")}>♢{runStats.failed > 0 && <b>{runStats.failed}</b>}</button><button className="profile" title={`Роль: ${roleLabels[integration.access.role]}`}>{integration.viewer.slice(0, 2).toUpperCase()} <span>{integration.viewer}<small>{roleLabels[integration.access.role]}</small></span></button></div>
+          <div className="header-actions"><label className="global-search"><span>⌕</span><input aria-label="Глобальный поиск" placeholder="Поиск процессов, пользователей, групп…" value={query} onChange={(e) => setQuery(e.target.value)} /></label><div className="notification-anchor"><button className={`bell ${notificationsOpen ? "active" : ""}`} aria-label="Уведомления операций" aria-expanded={notificationsOpen} onClick={() => setNotificationsOpen((value) => !value)}>♢{notificationUnread > 0 && <b>{notificationUnread > 99 ? "99+" : notificationUnread}</b>}</button>{notificationsOpen && <NotificationCenter items={notifications} unread={notificationUnread} permission={notificationPermission} close={() => setNotificationsOpen(false)} markAll={() => void updateNotificationReads(null)} enableSystem={() => void enableSystemNotifications()} openItem={(item) => void openPortalNotification(item)} />}</div><button className="profile" title={`Роль: ${roleLabels[integration.access.role]}`}>{integration.viewer.slice(0, 2).toUpperCase()} <span>{integration.viewer}<small>{roleLabels[integration.access.role]}</small></span></button></div>
         </header>
 
         {page === "overview" && <Overview goTo={(nextPage) => navigateTo(nextPage)} integration={integration} userCount={directoryUsers.length} groupCount={directoryGroups.length} directorySource={directorySource} runs={recentRuns} runStats={runStats} />}
@@ -315,6 +386,11 @@ export default function Home() {
       {toast && <div className="toast"><i />{toast}</div>}
     </div>
   );
+}
+
+
+function NotificationCenter({ items, unread, permission, close, markAll, enableSystem, openItem }: { items: PortalNotification[]; unread: number; permission: NotificationPermission | "unsupported"; close: () => void; markAll: () => void; enableSystem: () => void; openItem: (item: PortalNotification) => void }) {
+  return <section className="notification-panel"><div className="notification-head"><div><strong>Уведомления</strong><small>{unread ? `${unread} непрочитанных` : "Новых уведомлений нет"}</small></div><button aria-label="Закрыть уведомления" onClick={close}>×</button></div><div className="notification-tools">{unread > 0 && <button onClick={markAll}>Прочитать все</button>}{permission === "default" && <button onClick={enableSystem}>Включить системные</button>}{permission === "denied" && <small>Системные уведомления запрещены браузером</small>}</div><div className="notification-list">{items.length ? items.map((item) => <button className={`notification-item ${item.status} ${item.readAt ? "read" : "unread"}`} key={item.id} onClick={() => openItem(item)}><i>{item.status === "success" ? "✓" : item.status === "cancelled" ? "■" : "!"}</i><span><strong>{item.title}</strong><p>{item.message}</p><small>{formatDateTime(item.createdAt)}</small></span>{!item.readAt && <b />}</button>) : <div className="notification-empty"><span>♢</span><strong>Уведомлений пока нет</strong><small>Завершения и ошибки заданий XYOps появятся здесь.</small></div>}</div></section>;
 }
 
 function Overview({ goTo, integration, userCount, groupCount, directorySource, runs, runStats }: { goTo: (page: Page) => void; integration: { mode: IntegrationMode; freeipa: { reachable: boolean }; xyops: { reachable: boolean } }; userCount: number; groupCount: number; directorySource: "demo" | "live" | "unconfigured"; runs: RunRecord[]; runStats: RunStats }) {

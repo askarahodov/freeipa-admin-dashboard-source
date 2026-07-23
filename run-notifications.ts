@@ -70,7 +70,7 @@ export async function saveRunNotification(env: NotificationEnv, run: Notificatio
   const status = notificationStatus(run.status);
   if (!status) return;
   await ensureNotificationTables(env);
-  const createdAt = Number.isFinite(run.completedAt) && Number(run.completedAt) > 0 ? Number(run.completedAt) : Date.now();
+  const createdAt = typeof run.completedAt === "number" && Number.isFinite(run.completedAt) && run.completedAt > 0 ? run.completedAt : Date.now();
   const title = status === "success" ? "Задание XYOps завершено" : status === "cancelled" ? "Задание XYOps остановлено" : "Ошибка задания XYOps";
   await env.DB.prepare("INSERT OR IGNORE INTO operation_notifications (id, run_id, status, title, message, created_at) VALUES (?, ?, ?, ?, ?, ?)")
     .bind(run.id.slice(0, 160), run.id.slice(0, 160), status, title, notificationMessage(run, status), createdAt).run();

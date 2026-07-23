@@ -32,6 +32,7 @@ jobs:
           set +e
           {
             python scripts/fix-approval-patcher.py &&
+            python scripts/fix-approval-test.py &&
             python scripts/apply-approval-gates-patch.py &&
             npm ci &&
             npm run lint &&
@@ -49,6 +50,7 @@ jobs:
           if [ "${{ steps.verify.outputs.status }}" = "0" ]; then
             rm -f scripts/apply-approval-gates-patch.py
             rm -f scripts/fix-approval-patcher.py
+            rm -f scripts/fix-approval-test.py
             rm -f .github/workflows/apply-approval-gates.yml
             rm -f .github/approval-gates-ci-failure.txt
             rm -f .github/approval-gates-trigger.txt

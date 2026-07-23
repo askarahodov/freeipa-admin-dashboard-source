@@ -33,3 +33,4 @@ XYOPS_ROUTES_JSON=[{"key":"user-create","title":"Создание пользов
 # PORTAL_GROUPS_JSON={"operator@example.test":["ops"],"*":["employees"]}
 # Trusted proxy groups header; accepted only after PORTAL_PROXY_SHARED_SECRET validation.
 # PORTAL_GROUPS_HEADER=x-auth-request-groups
+PORTAL_PROCESS_METADATA_JSON=

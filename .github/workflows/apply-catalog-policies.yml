@@ -25,6 +25,9 @@ jobs:
           node-version: 22.13.0
           cache: npm
 
+      - name: Repair compatibility patch
+        run: python scripts/fix-catalog-policies-patcher.py
+
       - name: Apply catalog policy patch
         run: python scripts/apply-catalog-policies-patch.py
 
@@ -49,6 +52,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           if [ "${{ steps.verify.outputs.status }}" = "0" ]; then
             rm -f scripts/apply-catalog-policies-patch.py
+            rm -f scripts/fix-catalog-policies-patcher.py
             rm -f .github/workflows/apply-catalog-policies.yml
             rm -f .github/catalog-policies-ci-failure.txt
             git add -A
@@ -57,6 +61,6 @@ jobs:
             git reset --hard HEAD
             tail -n 500 /tmp/catalog-policies-ci.log > .github/catalog-policies-ci-failure.txt
             git add .github/catalog-policies-ci-failure.txt
-            git commit -m "Record catalog visibility policy CI failure"
+            git commit -m "Record catalog visibility policy CI failure v2"
           fi
           git push origin HEAD:agent/security-hardening

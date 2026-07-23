@@ -18,6 +18,17 @@ test("Node Gateway performs the documented FreeIPA password and JSON-RPC flow", 
   assert.deepEqual(JSON.parse(requests[1].init.body), { method: "user_find", params: [[""], { sizelimit: 1 }], id: 0 });
 });
 
+test("Node Gateway permits explicitly supported FreeIPA mutations", async () => {
+  const requests = [];
+  const fetchImpl = async (url, init) => {
+    requests.push({ url: String(url), init });
+    if (String(url).endsWith("/ipa/session/login_password")) return new Response("", { status: 200, headers: { "set-cookie": "ipa_session=abc123; Path=/ipa" } });
+    return Response.json({ result: { result: [{}] }, error: null });
+  };
+  await runFreeIpaRpc({ ipaUrl: "https://ipa.example.test", username: "administrator", password: "secret", method: "user_add", args: ["alice"], options: { givenname: "Alice", sn: "Admin" } }, fetchImpl);
+  assert.deepEqual(JSON.parse(requests[1].init.body), { method: "user_add", params: [["alice"], { givenname: "Alice", sn: "Admin" }], id: 0 });
+});
+
 test("Node Gateway requires its ephemeral bearer token", async () => {
   const server = createFreeIpaGateway({ token: "test-token", fetchImpl: async () => { throw new Error("must not run"); } });
   await new Promise((resolve, reject) => { server.once("error", reject); server.listen(0, "127.0.0.1", resolve); });

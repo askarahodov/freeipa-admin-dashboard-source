@@ -46,6 +46,7 @@ export type CatalogEvent = {
   icon?: string;
   order?: number;
   help?: string;
+  presentationLocale?: string;
   presentationOverridden?: boolean;
 };
 

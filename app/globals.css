@@ -192,3 +192,27 @@ nav { display:flex;flex-direction:column;gap:8px; } nav button { border:0;backgr
 .approval-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .approval-error { padding: 12px 14px; border-radius: 10px; background: rgba(220, 53, 69, .1); color: #b42332; }
 @media (max-width: 760px) { .approval-summary, .approval-card-head { align-items: stretch; flex-direction: column; } .approval-progress { grid-template-columns: 1fr; } }
+
+
+/* Extended append-only audit */
+.audit-page { display: grid; gap: 16px; }
+.audit-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 22px; }
+.audit-toolbar h2 { margin: 4px 0; }
+.audit-toolbar p { margin: 0; color: var(--muted); max-width: 820px; }
+.audit-filters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; padding: 18px; }
+.audit-filters label { display: grid; gap: 6px; font-size: 12px; font-weight: 700; color: var(--muted); }
+.audit-filters input, .audit-filters select { width: 100%; }
+.audit-list { display: grid; gap: 12px; }
+.audit-entry { padding: 18px; }
+.audit-entry-head { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
+.audit-entry-head strong { display: block; font-size: 16px; }
+.audit-entry-head small { display: block; margin-top: 4px; color: var(--muted); }
+.audit-links { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 14px; font-size: 12px; }
+.audit-links code { padding: 4px 7px; border-radius: 7px; background: var(--surface-2); overflow-wrap: anywhere; }
+.audit-links span { color: var(--muted); }
+.audit-error { color: #b42318; font-weight: 700; }
+.audit-entry details { margin-top: 14px; }
+.audit-entry summary { cursor: pointer; font-weight: 700; }
+.audit-entry pre { max-height: 320px; overflow: auto; padding: 12px; border-radius: 10px; background: var(--surface-2); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 900px) { .audit-filters { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 600px) { .audit-toolbar { align-items: stretch; flex-direction: column; } .audit-filters { grid-template-columns: 1fr; } }

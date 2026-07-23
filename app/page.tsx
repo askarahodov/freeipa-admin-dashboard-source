@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AutomationRoute as SourceAutomationRoute, CatalogEvent, RouteField } from "../automation-types";
 import { conditionFieldNames, fieldConditionMatches } from "../field-conditions";
 
-type Page = "overview" | "automation" | "users" | "groups" | "operations" | "approvals" | "settings";
+type Page = "overview" | "automation" | "users" | "groups" | "operations" | "approvals" | "audit" | "settings";
 type AutomationRoute = SourceAutomationRoute & { enabled: boolean; targets: string[]; fields: RouteField[] };
 type RunStatus = "queued" | "running" | "success" | "failed" | "cancelled" | "unknown";
 type RunStage = { id: string; title: string; status: RunStatus; startedAt: number | null; completedAt: number | null; error: string };
@@ -28,6 +28,7 @@ type PortalRole = "viewer" | "operator" | "admin";
 type PortalPermission = "directory.read" | "freeipa.write" | "freeipa.delete" | "xyops.run" | "xyops.approve" | "settings.manage";
 type PortalAccess = { identity: string; role: PortalRole; groups?: string[]; permissions: PortalPermission[] };
 type ApprovalStatus = "pending" | "approved" | "rejected" | "cancelled" | "expired" | "executing" | "executed" | "failed" | "unknown";
+type AuditEvent = { id: string; createdAt: number; correlationId: string; actorIdentity: string; actorRole: string; actorGroups: string[]; action: string; resourceType: string; resourceId: string; eventId: string; schemaVersion: string; approvalId: string; runId: string; jobId: string; outcome: "success" | "failure" | "pending" | "denied" | "unknown" | "info"; errorCode: string; metadata: Record<string, unknown> };
 type ApprovalRecord = { id: string; eventId: string; title: string; category: string; schemaVersion: string; requesterIdentity: string; requesterRole: PortalRole; status: ApprovalStatus; requiredApprovals: number; approvals: number; rejections: number; approverRoles: PortalRole[]; approverGroups: string[]; requesterCannotApprove: boolean; summary: { subject: string; targets: string[]; values: Array<{ key: string; label: string; value: string }>; hiddenSecrets: number; secretFields: Array<{ key: string; label: string }> }; expiresAt: number; createdAt: number; updatedAt: number; approvedAt: number | null; executedAt: number | null; runId: string; parentRunId: string; error: string; myDecision: "approve" | "reject" | null; actions: { approve: boolean; reject: boolean; cancel: boolean; execute: boolean } };
 type CatalogPolicyRule = { id: string; effect: "allow" | "deny"; users: string[]; groups: string[]; roles: PortalRole[]; categories: string[]; processes: string[] };
 type CatalogPolicySet = { version: 1; defaultEffect: "allow" | "deny"; adminBypass: boolean; rules: CatalogPolicyRule[] };
@@ -40,10 +41,11 @@ const nav: { id: Page; label: string; icon: string }[] = [
   { id: "groups", label: "Группы", icon: "♧" },
   { id: "operations", label: "Операции", icon: "◷" },
   { id: "approvals", label: "Согласования", icon: "✓" },
+  { id: "audit", label: "Аудит", icon: "≣" },
   { id: "settings", label: "Настройки", icon: "⚙" },
 ];
 const roleLabels: Record<PortalRole, string> = { viewer: "Наблюдатель", operator: "Оператор", admin: "Администратор" };
-const pagePaths: Record<Page, string> = { overview: "/", automation: "/automation", users: "/users", groups: "/groups", operations: "/operations", approvals: "/approvals", settings: "/settings" };
+const pagePaths: Record<Page, string> = { overview: "/", automation: "/automation", users: "/users", groups: "/groups", operations: "/operations", approvals: "/approvals", audit: "/audit", settings: "/settings" };
 
 function automationSlug(value: string): string {
   const cyrillic: Record<string, string> = { а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "e", ж: "zh", з: "z", и: "i", й: "y", к: "k", л: "l", м: "m", н: "n", о: "o", п: "p", р: "r", с: "s", т: "t", у: "u", ф: "f", х: "h", ц: "ts", ч: "ch", ш: "sh", щ: "sch", ъ: "", ы: "y", ь: "", э: "e", ю: "yu", я: "ya" };
@@ -255,7 +257,7 @@ export default function Home() {
   const canRunXyops = integration.access.permissions.includes("xyops.run");
   const canApproveXyops = integration.access.permissions.includes("xyops.approve");
   const canManageSettings = integration.access.permissions.includes("settings.manage");
-  const visibleNav = nav.filter((item) => item.id !== "settings" || canManageSettings);
+  const visibleNav = nav.filter((item) => !["settings", "audit"].includes(item.id) || canManageSettings);
   const automationSections = useMemo<AutomationSection[]>(() => Array.from(new Set(catalog.map((event) => event.category || "general"))).sort((left, right) => left.localeCompare(right)).map((category) => {
     const items = catalog.filter((event) => (event.category || "general") === category);
     return { category, slug: automationSlug(category), count: items.length, events: items.filter((event) => event.kind === "event").length, workflows: items.filter((event) => event.kind === "workflow").length };
@@ -441,6 +443,7 @@ export default function Home() {
         {page === "groups" && <Groups items={filteredGroups} allUsers={directoryUsers} source={directorySource} canWrite={canWriteFreeIpa} canDelete={canDeleteFreeIpa} onCreate={() => setFreeIpaAction({ operation: "group_add", title: "Новая группа", preset: {} })} onAction={setFreeIpaAction} />}
         {page === "operations" && <Operations runs={recentRuns} stats={runStats} loading={runsLoading} refresh={() => void loadRuns(true)} onAction={runJobAction} />}
         {page === "approvals" && <Approvals items={approvals} pendingForMe={approvalPendingForMe} loading={approvalsLoading} canApprove={canApproveXyops} refresh={() => void loadApprovals()} onAction={actOnApproval} />}
+        {page === "audit" && canManageSettings && <AuditLog />}
         {page === "settings" && canManageSettings && <Settings routes={routes} catalog={catalog} catalogLoading={catalogLoading} onSync={() => void syncCatalog()} onRoutesChange={setRoutes} notify={notify} />}
       </main>
 
@@ -621,6 +624,40 @@ function PersistentConnectionSettings({ notify }: { notify: (message: string) =>
   </>;
 }
 
+
+
+function AuditLog() {
+  const [items, setItems] = useState<AuditEvent[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [actor, setActor] = useState("");
+  const [action, setAction] = useState("");
+  const [outcome, setOutcome] = useState("");
+  const [correlationId, setCorrelationId] = useState("");
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ limit: "200" });
+      if (actor.trim()) params.set("actor", actor.trim());
+      if (action.trim()) params.set("action", action.trim());
+      if (outcome) params.set("outcome", outcome);
+      if (correlationId.trim()) params.set("correlationId", correlationId.trim());
+      const response = await fetch(`/api/integrations/audit?${params}`, { cache: "no-store" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Журнал аудита недоступен");
+      setItems(Array.isArray(data.events) ? data.events : []);
+    } catch { setItems([]); }
+    finally { setLoading(false); }
+  }, [actor, action, outcome, correlationId]);
+
+  useEffect(() => { const timer = window.setTimeout(() => void load(), 0); return () => window.clearTimeout(timer); }, [load]);
+
+  return <div className="audit-page">
+    <section className="panel audit-toolbar"><div><span className="eyebrow">APPEND-ONLY AUDIT</span><h2>Журнал административных действий</h2><p>Correlation ID связывает approval, запуск, XYOps Job, изменение статуса и результат. Секретные значения не сохраняются.</p></div><button className="secondary" disabled={loading} onClick={() => void load()}>{loading ? "Загрузка…" : "Обновить"}</button></section>
+    <section className="panel audit-filters"><label>Пользователь<input value={actor} onChange={(event) => setActor(event.target.value)} placeholder="admin@example.test" /></label><label>Действие<input value={action} onChange={(event) => setAction(event.target.value)} placeholder="approval.approve" /></label><label>Результат<select value={outcome} onChange={(event) => setOutcome(event.target.value)}><option value="">Все</option><option value="success">success</option><option value="failure">failure</option><option value="pending">pending</option><option value="unknown">unknown</option><option value="info">info</option></select></label><label>Correlation ID<input value={correlationId} onChange={(event) => setCorrelationId(event.target.value)} placeholder="cor_…" /></label></section>
+    <section className="audit-list">{items.map((item) => <article className="panel audit-entry" key={item.id}><div className="audit-entry-head"><div><strong>{item.action}</strong><small>{new Date(item.createdAt).toLocaleString("ru-RU")} · {item.actorIdentity} · {item.actorRole}</small></div><Status tone={item.outcome === "success" ? "success" : item.outcome === "failure" ? "danger" : item.outcome === "pending" ? "violet" : "neutral"}>{item.outcome}</Status></div><div className="audit-links"><code>{item.correlationId}</code>{item.eventId && <span>Event: <b>{item.eventId}</b></span>}{item.schemaVersion && <span>Schema: <b>{item.schemaVersion}</b></span>}{item.approvalId && <span>Approval: <b>{item.approvalId}</b></span>}{item.runId && <span>Run: <b>{item.runId}</b></span>}{item.jobId && <span>Job: <b>{item.jobId}</b></span>}</div>{item.errorCode && <p className="audit-error">Ошибка: {item.errorCode}</p>}{Object.keys(item.metadata ?? {}).length > 0 && <details><summary>Безопасные технические данные</summary><pre>{JSON.stringify(item.metadata, null, 2)}</pre></details>}</article>)}{!items.length && <section className="panel catalog-empty"><strong>{loading ? "Загрузка журнала…" : "События не найдены"}</strong><span>Измените фильтры или выполните административную операцию.</span></section>}</section>
+  </div>;
+}
 
 const exampleCatalogPolicy: CatalogPolicySet = {
   version: 1,

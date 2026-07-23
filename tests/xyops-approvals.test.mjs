@@ -9,6 +9,7 @@ class ApprovalD1 {
   decisions = [];
   runs = [];
   replays = [];
+  audits = [];
 
   prepare(sql) {
     let values = [];
@@ -66,6 +67,10 @@ class ApprovalD1 {
           if (row) { row.status = status; row.run_id = runId; row.error = error; row.executed_at = executedAt; row.updated_at = updatedAt; }
           return { success: true, meta: { changes: row ? 1 : 0 } };
         }
+        if (sql.startsWith("INSERT INTO portal_audit_events")) {
+          this.audits.push({ id: values[0], created_at: values[1], correlation_id: values[2], actor_identity: values[3], actor_role: values[4], actor_groups_json: values[5], action: values[6], resource_type: values[7], resource_id: values[8], event_id: values[9], schema_version: values[10], approval_id: values[11], run_id: values[12], job_id: values[13], outcome: values[14], error_code: values[15], metadata_json: values[16] });
+          return { success: true, meta: { changes: 1 } };
+        }
         if (sql.startsWith("INSERT INTO operation_runs")) {
           const row = { id: values[0], job_id: values[1], event_id: values[2], title: values[3], kind: values[4], mode: values[5], status: values[6], actor: values[7], subject: values[8], error: values[9], stages_json: values[10], started_at: values[11], updated_at: values[12], completed_at: values[13] };
           const index = this.runs.findIndex((item) => item.id === row.id); if (index >= 0) this.runs[index] = { ...this.runs[index], ...row }; else this.runs.push(row);
@@ -84,6 +89,8 @@ class ApprovalD1 {
         if (sql.startsWith("SELECT * FROM operation_approvals WHERE id")) return this.approvals.find((row) => row.id === values[0]) ?? null;
         if (sql.includes("COUNT(*) AS approvals") && sql.includes("operation_approval_decisions")) return { approvals: this.decisions.filter((row) => row.approval_id === values[0] && row.decision === "approve").length };
         if (sql.includes("FROM operation_run_replays WHERE run_id =")) return this.replays.find((row) => row.run_id === values[0]) ?? null;
+        if (sql.includes("FROM portal_audit_events WHERE approval_id")) return this.audits.find((row) => row.approval_id === values[0]) ?? null;
+        if (sql.includes("FROM portal_audit_events WHERE run_id")) return this.audits.find((row) => row.run_id === values[0]) ?? null;
         if (sql.includes("COUNT(*) AS unread")) return { unread: 0 };
         return null;
       },
@@ -95,6 +102,7 @@ class ApprovalD1 {
         if (sql.includes("FROM operation_run_results WHERE run_id IN")) return { results: [] };
         if (sql.startsWith("SELECT n.id") && sql.includes("operation_notifications")) return { results: [] };
         if (sql.startsWith("SELECT id FROM operation_notifications")) return { results: [] };
+        if (sql.includes("FROM portal_audit_events")) return { results: [...this.audits].sort((a, b) => b.created_at - a.created_at).slice(0, Number(values.at(-1) ?? 200)) };
         return { results: [] };
       },
     };
@@ -203,6 +211,13 @@ test("requires independent one-time approval before dangerous XYOps execution", 
     payload = await response.json();
     assert.ok(payload.approvals.some((item) => item.id === secretApprovalId && item.status === "executed" && item.runId === firstRunId));
     assert.doesNotMatch(JSON.stringify(payload), /execution-secret|first-secret|route-secret|xyops-secret/);
+    const chain = db.audits.filter((item) => item.approval_id === secretApprovalId || item.run_id === firstRunId);
+    assert.ok(chain.some((item) => item.action === "approval.requested"));
+    assert.ok(chain.some((item) => item.action === "approval.approve"));
+    assert.ok(chain.some((item) => item.action === "approval.execute"));
+    assert.ok(chain.some((item) => item.action === "xyops.run"));
+    assert.equal(new Set(chain.map((item) => item.correlation_id)).size, 1, "approval and run must share the root correlation ID");
+    assert.doesNotMatch(JSON.stringify(db.audits), /execution-secret|first-secret|route-secret|xyops-secret/);
   } finally {
     globalThis.fetch = originalFetch;
   }

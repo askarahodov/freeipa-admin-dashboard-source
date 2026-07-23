@@ -18,6 +18,8 @@ IPA_VERIFY_TLS=true
 
 XYOPS_URL=https://xyops.company.local
 XYOPS_API_KEY=change-me
+XYOPS_CATALOG_SYNC_ENABLED=true
+XYOPS_CATALOG_SYNC_LOCK_TTL_SECONDS=900
 
 # Array of server-side routing profiles. Keep the JSON on one line.
 XYOPS_ROUTES_JSON=[{"key":"user-create","title":"Создание пользователя","operation":"user_add","kind":"event","eventId":"freeipa-user-create","enabled":true,"fields":[{"key":"username","label":"Логин","type":"string","required":true,"target":"params"},{"key":"firstName","label":"Имя","type":"string","required":true,"target":"params"},{"key":"lastName","label":"Фамилия","type":"string","required":true,"target":"params"},{"key":"email","label":"Email","type":"string","target":"params"}]},{"key":"user-onboarding","title":"Полный onboarding","operation":"user_add","kind":"workflow","eventId":"freeipa-user-onboarding","enabled":true,"fields":[{"key":"username","label":"Логин","type":"string","required":true,"target":"params"},{"key":"department","label":"Отдел","type":"select","required":true,"target":"workflowData","options":["development","devops","security"]}]}]

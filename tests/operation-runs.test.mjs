@@ -32,12 +32,13 @@ class RunsD1 {
 test("persists XYOps launches and synchronizes their status", async () => {
   const originalFetch = globalThis.fetch;
   const db = new RunsD1();
-  let activeStatus = "running";
+  let completed = false;
   globalThis.fetch = async (input) => {
     const url = new URL(typeof input === "string" ? input : input.url);
     if (url.pathname.endsWith("/get_events/v1")) return Response.json({ events: [{ id: "backup-db", title: "Backup DB", type: "workflow", user_fields: [{ id: "database", title: "Database", required: true, target: "workflowData" }] }] });
     if (url.pathname.endsWith("/run_event/v1")) return Response.json({ job_id: "job-42", status: "queued", internal_secret: "must-not-leak" });
-    if (url.pathname.endsWith("/get_active_jobs/v1")) return Response.json({ jobs: [{ job_id: "job-42", status: activeStatus, stages: [{ id: "prepare", title: "Prepare", status: "success" }, { id: "backup", title: "Backup", status: activeStatus }] }] });
+    if (url.pathname.endsWith("/get_active_jobs/v1")) return Response.json({ code: 0, rows: completed ? [] : [{ id: "job-42", state: "active", stages: [{ id: "prepare", title: "Prepare", status: "success" }, { id: "backup", title: "Backup", status: "running" }] }] });
+    if (url.pathname.endsWith("/get_jobs/v1")) return Response.json({ code: 0, jobs: [{ id: "job-42", completed: 1_784_000_000, code: 0, description: "Success" }] });
     return new Response("not found", { status: 404 });
   };
 
@@ -64,12 +65,12 @@ test("persists XYOps launches and synchronizes their status", async () => {
     assert.deepEqual(running.runs[0].stages.map((stage) => [stage.id, stage.status]), [["prepare", "success"], ["backup", "running"]]);
     assert.equal(running.stats.queued, 1);
 
-    activeStatus = "success";
+    completed = true;
     const completedResponse = await worker.fetch(new Request("https://dashboard.test/api/integrations/runs?sync=1"), env, {});
-    const completed = await completedResponse.json();
-    assert.equal(completed.runs[0].status, "success");
-    assert.equal(completed.stats.success, 1);
-    assert.ok(completed.runs[0].completedAt);
+    const completedPayload = await completedResponse.json();
+    assert.equal(completedPayload.runs[0].status, "success");
+    assert.equal(completedPayload.stats.success, 1);
+    assert.equal(completedPayload.runs[0].completedAt, 1_784_000_000_000);
   } finally {
     globalThis.fetch = originalFetch;
   }

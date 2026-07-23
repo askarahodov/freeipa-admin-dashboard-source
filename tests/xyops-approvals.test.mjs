@@ -185,6 +185,11 @@ test("requires independent one-time approval before dangerous XYOps execution", 
     assert.equal(response.status, 202);
     const repeatRunId = payload.runId;
     assert.equal(launches.length, 2);
+    const completedRepeatRun = db.runs.find((item) => item.id === repeatRunId);
+    assert.ok(completedRepeatRun);
+    completedRepeatRun.status = "success";
+    completedRepeatRun.completed_at = Date.now();
+    completedRepeatRun.updated_at = completedRepeatRun.completed_at;
 
     response = await request(operator, `/api/integrations/runs/${repeatRunId}/rerun`, { confirm: true });
     assert.equal(response.status, 202);

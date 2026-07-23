@@ -7,6 +7,7 @@ import { listRunReplaySummaries, readRunReplay, saveRunReplay, type RunReplaySum
 import { listRunResults, readRunResultFile, saveRunResult, type PublicRunResult } from "../run-results";
 import { listRunNotifications, markRunNotificationsRead, saveRunNotification } from "../run-notifications";
 import { catalogEventAllowed, readCatalogPolicySet, saveCatalogPolicySet } from "../catalog-policies";
+import { approvalExecutionMatches, approvalRequirement, cancelApproval, claimApprovalExecution, createApprovalRequest, decideApproval, finishApprovalExecution, listApprovals, readApprovalPolicySet, readExecutingApproval, saveApprovalPolicySet } from "../approval-gates";
 
 interface Env {
   ASSETS: Fetcher;
@@ -28,6 +29,7 @@ interface Env {
   PORTAL_DEFAULT_ROLE?: string;
   PORTAL_RBAC_JSON?: string;
   PORTAL_CATALOG_POLICIES_JSON?: string;
+  PORTAL_APPROVAL_POLICIES_JSON?: string;
   IMAGES: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {
@@ -66,12 +68,12 @@ type CatalogChange = { id: string; title: string; kind: "new" | "changed" | "rem
 type CatalogSnapshot = { events: CatalogEvent[]; syncedAt: number };
 type CatalogHistoryEntry = { id: string; syncedAt: number; changes: CatalogChange[]; processCount: number };
 type PortalRole = "viewer" | "operator" | "admin";
-type PortalPermission = "directory.read" | "freeipa.write" | "freeipa.delete" | "xyops.run" | "settings.manage";
+type PortalPermission = "directory.read" | "freeipa.write" | "freeipa.delete" | "xyops.run" | "xyops.approve" | "settings.manage";
 
 const rolePermissions: Record<PortalRole, PortalPermission[]> = {
   viewer: ["directory.read"],
   operator: ["directory.read", "freeipa.write", "xyops.run"],
-  admin: ["directory.read", "freeipa.write", "freeipa.delete", "xyops.run", "settings.manage"],
+  admin: ["directory.read", "freeipa.write", "freeipa.delete", "xyops.run", "xyops.approve", "settings.manage"],
 };
 
 // Image security config. SVG sources with .svg extension auto-skip the
@@ -100,7 +102,7 @@ const worker = {
       }, allowedWidths);
     }
 
-    if (request.method === "GET" && request.headers.get("accept")?.includes("text/html") && /^\/(?:automation(?:\/[^/]+)?|users|groups|operations|settings)\/?$/.test(url.pathname)) {
+    if (request.method === "GET" && request.headers.get("accept")?.includes("text/html") && /^\/(?:automation(?:\/[^/]+)?|users|groups|operations|approvals|settings)\/?$/.test(url.pathname)) {
       const appUrl = new URL(request.url);
       appUrl.pathname = "/";
       return handler.fetch(new Request(appUrl, request), env, ctx);
@@ -1157,6 +1159,106 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
     return json({ error: "Method not allowed" }, 405);
   }
 
+  if (url.pathname === "/api/integrations/approval/policies") {
+    const denied = requirePortalPermission(request, baseEnv, "settings.manage");
+    if (denied) return denied;
+    if (!baseEnv.ADMIN_TOKEN || !await adminAuthorized(request, baseEnv)) return json({ error: "Administrator authorization required" }, 401);
+    if (request.method === "GET") {
+      try { const state = await readApprovalPolicySet(baseEnv); return json({ ...state, persistenceAvailable: Boolean(baseEnv.DB) }); }
+      catch (error) { return json({ error: error instanceof Error ? error.message : "Cannot load approval policies" }, 503); }
+    }
+    if (request.method === "PUT") {
+      if (!baseEnv.DB) return json({ error: "Persistent database is unavailable" }, 503);
+      try {
+        const body = await request.json() as Record<string, unknown>;
+        const saved = await saveApprovalPolicySet(baseEnv, body.policy);
+        return json({ policy: saved.policy, source: "database", updatedAt: saved.updatedAt, persistenceAvailable: true });
+      } catch (error) { return json({ error: error instanceof Error ? error.message : "Cannot save approval policies" }, 400); }
+    }
+    return json({ error: "Method not allowed" }, 405);
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/integrations/approvals") {
+    const denied = requirePortalPermission(request, baseEnv, "directory.read");
+    if (denied) return denied;
+    const access = portalAccess(request, baseEnv);
+    const limit = Number(url.searchParams.get("limit") ?? 100);
+    try { return json(await listApprovals(baseEnv, access, Number.isFinite(limit) ? limit : 100)); }
+    catch (error) { return json({ error: error instanceof Error ? error.message : "Cannot load approvals" }, 503); }
+  }
+
+  const approvalActionMatch = url.pathname.match(/^\/api\/integrations\/approvals\/([A-Za-z0-9_-]{1,160})\/(approve|reject|cancel|execute)$/);
+  if (request.method === "POST" && approvalActionMatch) {
+    const approvalId = approvalActionMatch[1];
+    const action = approvalActionMatch[2];
+    const requiredPermission: PortalPermission = action === "approve" || action === "reject" ? "xyops.approve" : "xyops.run";
+    const denied = requirePortalPermission(request, baseEnv, requiredPermission);
+    if (denied) return denied;
+    const access = portalAccess(request, baseEnv);
+    let body: Record<string, unknown> = {};
+    try { body = await request.json() as Record<string, unknown>; } catch {}
+    try {
+      if (action === "approve" || action === "reject") {
+        const approval = await decideApproval(baseEnv, approvalId, access, action, String(body.comment ?? ""));
+        return json({ approval });
+      }
+      if (action === "cancel") return json({ approval: await cancelApproval(baseEnv, approvalId, access) });
+
+      const claimed = await claimApprovalExecution(baseEnv, approvalId, access);
+      const secretValues = body.secretValues && typeof body.secretValues === "object" && !Array.isArray(body.secretValues) ? body.secretValues as Record<string, unknown> : {};
+      const allowedSecretFields = new Set(claimed.spec.secretFields);
+      if (Object.keys(secretValues).some((key) => !allowedSecretFields.has(key))) {
+        await finishApprovalExecution(baseEnv, approvalId, "failed", "", "Переданы неожиданные секретные поля");
+        return json({ error: "Переданы неожиданные секретные поля" }, 400);
+      }
+      const values = { ...claimed.spec.values };
+      for (const key of claimed.spec.secretFields) {
+        const secret = typeof secretValues[key] === "string" ? secretValues[key] as string : "";
+        if (!secret) {
+          await finishApprovalExecution(baseEnv, approvalId, "failed", "", `Секретное поле ${key} не заполнено`);
+          return json({ error: `Введите секретное поле: ${key}` }, 400);
+        }
+        values[key] = secret;
+      }
+      const catalog = await loadCatalog(env, xyopsUrl);
+      const event = catalog.events.find((item) => item.id === claimed.spec.eventId && item.enabled);
+      if (!event || !event.schemaVersion || event.schemaVersion !== claimed.spec.schemaVersion) {
+        await finishApprovalExecution(baseEnv, approvalId, "failed", "", "Схема процесса изменилась");
+        return json({ error: "Схема процесса изменилась. Создайте новую заявку." }, 409);
+      }
+      const visibility = await readCatalogPolicySet(baseEnv);
+      if (!catalogEventAllowed(visibility.policy, access, event)) {
+        await finishApprovalExecution(baseEnv, approvalId, "failed", "", "Процесс больше недоступен инициатору");
+        return json({ error: "Процесс больше недоступен по политике каталога" }, 404);
+      }
+      const currentPolicy = await readApprovalPolicySet(baseEnv);
+      const currentRequirement = approvalRequirement(currentPolicy.policy, access, event);
+      if (!currentRequirement || claimed.approval.approvals < currentRequirement.requiredApprovals) {
+        await finishApprovalExecution(baseEnv, approvalId, "failed", "", "Политика согласования изменилась");
+        return json({ error: "Политика согласования изменилась. Создайте новую заявку." }, 409);
+      }
+      const runUrl = new URL(request.url);
+      runUrl.pathname = "/api/integrations/catalog/run";
+      runUrl.search = "";
+      const headers = new Headers(request.headers);
+      headers.set("content-type", "application/json");
+      headers.set("x-portal-approved-execution", approvalId);
+      const launchResponse = await handleIntegrationApi(new Request(runUrl, {
+        method: "POST", headers,
+        body: JSON.stringify({ eventId: claimed.spec.eventId, values, targets: claimed.spec.targets, replayOf: claimed.spec.parentRunId }),
+      }), baseEnv, runUrl);
+      const payload = await launchResponse.json().catch(() => ({})) as Record<string, unknown>;
+      if (launchResponse.ok && typeof payload.runId === "string") {
+        await finishApprovalExecution(baseEnv, approvalId, "executed", payload.runId);
+        return json({ ...payload, approvalId, approvalExecuted: true }, launchResponse.status);
+      }
+      await finishApprovalExecution(baseEnv, approvalId, launchResponse.status >= 500 ? "unknown" : "failed", String(payload.runId ?? ""), String(payload.error ?? "XYOps launch failed"));
+      return json({ ...payload, approvalId }, launchResponse.status);
+    } catch (error) {
+      return json({ error: error instanceof Error ? error.message : "Approval action failed" }, 409);
+    }
+  }
+
   if (request.method === "GET" && url.pathname === "/api/integrations/notifications") {
     const denied = requirePortalPermission(request, baseEnv, "directory.read");
     if (denied) return denied;
@@ -1399,6 +1501,18 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
         else params[field.key] = value;
       }
       const launchPayload = { id: event.id, params, input: { data: inputData }, ...(event.kind === "workflow" ? { workflowData } : {}), ...(requestedTargets.length ? { targets: requestedTargets } : event.targets.length === 1 ? { targets: event.targets } : {}) };
+      const approvalExecutionId = String(request.headers.get("x-portal-approved-execution") ?? "").slice(0, 160);
+      if (approvalExecutionId) {
+        const executing = await readExecutingApproval(baseEnv, approvalExecutionId, access);
+        if (!executing || !await approvalExecutionMatches(executing.spec, event, values, requestedTargets)) return json({ error: "Недействительное или использованное согласование" }, 409);
+      } else {
+        const approvalPolicy = await readApprovalPolicySet(baseEnv);
+        const requirement = approvalRequirement(approvalPolicy.policy, access, event);
+        if (requirement) {
+          const approval = await createApprovalRequest(baseEnv, event, access, values, requestedTargets, requirement, typeof body.replayOf === "string" ? body.replayOf : "");
+          return json({ approvalRequired: true, approvalId: approval.id, status: approval.status, approval }, 202);
+        }
+      }
       if (catalog.mode === "demo" || !xyopsUrl || !env.XYOPS_API_KEY) {
         const run = operationRun({ request, eventId: event.id, title: event.title, kind: event.kind, mode: "demo", jobId: `DEMO-${Date.now()}`, status: "success", values, targets: requestedTargets });
         await saveOperationRun(baseEnv, run);
@@ -1527,45 +1641,15 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
     const routes = automationRoutes(env);
     const route = typeof body.routeKey === "string" ? routes.find((item) => item.key === body.routeKey) : routes.find((item) => item.operation === body.operation && item.enabled !== false);
     if (!route || route.enabled === false || route.operation !== body.operation) return json({ error: "Automation route not found" }, 400);
-    const params: Record<string, unknown> = { operation: body.operation, source: "freeipa-admin-dashboard" };
-    const inputData: Record<string, unknown> = { source: "freeipa-admin-dashboard", operation: body.operation };
-    const workflowData: Record<string, unknown> = {};
-    for (const field of route.fields ?? []) {
-      const value = coerceField(field, body[field.key]);
-      if (value === null) return json({ error: `Invalid or missing field: ${field.key}` }, 400);
-      if (value === "" && !field.required) continue;
-      const target = field.target ?? "params";
-      if (target === "input") inputData[field.key] = value;
-      else if (target === "workflowData") workflowData[field.key] = value;
-      else params[field.key] = value;
-    }
-    if (boolValue(env.DEMO_MODE)) {
-      const run = operationRun({ request, eventId: route.eventId, title: route.title, kind: route.kind, mode: "demo", jobId: `DEMO-${Date.now()}`, status: "success", values: body, targets: route.targets ?? [] });
-      await saveOperationRun(baseEnv, run);
-      return json({ mode: "demo", queued: true, runId: run.id, jobId: run.jobId, status: run.status }, 202);
-    }
-    if (!xyopsUrl || !env.XYOPS_API_KEY) return json({ error: "XYOps is not configured" }, 503);
-    try {
-      const response = await fetch(`${xyopsUrl}/api/app/run_event/v1`, {
-        method: "POST",
-        headers: { "content-type": "application/json", "x-api-key": env.XYOPS_API_KEY },
-        body: JSON.stringify({ id: route.eventId, params, input: { data: inputData }, ...(route.kind === "workflow" ? { workflowData } : {}), ...(route.targets?.length ? { targets: route.targets } : {}) }),
-        signal: AbortSignal.timeout(15000),
-      });
-      const result = await response.json().catch(() => ({}));
-      const resultRecord = result && typeof result === "object" ? result as Record<string, unknown> : {};
-      const resultData = resultRecord.data && typeof resultRecord.data === "object" ? resultRecord.data as Record<string, unknown> : {};
-      const jobId = String(resultRecord.job_id ?? resultRecord.jobId ?? resultRecord.id ?? resultData.job_id ?? "");
-      const reported = runStatus(resultRecord.status ?? resultRecord.state ?? resultData.status ?? resultData.state);
-      const run = operationRun({ request, eventId: route.eventId, title: route.title, kind: route.kind, mode: "live", jobId, status: response.ok ? reported === "unknown" ? "queued" : reported : "failed", values: body, targets: route.targets ?? [], error: response.ok ? "" : "XYOps rejected run_event", stages: extractJobStages(result) });
-      await saveOperationRun(baseEnv, run);
-      return json({ mode: "live", queued: response.ok, runId: run.id, jobId: run.jobId, status: run.status, ...(response.ok ? {} : { error: "XYOps run_event failed" }) }, response.ok ? 202 : 502);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "XYOps request failed";
-      const run = operationRun({ request, eventId: route.eventId, title: route.title, kind: route.kind, mode: "live", jobId: "", status: "failed", values: body, targets: route.targets ?? [], error: message });
-      await saveOperationRun(baseEnv, run);
-      return json({ error: message, runId: run.id }, 502);
-    }
+    const runUrl = new URL(request.url);
+    runUrl.pathname = "/api/integrations/catalog/run";
+    runUrl.search = "";
+    const headers = new Headers(request.headers);
+    headers.set("content-type", "application/json");
+    return handleIntegrationApi(new Request(runUrl, {
+      method: "POST", headers,
+      body: JSON.stringify({ eventId: route.eventId, values: body, targets: route.targets ?? [] }),
+    }), baseEnv, runUrl);
   }
 
   return json({ error: "Not found" }, 404);

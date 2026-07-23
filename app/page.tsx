@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AutomationRoute as SourceAutomationRoute, CatalogEvent, RouteField } from "../automation-types";
 import { conditionFieldNames, fieldConditionMatches } from "../field-conditions";
 
-type Page = "overview" | "automation" | "users" | "groups" | "operations" | "settings";
+type Page = "overview" | "automation" | "users" | "groups" | "operations" | "approvals" | "settings";
 type AutomationRoute = SourceAutomationRoute & { enabled: boolean; targets: string[]; fields: RouteField[] };
 type RunStatus = "queued" | "running" | "success" | "failed" | "cancelled" | "unknown";
 type RunStage = { id: string; title: string; status: RunStatus; startedAt: number | null; completedAt: number | null; error: string };
@@ -25,8 +25,10 @@ type CatalogMeta = { syncedAt: string | null; source: "demo" | "xyops" | "cache"
 type CatalogHistoryEntry = { id: string; syncedAt: number; processCount: number; changes: CatalogChange[] };
 type SettingsData = { source: "database" | "environment"; persistenceAvailable: boolean; encryptionConfigured: boolean; updatedAt: number | null; demoMode: boolean; freeipa: { url: string; username: string; passwordConfigured: boolean }; xyops: { url: string; apiKeyConfigured: boolean } };
 type PortalRole = "viewer" | "operator" | "admin";
-type PortalPermission = "directory.read" | "freeipa.write" | "freeipa.delete" | "xyops.run" | "settings.manage";
+type PortalPermission = "directory.read" | "freeipa.write" | "freeipa.delete" | "xyops.run" | "xyops.approve" | "settings.manage";
 type PortalAccess = { identity: string; role: PortalRole; groups?: string[]; permissions: PortalPermission[] };
+type ApprovalStatus = "pending" | "approved" | "rejected" | "cancelled" | "expired" | "executing" | "executed" | "failed" | "unknown";
+type ApprovalRecord = { id: string; eventId: string; title: string; category: string; schemaVersion: string; requesterIdentity: string; requesterRole: PortalRole; status: ApprovalStatus; requiredApprovals: number; approvals: number; rejections: number; approverRoles: PortalRole[]; approverGroups: string[]; requesterCannotApprove: boolean; summary: { subject: string; targets: string[]; values: Array<{ key: string; label: string; value: string }>; hiddenSecrets: number; secretFields: Array<{ key: string; label: string }> }; expiresAt: number; createdAt: number; updatedAt: number; approvedAt: number | null; executedAt: number | null; runId: string; parentRunId: string; error: string; myDecision: "approve" | "reject" | null; actions: { approve: boolean; reject: boolean; cancel: boolean; execute: boolean } };
 type CatalogPolicyRule = { id: string; effect: "allow" | "deny"; users: string[]; groups: string[]; roles: PortalRole[]; categories: string[]; processes: string[] };
 type CatalogPolicySet = { version: 1; defaultEffect: "allow" | "deny"; adminBypass: boolean; rules: CatalogPolicyRule[] };
 type AutomationSection = { category: string; slug: string; count: number; events: number; workflows: number };
@@ -37,10 +39,11 @@ const nav: { id: Page; label: string; icon: string }[] = [
   { id: "users", label: "Пользователи", icon: "♙" },
   { id: "groups", label: "Группы", icon: "♧" },
   { id: "operations", label: "Операции", icon: "◷" },
+  { id: "approvals", label: "Согласования", icon: "✓" },
   { id: "settings", label: "Настройки", icon: "⚙" },
 ];
 const roleLabels: Record<PortalRole, string> = { viewer: "Наблюдатель", operator: "Оператор", admin: "Администратор" };
-const pagePaths: Record<Page, string> = { overview: "/", automation: "/automation", users: "/users", groups: "/groups", operations: "/operations", settings: "/settings" };
+const pagePaths: Record<Page, string> = { overview: "/", automation: "/automation", users: "/users", groups: "/groups", operations: "/operations", approvals: "/approvals", settings: "/settings" };
 
 function automationSlug(value: string): string {
   const cyrillic: Record<string, string> = { а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "e", ж: "zh", з: "z", и: "i", й: "y", к: "k", л: "l", м: "m", н: "n", о: "o", п: "p", р: "r", с: "s", т: "t", у: "u", ф: "f", х: "h", ц: "ts", ч: "ch", ш: "sh", щ: "sch", ъ: "", ы: "y", ь: "", э: "e", ю: "yu", я: "ya" };
@@ -106,6 +109,9 @@ export default function Home() {
   const [notificationUnread, setNotificationUnread] = useState(0);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | "unsupported">("default");
+  const [approvals, setApprovals] = useState<ApprovalRecord[]>([]);
+  const [approvalPendingForMe, setApprovalPendingForMe] = useState(0);
+  const [approvalsLoading, setApprovalsLoading] = useState(false);
   const shownNotificationIds = useRef(new Set<string>());
 
   useEffect(() => {
@@ -183,6 +189,27 @@ export default function Home() {
     return () => { window.clearTimeout(initial); window.clearInterval(timer); };
   }, [loadNotifications]);
 
+
+  const loadApprovals = useCallback(async () => {
+    setApprovalsLoading(true);
+    try {
+      const response = await fetch("/api/integrations/approvals?limit=100", { cache: "no-store" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Approval request failed");
+      setApprovals(Array.isArray(data.approvals) ? data.approvals : []);
+      setApprovalPendingForMe(Math.max(0, Number(data.pendingForMe ?? 0)));
+    } catch {
+      setApprovals([]);
+      setApprovalPendingForMe(0);
+    } finally { setApprovalsLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    const initial = window.setTimeout(() => void loadApprovals(), 0);
+    const timer = window.setInterval(() => void loadApprovals(), 15000);
+    return () => { window.clearTimeout(initial); window.clearInterval(timer); };
+  }, [loadApprovals]);
+
   const loadRuns = useCallback(async (sync = true) => {
     setRunsLoading(true);
     try {
@@ -226,6 +253,7 @@ export default function Home() {
   const canWriteFreeIpa = integration.access.permissions.includes("freeipa.write");
   const canDeleteFreeIpa = integration.access.permissions.includes("freeipa.delete");
   const canRunXyops = integration.access.permissions.includes("xyops.run");
+  const canApproveXyops = integration.access.permissions.includes("xyops.approve");
   const canManageSettings = integration.access.permissions.includes("settings.manage");
   const visibleNav = nav.filter((item) => item.id !== "settings" || canManageSettings);
   const automationSections = useMemo<AutomationSection[]>(() => Array.from(new Set(catalog.map((event) => event.category || "general"))).sort((left, right) => left.localeCompare(right)).map((category) => {
@@ -292,6 +320,7 @@ export default function Home() {
       const response = await fetch("/api/integrations/catalog/run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ eventId: event.id, values, targets }) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error);
+      if (result.approvalRequired) { await loadApprovals(); setSelectedProcess(null); navigateTo("approvals"); notify(`Заявка на согласование создана: ${result.approvalId}`); return true; }
       await loadRuns(false);
       setSelectedProcess(null);
       notify(result.mode === "live" ? `XYOps запущен: ${result.jobId}` : `Демо-задание создано: ${result.jobId}`);
@@ -316,6 +345,7 @@ export default function Home() {
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || "Операция с заданием не выполнена");
+      if (result.approvalRequired) { await loadApprovals(); navigateTo("approvals"); notify(`Повторный запуск ожидает согласования: ${result.approvalId}`); return true; }
       await loadRuns(true);
       notify(action === "cancel" ? "Команда остановки отправлена в XYOps" : `Создан новый запуск: ${result.jobId ?? "ожидает Job ID"}`);
       return true;
@@ -325,6 +355,36 @@ export default function Home() {
     }
   }
 
+
+  async function actOnApproval(item: ApprovalRecord, action: "approve" | "reject" | "cancel" | "execute") {
+    let comment = "";
+    const secretValues: Record<string, string> = {};
+    if (action === "reject") {
+      comment = window.prompt("Причина отклонения заявки")?.trim() ?? "";
+      if (!comment) return false;
+    }
+    if (action === "approve" && !window.confirm(`Согласовать опасную операцию «${item.title}»?`)) return false;
+    if (action === "cancel" && !window.confirm(`Отменить заявку «${item.title}»?`)) return false;
+    if (action === "execute") {
+      if (!window.confirm(`Выполнить согласованную операцию «${item.title}» сейчас?`)) return false;
+      for (const field of item.summary.secretFields ?? []) {
+        const value = window.prompt(`Введите секретное поле: ${field.label}`) ?? "";
+        if (!value) { notify(`Поле «${field.label}» обязательно для выполнения`); return false; }
+        secretValues[field.key] = value;
+      }
+    }
+    try {
+      const response = await fetch(`/api/integrations/approvals/${encodeURIComponent(item.id)}/${action}`, {
+        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ comment, secretValues }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Действие с заявкой не выполнено");
+      await Promise.all([loadApprovals(), loadRuns(true)]);
+      notify(action === "approve" ? "Заявка согласована" : action === "reject" ? "Заявка отклонена" : action === "cancel" ? "Заявка отменена" : `XYOps запущен: ${data.jobId ?? "ожидает Job ID"}`);
+      if (action === "execute") navigateTo("operations");
+      return true;
+    } catch (error) { notify(error instanceof Error ? error.message : "Действие с заявкой не выполнено"); return false; }
+  }
 
   async function updateNotificationReads(ids: string[] | null) {
     try {
@@ -365,7 +425,7 @@ export default function Home() {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand"><span className="brand-mark">◇</span><div><strong>FreeIPA Admin</strong><small>XYOps</small></div></div>
-        <nav>{visibleNav.map((item) => <div className="nav-entry" key={item.id}><button className={page === item.id && (item.id !== "automation" || automationCategory === "all") ? "active" : ""} onClick={() => navigateTo(item.id)}><span>{item.icon}</span>{item.label}</button>{item.id === "automation" && automationSections.length > 0 && <div className="generated-nav">{automationSections.map((section) => <button key={section.category} className={page === "automation" && automationCategory === section.category ? "active" : ""} onClick={() => navigateTo("automation", section.category)} title={`${section.events} Events · ${section.workflows} Workflows`}><i /> <span>{section.category}</span><b>{section.count}</b></button>)}</div>}</div>)}</nav>
+        <nav>{visibleNav.map((item) => <div className="nav-entry" key={item.id}><button className={page === item.id && (item.id !== "automation" || automationCategory === "all") ? "active" : ""} onClick={() => navigateTo(item.id)}><span>{item.icon}</span>{item.label}{item.id === "approvals" && approvalPendingForMe > 0 && <b className="nav-count">{approvalPendingForMe}</b>}</button>{item.id === "automation" && automationSections.length > 0 && <div className="generated-nav">{automationSections.map((section) => <button key={section.category} className={page === "automation" && automationCategory === section.category ? "active" : ""} onClick={() => navigateTo("automation", section.category)} title={`${section.events} Events · ${section.workflows} Workflows`}><i /> <span>{section.category}</span><b>{section.count}</b></button>)}</div>}</div>)}</nav>
         <div className="sidebar-bottom"><div className="system-ok"><i className={integration.freeipa.reachable ? "" : "warning"} /> <div><strong>{integration.freeipa.reachable ? "FreeIPA готов" : "Требуется настройка"}</strong><small>{integration.xyops.reachable ? "XYOps также подключён" : "XYOps подключается отдельно"}</small></div></div><p>© 2026 Admin Portal</p></div>
       </aside>
 
@@ -380,6 +440,7 @@ export default function Home() {
         {page === "users" && <Users items={filteredUsers} allGroups={directoryGroups} total={directoryUsers.length} source={directorySource} canWrite={canWriteFreeIpa} canDelete={canDeleteFreeIpa} onCreate={() => setFreeIpaAction({ operation: "user_add", title: "Новый пользователь", preset: {} })} onAction={setFreeIpaAction} />}
         {page === "groups" && <Groups items={filteredGroups} allUsers={directoryUsers} source={directorySource} canWrite={canWriteFreeIpa} canDelete={canDeleteFreeIpa} onCreate={() => setFreeIpaAction({ operation: "group_add", title: "Новая группа", preset: {} })} onAction={setFreeIpaAction} />}
         {page === "operations" && <Operations runs={recentRuns} stats={runStats} loading={runsLoading} refresh={() => void loadRuns(true)} onAction={runJobAction} />}
+        {page === "approvals" && <Approvals items={approvals} pendingForMe={approvalPendingForMe} loading={approvalsLoading} canApprove={canApproveXyops} refresh={() => void loadApprovals()} onAction={actOnApproval} />}
         {page === "settings" && canManageSettings && <Settings routes={routes} catalog={catalog} catalogLoading={catalogLoading} onSync={() => void syncCatalog()} onRoutesChange={setRoutes} notify={notify} />}
       </main>
 
@@ -390,6 +451,13 @@ export default function Home() {
   );
 }
 
+
+
+function Approvals({ items, pendingForMe, loading, canApprove, refresh, onAction }: { items: ApprovalRecord[]; pendingForMe: number; loading: boolean; canApprove: boolean; refresh: () => void; onAction: (item: ApprovalRecord, action: "approve" | "reject" | "cancel" | "execute") => Promise<boolean> }) {
+  const labels: Record<ApprovalStatus, string> = { pending: "Ожидает", approved: "Согласовано", rejected: "Отклонено", cancelled: "Отменено", expired: "Истекло", executing: "Запускается", executed: "Выполнено", failed: "Ошибка", unknown: "Неизвестно" };
+  const tone: Record<ApprovalStatus, string> = { pending: "warning", approved: "success", rejected: "error", cancelled: "neutral", expired: "neutral", executing: "violet", executed: "success", failed: "error", unknown: "warning" };
+  return <div className="approvals-page"><section className="panel approval-summary"><div><span className="eyebrow">FOUR-EYES CONTROL</span><h2>Согласования опасных процессов</h2><p>XYOps получает команду только после независимого решения и отдельного нажатия «Выполнить» инициатором.</p></div><Status tone={pendingForMe ? "warning" : "success"}>{pendingForMe ? `${pendingForMe} ждут решения` : "Очередь чиста"}</Status><button className="secondary" disabled={loading} onClick={refresh}>{loading ? "Обновление…" : "Обновить"}</button></section><div className="approval-list">{items.map((item) => <article className={`panel approval-card ${item.status}`} key={item.id}><div className="approval-card-head"><div><span className="eyebrow">{item.category} · {item.eventId}</span><h3>{item.title}</h3><p>Инициатор: <b>{item.requesterIdentity}</b> · истекает {formatDateTime(item.expiresAt)}</p></div><Status tone={tone[item.status]}>{labels[item.status]}</Status></div><div className="approval-progress"><span><b>{item.approvals}</b> / {item.requiredApprovals} согласований</span><progress max={item.requiredApprovals} value={Math.min(item.approvals, item.requiredApprovals)} /></div><div className="approval-details"><div><strong>Targets</strong><span>{item.summary.targets.length ? item.summary.targets.join(", ") : "из процесса"}</span></div><div><strong>Согласующие</strong><span>{[...item.approverRoles, ...item.approverGroups].join(", ") || "не настроены"}</span></div>{item.summary.values.map((value) => <div key={value.key}><strong>{value.label}</strong><span>{value.value}</span></div>)}{item.summary.hiddenSecrets > 0 && <div><strong>Секретные поля</strong><span>{item.summary.hiddenSecrets} · будут введены заново перед выполнением</span></div>}</div>{item.error && <div className="approval-error">{item.error}</div>}<div className="approval-actions">{item.actions.approve && canApprove && <button className="primary" onClick={() => void onAction(item, "approve")}>Одобрить</button>}{item.actions.reject && canApprove && <button className="danger-button" onClick={() => void onAction(item, "reject")}>Отклонить</button>}{item.actions.cancel && <button className="secondary" onClick={() => void onAction(item, "cancel")}>Отменить заявку</button>}{item.actions.execute && <button className="primary" onClick={() => void onAction(item, "execute")}>Выполнить в XYOps</button>}{item.myDecision && <Status tone="neutral">Моё решение: {item.myDecision === "approve" ? "одобрено" : "отклонено"}</Status>}</div></article>)}{!items.length && <div className="panel catalog-empty"><strong>Заявок пока нет</strong><span>Опасные Events и Workflows появятся здесь до фактического запуска.</span></div>}</div></div>;
+}
 
 function NotificationCenter({ items, unread, permission, close, markAll, enableSystem, openItem }: { items: PortalNotification[]; unread: number; permission: NotificationPermission | "unsupported"; close: () => void; markAll: () => void; enableSystem: () => void; openItem: (item: PortalNotification) => void }) {
   return <section className="notification-panel"><div className="notification-head"><div><strong>Уведомления</strong><small>{unread ? `${unread} непрочитанных` : "Новых уведомлений нет"}</small></div><button aria-label="Закрыть уведомления" onClick={close}>×</button></div><div className="notification-tools">{unread > 0 && <button onClick={markAll}>Прочитать все</button>}{permission === "default" && <button onClick={enableSystem}>Включить системные</button>}{permission === "denied" && <small>Системные уведомления запрещены браузером</small>}</div><div className="notification-list">{items.length ? items.map((item) => <button className={`notification-item ${item.status} ${item.readAt ? "read" : "unread"}`} key={item.id} onClick={() => openItem(item)}><i>{item.status === "success" ? "✓" : item.status === "cancelled" ? "■" : "!"}</i><span><strong>{item.title}</strong><p>{item.message}</p><small>{formatDateTime(item.createdAt)}</small></span>{!item.readAt && <b />}</button>) : <div className="notification-empty"><span>♢</span><strong>Уведомлений пока нет</strong><small>Завершения и ошибки заданий XYOps появятся здесь.</small></div>}</div></section>;
@@ -604,6 +672,34 @@ function CatalogPolicyEditor({ notify }: { notify: (message: string) => void }) 
   return <section className="panel policy-editor"><div className="panel-title"><div><span className="eyebrow">CATALOG ACCESS</span><h2>Видимость категорий и процессов</h2><p>Правила применяются сервером к каталогу, dynamic options, запуску и safe re-run. Deny имеет приоритет над allow.</p></div>{source && <Status tone={source === "database" ? "success" : "neutral"}>{source === "database" ? "D1" : source === "environment" ? "ENV" : "По умолчанию"}</Status>}</div><div className="policy-toolbar"><label>ADMIN_TOKEN<input type="password" value={adminToken} onChange={(event) => setAdminToken(event.target.value)} placeholder="Токен администратора" autoComplete="off" /></label><button className="secondary" disabled={!adminToken || Boolean(busy)} onClick={() => void loadPolicies()}>{busy === "load" ? "Загрузка…" : "Загрузить"}</button><button className="primary" disabled={!adminToken || Boolean(busy)} onClick={() => void savePolicies()}>{busy === "save" ? "Сохранение…" : "Сохранить политики"}</button></div><textarea className="policy-json" value={text} onChange={(event) => setText(event.target.value)} spellCheck={false} aria-label="JSON политик каталога" /><div className="policy-help"><span>Субъекты: <code>users</code>, <code>groups</code>, <code>roles</code></span><span>Ресурсы: <code>categories</code>, <code>processes</code></span><span>{updatedAt ? `Сохранено: ${new Date(updatedAt).toLocaleString("ru-RU")}` : "defaultEffect: allow сохраняет текущую доступность"}</span></div></section>;
 }
 
+
+const exampleApprovalPolicy = {
+  version: 1,
+  dangerousDefaults: { requiredApprovals: 1, approverRoles: ["admin"], approverGroups: [], requesterCannotApprove: true, expiresMinutes: 60, ruleId: "dangerous-default" },
+  rules: [{ id: "production-two-person", effect: "require", requesterUsers: [], requesterRoles: [], requesterGroups: [], categories: ["Production"], processes: [], dangerous: null, requiredApprovals: 2, approverRoles: ["admin"], approverGroups: ["ops-leads"], requesterCannotApprove: true, expiresMinutes: 30 }],
+};
+
+function ApprovalPolicyEditor({ notify }: { notify: (message: string) => void }) {
+  const [adminToken, setAdminToken] = useState(() => typeof window === "undefined" ? "" : window.sessionStorage.getItem("xyops-admin-token") ?? "");
+  const [text, setText] = useState(JSON.stringify(exampleApprovalPolicy, null, 2));
+  const [source, setSource] = useState<"database" | "environment" | "default" | null>(null);
+  const [busy, setBusy] = useState<"load" | "save" | null>(null);
+  async function request(method: "GET" | "PUT") {
+    setBusy(method === "GET" ? "load" : "save");
+    try {
+      const body = method === "PUT" ? JSON.stringify({ policy: JSON.parse(text) }) : undefined;
+      const response = await fetch("/api/integrations/approval/policies", { method, headers: { "content-type": "application/json", "x-admin-token": adminToken }, body, cache: "no-store" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Не удалось обработать approval policy");
+      window.sessionStorage.setItem("xyops-admin-token", adminToken);
+      setText(JSON.stringify(data.policy, null, 2)); setSource(data.source ?? "database");
+      notify(method === "GET" ? "Approval policy загружена" : "Approval policy сохранена");
+    } catch (error) { notify(error instanceof Error ? error.message : "Некорректная approval policy"); }
+    finally { setBusy(null); }
+  }
+  return <section className="panel policy-editor"><div className="panel-title"><div><span className="eyebrow">APPROVAL GATES</span><h2>Согласование опасных процессов</h2><p>Последнее подходящее правило определяет требование. По умолчанию dangerous-процесс требует одного независимого администратора.</p></div>{source && <Status tone={source === "database" ? "success" : "neutral"}>{source === "database" ? "D1" : source === "environment" ? "ENV" : "По умолчанию"}</Status>}</div><div className="policy-toolbar"><label>ADMIN_TOKEN<input type="password" value={adminToken} onChange={(event) => setAdminToken(event.target.value)} placeholder="Токен администратора" autoComplete="off" /></label><button className="secondary" disabled={!adminToken || Boolean(busy)} onClick={() => void request("GET")}>{busy === "load" ? "Загрузка…" : "Загрузить"}</button><button className="primary" disabled={!adminToken || Boolean(busy)} onClick={() => void request("PUT")}>{busy === "save" ? "Сохранение…" : "Сохранить approval policy"}</button></div><textarea className="policy-json" value={text} onChange={(event) => setText(event.target.value)} spellCheck={false} aria-label="JSON политики согласований" /><div className="policy-help"><span><code>effect: require</code> или <code>none</code></span><span>Согласующие: roles / groups</span><span>Инициатор не может одобрить свою заявку по умолчанию</span></div></section>;
+}
+
 function Settings({ routes, catalog, catalogLoading, onSync, onRoutesChange, notify }: { routes: AutomationRoute[]; catalog: CatalogEvent[]; catalogLoading: boolean; onSync: () => void; onRoutesChange: (routes: AutomationRoute[]) => void; notify: (message: string) => void }) {
   const [expanded, setExpanded] = useState<string | null>(routes[0]?.key ?? null);
   const [operation, setOperation] = useState<string>(routeOperations[0][0]);
@@ -644,6 +740,7 @@ function Settings({ routes, catalog, catalogLoading, onSync, onRoutesChange, not
   return <div className="settings-page">
     <PersistentConnectionSettings notify={notify} />
     <CatalogPolicyEditor notify={notify} />
+    <ApprovalPolicyEditor notify={notify} />
     <section className="panel inspector-panel"><span className="service-icon violet">◇</span><div><span className="eyebrow">CONTRACT INSPECTOR</span><h2>Проверка реальной схемы XYOps</h2><p>Read-only утилита собирает структуру Events, Workflows, Toolsets, targets и jobs, удаляя ключ API, заголовки, сырые ответы и секретные значения.</p></div><code>npm run inspect:xyops</code><Status tone="neutral">Запуск локально</Status></section>
     <section className="panel contract-history"><div className="panel-title"><div><h2>История контрактов XYOps</h2><p>Сохраняются только синхронизации, в которых изменился каталог</p></div><Status tone="violet">{catalogHistory.length} версий</Status></div><div className="history-list">{catalogHistory.map((entry) => <article key={entry.id}><i>⌁</i><div><strong>{new Date(entry.syncedAt).toLocaleString("ru-RU")}</strong><small>{entry.processCount} процессов</small></div><span><b className="new">＋{entry.changes.filter((change) => change.kind === "new").length}</b><b className="changed">△{entry.changes.filter((change) => change.kind === "changed").length}</b><b className="removed">−{entry.changes.filter((change) => change.kind === "removed").length}</b></span></article>)}{!catalogHistory.length && <div className="catalog-empty"><strong>История пока пуста</strong><span>Первая версия появится после синхронизации реального каталога XYOps.</span></div>}</div></section>
     <section className="panel routes-panel"><div className="panel-title"><div><h2>Маршруты автоматизации</h2><p>Привяжите действие интерфейса к любому Event или Workflow из каталога XYOps</p></div><Status tone="success">D1 / SQLite</Status></div>

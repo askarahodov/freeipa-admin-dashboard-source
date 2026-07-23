@@ -60,7 +60,7 @@ export type PublicApproval = {
   approverRoles: ApprovalRole[];
   approverGroups: string[];
   requesterCannotApprove: boolean;
-  summary: { subject: string; targets: string[]; values: Array<{ key: string; label: string; value: string }>; hiddenSecrets: number };
+  summary: { subject: string; targets: string[]; values: Array<{ key: string; label: string; value: string }>; hiddenSecrets: number; secretFields: Array<{ key: string; label: string }> };
   expiresAt: number;
   createdAt: number;
   updatedAt: number;
@@ -361,11 +361,12 @@ function safeValue(value: unknown): string {
 function approvalSpec(event: CatalogEvent, values: Record<string, unknown>, targets: string[], parentRunId: string): { spec: ApprovalSpec; summary: PublicApproval["summary"] } {
   const safeValues: Record<string, unknown> = {};
   const secretFields: string[] = [];
+  const secretFieldLabels: Array<{ key: string; label: string }> = [];
   const summaryValues: PublicApproval["summary"]["values"] = [];
   for (const field of event.fields) {
     const value = values[field.key];
     if (field.type === "password") {
-      if (value !== undefined && value !== null && String(value) !== "") secretFields.push(field.key);
+      if (value !== undefined && value !== null && String(value) !== "") { secretFields.push(field.key); secretFieldLabels.push({ key: field.key, label: cleanText(field.label, 120) }); }
       continue;
     }
     if (value !== undefined) {
@@ -376,7 +377,7 @@ function approvalSpec(event: CatalogEvent, values: Record<string, unknown>, targ
   const normalizedTargets = targets.map(String).map((item) => cleanText(item, 240)).filter(Boolean).slice(0, 100);
   return {
     spec: { eventId: event.id, schemaVersion: String(event.schemaVersion ?? ""), values: safeValues, targets: normalizedTargets, secretFields, parentRunId: parentRunId.slice(0, 160) },
-    summary: { subject: summaryValues[0]?.value || normalizedTargets.join(", ").slice(0, 240) || "—", targets: normalizedTargets, values: summaryValues, hiddenSecrets: secretFields.length },
+    summary: { subject: summaryValues[0]?.value || normalizedTargets.join(", ").slice(0, 240) || "—", targets: normalizedTargets, values: summaryValues, hiddenSecrets: secretFields.length, secretFields: secretFieldLabels },
   };
 }
 
@@ -422,7 +423,7 @@ async function publicFromRow(env: ApprovalEnv, row: ApprovalRow, subject: Approv
   const decisionMap = decisions ?? await decisionsFor(env, [id]);
   const rows = decisionMap.get(id) ?? [];
   const status = statusValue(row.status);
-  let summary: PublicApproval["summary"] = { subject: "—", targets: [], values: [], hiddenSecrets: 0 };
+  let summary: PublicApproval["summary"] = { subject: "—", targets: [], values: [], hiddenSecrets: 0, secretFields: [] };
   try { summary = JSON.parse(String(row.summary_json ?? "{}")) as PublicApproval["summary"]; } catch {}
   const myDecision = rows.find((item) => item.identity.toLowerCase() === subject.identity.toLowerCase())?.decision ?? null;
   const eligible = isEligibleApprover(row, subject);
@@ -497,7 +498,8 @@ export async function listApprovals(env: ApprovalEnv, subject: ApprovalSubject, 
   const rows = await env.DB.prepare("SELECT * FROM operation_approvals ORDER BY created_at DESC LIMIT ?").bind(Math.max(1, Math.min(limit, 200))).all<ApprovalRow>();
   const items = rows.results ?? [];
   const decisionMap = await decisionsFor(env, items.map((row) => String(row.id ?? "")));
-  const approvals = await Promise.all(items.map((row) => publicFromRow(env, row, subject, decisionMap)));
+  const allApprovals = await Promise.all(items.map((row) => publicFromRow(env, row, subject, decisionMap)));
+  const approvals = allApprovals.filter((item) => subject.role === "admin" || item.requesterIdentity.toLowerCase() === subject.identity.toLowerCase() || item.actions.approve || item.myDecision);
   return {
     approvals,
     pendingForMe: approvals.filter((item) => item.actions.approve).length,

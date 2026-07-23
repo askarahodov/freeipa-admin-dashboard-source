@@ -166,3 +166,29 @@ nav { display:flex;flex-direction:column;gap:8px; } nav button { border:0;backgr
 .policy-help { display:flex; flex-wrap:wrap; gap:10px 20px; color:var(--muted); font-size:12px; }
 .policy-help code { color:var(--violet); }
 @media (max-width:800px) { .policy-toolbar { grid-template-columns:1fr; } .policy-toolbar button { width:100%; } }
+
+
+/* Approval gates */
+.nav-count { margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; background: var(--danger, #dc3545); color: white; font-size: 11px; }
+.approvals-page { display: grid; gap: 18px; }
+.approval-summary { display: flex; align-items: center; gap: 20px; padding: 24px; }
+.approval-summary > div:first-child { flex: 1; }
+.approval-summary h2 { margin: 4px 0 6px; }
+.approval-summary p { margin: 0; opacity: .72; }
+.approval-list { display: grid; gap: 14px; }
+.approval-card { padding: 22px; display: grid; gap: 16px; }
+.approval-card.pending { border-left: 4px solid #d89a00; }
+.approval-card.approved { border-left: 4px solid #28a745; }
+.approval-card.rejected, .approval-card.failed { border-left: 4px solid #dc3545; }
+.approval-card-head { display: flex; justify-content: space-between; gap: 18px; align-items: flex-start; }
+.approval-card-head h3 { margin: 4px 0; }
+.approval-card-head p { margin: 0; opacity: .72; }
+.approval-progress { display: grid; grid-template-columns: max-content 1fr; align-items: center; gap: 14px; }
+.approval-progress progress { width: 100%; height: 9px; }
+.approval-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+.approval-details > div { padding: 12px; border: 1px solid var(--border); border-radius: 10px; display: grid; gap: 4px; }
+.approval-details strong { font-size: 12px; opacity: .68; }
+.approval-details span { overflow-wrap: anywhere; }
+.approval-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.approval-error { padding: 12px 14px; border-radius: 10px; background: rgba(220, 53, 69, .1); color: #b42332; }
+@media (max-width: 760px) { .approval-summary, .approval-card-head { align-items: stretch; flex-direction: column; } .approval-progress { grid-template-columns: 1fr; } }

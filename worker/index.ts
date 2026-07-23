@@ -2,6 +2,7 @@
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
 import type { AutomationRoute, CatalogEvent, RouteField } from "../automation-types";
+import { fieldConditionMatches, normalizeFieldCondition } from "../field-conditions";
 
 interface Env {
   ASSETS: Fetcher;
@@ -812,16 +813,7 @@ function fieldOptions(source: Record<string, unknown>): string[] | undefined {
 }
 
 function fieldCondition(source: Record<string, unknown>): RouteField["visibleWhen"] {
-  const raw = source.visibleWhen ?? source.visible_when ?? source.show_when ?? source.condition ?? source.depends_on;
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
-  const condition = raw as Record<string, unknown>;
-  const field = String(condition.field ?? condition.key ?? condition.dependsOn ?? "").trim().slice(0, 120);
-  if (!field) return undefined;
-  const rawOperator = String(condition.operator ?? (condition.equals !== undefined ? "equals" : "truthy"));
-  const operator: NonNullable<RouteField["visibleWhen"]>["operator"] = ["equals", "notEquals", "in", "truthy", "falsy"].includes(rawOperator) ? rawOperator as NonNullable<RouteField["visibleWhen"]>["operator"] : "equals";
-  const rawValue = condition.value ?? condition.equals ?? condition.values;
-  const value = Array.isArray(rawValue) ? rawValue.map(String).slice(0, 100) : rawValue === undefined ? undefined : String(rawValue);
-  return { field, operator, value };
+  return normalizeFieldCondition(source.visibleWhen ?? source.visible_when ?? source.show_when ?? source.condition ?? source.depends_on);
 }
 
 function fieldOptionsSource(source: Record<string, unknown>): RouteField["optionsSource"] {
@@ -1045,17 +1037,7 @@ function coerceField(field: RouteField, raw: unknown): unknown | null {
 }
 
 function fieldVisible(field: RouteField, values: Record<string, unknown>): boolean {
-  const condition = field.visibleWhen;
-  if (!condition) return true;
-  const current = values[condition.field];
-  const truthy = current === true || current === "true" || current === "1" || current === "on" || Array.isArray(current) && current.length > 0 || typeof current === "string" && current.trim().length > 0;
-  if (condition.operator === "truthy") return truthy;
-  if (condition.operator === "falsy") return !truthy;
-  const actual = Array.isArray(current) ? current.map(String) : String(current ?? "");
-  const expected = Array.isArray(condition.value) ? condition.value.map(String) : String(condition.value ?? "");
-  if (condition.operator === "in") return Array.isArray(expected) && (Array.isArray(actual) ? actual.some((value) => expected.includes(value)) : expected.includes(actual));
-  const equal = Array.isArray(actual) ? actual.includes(String(expected)) : actual === expected;
-  return condition.operator === "notEquals" ? !equal : equal;
+  return fieldConditionMatches(field.visibleWhen, values);
 }
 
 function extractOptionValues(payload: unknown): string[] {

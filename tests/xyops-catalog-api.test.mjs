@@ -3,6 +3,16 @@ import test from "node:test";
 
 import worker from "../dist/server/index.js";
 
+function operatorEnv(values = {}) {
+  return {
+    PORTAL_IDENTITY_MODE: "static",
+    PORTAL_STATIC_IDENTITY: "operator@example.test",
+    PORTAL_DEFAULT_ROLE: "viewer",
+    PORTAL_RBAC_JSON: JSON.stringify({ "operator@example.test": "operator" }),
+    ...values,
+  };
+}
+
 test("discovers, validates and launches a schema-driven XYOps workflow", async () => {
   const originalFetch = globalThis.fetch;
   let launchPayload;
@@ -37,7 +47,7 @@ test("discovers, validates and launches a schema-driven XYOps workflow", async (
     return new Response("not found", { status: 404 });
   };
 
-  const env = { XYOPS_URL: "https://xyops.example.test", XYOPS_API_KEY: "api-secret" };
+  const env = operatorEnv({ XYOPS_URL: "https://xyops.example.test", XYOPS_API_KEY: "api-secret" });
   try {
     const catalogResponse = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog"), env, {});
     const catalog = await catalogResponse.json();
@@ -129,7 +139,7 @@ test("normalizes the installed XYOps fields contract from rows and workflow meta
   };
 
   try {
-    const env = { XYOPS_URL: "http://xyops.example.test", XYOPS_API_KEY: "api-secret" };
+    const env = operatorEnv({ XYOPS_URL: "http://xyops.example.test", XYOPS_API_KEY: "api-secret" });
     const catalog = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog"), env, {}).then((response) => response.json());
     assert.equal(catalog.events[0].description, "Provision the identity across connected systems.");
     assert.deepEqual(catalog.events[0].fields.map((field) => [field.key, field.type]), [["ipa_url", "url"], ["mail", "email"], ["initial_password", "password"], ["mode", "select"], ["uid", "string"]]);

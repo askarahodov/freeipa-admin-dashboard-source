@@ -145,6 +145,30 @@ function runStatus(value: unknown): RunStatus {
   return "unknown";
 }
 
+function jobLifecycleStatus(row: Record<string, unknown>, active = false): RunStatus {
+  const completed = Number(row.completed ?? row.completed_at ?? row.finished_at ?? 0);
+  if (Number.isFinite(completed) && completed > 0) {
+    const code = row.code ?? row.exit_code ?? row.exitCode;
+    return code === undefined || code === null || code === 0 || code === false || code === "0" || code === "" ? "success" : "failed";
+  }
+  const lifecycle = runStatus(row.state ?? row.lifecycle_status ?? row.lifecycleStatus ?? row.outcome);
+  if (lifecycle !== "unknown") return lifecycle;
+  const reported = runStatus(row.status);
+  if (reported !== "unknown") return reported;
+  return active ? "running" : "unknown";
+}
+
+function jobTimestamp(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value < 10_000_000_000 ? value * 1000 : value;
+  if (typeof value === "string" && value) {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric)) return numeric < 10_000_000_000 ? numeric * 1000 : numeric;
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
 function runSubject(values: Record<string, unknown>, targets: string[] = []): string {
   for (const key of ["username", "uid", "group", "database", "server", "hostname", "name"]) {
     const value = values[key];
@@ -220,19 +244,40 @@ async function syncOperationRuns(env: Env, xyopsUrl: string | null, runs: Operat
     if (!response.ok) return runs;
     const rows = extractJobRows(await response.json().catch(() => null));
     const byId = new Map(rows.map((row) => [String(row.job_id ?? row.jobId ?? row.id ?? ""), row]));
+    const unresolved = runs.filter((run) => run.mode === "live" && ["queued", "running", "unknown"].includes(run.status) && run.jobId && !byId.has(run.jobId));
+    if (unresolved.length) {
+      const ids = unresolved.slice(0, 100).map((run) => run.jobId);
+      try {
+        const detailsResponse = await fetch(`${xyopsUrl}/api/app/get_jobs/v1`, {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-api-key": env.XYOPS_API_KEY, accept: "application/json" },
+          body: JSON.stringify({ ids, verbose: false }),
+          signal: AbortSignal.timeout(12000),
+        });
+        const detailsPayload = await detailsResponse.json().catch(() => null) as Record<string, unknown> | null;
+        if (detailsResponse.ok && detailsPayload && xyopsPayloadSucceeded(detailsPayload) && Array.isArray(detailsPayload.jobs)) {
+          for (const row of detailsPayload.jobs) {
+            if (!row || typeof row !== "object" || Array.isArray(row) || "err" in row) continue;
+            const record = row as Record<string, unknown>;
+            const id = String(record.job_id ?? record.jobId ?? record.id ?? "");
+            if (id) byId.set(id, record);
+          }
+        }
+      } catch {}
+    }
     const now = Date.now();
     for (const run of runs) {
       const row = byId.get(run.jobId);
       if (!row) continue;
-      const nextStatus = runStatus(row.status ?? row.state ?? row.result ?? row.outcome);
+      const nextStatus = jobLifecycleStatus(row, rows.includes(row));
       const nextStages = extractJobStages(row);
       const stagesChanged = nextStages.length > 0 && JSON.stringify(nextStages) !== JSON.stringify(run.stages);
       if ((nextStatus === "unknown" || nextStatus === run.status) && !stagesChanged) continue;
       if (nextStatus !== "unknown") run.status = nextStatus;
       if (nextStages.length) run.stages = nextStages;
       run.updatedAt = now;
-      if (nextStatus === "success" || nextStatus === "failed") run.completedAt = now;
-      if (nextStatus === "failed") run.error = String(row.error ?? row.message ?? "XYOps job failed").slice(0, 500);
+      if (nextStatus === "success" || nextStatus === "failed") run.completedAt = jobTimestamp(row.completed ?? row.completed_at ?? row.finished_at) ?? now;
+      if (nextStatus === "failed") run.error = String(row.description ?? row.error ?? row.message ?? "XYOps job failed").slice(0, 500);
       await saveOperationRun(env, run);
     }
   } catch {}
@@ -1041,6 +1086,7 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
   if (request.method === "GET" && url.pathname === "/api/integrations/groups") {
     if (boolValue(env.DEMO_MODE)) return json({ mode: "demo", groups: [] });
     if (!ipaUrl || !env.IPA_USERNAME || !env.IPA_PASSWORD) return json({ mode: "unconfigured", groups: [] });
+    let groupFindError: unknown = null;
     try {
       const list = await ipaRpc(env, ipaUrl, "group_find", [""], { all: true, sizelimit: 0 });
       const groups = list.map((entry) => ({
@@ -1049,9 +1095,22 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
         members: Array.isArray(entry.member_user) ? entry.member_user.length : 0,
         type: firstValue(entry.gidnumber) ? "POSIX" : "Non-POSIX",
       })).filter((group) => group.name);
-      return json({ mode: "live", groups });
+      if (groups.length) return json({ mode: "live", source: "group_find", groups });
     } catch (error) {
-      return json({ error: error instanceof Error ? error.message : "FreeIPA request failed" }, 502);
+      groupFindError = error;
+    }
+    try {
+      const users = await ipaRpc(env, ipaUrl, "user_find", [""], { all: true, sizelimit: 0 });
+      const counts = new Map<string, number>();
+      for (const entry of users) {
+        const memberships = Array.isArray(entry.memberof_group) ? entry.memberof_group : entry.memberof_group ? [entry.memberof_group] : [];
+        for (const value of new Set(memberships.map(String).filter(Boolean))) counts.set(value, (counts.get(value) ?? 0) + 1);
+      }
+      const groups = Array.from(counts, ([name, members]) => ({ name, description: "Получено из членства пользователей", members, type: "Directory" }))
+        .sort((left, right) => left.name.localeCompare(right.name));
+      return json({ mode: "live", source: "user_membership", degraded: true, groups });
+    } catch {
+      return json({ error: groupFindError instanceof Error ? groupFindError.message : "FreeIPA group_find and membership fallback failed" }, 502);
     }
   }
 

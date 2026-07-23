@@ -1138,7 +1138,10 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
     const file = await readRunResultFile(baseEnv, runId, runFileMatch[2]);
     if (!file) return json({ error: "Файл результата не найден" }, 404);
     try {
-      const response = await fetch(new URL(file.path, `${xyopsUrl}/`), {
+      const xyopsOrigin = new URL(`${xyopsUrl}/`);
+      const fileUrl = new URL(file.path, xyopsOrigin);
+      if (fileUrl.origin !== xyopsOrigin.origin) return json({ error: "Путь файла результата вышел за пределы XYOps origin" }, 502);
+      const response = await fetch(fileUrl, {
         method: "GET",
         headers: { "x-api-key": env.XYOPS_API_KEY, accept: "application/octet-stream" },
         redirect: "manual",

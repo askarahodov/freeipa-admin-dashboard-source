@@ -136,7 +136,7 @@ function normalizeTable(raw: unknown): RunResultTable | null {
 
 function safeFilePath(value: unknown): string | null {
   const path = String(value ?? "").replace(/^\/+/, "");
-  if (!path || path.length > 1000 || /[\\?#\u0000-\u001f]/.test(path)) return null;
+  if (!path || path.length > 1000 || path.includes(":") || /[\\?#\u0000-\u001f]/.test(path)) return null;
   const segments = path.split("/");
   if (segments.some((segment) => !segment || segment === "." || segment === "..")) return null;
   if (!/^[A-Za-z0-9._~!$&'()*+,;=:@%/-]+$/.test(path)) return null;

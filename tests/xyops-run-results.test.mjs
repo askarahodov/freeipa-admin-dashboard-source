@@ -96,6 +96,7 @@ test("captures sanitized XYOps result widgets and proxies output files", async (
           { source: "output", filename: "backup.csv", path: "files/jobs/job_result_42/backup.csv", size: 128, mime_type: "text/csv" },
           { source: "input", filename: "request.json", path: "files/jobs/job_result_42/request.json", size: 12 },
           { source: "output", filename: "escape.txt", path: "../secret.txt", size: 5 },
+          { source: "output", filename: "origin.txt", path: "https:evil.example/secret.txt", size: 5 },
         ],
         html: "<script>alert('must-not-leak')</script>",
         output: "XYOPS_API_KEY=must-not-leak",

@@ -1,0 +1,61 @@
+name: Apply extended audit
+
+on:
+  push:
+    branches: [agent/extended-audit]
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-verify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/extended-audit
+          show-progress: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+
+      - name: Apply and verify implementation
+        id: verify
+        shell: bash
+        run: |
+          set +e
+          {
+            python scripts/apply-extended-audit-patch.py &&
+            npm ci &&
+            npm run lint &&
+            npm test
+          } 2>&1 | tee /tmp/extended-audit-ci.log
+          status=${PIPESTATUS[0]}
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Commit result
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ "${{ steps.verify.outputs.status }}" = "0" ]; then
+            rm -f scripts/apply-extended-audit-patch.py
+            rm -f .github/workflows/apply-extended-audit.yml
+            rm -f .github/extended-audit-ci-failure.txt
+            rm -f .github/extended-audit-trigger.txt
+            git add -A
+            git commit -m "Add extended append-only audit and correlation tracking"
+          else
+            git reset --hard HEAD
+            tail -n 800 /tmp/extended-audit-ci.log > .github/extended-audit-ci-failure.txt
+            git add .github/extended-audit-ci-failure.txt
+            git commit -m "Record extended audit CI failure"
+          fi
+          git push origin HEAD:agent/extended-audit

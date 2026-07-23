@@ -106,7 +106,23 @@ test("normalizes the installed XYOps fields contract from rows and workflow meta
         { id: "mode", title: "Mode", type: "select", multiple: false, value: "safe", caption: "XYOps does not publish choices for this field" },
         { id: "uid", title: "Login", type: "text", required: true, locked: true, value: "operator" },
       ],
-      workflow: { nodes: [{ id: "trigger", type: "trigger" }, { id: "create", type: "job", data: { plugin: "ipa_create", params: { uid: "${uid}" } } }], connections: [{ source: "trigger", dest: "create" }] },
+      workflow: { nodes: [{ id: "trigger", type: "trigger" }, { id: "create", type: "job", data: { plugin: "ipa_create", params: { action: "createUser", uid: "${uid}" } } }], connections: [{ source: "trigger", dest: "create" }] },
+    }, {
+      id: "group-create",
+      title: "FreeIPA group provisioning",
+      enabled: true,
+      plugin: "freeipa",
+      category: "category-id",
+      params: { freeipa_tool: "createGroup" },
+      fields: [{ id: "group", title: "Group", type: "text", required: true }],
+    }, {
+      id: "user-update",
+      title: "Identity maintenance",
+      enabled: true,
+      plugin: "freeipa",
+      category: "category-id",
+      params: { action: "updateUser" },
+      fields: [{ id: "uid", title: "Login", type: "text", required: true }],
     }] });
     if (url.pathname.endsWith("/run_event/v1")) { launchPayload = JSON.parse(String(init.body)); return Response.json({ code: 0, job_id: "job-real-contract" }); }
     return new Response("not found", { status: 404 });
@@ -121,6 +137,9 @@ test("normalizes the installed XYOps fields contract from rows and workflow meta
     assert.equal(catalog.events[0].fields[0].pattern, "https://.+");
     assert.equal(catalog.events[0].fields[2].default, undefined);
     assert.equal(catalog.events[0].fields[4].readOnly, true);
+    assert.equal(catalog.events[0].operation, "user_add");
+    assert.equal(catalog.events[1].operation, "group_add");
+    assert.equal(catalog.events[2].operation, "user_mod");
 
     const response = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog/run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ eventId: "workflow-user-create", values: { ipa_url: "https://ipa.example", mail: "ops@example.test", initial_password: "one-time", mode: "safe", uid: "operator" } }) }), env, {});
     assert.equal(response.status, 202);

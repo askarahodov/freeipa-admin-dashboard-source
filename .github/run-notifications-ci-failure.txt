@@ -1,0 +1,32 @@
+npm warn deprecated @esbuild-kit/esm-loader@2.6.5: Merged into tsx: https://tsx.is
+npm warn deprecated @esbuild-kit/core-utils@3.3.2: Merged into tsx: https://tsx.is
+
+added 505 packages in 9s
+
+> freeipa-admin-dashboard@0.1.0 lint
+> bash scripts/sites-env.sh -- eslint . --ignore-pattern dist --ignore-pattern .next
+
+
+/home/runner/work/freeipa-admin-dashboard-source/freeipa-admin-dashboard-source/app/page.tsx
+  179:38  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/runner/work/freeipa-admin-dashboard-source/freeipa-admin-dashboard-source/app/page.tsx:179:38
+  177 |
+  178 |   useEffect(() => {
+> 179 |     if (!("Notification" in window)) setNotificationPermission("unsupported");
+      |                                      ^^^^^^^^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  180 |     const initial = window.setTimeout(() => void loadNotifications(false), 0);
+  181 |     const timer = window.setInterval(() => void loadNotifications(true), 15000);
+  182 |     return () => { window.clearTimeout(initial); window.clearInterval(timer); };  react-hooks/set-state-in-effect
+
+/home/runner/work/freeipa-admin-dashboard-source/freeipa-admin-dashboard-source/app/settings-storage.js
+  68:1  warning  Assign object to a variable before exporting as module default  import/no-anonymous-default-export
+
+✖ 2 problems (1 error, 1 warning)
+

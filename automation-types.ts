@@ -1,3 +1,11 @@
+export type FieldConditionOperator = "equals" | "notEquals" | "in" | "truthy" | "falsy";
+export type FieldConditionValue = string | number | boolean | null | Array<string | number | boolean | null>;
+export type FieldCondition =
+  | { field: string; operator: FieldConditionOperator; value?: FieldConditionValue }
+  | { all: FieldCondition[] }
+  | { any: FieldCondition[] }
+  | { not: FieldCondition };
+
 export type RouteField = {
   key: string;
   label: string;
@@ -15,11 +23,7 @@ export type RouteField = {
   section?: string;
   groupPath?: string[];
   order?: number;
-  visibleWhen?: {
-    field: string;
-    operator: "equals" | "notEquals" | "in" | "truthy" | "falsy";
-    value?: string | string[];
-  };
+  visibleWhen?: FieldCondition;
   optionsSource?: {
     endpoint: string;
     queryParam?: string;

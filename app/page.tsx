@@ -1,14 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AutomationRoute as SourceAutomationRoute, CatalogEvent, RouteField } from "../automation-types";
+import { conditionFieldNames, fieldConditionMatches } from "../field-conditions";
 
-type Page = "overview" | "automation" | "users" | "groups" | "operations" | "settings";
+type Page = "overview" | "automation" | "users" | "groups" | "operations" | "approvals" | "settings";
 type AutomationRoute = SourceAutomationRoute & { enabled: boolean; targets: string[]; fields: RouteField[] };
-type RunStatus = "queued" | "running" | "success" | "failed" | "unknown";
+type RunStatus = "queued" | "running" | "success" | "failed" | "cancelled" | "unknown";
 type RunStage = { id: string; title: string; status: RunStatus; startedAt: number | null; completedAt: number | null; error: string };
-type RunRecord = { id: string; jobId: string; eventId: string; title: string; kind: "event" | "workflow"; mode: "demo" | "live"; status: RunStatus; actor: string; subject: string; error: string | null; stages: RunStage[]; startedAt: number; updatedAt: number; completedAt: number | null };
+type RunResultValue = { key: string; label: string; value: string; kind: "text" | "number" | "boolean" | "json" };
+type RunResultLink = { id: string; title: string; url: string; host: string };
+type RunResultFile = { id: string; filename: string; size: number; mimeType: string; downloadUrl: string };
+type RunResult = { available: boolean; summary: string; values: RunResultValue[]; links: RunResultLink[]; files: RunResultFile[]; table: { columns: string[]; rows: string[][] } | null; capturedAt: number; truncated: boolean };
+type RunRecord = { id: string; jobId: string; eventId: string; title: string; kind: "event" | "workflow"; mode: "demo" | "live"; status: RunStatus; actor: string; subject: string; error: string | null; stages: RunStage[]; startedAt: number; updatedAt: number; completedAt: number | null; result: RunResult | null; actions: { cancel: boolean; rerun: boolean; rerunLabel: string; reason: string; parentRunId: string } };
 type RunStats = { today: number; queued: number; success: number; failed: number };
+type PortalNotification = { id: string; runId: string; status: "success" | "failed" | "cancelled"; title: string; message: string; createdAt: number; readAt: number | null };
 type DirectoryUser = { uid: string; name: string; firstName: string; lastName: string; email: string; groups: number; groupNames: string[]; active: boolean };
 type DirectoryGroup = { name: string; description: string; members: number; memberUids: string[]; type: string };
 type FreeIpaOperation = "user_add" | "user_mod" | "user_password" | "user_enable" | "user_disable" | "user_del" | "group_add" | "group_del" | "group_add_member" | "group_remove_member";
@@ -19,8 +25,12 @@ type CatalogMeta = { syncedAt: string | null; source: "demo" | "xyops" | "cache"
 type CatalogHistoryEntry = { id: string; syncedAt: number; processCount: number; changes: CatalogChange[] };
 type SettingsData = { source: "database" | "environment"; persistenceAvailable: boolean; encryptionConfigured: boolean; updatedAt: number | null; demoMode: boolean; freeipa: { url: string; username: string; passwordConfigured: boolean }; xyops: { url: string; apiKeyConfigured: boolean } };
 type PortalRole = "viewer" | "operator" | "admin";
-type PortalPermission = "directory.read" | "freeipa.write" | "freeipa.delete" | "xyops.run" | "settings.manage";
-type PortalAccess = { identity: string; role: PortalRole; permissions: PortalPermission[] };
+type PortalPermission = "directory.read" | "freeipa.write" | "freeipa.delete" | "xyops.run" | "xyops.approve" | "settings.manage";
+type PortalAccess = { identity: string; role: PortalRole; groups?: string[]; permissions: PortalPermission[] };
+type ApprovalStatus = "pending" | "approved" | "rejected" | "cancelled" | "expired" | "executing" | "executed" | "failed" | "unknown";
+type ApprovalRecord = { id: string; eventId: string; title: string; category: string; schemaVersion: string; requesterIdentity: string; requesterRole: PortalRole; status: ApprovalStatus; requiredApprovals: number; approvals: number; rejections: number; approverRoles: PortalRole[]; approverGroups: string[]; requesterCannotApprove: boolean; summary: { subject: string; targets: string[]; values: Array<{ key: string; label: string; value: string }>; hiddenSecrets: number; secretFields: Array<{ key: string; label: string }> }; expiresAt: number; createdAt: number; updatedAt: number; approvedAt: number | null; executedAt: number | null; runId: string; parentRunId: string; error: string; myDecision: "approve" | "reject" | null; actions: { approve: boolean; reject: boolean; cancel: boolean; execute: boolean } };
+type CatalogPolicyRule = { id: string; effect: "allow" | "deny"; users: string[]; groups: string[]; roles: PortalRole[]; categories: string[]; processes: string[] };
+type CatalogPolicySet = { version: 1; defaultEffect: "allow" | "deny"; adminBypass: boolean; rules: CatalogPolicyRule[] };
 type AutomationSection = { category: string; slug: string; count: number; events: number; workflows: number };
 
 const nav: { id: Page; label: string; icon: string }[] = [
@@ -29,10 +39,11 @@ const nav: { id: Page; label: string; icon: string }[] = [
   { id: "users", label: "Пользователи", icon: "♙" },
   { id: "groups", label: "Группы", icon: "♧" },
   { id: "operations", label: "Операции", icon: "◷" },
+  { id: "approvals", label: "Согласования", icon: "✓" },
   { id: "settings", label: "Настройки", icon: "⚙" },
 ];
 const roleLabels: Record<PortalRole, string> = { viewer: "Наблюдатель", operator: "Оператор", admin: "Администратор" };
-const pagePaths: Record<Page, string> = { overview: "/", automation: "/automation", users: "/users", groups: "/groups", operations: "/operations", settings: "/settings" };
+const pagePaths: Record<Page, string> = { overview: "/", automation: "/automation", users: "/users", groups: "/groups", operations: "/operations", approvals: "/approvals", settings: "/settings" };
 
 function automationSlug(value: string): string {
   const cyrillic: Record<string, string> = { а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "e", ж: "zh", з: "z", и: "i", й: "y", к: "k", л: "l", м: "m", н: "n", о: "o", п: "p", р: "r", с: "s", т: "t", у: "u", ф: "f", х: "h", ц: "ts", ч: "ch", ш: "sh", щ: "sch", ъ: "", ы: "y", ь: "", э: "e", ю: "yu", я: "ya" };
@@ -94,6 +105,14 @@ export default function Home() {
   const [directoryUsers, setDirectoryUsers] = useState<DirectoryUser[]>([]);
   const [directoryGroups, setDirectoryGroups] = useState<DirectoryGroup[]>([]);
   const [directorySource, setDirectorySource] = useState<"demo" | "live" | "unconfigured">("unconfigured");
+  const [notifications, setNotifications] = useState<PortalNotification[]>([]);
+  const [notificationUnread, setNotificationUnread] = useState(0);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | "unsupported">("default");
+  const [approvals, setApprovals] = useState<ApprovalRecord[]>([]);
+  const [approvalPendingForMe, setApprovalPendingForMe] = useState(0);
+  const [approvalsLoading, setApprovalsLoading] = useState(false);
+  const shownNotificationIds = useRef(new Set<string>());
 
   useEffect(() => {
     fetch("/api/integrations/status", { cache: "no-store" })
@@ -141,6 +160,56 @@ export default function Home() {
     return () => window.clearTimeout(timer);
   }, [loadDirectory]);
 
+  const loadNotifications = useCallback(async (announce = true) => {
+    try {
+      const response = await fetch("/api/integrations/notifications?limit=50", { cache: "no-store" });
+      if (!response.ok) throw new Error("Notification request failed");
+      const data = await response.json();
+      const items: PortalNotification[] = Array.isArray(data.notifications) ? data.notifications : [];
+      const browserSupported = typeof window !== "undefined" && "Notification" in window;
+      setNotificationPermission(browserSupported ? window.Notification.permission : "unsupported");
+      if (announce && browserSupported && window.Notification.permission === "granted") {
+        for (const item of items) {
+          if (item.readAt || shownNotificationIds.current.has(item.id)) continue;
+          new window.Notification(item.title, { body: item.message, tag: item.id });
+        }
+      }
+      for (const item of items) shownNotificationIds.current.add(item.id);
+      setNotifications(items);
+      setNotificationUnread(Math.max(0, Number(data.unread ?? 0)));
+    } catch {
+      setNotifications([]);
+      setNotificationUnread(0);
+    }
+  }, []);
+
+  useEffect(() => {
+    const initial = window.setTimeout(() => void loadNotifications(false), 0);
+    const timer = window.setInterval(() => void loadNotifications(true), 15000);
+    return () => { window.clearTimeout(initial); window.clearInterval(timer); };
+  }, [loadNotifications]);
+
+
+  const loadApprovals = useCallback(async () => {
+    setApprovalsLoading(true);
+    try {
+      const response = await fetch("/api/integrations/approvals?limit=100", { cache: "no-store" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Approval request failed");
+      setApprovals(Array.isArray(data.approvals) ? data.approvals : []);
+      setApprovalPendingForMe(Math.max(0, Number(data.pendingForMe ?? 0)));
+    } catch {
+      setApprovals([]);
+      setApprovalPendingForMe(0);
+    } finally { setApprovalsLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    const initial = window.setTimeout(() => void loadApprovals(), 0);
+    const timer = window.setInterval(() => void loadApprovals(), 15000);
+    return () => { window.clearTimeout(initial); window.clearInterval(timer); };
+  }, [loadApprovals]);
+
   const loadRuns = useCallback(async (sync = true) => {
     setRunsLoading(true);
     try {
@@ -184,6 +253,7 @@ export default function Home() {
   const canWriteFreeIpa = integration.access.permissions.includes("freeipa.write");
   const canDeleteFreeIpa = integration.access.permissions.includes("freeipa.delete");
   const canRunXyops = integration.access.permissions.includes("xyops.run");
+  const canApproveXyops = integration.access.permissions.includes("xyops.approve");
   const canManageSettings = integration.access.permissions.includes("settings.manage");
   const visibleNav = nav.filter((item) => item.id !== "settings" || canManageSettings);
   const automationSections = useMemo<AutomationSection[]>(() => Array.from(new Set(catalog.map((event) => event.category || "general"))).sort((left, right) => left.localeCompare(right)).map((category) => {
@@ -250,6 +320,7 @@ export default function Home() {
       const response = await fetch("/api/integrations/catalog/run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ eventId: event.id, values, targets }) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error);
+      if (result.approvalRequired) { await loadApprovals(); setSelectedProcess(null); navigateTo("approvals"); notify(`Заявка на согласование создана: ${result.approvalId}`); return true; }
       await loadRuns(false);
       setSelectedProcess(null);
       notify(result.mode === "live" ? `XYOps запущен: ${result.jobId}` : `Демо-задание создано: ${result.jobId}`);
@@ -261,25 +332,115 @@ export default function Home() {
     }
   }
 
+  async function runJobAction(run: RunRecord, action: "cancel" | "rerun") {
+    const confirmation = action === "cancel"
+      ? `Остановить активное задание ${run.jobId}?`
+      : `${run.actions.rerunLabel} процесс «${run.title}» с прежними проверенными параметрами?`;
+    if (!window.confirm(confirmation)) return false;
+    try {
+      const response = await fetch(`/api/integrations/runs/${encodeURIComponent(run.id)}/${action}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ confirm: true }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Операция с заданием не выполнена");
+      if (result.approvalRequired) { await loadApprovals(); navigateTo("approvals"); notify(`Повторный запуск ожидает согласования: ${result.approvalId}`); return true; }
+      await loadRuns(true);
+      notify(action === "cancel" ? "Команда остановки отправлена в XYOps" : `Создан новый запуск: ${result.jobId ?? "ожидает Job ID"}`);
+      return true;
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Не удалось выполнить действие с заданием");
+      return false;
+    }
+  }
+
+
+  async function actOnApproval(item: ApprovalRecord, action: "approve" | "reject" | "cancel" | "execute") {
+    let comment = "";
+    const secretValues: Record<string, string> = {};
+    if (action === "reject") {
+      comment = window.prompt("Причина отклонения заявки")?.trim() ?? "";
+      if (!comment) return false;
+    }
+    if (action === "approve" && !window.confirm(`Согласовать опасную операцию «${item.title}»?`)) return false;
+    if (action === "cancel" && !window.confirm(`Отменить заявку «${item.title}»?`)) return false;
+    if (action === "execute") {
+      if (!window.confirm(`Выполнить согласованную операцию «${item.title}» сейчас?`)) return false;
+      for (const field of item.summary.secretFields ?? []) {
+        const value = window.prompt(`Введите секретное поле: ${field.label}`) ?? "";
+        if (!value) { notify(`Поле «${field.label}» обязательно для выполнения`); return false; }
+        secretValues[field.key] = value;
+      }
+    }
+    try {
+      const response = await fetch(`/api/integrations/approvals/${encodeURIComponent(item.id)}/${action}`, {
+        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ comment, secretValues }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Действие с заявкой не выполнено");
+      await Promise.all([loadApprovals(), loadRuns(true)]);
+      notify(action === "approve" ? "Заявка согласована" : action === "reject" ? "Заявка отклонена" : action === "cancel" ? "Заявка отменена" : `XYOps запущен: ${data.jobId ?? "ожидает Job ID"}`);
+      if (action === "execute") navigateTo("operations");
+      return true;
+    } catch (error) { notify(error instanceof Error ? error.message : "Действие с заявкой не выполнено"); return false; }
+  }
+
+  async function updateNotificationReads(ids: string[] | null) {
+    try {
+      const response = await fetch("/api/integrations/notifications/read", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(ids ? { ids } : { all: true }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Не удалось отметить уведомления");
+      setNotifications(Array.isArray(data.notifications) ? data.notifications : []);
+      setNotificationUnread(Math.max(0, Number(data.unread ?? 0)));
+      return true;
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Не удалось обновить уведомления");
+      return false;
+    }
+  }
+
+  async function openPortalNotification(item: PortalNotification) {
+    if (!item.readAt) await updateNotificationReads([item.id]);
+    setNotificationsOpen(false);
+    navigateTo("operations");
+  }
+
+  async function enableSystemNotifications() {
+    if (!("Notification" in window)) {
+      setNotificationPermission("unsupported");
+      notify("Системные уведомления не поддерживаются браузером");
+      return;
+    }
+    const permission = await window.Notification.requestPermission();
+    setNotificationPermission(permission);
+    notify(permission === "granted" ? "Системные уведомления включены" : "Браузер не разрешил системные уведомления");
+  }
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand"><span className="brand-mark">◇</span><div><strong>FreeIPA Admin</strong><small>XYOps</small></div></div>
-        <nav>{visibleNav.map((item) => <div className="nav-entry" key={item.id}><button className={page === item.id && (item.id !== "automation" || automationCategory === "all") ? "active" : ""} onClick={() => navigateTo(item.id)}><span>{item.icon}</span>{item.label}</button>{item.id === "automation" && automationSections.length > 0 && <div className="generated-nav">{automationSections.map((section) => <button key={section.category} className={page === "automation" && automationCategory === section.category ? "active" : ""} onClick={() => navigateTo("automation", section.category)} title={`${section.events} Events · ${section.workflows} Workflows`}><i /> <span>{section.category}</span><b>{section.count}</b></button>)}</div>}</div>)}</nav>
+        <nav>{visibleNav.map((item) => <div className="nav-entry" key={item.id}><button className={page === item.id && (item.id !== "automation" || automationCategory === "all") ? "active" : ""} onClick={() => navigateTo(item.id)}><span>{item.icon}</span>{item.label}{item.id === "approvals" && approvalPendingForMe > 0 && <b className="nav-count">{approvalPendingForMe}</b>}</button>{item.id === "automation" && automationSections.length > 0 && <div className="generated-nav">{automationSections.map((section) => <button key={section.category} className={page === "automation" && automationCategory === section.category ? "active" : ""} onClick={() => navigateTo("automation", section.category)} title={`${section.events} Events · ${section.workflows} Workflows`}><i /> <span>{section.category}</span><b>{section.count}</b></button>)}</div>}</div>)}</nav>
         <div className="sidebar-bottom"><div className="system-ok"><i className={integration.freeipa.reachable ? "" : "warning"} /> <div><strong>{integration.freeipa.reachable ? "FreeIPA готов" : "Требуется настройка"}</strong><small>{integration.xyops.reachable ? "XYOps также подключён" : "XYOps подключается отдельно"}</small></div></div><p>© 2026 Admin Portal</p></div>
       </aside>
 
       <main className="main">
         <header className="topbar">
           <div><h1>{page === "overview" ? "Обзор инфраструктуры" : title}</h1><p>{page === "overview" ? "FreeIPA и портал автоматизаций XYOps" : `Управление разделом «${title}»`}</p></div>
-          <div className="header-actions"><label className="global-search"><span>⌕</span><input aria-label="Глобальный поиск" placeholder="Поиск процессов, пользователей, групп…" value={query} onChange={(e) => setQuery(e.target.value)} /></label><button className="bell" aria-label="Ошибки операций" onClick={() => notify(runStats.failed ? `Ошибок сегодня: ${runStats.failed}` : "Новых ошибок нет")}>♢{runStats.failed > 0 && <b>{runStats.failed}</b>}</button><button className="profile" title={`Роль: ${roleLabels[integration.access.role]}`}>{integration.viewer.slice(0, 2).toUpperCase()} <span>{integration.viewer}<small>{roleLabels[integration.access.role]}</small></span></button></div>
+          <div className="header-actions"><label className="global-search"><span>⌕</span><input aria-label="Глобальный поиск" placeholder="Поиск процессов, пользователей, групп…" value={query} onChange={(e) => setQuery(e.target.value)} /></label><div className="notification-anchor"><button className={`bell ${notificationsOpen ? "active" : ""}`} aria-label="Уведомления операций" aria-expanded={notificationsOpen} onClick={() => setNotificationsOpen((value) => !value)}>♢{notificationUnread > 0 && <b>{notificationUnread > 99 ? "99+" : notificationUnread}</b>}</button>{notificationsOpen && <NotificationCenter items={notifications} unread={notificationUnread} permission={notificationPermission} close={() => setNotificationsOpen(false)} markAll={() => void updateNotificationReads(null)} enableSystem={() => void enableSystemNotifications()} openItem={(item) => void openPortalNotification(item)} />}</div><button className="profile" title={`Роль: ${roleLabels[integration.access.role]}`}>{integration.viewer.slice(0, 2).toUpperCase()} <span>{integration.viewer}<small>{roleLabels[integration.access.role]}</small></span></button></div>
         </header>
 
         {page === "overview" && <Overview goTo={(nextPage) => navigateTo(nextPage)} integration={integration} userCount={directoryUsers.length} groupCount={directoryGroups.length} directorySource={directorySource} runs={recentRuns} runStats={runStats} />}
         {page === "automation" && <AutomationCatalog items={filteredCatalog} sections={automationSections} selectedCategory={automationCategory} mode={catalogMode} meta={catalogMeta} error={catalogError} loading={catalogLoading} recentRuns={recentRuns} canRun={canRunXyops} canManageSettings={canManageSettings} onCategoryChange={(category) => navigateTo("automation", category)} onSync={() => void syncCatalog()} onOpenSettings={() => navigateTo("settings")} onLaunch={(event) => setSelectedProcess({ event, preset: {} })} />}
         {page === "users" && <Users items={filteredUsers} allGroups={directoryGroups} total={directoryUsers.length} source={directorySource} canWrite={canWriteFreeIpa} canDelete={canDeleteFreeIpa} onCreate={() => setFreeIpaAction({ operation: "user_add", title: "Новый пользователь", preset: {} })} onAction={setFreeIpaAction} />}
         {page === "groups" && <Groups items={filteredGroups} allUsers={directoryUsers} source={directorySource} canWrite={canWriteFreeIpa} canDelete={canDeleteFreeIpa} onCreate={() => setFreeIpaAction({ operation: "group_add", title: "Новая группа", preset: {} })} onAction={setFreeIpaAction} />}
-        {page === "operations" && <Operations runs={recentRuns} stats={runStats} loading={runsLoading} refresh={() => void loadRuns(true)} />}
+        {page === "operations" && <Operations runs={recentRuns} stats={runStats} loading={runsLoading} refresh={() => void loadRuns(true)} onAction={runJobAction} />}
+        {page === "approvals" && <Approvals items={approvals} pendingForMe={approvalPendingForMe} loading={approvalsLoading} canApprove={canApproveXyops} refresh={() => void loadApprovals()} onAction={actOnApproval} />}
         {page === "settings" && canManageSettings && <Settings routes={routes} catalog={catalog} catalogLoading={catalogLoading} onSync={() => void syncCatalog()} onRoutesChange={setRoutes} notify={notify} />}
       </main>
 
@@ -288,6 +449,18 @@ export default function Home() {
       {toast && <div className="toast"><i />{toast}</div>}
     </div>
   );
+}
+
+
+
+function Approvals({ items, pendingForMe, loading, canApprove, refresh, onAction }: { items: ApprovalRecord[]; pendingForMe: number; loading: boolean; canApprove: boolean; refresh: () => void; onAction: (item: ApprovalRecord, action: "approve" | "reject" | "cancel" | "execute") => Promise<boolean> }) {
+  const labels: Record<ApprovalStatus, string> = { pending: "Ожидает", approved: "Согласовано", rejected: "Отклонено", cancelled: "Отменено", expired: "Истекло", executing: "Запускается", executed: "Выполнено", failed: "Ошибка", unknown: "Неизвестно" };
+  const tone: Record<ApprovalStatus, string> = { pending: "warning", approved: "success", rejected: "error", cancelled: "neutral", expired: "neutral", executing: "violet", executed: "success", failed: "error", unknown: "warning" };
+  return <div className="approvals-page"><section className="panel approval-summary"><div><span className="eyebrow">FOUR-EYES CONTROL</span><h2>Согласования опасных процессов</h2><p>XYOps получает команду только после независимого решения и отдельного нажатия «Выполнить» инициатором.</p></div><Status tone={pendingForMe ? "warning" : "success"}>{pendingForMe ? `${pendingForMe} ждут решения` : "Очередь чиста"}</Status><button className="secondary" disabled={loading} onClick={refresh}>{loading ? "Обновление…" : "Обновить"}</button></section><div className="approval-list">{items.map((item) => <article className={`panel approval-card ${item.status}`} key={item.id}><div className="approval-card-head"><div><span className="eyebrow">{item.category} · {item.eventId}</span><h3>{item.title}</h3><p>Инициатор: <b>{item.requesterIdentity}</b> · истекает {formatDateTime(item.expiresAt)}</p></div><Status tone={tone[item.status]}>{labels[item.status]}</Status></div><div className="approval-progress"><span><b>{item.approvals}</b> / {item.requiredApprovals} согласований</span><progress max={item.requiredApprovals} value={Math.min(item.approvals, item.requiredApprovals)} /></div><div className="approval-details"><div><strong>Targets</strong><span>{item.summary.targets.length ? item.summary.targets.join(", ") : "из процесса"}</span></div><div><strong>Согласующие</strong><span>{[...item.approverRoles, ...item.approverGroups].join(", ") || "не настроены"}</span></div>{item.summary.values.map((value) => <div key={value.key}><strong>{value.label}</strong><span>{value.value}</span></div>)}{item.summary.hiddenSecrets > 0 && <div><strong>Секретные поля</strong><span>{item.summary.hiddenSecrets} · будут введены заново перед выполнением</span></div>}</div>{item.error && <div className="approval-error">{item.error}</div>}<div className="approval-actions">{item.actions.approve && canApprove && <button className="primary" onClick={() => void onAction(item, "approve")}>Одобрить</button>}{item.actions.reject && canApprove && <button className="danger-button" onClick={() => void onAction(item, "reject")}>Отклонить</button>}{item.actions.cancel && <button className="secondary" onClick={() => void onAction(item, "cancel")}>Отменить заявку</button>}{item.actions.execute && <button className="primary" onClick={() => void onAction(item, "execute")}>Выполнить в XYOps</button>}{item.myDecision && <Status tone="neutral">Моё решение: {item.myDecision === "approve" ? "одобрено" : "отклонено"}</Status>}</div></article>)}{!items.length && <div className="panel catalog-empty"><strong>Заявок пока нет</strong><span>Опасные Events и Workflows появятся здесь до фактического запуска.</span></div>}</div></div>;
+}
+
+function NotificationCenter({ items, unread, permission, close, markAll, enableSystem, openItem }: { items: PortalNotification[]; unread: number; permission: NotificationPermission | "unsupported"; close: () => void; markAll: () => void; enableSystem: () => void; openItem: (item: PortalNotification) => void }) {
+  return <section className="notification-panel"><div className="notification-head"><div><strong>Уведомления</strong><small>{unread ? `${unread} непрочитанных` : "Новых уведомлений нет"}</small></div><button aria-label="Закрыть уведомления" onClick={close}>×</button></div><div className="notification-tools">{unread > 0 && <button onClick={markAll}>Прочитать все</button>}{permission === "default" && <button onClick={enableSystem}>Включить системные</button>}{permission === "denied" && <small>Системные уведомления запрещены браузером</small>}</div><div className="notification-list">{items.length ? items.map((item) => <button className={`notification-item ${item.status} ${item.readAt ? "read" : "unread"}`} key={item.id} onClick={() => openItem(item)}><i>{item.status === "success" ? "✓" : item.status === "cancelled" ? "■" : "!"}</i><span><strong>{item.title}</strong><p>{item.message}</p><small>{formatDateTime(item.createdAt)}</small></span>{!item.readAt && <b />}</button>) : <div className="notification-empty"><span>♢</span><strong>Уведомлений пока нет</strong><small>Завершения и ошибки заданий XYOps появятся здесь.</small></div>}</div></section>;
 }
 
 function Overview({ goTo, integration, userCount, groupCount, directorySource, runs, runStats }: { goTo: (page: Page) => void; integration: { mode: IntegrationMode; freeipa: { reachable: boolean }; xyops: { reachable: boolean } }; userCount: number; groupCount: number; directorySource: "demo" | "live" | "unconfigured"; runs: RunRecord[]; runStats: RunStats }) {
@@ -351,21 +524,37 @@ function AutomationCatalog({ items, sections, selectedCategory, mode, meta, erro
   </div>;
 }
 
-function Operations({ runs, stats, loading, refresh }: { runs: RunRecord[]; stats: RunStats; loading: boolean; refresh: () => void }) {
+function Operations({ runs, stats, loading, refresh, onAction }: { runs: RunRecord[]; stats: RunStats; loading: boolean; refresh: () => void; onAction: (run: RunRecord, action: "cancel" | "rerun") => Promise<boolean> }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = runs.find((run) => run.id === selectedId) ?? null;
-  return <div className="content-stack"><section className="panel table-panel section-page"><div className="panel-title"><div><h2>Журнал операций</h2><p>Прямые изменения FreeIPA и запуски автоматизаций XYOps</p></div><button className="secondary" disabled={loading} onClick={refresh}>{loading ? "Обновление…" : "⟳ Обновить"}</button></div><div className="stats-strip"><span><b>{stats.today}</b> операций сегодня</span><span><i className="dot green" /><b>{stats.success}</b> успешно</span><span><i className="dot amber" /><b>{stats.queued}</b> выполняются</span><span><i className="dot red-dot" /><b>{stats.failed}</b> ошибки</span></div><OperationTable rows={runs} detailed onSelect={(run) => setSelectedId(run.id)} /></section>{selected && <RunDetails run={selected} close={() => setSelectedId(null)} />}</div>;
+  return <div className="content-stack"><section className="panel table-panel section-page"><div className="panel-title"><div><h2>Журнал операций</h2><p>Прямые изменения FreeIPA и запуски автоматизаций XYOps</p></div><button className="secondary" disabled={loading} onClick={refresh}>{loading ? "Обновление…" : "⟳ Обновить"}</button></div><div className="stats-strip"><span><b>{stats.today}</b> операций сегодня</span><span><i className="dot green" /><b>{stats.success}</b> успешно</span><span><i className="dot amber" /><b>{stats.queued}</b> выполняются</span><span><i className="dot red-dot" /><b>{stats.failed}</b> ошибки</span></div><OperationTable rows={runs} detailed onSelect={(run) => setSelectedId(run.id)} /></section>{selected && <RunDetails run={selected} close={() => setSelectedId(null)} onAction={onAction} />}</div>;
 }
 
-function RunDetails({ run, close }: { run: RunRecord; close: () => void }) {
-  return <div className="modal-backdrop"><section className="modal run-details-modal"><button className="modal-x" onClick={close}>×</button><div className="run-detail-head"><div><span className="eyebrow">XYOPS {run.kind.toUpperCase()}</span><h2>{run.title}</h2><p>{run.subject} · {run.actor}</p></div><RunStatusBadge status={run.status} /></div><div className="run-facts"><span><small>Job ID</small><code>{run.jobId}</code></span><span><small>Запущено</small><strong>{formatDateTime(run.startedAt)}</strong></span><span><small>Обновлено</small><strong>{formatDateTime(run.updatedAt)}</strong></span></div>{run.stages?.length ? <div className="workflow-timeline">{run.stages.map((stage, index) => <article key={stage.id}><div className="timeline-marker"><i className={stage.status}>{stage.status === "success" ? "✓" : stage.status === "failed" ? "!" : index + 1}</i>{index < run.stages.length - 1 && <span />}</div><div><strong>{stage.title}</strong><small>{stage.startedAt ? formatDateTime(stage.startedAt) : "Ожидает данных времени"}{stage.completedAt ? ` → ${formatDateTime(stage.completedAt)}` : ""}</small>{stage.error && <p>{stage.error}</p>}</div><RunStatusBadge status={stage.status} /></article>)}</div> : <div className="catalog-empty"><strong>XYOps не вернул этапы Workflow</strong><span>Отображается общий статус задания. Этапы появятся, если `get_active_jobs` содержит `stages`, `steps`, `tasks` или `nodes`.</span></div>}{run.error && <div className="settings-error"><strong>Ошибка</strong><span>{run.error}</span></div>}<div className="modal-actions"><button className="secondary" onClick={close}>Закрыть</button></div></section></div>;
+function RunDetails({ run, close, onAction }: { run: RunRecord; close: () => void; onAction: (run: RunRecord, action: "cancel" | "rerun") => Promise<boolean> }) {
+  const [busy, setBusy] = useState<"cancel" | "rerun" | null>(null);
+  const act = async (action: "cancel" | "rerun") => { setBusy(action); if (await onAction(run, action)) close(); else setBusy(null); };
+  return <div className="modal-backdrop"><section className="modal run-details-modal"><button className="modal-x" onClick={close}>×</button><div className="run-detail-head"><div><span className="eyebrow">XYOPS {run.kind.toUpperCase()}</span><h2>{run.title}</h2><p>{run.subject} · {run.actor}</p></div><RunStatusBadge status={run.status} /></div><div className="run-facts"><span><small>Job ID</small><code>{run.jobId}</code></span><span><small>Запущено</small><strong>{formatDateTime(run.startedAt)}</strong></span><span><small>Обновлено</small><strong>{formatDateTime(run.updatedAt)}</strong></span></div>{run.stages?.length ? <div className="workflow-timeline">{run.stages.map((stage, index) => <article key={stage.id}><div className="timeline-marker"><i className={stage.status}>{stage.status === "success" ? "✓" : stage.status === "failed" || stage.status === "cancelled" ? "!" : index + 1}</i>{index < run.stages.length - 1 && <span />}</div><div><strong>{stage.title}</strong><small>{stage.startedAt ? formatDateTime(stage.startedAt) : "Ожидает данных времени"}{stage.completedAt ? ` → ${formatDateTime(stage.completedAt)}` : ""}</small>{stage.error && <p>{stage.error}</p>}</div><RunStatusBadge status={stage.status} /></article>)}</div> : <div className="catalog-empty"><strong>XYOps не вернул этапы Workflow</strong><span>Отображается общий статус задания. Этапы появятся, если `get_active_jobs` содержит `stages`, `steps`, `tasks` или `nodes`.</span></div>}<RunResultWidgets result={run.result} />{run.error && <div className="settings-error"><strong>{run.status === "cancelled" ? "Остановка" : "Ошибка"}</strong><span>{run.error}</span></div>}{!run.actions.rerun && run.actions.reason && <div className="settings-error"><strong>Повтор недоступен</strong><span>{run.actions.reason}</span></div>}<div className="modal-actions"><button className="secondary" onClick={close}>Закрыть</button>{run.actions.rerun && <button className="primary" disabled={Boolean(busy)} onClick={() => void act("rerun")}>{busy === "rerun" ? "Запуск…" : run.actions.rerunLabel}</button>}{run.actions.cancel && <button className="danger-button" disabled={Boolean(busy)} onClick={() => void act("cancel")}>{busy === "cancel" ? "Остановка…" : "Остановить задание"}</button>}</div></section></div>;
+}
+
+function RunResultWidgets({ result }: { result: RunResult | null }) {
+  if (!result?.available) return null;
+  return <section className="run-results"><div className="run-results-head"><div><span className="eyebrow">РЕЗУЛЬТАТ XYOPS</span><h3>Выходные данные задания</h3></div><small>Получено {formatDateTime(result.capturedAt)}</small></div>{result.summary && <div className="run-result-summary"><strong>Итог</strong><p>{result.summary}</p></div>}{result.values.length > 0 && <div className="run-result-values">{result.values.map((item) => <article key={item.key}><small>{item.label}</small><strong>{item.value}</strong></article>)}</div>}{result.table && <div className="run-result-table-wrap"><table className="run-result-table"><thead><tr>{result.table.columns.map((column, index) => <th key={`${column}-${index}`}>{column}</th>)}</tr></thead><tbody>{result.table.rows.map((row, rowIndex) => <tr key={rowIndex}>{row.map((cell, cellIndex) => <td key={cellIndex}>{cell}</td>)}</tr>)}</tbody></table></div>}{result.links.length > 0 && <div className="run-result-links"><strong>Ссылки</strong>{result.links.map((link) => <a key={link.id} href={link.url} target="_blank" rel="noreferrer noopener"><span>↗</span><div><b>{link.title}</b><small>{link.host}</small></div></a>)}</div>}{result.files.length > 0 && <div className="run-result-files"><strong>Файлы</strong>{result.files.map((file) => <a key={file.id} href={file.downloadUrl} download><span>⇩</span><div><b>{file.filename}</b><small>{formatBytes(file.size)} · {file.mimeType}</small></div></a>)}</div>}{result.truncated && <p className="run-result-note">Часть результата скрыта из-за ограничений безопасного отображения.</p>}</section>;
+}
+
+function formatBytes(value: number) {
+  if (!value) return "Размер не указан";
+  const units = ["Б", "КБ", "МБ", "ГБ"];
+  let size = value;
+  let index = 0;
+  while (size >= 1024 && index < units.length - 1) { size /= 1024; index += 1; }
+  return `${size >= 10 || index === 0 ? Math.round(size) : size.toFixed(1)} ${units[index]}`;
 }
 
 function formatDateTime(value: number) { return value ? new Date(value).toLocaleString("ru-RU") : "—"; }
 
 function RunStatusBadge({ status }: { status: RunStatus }) {
-  const labels: Record<RunStatus, string> = { queued: "В очереди", running: "Выполняется", success: "Успешно", failed: "Ошибка", unknown: "Неизвестно" };
-  const tones: Record<RunStatus, string> = { queued: "warning", running: "violet", success: "success", failed: "error", unknown: "neutral" };
+  const labels: Record<RunStatus, string> = { queued: "В очереди", running: "Выполняется", success: "Успешно", failed: "Ошибка", cancelled: "Остановлено", unknown: "Неизвестно" };
+  const tones: Record<RunStatus, string> = { queued: "warning", running: "violet", success: "success", failed: "error", cancelled: "neutral", unknown: "neutral" };
   return <Status tone={tones[status]}>{labels[status]}</Status>;
 }
 
@@ -432,6 +621,85 @@ function PersistentConnectionSettings({ notify }: { notify: (message: string) =>
   </>;
 }
 
+
+const exampleCatalogPolicy: CatalogPolicySet = {
+  version: 1,
+  defaultEffect: "allow",
+  adminBypass: true,
+  rules: [
+    { id: "hide-production", effect: "deny", users: [], groups: ["interns"], roles: [], categories: ["Production"], processes: [] },
+    { id: "allow-dba-backups", effect: "allow", users: [], groups: ["dba"], roles: [], categories: [], processes: ["database-backup"] },
+  ],
+};
+
+function CatalogPolicyEditor({ notify }: { notify: (message: string) => void }) {
+  const [adminToken, setAdminToken] = useState(() => typeof window === "undefined" ? "" : window.sessionStorage.getItem("xyops-admin-token") ?? "");
+  const [text, setText] = useState(JSON.stringify(exampleCatalogPolicy, null, 2));
+  const [source, setSource] = useState<"database" | "environment" | "default" | null>(null);
+  const [updatedAt, setUpdatedAt] = useState<number | null>(null);
+  const [busy, setBusy] = useState<"load" | "save" | null>(null);
+
+  async function loadPolicies() {
+    setBusy("load");
+    try {
+      const response = await fetch("/api/integrations/catalog/policies", { headers: { "x-admin-token": adminToken }, cache: "no-store" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Не удалось загрузить политики");
+      window.sessionStorage.setItem("xyops-admin-token", adminToken);
+      setText(JSON.stringify(data.policy, null, 2));
+      setSource(data.source ?? "default");
+      setUpdatedAt(data.updatedAt ?? null);
+    } catch (error) { notify(error instanceof Error ? error.message : "Ошибка загрузки политик"); }
+    finally { setBusy(null); }
+  }
+
+  async function savePolicies() {
+    setBusy("save");
+    try {
+      const policy = JSON.parse(text) as CatalogPolicySet;
+      const response = await fetch("/api/integrations/catalog/policies", { method: "PUT", headers: { "content-type": "application/json", "x-admin-token": adminToken }, body: JSON.stringify({ policy }) });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Не удалось сохранить политики");
+      window.sessionStorage.setItem("xyops-admin-token", adminToken);
+      setText(JSON.stringify(data.policy, null, 2));
+      setSource("database");
+      setUpdatedAt(data.updatedAt ?? Date.now());
+      notify("Политики каталога сохранены");
+    } catch (error) { notify(error instanceof Error ? error.message : "Некорректный JSON политик"); }
+    finally { setBusy(null); }
+  }
+
+  return <section className="panel policy-editor"><div className="panel-title"><div><span className="eyebrow">CATALOG ACCESS</span><h2>Видимость категорий и процессов</h2><p>Правила применяются сервером к каталогу, dynamic options, запуску и safe re-run. Deny имеет приоритет над allow.</p></div>{source && <Status tone={source === "database" ? "success" : "neutral"}>{source === "database" ? "D1" : source === "environment" ? "ENV" : "По умолчанию"}</Status>}</div><div className="policy-toolbar"><label>ADMIN_TOKEN<input type="password" value={adminToken} onChange={(event) => setAdminToken(event.target.value)} placeholder="Токен администратора" autoComplete="off" /></label><button className="secondary" disabled={!adminToken || Boolean(busy)} onClick={() => void loadPolicies()}>{busy === "load" ? "Загрузка…" : "Загрузить"}</button><button className="primary" disabled={!adminToken || Boolean(busy)} onClick={() => void savePolicies()}>{busy === "save" ? "Сохранение…" : "Сохранить политики"}</button></div><textarea className="policy-json" value={text} onChange={(event) => setText(event.target.value)} spellCheck={false} aria-label="JSON политик каталога" /><div className="policy-help"><span>Субъекты: <code>users</code>, <code>groups</code>, <code>roles</code></span><span>Ресурсы: <code>categories</code>, <code>processes</code></span><span>{updatedAt ? `Сохранено: ${new Date(updatedAt).toLocaleString("ru-RU")}` : "defaultEffect: allow сохраняет текущую доступность"}</span></div></section>;
+}
+
+
+const exampleApprovalPolicy = {
+  version: 1,
+  dangerousDefaults: { requiredApprovals: 1, approverRoles: ["admin"], approverGroups: [], requesterCannotApprove: true, expiresMinutes: 60, ruleId: "dangerous-default" },
+  rules: [{ id: "production-two-person", effect: "require", requesterUsers: [], requesterRoles: [], requesterGroups: [], categories: ["Production"], processes: [], dangerous: null, requiredApprovals: 2, approverRoles: ["admin"], approverGroups: ["ops-leads"], requesterCannotApprove: true, expiresMinutes: 30 }],
+};
+
+function ApprovalPolicyEditor({ notify }: { notify: (message: string) => void }) {
+  const [adminToken, setAdminToken] = useState(() => typeof window === "undefined" ? "" : window.sessionStorage.getItem("xyops-admin-token") ?? "");
+  const [text, setText] = useState(JSON.stringify(exampleApprovalPolicy, null, 2));
+  const [source, setSource] = useState<"database" | "environment" | "default" | null>(null);
+  const [busy, setBusy] = useState<"load" | "save" | null>(null);
+  async function request(method: "GET" | "PUT") {
+    setBusy(method === "GET" ? "load" : "save");
+    try {
+      const body = method === "PUT" ? JSON.stringify({ policy: JSON.parse(text) }) : undefined;
+      const response = await fetch("/api/integrations/approval/policies", { method, headers: { "content-type": "application/json", "x-admin-token": adminToken }, body, cache: "no-store" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Не удалось обработать approval policy");
+      window.sessionStorage.setItem("xyops-admin-token", adminToken);
+      setText(JSON.stringify(data.policy, null, 2)); setSource(data.source ?? "database");
+      notify(method === "GET" ? "Approval policy загружена" : "Approval policy сохранена");
+    } catch (error) { notify(error instanceof Error ? error.message : "Некорректная approval policy"); }
+    finally { setBusy(null); }
+  }
+  return <section className="panel policy-editor"><div className="panel-title"><div><span className="eyebrow">APPROVAL GATES</span><h2>Согласование опасных процессов</h2><p>Последнее подходящее правило определяет требование. По умолчанию dangerous-процесс требует одного независимого администратора.</p></div>{source && <Status tone={source === "database" ? "success" : "neutral"}>{source === "database" ? "D1" : source === "environment" ? "ENV" : "По умолчанию"}</Status>}</div><div className="policy-toolbar"><label>ADMIN_TOKEN<input type="password" value={adminToken} onChange={(event) => setAdminToken(event.target.value)} placeholder="Токен администратора" autoComplete="off" /></label><button className="secondary" disabled={!adminToken || Boolean(busy)} onClick={() => void request("GET")}>{busy === "load" ? "Загрузка…" : "Загрузить"}</button><button className="primary" disabled={!adminToken || Boolean(busy)} onClick={() => void request("PUT")}>{busy === "save" ? "Сохранение…" : "Сохранить approval policy"}</button></div><textarea className="policy-json" value={text} onChange={(event) => setText(event.target.value)} spellCheck={false} aria-label="JSON политики согласований" /><div className="policy-help"><span><code>effect: require</code> или <code>none</code></span><span>Согласующие: roles / groups</span><span>Инициатор не может одобрить свою заявку по умолчанию</span></div></section>;
+}
+
 function Settings({ routes, catalog, catalogLoading, onSync, onRoutesChange, notify }: { routes: AutomationRoute[]; catalog: CatalogEvent[]; catalogLoading: boolean; onSync: () => void; onRoutesChange: (routes: AutomationRoute[]) => void; notify: (message: string) => void }) {
   const [expanded, setExpanded] = useState<string | null>(routes[0]?.key ?? null);
   const [operation, setOperation] = useState<string>(routeOperations[0][0]);
@@ -471,13 +739,15 @@ function Settings({ routes, catalog, catalogLoading, onSync, onRoutesChange, not
   }
   return <div className="settings-page">
     <PersistentConnectionSettings notify={notify} />
+    <CatalogPolicyEditor notify={notify} />
+    <ApprovalPolicyEditor notify={notify} />
     <section className="panel inspector-panel"><span className="service-icon violet">◇</span><div><span className="eyebrow">CONTRACT INSPECTOR</span><h2>Проверка реальной схемы XYOps</h2><p>Read-only утилита собирает структуру Events, Workflows, Toolsets, targets и jobs, удаляя ключ API, заголовки, сырые ответы и секретные значения.</p></div><code>npm run inspect:xyops</code><Status tone="neutral">Запуск локально</Status></section>
     <section className="panel contract-history"><div className="panel-title"><div><h2>История контрактов XYOps</h2><p>Сохраняются только синхронизации, в которых изменился каталог</p></div><Status tone="violet">{catalogHistory.length} версий</Status></div><div className="history-list">{catalogHistory.map((entry) => <article key={entry.id}><i>⌁</i><div><strong>{new Date(entry.syncedAt).toLocaleString("ru-RU")}</strong><small>{entry.processCount} процессов</small></div><span><b className="new">＋{entry.changes.filter((change) => change.kind === "new").length}</b><b className="changed">△{entry.changes.filter((change) => change.kind === "changed").length}</b><b className="removed">−{entry.changes.filter((change) => change.kind === "removed").length}</b></span></article>)}{!catalogHistory.length && <div className="catalog-empty"><strong>История пока пуста</strong><span>Первая версия появится после синхронизации реального каталога XYOps.</span></div>}</div></section>
     <section className="panel routes-panel"><div className="panel-title"><div><h2>Маршруты автоматизации</h2><p>Привяжите действие интерфейса к любому Event или Workflow из каталога XYOps</p></div><Status tone="success">D1 / SQLite</Status></div>
       <div className="route-editor"><label>Операция<select value={operation} onChange={(event) => setOperation(event.target.value)}>{routeOperations.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label><label>Event / Workflow<select value={selectedEvent?.id ?? ""} onChange={(event) => { setEventId(event.target.value); setRouteTitle(""); }} disabled={!catalog.length}>{catalog.map((event) => <option value={event.id} key={event.id}>{event.title} · {event.kind}</option>)}</select></label><label>Название маршрута<input value={routeTitle} onChange={(event) => setRouteTitle(event.target.value)} placeholder={selectedEvent?.title ?? "Сначала синхронизируйте каталог"} /></label><label>ADMIN_TOKEN<input type="password" value={adminToken} onChange={(event) => setAdminToken(event.target.value)} placeholder="Токен для сохранения" autoComplete="off" /></label><button className="primary" disabled={!selectedEvent || !adminToken || savingRoutes} onClick={addRoute}>{savingRoutes ? "Сохранение…" : "＋ Добавить маршрут"}</button></div>
       <div className="route-list">{routes.map((route) => <article className={`route-card ${expanded === route.key ? "expanded" : ""}`} key={route.key}>
         <button className="route-main" onClick={() => setExpanded(expanded === route.key ? null : route.key)}><span className={`route-kind ${route.kind}`}>{route.kind === "workflow" ? "⌘" : "▶"}</span><span><strong>{route.title}</strong><small>{route.operation}</small></span><Status tone={route.kind === "workflow" ? "violet" : "success"}>{route.kind === "workflow" ? "Workflow" : "Event"}</Status><code>{route.schemaVersion ?? route.eventId}</code><b className={routeSchemaDrift(route, catalog.find((event) => event.id === route.eventId)) ? "schema-warning" : ""}>{routeSchemaDrift(route, catalog.find((event) => event.id === route.eventId)) ? "Схема изменилась" : route.enabled ? "Совместим" : "Отключён"}</b><i>{expanded === route.key ? "⌃" : "⌄"}</i></button>
-        {expanded === route.key && <div className="route-details"><div><h4>Пользовательские переменные</h4><div className="variable-table"><div className="variable-row head"><span>Поле</span><span>Тип</span><span>Секция / условие</span><span>Обязательное</span></div>{route.fields.map((field) => <div className="variable-row" key={field.key}><span><strong>{field.label}</strong><code>{field.key}</code></span><span>{field.type}</span><span><Status tone="neutral">{field.groupPath?.join(" / ") || field.section || field.visibleWhen ? `${field.groupPath?.join(" / ") || field.section || "Параметры"}${field.visibleWhen ? ` · ${field.visibleWhen.field}` : ""}` : field.target ?? "params"}</Status></span><span>{field.required ? "Да" : "Нет"}</span></div>)}</div></div><aside><h4>Параметры запуска</h4><p><span>Event ID</span><code>{route.eventId}</code></p><p><span>Targets</span><strong>{route.targets.length ? route.targets.join(", ") : "из Event"}</strong></p>{!catalog.some((event) => event.id === route.eventId) && <Status tone="warning">Процесс отсутствует в каталоге</Status>}<div className="route-actions"><button className="secondary" disabled={!adminToken || savingRoutes || !catalog.some((event) => event.id === route.eventId)} onClick={() => setReviewRouteKey(route.key)}>Сравнить схему</button><button className="secondary" disabled={!adminToken || savingRoutes} onClick={() => void persistRoutes(routes.map((item) => item.key === route.key ? { ...item, enabled: !item.enabled } : item), route.enabled ? "Маршрут отключён" : "Маршрут включён")}>{route.enabled ? "Отключить" : "Включить"}</button><button className="danger-button" disabled={!adminToken || savingRoutes} onClick={() => void persistRoutes(routes.filter((item) => item.key !== route.key), "Маршрут удалён")}>Удалить</button></div></aside></div>}
+        {expanded === route.key && <div className="route-details"><div><h4>Пользовательские переменные</h4><div className="variable-table"><div className="variable-row head"><span>Поле</span><span>Тип</span><span>Секция / условие</span><span>Обязательное</span></div>{route.fields.map((field) => <div className="variable-row" key={field.key}><span><strong>{field.label}</strong><code>{field.key}</code></span><span>{field.type}</span><span><Status tone="neutral">{field.groupPath?.join(" / ") || field.section || field.visibleWhen ? `${field.groupPath?.join(" / ") || field.section || "Параметры"}${field.visibleWhen ? ` · ${conditionFieldNames(field.visibleWhen).join(", ")}` : ""}` : field.target ?? "params"}</Status></span><span>{field.required ? "Да" : "Нет"}</span></div>)}</div></div><aside><h4>Параметры запуска</h4><p><span>Event ID</span><code>{route.eventId}</code></p><p><span>Targets</span><strong>{route.targets.length ? route.targets.join(", ") : "из Event"}</strong></p>{!catalog.some((event) => event.id === route.eventId) && <Status tone="warning">Процесс отсутствует в каталоге</Status>}<div className="route-actions"><button className="secondary" disabled={!adminToken || savingRoutes || !catalog.some((event) => event.id === route.eventId)} onClick={() => setReviewRouteKey(route.key)}>Сравнить схему</button><button className="secondary" disabled={!adminToken || savingRoutes} onClick={() => void persistRoutes(routes.map((item) => item.key === route.key ? { ...item, enabled: !item.enabled } : item), route.enabled ? "Маршрут отключён" : "Маршрут включён")}>{route.enabled ? "Отключить" : "Включить"}</button><button className="danger-button" disabled={!adminToken || savingRoutes} onClick={() => void persistRoutes(routes.filter((item) => item.key !== route.key), "Маршрут удалён")}>Удалить</button></div></aside></div>}
       </article>)}</div>
       {!routes.length && <div className="catalog-empty"><strong>Маршрутов пока нет</strong><span>Выберите процесс из каталога и операцию интерфейса.</span></div>}
       <div className="routes-footer"><span>Маршруты хранятся постоянно в D1. Секретные значения полей не копируются из XYOps и API Key не попадает в браузер.</span></div>
@@ -535,17 +805,7 @@ function ProcessModal({ event, preset = {}, close, submit }: { event: CatalogEve
 }
 
 function conditionMatches(field: RouteField, values: Record<string, unknown>) {
-  const condition = field.visibleWhen;
-  if (!condition) return true;
-  const current = values[condition.field];
-  const truthy = current === true || current === "true" || current === "1" || current === "on" || Array.isArray(current) && current.length > 0 || typeof current === "string" && current.trim().length > 0;
-  if (condition.operator === "truthy") return truthy;
-  if (condition.operator === "falsy") return !truthy;
-  const expected = Array.isArray(condition.value) ? condition.value.map(String) : String(condition.value ?? "");
-  const actual = Array.isArray(current) ? current.map(String) : String(current ?? "");
-  if (condition.operator === "in") return Array.isArray(expected) && (Array.isArray(actual) ? actual.some((value) => expected.includes(value)) : expected.includes(actual));
-  const equal = Array.isArray(actual) ? actual.includes(String(expected)) : actual === expected;
-  return condition.operator === "notEquals" ? !equal : equal;
+  return fieldConditionMatches(field.visibleWhen, values);
 }
 
 function GeneratedFields({ fields, eventId, preset = {} }: { fields: RouteField[]; eventId: string; preset?: Record<string, string> }) {

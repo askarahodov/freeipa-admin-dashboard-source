@@ -20,6 +20,16 @@ class MemoryD1 {
   }
 }
 
+function adminEnv(values = {}) {
+  return {
+    PORTAL_IDENTITY_MODE: "static",
+    PORTAL_STATIC_IDENTITY: "admin@example.test",
+    PORTAL_DEFAULT_ROLE: "viewer",
+    PORTAL_RBAC_JSON: JSON.stringify({ "admin@example.test": "admin" }),
+    ...values,
+  };
+}
+
 test("healthcheck does not depend on database or external integrations", async () => {
   const response = await worker.fetch(new Request("https://dashboard.test/api/integrations/health"), {
     DB: { prepare() { throw new Error("database must not be touched"); } },
@@ -32,7 +42,7 @@ test("healthcheck does not depend on database or external integrations", async (
 
 test("settings require admin auth, encrypt secrets and persist across requests", async () => {
   const db = new MemoryD1();
-  const env = { DB: db, ADMIN_TOKEN: "admin-token", CONFIG_ENCRYPTION_KEY: `  ${Buffer.alloc(32, 7).toString("base64")}  ` };
+  const env = adminEnv({ DB: db, ADMIN_TOKEN: "admin-token", CONFIG_ENCRYPTION_KEY: `  ${Buffer.alloc(32, 7).toString("base64")}  ` });
 
   const unauthorized = await worker.fetch(new Request("https://dashboard.test/api/integrations/settings"), env, {});
   assert.equal(unauthorized.status, 401);
@@ -79,7 +89,7 @@ test("FreeIPA connection test replaces opaque runtime failures with actionable d
       method: "POST",
       headers: { "content-type": "application/json", "x-admin-token": "admin-token" },
       body: JSON.stringify({ service: "freeipa", ipaUrl: "https://ipa.example.test", ipaUsername: "reader", ipaPassword: "secret" }),
-    }), { ADMIN_TOKEN: "admin-token" }, {});
+    }), adminEnv({ ADMIN_TOKEN: "admin-token" }), {});
     assert.equal(response.status, 502);
     const body = await response.json();
     assert.match(body.error, /FreeIPA недоступен из среды портала на этапе «вход»/);
@@ -103,7 +113,7 @@ test("FreeIPA connection test uses the Docker Node Gateway when configured", asy
       method: "POST",
       headers: { "content-type": "application/json", "x-admin-token": "admin-token" },
       body: JSON.stringify({ service: "freeipa", ipaUrl: "https://ipa.example.test", ipaUsername: "reader", ipaPassword: "secret" }),
-    }), { ADMIN_TOKEN: "admin-token", IPA_NODE_GATEWAY_URL: "http://127.0.0.1:3301", IPA_NODE_GATEWAY_TOKEN: "gateway-token" }, {});
+    }), adminEnv({ ADMIN_TOKEN: "admin-token", IPA_NODE_GATEWAY_URL: "http://127.0.0.1:3301", IPA_NODE_GATEWAY_TOKEN: "gateway-token" }), {});
     assert.equal(response.status, 200);
     assert.equal((await response.json()).service, "freeipa");
   } finally {
@@ -141,7 +151,7 @@ test("integration status probes FreeIPA through the Docker Node Gateway", async 
 
 test("automation routes require admin auth and persist without secret defaults", async () => {
   const db = new MemoryD1();
-  const env = { DB: db, ADMIN_TOKEN: "admin-token", CONFIG_ENCRYPTION_KEY: Buffer.alloc(32, 9).toString("base64") };
+  const env = adminEnv({ DB: db, ADMIN_TOKEN: "admin-token", CONFIG_ENCRYPTION_KEY: Buffer.alloc(32, 9).toString("base64") });
   const route = {
     key: "disable-user",
     title: "Disable user",

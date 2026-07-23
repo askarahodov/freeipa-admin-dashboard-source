@@ -4,6 +4,7 @@ import handler from "vinext/server/app-router-entry";
 import type { AutomationRoute, CatalogEvent, RouteField } from "../automation-types";
 import { fieldConditionMatches, normalizeFieldCondition } from "../field-conditions";
 import { listRunReplaySummaries, readRunReplay, saveRunReplay, type RunReplaySummary } from "../run-replays";
+import { listRunResults, readRunResultFile, saveRunResult, type PublicRunResult } from "../run-results";
 
 interface Env {
   ASSETS: Fetcher;
@@ -18,6 +19,7 @@ interface Env {
   XYOPS_API_KEY?: string;
   XYOPS_EVENT_ID?: string;
   XYOPS_ROUTES_JSON?: string;
+  XYOPS_RESULT_FILE_MAX_BYTES?: string;
   CONFIG_ENCRYPTION_KEY?: string;
   ADMIN_TOKEN?: string;
   DEMO_MODE?: string;
@@ -225,12 +227,13 @@ function runSubject(values: Record<string, unknown>, targets: string[] = []): st
   return targets.filter(Boolean).slice(0, 3).join(", ").slice(0, 240) || "—";
 }
 
-function publicRun(run: OperationRun, replay: RunReplaySummary | undefined, canRun: boolean) {
+function publicRun(run: OperationRun, replay: RunReplaySummary | undefined, result: PublicRunResult | undefined, canRun: boolean) {
   const active = ["queued", "running", "unknown"].includes(run.status);
   const terminal = ["success", "failed", "cancelled"].includes(run.status);
   return {
     ...run,
     error: run.error || null,
+    result: result ?? null,
     actions: {
       cancel: canRun && run.mode === "live" && active && /^[a-z0-9_]+$/.test(run.jobId),
       rerun: canRun && terminal && Boolean(replay?.replayable) && !run.eventId.startsWith("freeipa:"),
@@ -298,20 +301,28 @@ function extractJobStages(row: Record<string, unknown>): RunStage[] {
 }
 
 async function syncOperationRuns(env: Env, xyopsUrl: string | null, runs: OperationRun[]): Promise<OperationRun[]> {
-  if (!env.DB || !xyopsUrl || !env.XYOPS_API_KEY || !runs.some((run) => run.mode === "live" && ["queued", "running", "unknown"].includes(run.status))) return runs;
+  if (!env.DB || !xyopsUrl || !env.XYOPS_API_KEY) return runs;
+  const existingResults = await listRunResults(env, runs.map((run) => run.id));
+  const activeRuns = runs.filter((run) => run.mode === "live" && ["queued", "running", "unknown"].includes(run.status) && run.jobId);
+  const resultPending = runs.filter((run) => run.mode === "live" && ["success", "failed"].includes(run.status) && run.jobId && !existingResults.has(run.id));
+  if (!activeRuns.length && !resultPending.length) return runs;
   try {
-    const response = await fetch(`${xyopsUrl}/api/app/get_active_jobs/v1`, { headers: { "x-api-key": env.XYOPS_API_KEY, accept: "application/json" }, signal: AbortSignal.timeout(12000) });
-    if (!response.ok) return runs;
-    const rows = extractJobRows(await response.json().catch(() => null));
+    let rows: Array<Record<string, unknown>> = [];
+    if (activeRuns.length) {
+      try {
+        const response = await fetch(`${xyopsUrl}/api/app/get_active_jobs/v1`, { headers: { "x-api-key": env.XYOPS_API_KEY, accept: "application/json" }, signal: AbortSignal.timeout(12000) });
+        if (response.ok) rows = extractJobRows(await response.json().catch(() => null));
+      } catch {}
+    }
     const byId = new Map(rows.map((row) => [String(row.job_id ?? row.jobId ?? row.id ?? ""), row]));
-    const unresolved = runs.filter((run) => run.mode === "live" && ["queued", "running", "unknown"].includes(run.status) && run.jobId && !byId.has(run.jobId));
-    if (unresolved.length) {
-      const ids = unresolved.slice(0, 100).map((run) => run.jobId);
+    const detailRuns = [...activeRuns.filter((run) => !byId.has(run.jobId)), ...resultPending];
+    const ids = Array.from(new Set(detailRuns.map((run) => run.jobId).filter(Boolean))).slice(0, 100);
+    if (ids.length) {
       try {
         const detailsResponse = await fetch(`${xyopsUrl}/api/app/get_jobs/v1`, {
           method: "POST",
           headers: { "content-type": "application/json", "x-api-key": env.XYOPS_API_KEY, accept: "application/json" },
-          body: JSON.stringify({ ids, verbose: false }),
+          body: JSON.stringify({ ids, verbose: true }),
           signal: AbortSignal.timeout(12000),
         });
         const detailsPayload = await detailsResponse.json().catch(() => null) as Record<string, unknown> | null;
@@ -332,13 +343,16 @@ async function syncOperationRuns(env: Env, xyopsUrl: string | null, runs: Operat
       const nextStatus = jobLifecycleStatus(row, rows.includes(row));
       const nextStages = extractJobStages(row);
       const stagesChanged = nextStages.length > 0 && JSON.stringify(nextStages) !== JSON.stringify(run.stages);
-      if ((nextStatus === "unknown" || nextStatus === run.status) && !stagesChanged) continue;
-      if (nextStatus !== "unknown") run.status = nextStatus;
+      const statusChanged = nextStatus !== "unknown" && nextStatus !== run.status;
+      if (statusChanged) run.status = nextStatus;
       if (nextStages.length) run.stages = nextStages;
-      run.updatedAt = now;
-      if (nextStatus === "success" || nextStatus === "failed") run.completedAt = jobTimestamp(row.completed ?? row.completed_at ?? row.finished_at) ?? now;
-      if (nextStatus === "failed") run.error = String(row.description ?? row.error ?? row.message ?? "XYOps job failed").slice(0, 500);
-      await saveOperationRun(env, run);
+      if (statusChanged || stagesChanged) {
+        run.updatedAt = now;
+        if (["success", "failed", "cancelled"].includes(run.status)) run.completedAt = jobTimestamp(row.completed ?? row.completed_at ?? row.finished_at) ?? now;
+        if (run.status === "failed") run.error = String(row.description ?? row.error ?? row.message ?? "XYOps job failed").slice(0, 500);
+        await saveOperationRun(env, run);
+      }
+      if (["success", "failed"].includes(run.status)) await saveRunResult(env, run.id, run.jobId, row);
     }
   } catch {}
   return runs;
@@ -1113,6 +1127,43 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
     return json({ mode: demoMode ? "demo" : ipaConfigured || xyopsConfigured ? "live" : "unconfigured", viewer: requestActor(request), access: { identity: access.identity, role: access.role, permissions: access.permissions }, persistence: { available: Boolean(baseEnv.DB), configured: Boolean(baseEnv.CONFIG_ENCRYPTION_KEY) }, freeipa: { configured: ipaConfigured, reachable: ipaProbe.reachable, error: ipaProbe.error }, xyops: { configured: xyopsConfigured, reachable: xyopsReachable } });
   }
 
+  const runFileMatch = url.pathname.match(/^\/api\/integrations\/runs\/([A-Za-z0-9_-]{1,160})\/files\/([A-Za-z0-9_-]{1,160})$/);
+  if (request.method === "GET" && runFileMatch) {
+    const denied = requirePortalPermission(request, baseEnv, "directory.read");
+    if (denied) return denied;
+    if (!xyopsUrl || !env.XYOPS_API_KEY) return json({ error: "XYOps is not configured" }, 503);
+    const runId = runFileMatch[1];
+    const run = (await listOperationRuns(baseEnv, 200)).find((item) => item.id === runId);
+    if (!run || run.mode !== "live" || !/^[a-z0-9_]+$/.test(run.jobId)) return json({ error: "Файл запуска не найден" }, 404);
+    const file = await readRunResultFile(baseEnv, runId, runFileMatch[2]);
+    if (!file) return json({ error: "Файл результата не найден" }, 404);
+    try {
+      const response = await fetch(new URL(file.path, `${xyopsUrl}/`), {
+        method: "GET",
+        headers: { "x-api-key": env.XYOPS_API_KEY, accept: "application/octet-stream" },
+        redirect: "manual",
+        signal: AbortSignal.timeout(30000),
+      });
+      if (response.status >= 300 && response.status < 400) return json({ error: "XYOps перенаправил запрос файла; скачивание заблокировано" }, 502);
+      if (!response.ok || !response.body) return json({ error: "XYOps не вернул файл результата" }, response.status === 404 ? 404 : 502);
+      const configuredLimit = Number(env.XYOPS_RESULT_FILE_MAX_BYTES ?? 52_428_800);
+      const maxBytes = Number.isFinite(configuredLimit) && configuredLimit > 0 ? Math.min(configuredLimit, 536_870_912) : 52_428_800;
+      const contentLength = Number(response.headers.get("content-length") ?? 0);
+      if (Number.isFinite(contentLength) && contentLength > maxBytes) return json({ error: "Файл результата превышает разрешённый размер", maxBytes }, 413);
+      const fallbackName = file.filename.replace(/[^ -~]/g, "_").replaceAll(String.fromCharCode(34), "_").replaceAll(String.fromCharCode(92), "_") || "result.bin";
+      const headers = new Headers({
+        "content-type": "application/octet-stream",
+        "content-disposition": `attachment; filename="${fallbackName}"; filename*=UTF-8''${encodeURIComponent(file.filename)}`,
+        "cache-control": "private, no-store",
+        "x-content-type-options": "nosniff",
+      });
+      if (contentLength > 0) headers.set("content-length", String(contentLength));
+      return new Response(response.body, { status: 200, headers });
+    } catch {
+      return json({ error: "Не удалось скачать файл результата из XYOps" }, 502);
+    }
+  }
+
   const runActionMatch = url.pathname.match(/^\/api\/integrations\/runs\/([A-Za-z0-9_-]{1,160})\/(cancel|rerun)$/);
   if (request.method === "POST" && runActionMatch) {
     const denied = requirePortalPermission(request, baseEnv, "xyops.run");
@@ -1141,7 +1192,7 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
         run.updatedAt = now;
         run.completedAt = now;
         await saveOperationRun(baseEnv, run);
-        return json({ ok: true, action: "cancel", run: publicRun(run, undefined, true) });
+        return json({ ok: true, action: "cancel", run: publicRun(run, undefined, undefined, true) });
       } catch {
         return json({ error: "Не удалось отправить команду остановки в XYOps" }, 502);
       }
@@ -1181,8 +1232,11 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const todayRuns = runs.filter((run) => run.startedAt >= today.getTime());
     const access = portalAccess(request, baseEnv);
-    const replay = await listRunReplaySummaries(baseEnv, runs.map((run) => run.id));
-    return json({ persistenceAvailable: Boolean(baseEnv.DB), runs: runs.map((run) => publicRun(run, replay.get(run.id), access.permissions.includes("xyops.run"))), stats: {
+    const [replay, results] = await Promise.all([
+      listRunReplaySummaries(baseEnv, runs.map((run) => run.id)),
+      listRunResults(baseEnv, runs.map((run) => run.id)),
+    ]);
+    return json({ persistenceAvailable: Boolean(baseEnv.DB), runs: runs.map((run) => publicRun(run, replay.get(run.id), results.get(run.id), access.permissions.includes("xyops.run"))), stats: {
       today: todayRuns.length,
       queued: todayRuns.filter((run) => run.status === "queued" || run.status === "running").length,
       success: todayRuns.filter((run) => run.status === "success").length,

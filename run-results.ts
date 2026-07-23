@@ -232,7 +232,7 @@ function publicFromRow(row: Record<string, unknown>): PublicRunResult {
   const summary = cleanText(row.summary ?? "", 1200);
   const values = parseJsonArray<RunResultValue>(row.values_json).slice(0, 24);
   const links = parseJsonArray<RunResultLink>(row.links_json).slice(0, 12);
-  const files = storedFiles.slice(0, 20).map(({ path: _path, ...file }) => ({ ...file, downloadUrl: `/api/integrations/runs/${encodeURIComponent(runId)}/files/${encodeURIComponent(file.id)}` }));
+  const files = storedFiles.slice(0, 20).map((file) => ({ id: file.id, filename: file.filename, size: file.size, mimeType: file.mimeType, downloadUrl: `/api/integrations/runs/${encodeURIComponent(runId)}/files/${encodeURIComponent(file.id)}` }));
   return { available: Boolean(summary || values.length || links.length || files.length || table), summary, values, links, files, table, capturedAt: Number(row.captured_at ?? 0), truncated: Number(row.truncated ?? 0) === 1 };
 }
 

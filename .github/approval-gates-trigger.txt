@@ -1,1 +1,1 @@
-Retry the one-time approval gate integration workflow after enabling patch failure capture.
+Retry the one-time approval gate integration workflow with corrected UI anchors.

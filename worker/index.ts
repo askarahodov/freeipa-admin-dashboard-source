@@ -19,6 +19,8 @@ interface Env {
   CONFIG_ENCRYPTION_KEY?: string;
   ADMIN_TOKEN?: string;
   DEMO_MODE?: string;
+  PORTAL_DEFAULT_ROLE?: string;
+  PORTAL_RBAC_JSON?: string;
   IMAGES: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {
@@ -56,6 +58,14 @@ type OperationRun = {
 type CatalogChange = { id: string; title: string; kind: "new" | "changed" | "removed" };
 type CatalogSnapshot = { events: CatalogEvent[]; syncedAt: number };
 type CatalogHistoryEntry = { id: string; syncedAt: number; changes: CatalogChange[]; processCount: number };
+type PortalRole = "viewer" | "operator" | "admin";
+type PortalPermission = "directory.read" | "freeipa.write" | "freeipa.delete" | "xyops.run" | "settings.manage";
+
+const rolePermissions: Record<PortalRole, PortalPermission[]> = {
+  viewer: ["directory.read"],
+  operator: ["directory.read", "freeipa.write", "xyops.run"],
+  admin: ["directory.read", "freeipa.write", "freeipa.delete", "xyops.run", "settings.manage"],
+};
 
 // Image security config. SVG sources with .svg extension auto-skip the
 // optimization endpoint on the client side (served directly, no proxy).
@@ -134,6 +144,35 @@ function requestActor(request: Request): string {
     try { return decodeURIComponent(encodedName).slice(0, 160); } catch {}
   }
   return (request.headers.get("oai-authenticated-user-email") || "portal-user").slice(0, 160);
+}
+
+function portalRole(value: unknown): PortalRole | null {
+  return value === "viewer" || value === "operator" || value === "admin" ? value : null;
+}
+
+function portalAccess(request: Request, env: Env): { identity: string; role: PortalRole; permissions: PortalPermission[] } {
+  const identity = (request.headers.get("oai-authenticated-user-email") || "portal-user").trim().toLowerCase().slice(0, 160);
+  let role = portalRole(String(env.PORTAL_DEFAULT_ROLE || "").trim().toLowerCase()) ?? "admin";
+  if (env.PORTAL_RBAC_JSON) {
+    try {
+      const assignments = JSON.parse(env.PORTAL_RBAC_JSON) as unknown;
+      if (assignments && typeof assignments === "object" && !Array.isArray(assignments)) {
+        const values = assignments as Record<string, unknown>;
+        const normalized = Object.fromEntries(Object.entries(values).map(([key, value]) => [key.trim().toLowerCase(), value]));
+        role = portalRole(normalized[identity]) ?? portalRole(normalized["*"]) ?? role;
+      }
+    } catch {
+      // Invalid RBAC configuration never grants more than the explicit default role.
+    }
+  }
+  return { identity, role, permissions: rolePermissions[role] };
+}
+
+function requirePortalPermission(request: Request, env: Env, permission: PortalPermission): Response | null {
+  const access = portalAccess(request, env);
+  return access.permissions.includes(permission)
+    ? null
+    : json({ error: "Недостаточно прав для выполнения операции", requiredPermission: permission, role: access.role }, 403);
 }
 
 function runStatus(value: unknown): RunStatus {
@@ -499,6 +538,8 @@ function mergeSettingsInput(current: StoredSettings, body: Record<string, unknow
 }
 
 async function handleSettingsApi(request: Request, env: Env, url: URL): Promise<Response> {
+  const denied = requirePortalPermission(request, env, "settings.manage");
+  if (denied) return denied;
   if (!env.ADMIN_TOKEN) return json({ error: "ADMIN_TOKEN is not configured on the server" }, 503);
   if (!await adminAuthorized(request, env)) return json({ error: "Administrator authorization required" }, 401);
   if (request.method === "GET" && url.pathname === "/api/integrations/settings") {
@@ -1066,7 +1107,8 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
         : Promise.resolve({ reachable: false, error: null }),
       !demoMode && xyopsConfigured ? reachable(xyopsUrl) : false,
     ]);
-    return json({ mode: demoMode ? "demo" : ipaConfigured || xyopsConfigured ? "live" : "unconfigured", viewer: requestActor(request), persistence: { available: Boolean(baseEnv.DB), configured: Boolean(baseEnv.CONFIG_ENCRYPTION_KEY) }, freeipa: { configured: ipaConfigured, reachable: ipaProbe.reachable, error: ipaProbe.error }, xyops: { configured: xyopsConfigured, reachable: xyopsReachable } });
+    const access = portalAccess(request, baseEnv);
+    return json({ mode: demoMode ? "demo" : ipaConfigured || xyopsConfigured ? "live" : "unconfigured", viewer: requestActor(request), access: { identity: access.identity, role: access.role, permissions: access.permissions }, persistence: { available: Boolean(baseEnv.DB), configured: Boolean(baseEnv.CONFIG_ENCRYPTION_KEY) }, freeipa: { configured: ipaConfigured, reachable: ipaProbe.reachable, error: ipaProbe.error }, xyops: { configured: xyopsConfigured, reachable: xyopsReachable } });
   }
 
   if (request.method === "GET" && url.pathname === "/api/integrations/runs") {
@@ -1089,6 +1131,8 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
   }
 
   if (request.method === "PUT" && url.pathname === "/api/integrations/routes") {
+    const denied = requirePortalPermission(request, baseEnv, "settings.manage");
+    if (denied) return denied;
     if (!baseEnv.ADMIN_TOKEN || !await adminAuthorized(request, baseEnv)) return json({ error: "Administrator authorization required" }, 401);
     if (!baseEnv.DB || !baseEnv.CONFIG_ENCRYPTION_KEY) return json({ error: "Persistent encrypted storage is unavailable" }, 503);
     try {
@@ -1134,6 +1178,8 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
   }
 
   if (request.method === "POST" && url.pathname === "/api/integrations/catalog/run") {
+    const denied = requirePortalPermission(request, baseEnv, "xyops.run");
+    if (denied) return denied;
     let body: Record<string, unknown>;
     try { body = await request.json() as Record<string, unknown>; } catch { return json({ error: "Invalid JSON" }, 400); }
     const eventId = typeof body.eventId === "string" ? body.eventId : "";
@@ -1246,6 +1292,9 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
     let body: Record<string, unknown>;
     try { body = await request.json() as Record<string, unknown>; } catch { return json({ error: "Invalid JSON" }, 400); }
     if (typeof body.operation !== "string" || !allowedOperations.has(body.operation)) return json({ error: "Unsupported operation" }, 400);
+    const requiredPermission: PortalPermission = body.operation === "user_del" || body.operation === "group_del" ? "freeipa.delete" : "freeipa.write";
+    const denied = requirePortalPermission(request, baseEnv, requiredPermission);
+    if (denied) return denied;
     if (!boolValue(env.DEMO_MODE) && (!ipaUrl || !env.IPA_USERNAME || !env.IPA_PASSWORD)) return json({ error: "FreeIPA is not configured" }, 503);
     let call: ReturnType<typeof freeIpaDirectCall>;
     try {
@@ -1272,6 +1321,8 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
   }
 
   if (request.method === "POST" && url.pathname === "/api/integrations/actions") {
+    const denied = requirePortalPermission(request, baseEnv, "xyops.run");
+    if (denied) return denied;
     let body: Record<string, unknown>;
     try { body = await request.json() as Record<string, unknown>; } catch { return json({ error: "Invalid JSON" }, 400); }
     if (typeof body.operation !== "string" || !allowedOperations.has(body.operation)) return json({ error: "Unsupported operation" }, 400);

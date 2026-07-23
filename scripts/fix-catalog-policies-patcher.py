@@ -14,17 +14,17 @@ if text.count(status_block) != 1:
     raise RuntimeError("status compatibility block not found")
 text = text.replace(status_block, "", 1)
 
-history_block = '''worker = replace_once(
+history_block = """worker = replace_once(
     worker,
-    '''  if (request.method === "GET" && url.pathname === "/api/integrations/catalog/history") {
-    const limit = Number(url.searchParams.get("limit") ?? 20);''',
-    '''  if (request.method === "GET" && url.pathname === "/api/integrations/catalog/history") {
-    const denied = requirePortalPermission(request, baseEnv, "settings.manage");
+    '''  if (request.method === \"GET\" && url.pathname === \"/api/integrations/catalog/history\") {
+    const limit = Number(url.searchParams.get(\"limit\") ?? 20);''',
+    '''  if (request.method === \"GET\" && url.pathname === \"/api/integrations/catalog/history\") {
+    const denied = requirePortalPermission(request, baseEnv, \"settings.manage\");
     if (denied) return denied;
-    const limit = Number(url.searchParams.get("limit") ?? 20);''',
-    "history admin visibility",
+    const limit = Number(url.searchParams.get(\"limit\") ?? 20);''',
+    \"history admin visibility\",
 )
-'''
+"""
 if text.count(history_block) != 1:
     raise RuntimeError("history compatibility block not found")
 text = text.replace(history_block, "", 1)

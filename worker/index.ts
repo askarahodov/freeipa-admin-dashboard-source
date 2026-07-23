@@ -607,9 +607,9 @@ async function ipaRpc(env: Env, ipaUrl: string, method: string, args: unknown[] 
   return payload.result?.result ?? [];
 }
 
-const allowedOperations = new Set(["user_add", "user_mod", "user_enable", "user_disable", "user_del", "group_add", "group_del", "group_add_member", "group_remove_member"]);
+const allowedOperations = new Set(["user_add", "user_mod", "user_password", "user_enable", "user_disable", "user_del", "group_add", "group_del", "group_add_member", "group_remove_member"]);
 
-type FreeIpaOperation = "user_add" | "user_mod" | "user_enable" | "user_disable" | "user_del" | "group_add" | "group_del" | "group_add_member" | "group_remove_member";
+type FreeIpaOperation = "user_add" | "user_mod" | "user_password" | "user_enable" | "user_disable" | "user_del" | "group_add" | "group_del" | "group_add_member" | "group_remove_member";
 
 function directText(source: Record<string, unknown>, keys: string[], maxLength = 255): string {
   for (const key of keys) {
@@ -661,6 +661,12 @@ function freeIpaDirectCall(operation: FreeIpaOperation, body: Record<string, unk
     if (mail) options.mail = mail;
     if (!Object.keys(options).length) throw new Error("Укажите хотя бы одно изменяемое поле");
     return { method: "user_mod", args: [uid], options, title: "Редактирование пользователя FreeIPA", values: { uid, mail } };
+  }
+  if (operation === "user_password") {
+    const uid = username();
+    const password = directSecret(body, ["password", "userpassword"]);
+    if (password.length < 8) throw new Error("Новый пароль должен содержать не менее 8 символов");
+    return { method: "user_mod", args: [uid], options: { userpassword: password }, title: "Сброс пароля пользователя FreeIPA", values: { uid } };
   }
   if (operation === "user_enable" || operation === "user_disable" || operation === "user_del") {
     const uid = username();
@@ -1191,6 +1197,7 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
         email: String(firstValue(entry.mail) ?? ""),
         active: !boolValue(entry.nsaccountlock),
         groups: Array.isArray(entry.memberof_group) ? entry.memberof_group.length : 0,
+        groupNames: (Array.isArray(entry.memberof_group) ? entry.memberof_group : entry.memberof_group ? [entry.memberof_group] : []).map(String).filter(Boolean),
       })).filter((user) => user.uid);
       return json({ mode: "live", users });
     } catch (error) {
@@ -1208,6 +1215,7 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
         name: String(firstValue(entry.cn) ?? ""),
         description: String(firstValue(entry.description) ?? "Без описания"),
         members: Array.isArray(entry.member_user) ? entry.member_user.length : 0,
+        memberUids: (Array.isArray(entry.member_user) ? entry.member_user : entry.member_user ? [entry.member_user] : []).map(String).filter(Boolean),
         type: firstValue(entry.gidnumber) ? "POSIX" : "Non-POSIX",
       })).filter((group) => group.name);
       if (groups.length) return json({ mode: "live", source: "group_find", groups });
@@ -1216,12 +1224,17 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
     }
     try {
       const users = await ipaRpc(env, ipaUrl, "user_find", [""], { all: true, sizelimit: 0 });
-      const counts = new Map<string, number>();
+      const membersByGroup = new Map<string, Set<string>>();
       for (const entry of users) {
+        const uid = String(firstValue(entry.uid) ?? "");
         const memberships = Array.isArray(entry.memberof_group) ? entry.memberof_group : entry.memberof_group ? [entry.memberof_group] : [];
-        for (const value of new Set(memberships.map(String).filter(Boolean))) counts.set(value, (counts.get(value) ?? 0) + 1);
+        for (const value of new Set(memberships.map(String).filter(Boolean))) {
+          const members = membersByGroup.get(value) ?? new Set<string>();
+          if (uid) members.add(uid);
+          membersByGroup.set(value, members);
+        }
       }
-      const groups = Array.from(counts, ([name, members]) => ({ name, description: "Получено из членства пользователей", members, type: "Directory" }))
+      const groups = Array.from(membersByGroup, ([name, memberUids]) => ({ name, description: "Получено из членства пользователей", members: memberUids.size, memberUids: Array.from(memberUids).sort(), type: "Directory" }))
         .sort((left, right) => left.name.localeCompare(right.name));
       return json({ mode: "live", source: "user_membership", degraded: true, groups });
     } catch {

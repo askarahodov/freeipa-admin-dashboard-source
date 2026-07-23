@@ -1,0 +1,37 @@
+name: Source snapshot
+
+on:
+  push:
+    branches: [agent/security-hardening]
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/security-hardening
+          show-progress: false
+      - name: Upload source
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-snapshot-current
+          path: |
+            app
+            worker
+            tests
+            scripts
+            docs
+            automation-types.ts
+            field-conditions.ts
+            package.json
+            package-lock.json
+            vite.config.ts
+            .env.example
+            .dev.vars.example
+            .github/workflows/ci.yml
+          if-no-files-found: error
+          retention-days: 1

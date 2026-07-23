@@ -37,6 +37,8 @@ docker compose ps
 | `operation_runs` | Журнал запусков Events/Workflows и прямых действий FreeIPA |
 | `xyops_catalog_snapshot` | Текущий снимок каталога XYOps |
 | `xyops_catalog_history` | История изменений каталога (последние 30 записей) |
+| `process_presentation_sets` | Управляемые названия, категории, значки, порядок и справка |
+| `portal_audit_events` | Append-only аудит административных действий |
 
 ### Роли и права (RBAC)
 
@@ -75,6 +77,7 @@ docker compose ps
 - `PUT /api/integrations/routes` — сохранение маршрутов (требует `admin`).
 - `GET /api/integrations/catalog` — нормализованный каталог Events/Workflows.
 - `GET /api/integrations/catalog/history` — история изменений каталога.
+- `GET/PUT /api/integrations/catalog/presentation` — презентационные metadata процессов.
 - `GET /api/integrations/catalog/options` — динамические опции для полей выбора.
 - `POST /api/integrations/catalog/run` — запуск Event/Workflow.
 - `POST /api/integrations/actions` — запуск через маршрут автоматизации.
@@ -142,6 +145,9 @@ npm run lint                 # линтинг
 
 - [Дорожная карта продукта](docs/PRODUCT_ROADMAP.md)
 - [Инспектор контрактов XYOps](docs/XYOPS_INSPECTOR.md)
+- [Презентационные метаданные процессов](docs/PROCESS_PRESENTATION_METADATA.md)
+- [Ответственность XYOps за rate limits и concurrency](docs/XYOPS_EXECUTION_OWNERSHIP.md)
+- [Расширенный аудит](docs/AUDIT_LOG.md)
 
 ## Тестирование
 

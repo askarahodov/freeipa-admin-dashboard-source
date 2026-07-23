@@ -216,3 +216,7 @@ nav { display:flex;flex-direction:column;gap:8px; } nav button { border:0;backgr
 .audit-entry pre { max-height: 320px; overflow: auto; padding: 12px; border-radius: 10px; background: var(--surface-2); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
 @media (max-width: 900px) { .audit-filters { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 600px) { .audit-toolbar { align-items: stretch; flex-direction: column; } .audit-filters { grid-template-columns: 1fr; } }
+
+.process-help { margin: 0 0 14px; border: 1px solid var(--line); border-radius: 10px; background: color-mix(in srgb, var(--panel) 88%, transparent); }
+.process-help summary { cursor: pointer; padding: 10px 12px; font-weight: 700; font-size: 13px; }
+.process-help p { margin: 0; padding: 0 12px 12px; white-space: pre-wrap; font-size: 13px; line-height: 1.55; }

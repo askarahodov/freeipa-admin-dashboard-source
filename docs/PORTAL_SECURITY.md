@@ -126,3 +126,7 @@ Keep `PORTAL_DEFAULT_ROLE=viewer`. Grant wider roles only through explicit email
 - Back up the encrypted settings database together with `CONFIG_ENCRYPTION_KEY`.
 - Ограничьте доступ к `/audit` администраторами и проверяйте correlation-цепочки для опасных операций.
 - Не добавляйте UPDATE/DELETE API для `portal_audit_events`; таблица защищена append-only триггерами.
+
+## Presentation metadata security
+
+Process presentation overrides are applied only after catalog visibility authorization. They cannot change `eventId`, fields, targets, `schemaVersion`, dangerous flags, approval requirements or XYOps execution limits. A presentation category is never used to bypass a policy based on the original XYOps category.

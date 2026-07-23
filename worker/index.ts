@@ -9,6 +9,7 @@ import { listRunNotifications, markRunNotificationsRead, saveRunNotification } f
 import { catalogEventAllowed, readCatalogPolicySet, saveCatalogPolicySet } from "../catalog-policies";
 import { approvalExecutionMatches, approvalRequirement, cancelApproval, claimApprovalExecution, createApprovalRequest, decideApproval, finishApprovalExecution, listApprovals, readApprovalPolicySet, readExecutingApproval, saveApprovalPolicySet } from "../approval-gates";
 import { appendAuditEvent, auditCorrelationFor, auditErrorCode, createAuditContext, listAuditEvents, withAuditCorrelation, type AuditContext } from "../audit-log";
+import { applyProcessPresentation, readProcessPresentationSet, saveProcessPresentationSet } from "../process-presentation";
 
 interface Env {
   ASSETS: Fetcher;
@@ -31,6 +32,7 @@ interface Env {
   PORTAL_RBAC_JSON?: string;
   PORTAL_CATALOG_POLICIES_JSON?: string;
   PORTAL_APPROVAL_POLICIES_JSON?: string;
+  PORTAL_PROCESS_METADATA_JSON?: string;
   IMAGES: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {
@@ -1160,6 +1162,33 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL, in
     return json({ mode: demoMode ? "demo" : ipaConfigured || xyopsConfigured ? "live" : "unconfigured", viewer: requestActor(request), access: { identity: access.identity, role: access.role, permissions: access.permissions }, persistence: { available: Boolean(baseEnv.DB), configured: Boolean(baseEnv.CONFIG_ENCRYPTION_KEY) }, freeipa: { configured: ipaConfigured, reachable: ipaProbe.reachable, error: ipaProbe.error }, xyops: { configured: xyopsConfigured, reachable: xyopsReachable } });
   }
 
+  if (url.pathname === "/api/integrations/catalog/presentation") {
+    const denied = requirePortalPermission(request, baseEnv, "settings.manage");
+    if (denied) return denied;
+    if (!baseEnv.ADMIN_TOKEN || !await adminAuthorized(request, baseEnv)) return json({ error: "Administrator authorization required" }, 401);
+    if (request.method === "GET") {
+      try {
+        const state = await readProcessPresentationSet(baseEnv);
+        return json({ ...state, persistenceAvailable: Boolean(baseEnv.DB) });
+      } catch (error) {
+        return json({ error: error instanceof Error ? error.message : "Cannot load process presentation metadata" }, 503);
+      }
+    }
+    if (request.method === "PUT") {
+      if (!baseEnv.DB) return json({ error: "Persistent database is unavailable" }, 503);
+      try {
+        const body = await request.json() as Record<string, unknown>;
+        const saved = await saveProcessPresentationSet(baseEnv, body.metadata);
+        const processIds = Object.keys(saved.metadata.processes);
+        await appendAuditEvent(baseEnv, audit, { action: "catalog.presentation.updated", resourceType: "process_presentation", resourceId: "current", outcome: "success", metadata: { version: saved.metadata.version, processCount: processIds.length, processIds: processIds.slice(0, 100) } }).catch(() => {});
+        return json({ ...saved, persistenceAvailable: true });
+      } catch (error) {
+        return json({ error: error instanceof Error ? error.message : "Cannot save process presentation metadata" }, 400);
+      }
+    }
+    return json({ error: "Method not allowed" }, 405);
+  }
+
   if (url.pathname === "/api/integrations/catalog/policies") {
     const denied = requirePortalPermission(request, baseEnv, "settings.manage");
     if (denied) return denied;
@@ -1483,10 +1512,12 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL, in
       const catalog = await portalCatalog(env, xyopsUrl);
       const access = portalAccess(request, baseEnv);
       const policyState = await readCatalogPolicySet(baseEnv);
-      const events = catalog.events.filter((event) => catalogEventAllowed(policyState.policy, access, event));
-      const visibleIds = new Set(events.map((event) => event.id));
+      const sourceEvents = catalog.events.filter((event) => catalogEventAllowed(policyState.policy, access, event));
+      const visibleIds = new Set(sourceEvents.map((event) => event.id));
       const changes = catalog.changes.filter((change) => visibleIds.has(change.id) || catalogEventAllowed(policyState.policy, access, { id: change.id, category: "" }));
-      return json({ ...catalog, events, changes, policy: { source: policyState.source, filtered: events.length !== catalog.events.length } });
+      const presentationState = await readProcessPresentationSet(baseEnv);
+      const events = applyProcessPresentation(sourceEvents, presentationState.metadata);
+      return json({ ...catalog, events, changes, policy: { source: policyState.source, filtered: sourceEvents.length !== catalog.events.length }, presentation: { source: presentationState.source, updatedAt: presentationState.updatedAt } });
     } catch (error) {
       return json({ error: error instanceof Error ? error.message : "XYOps catalog request failed" }, 502);
     }
@@ -1532,6 +1563,8 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL, in
       const access = portalAccess(request, baseEnv);
       const policyState = await readCatalogPolicySet(baseEnv);
       if (!catalogEventAllowed(policyState.policy, access, event)) return json({ error: "XYOps process not found or disabled" }, 404);
+      const presentationState = await readProcessPresentationSet(baseEnv);
+      const displayEvent = applyProcessPresentation([event], presentationState.metadata)[0] ?? event;
       const requestedTargets = Array.isArray(body.targets) ? body.targets.map(String) : [];
       if (event.targets.length && requestedTargets.some((target) => !event.targets.includes(target))) return json({ error: "Unsupported target" }, 400);
       const params: Record<string, unknown> = { source: "xyops-self-service" };
@@ -1555,35 +1588,38 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL, in
         const approvalPolicy = await readApprovalPolicySet(baseEnv);
         const requirement = approvalRequirement(approvalPolicy.policy, access, event);
         if (requirement) {
-          const approval = await createApprovalRequest(baseEnv, event, access, values, requestedTargets, requirement, typeof body.replayOf === "string" ? body.replayOf : "");
+          const approval = await createApprovalRequest(baseEnv, displayEvent, access, values, requestedTargets, requirement, typeof body.replayOf === "string" ? body.replayOf : "");
           await appendAuditEvent(baseEnv, audit, { action: "approval.requested", resourceType: "approval", resourceId: approval.id, eventId: event.id, schemaVersion: event.schemaVersion, approvalId: approval.id, outcome: "pending", metadata: { category: event.category, kind: event.kind, targets: requestedTargets, fieldKeys: event.fields.filter((field) => fieldVisible(field, values)).map((field) => field.key), requiredApprovals: requirement.requiredApprovals, ruleId: requirement.ruleId, replayOf: typeof body.replayOf === "string" ? body.replayOf : "" } }).catch(() => {});
           return json({ approvalRequired: true, approvalId: approval.id, status: approval.status, approval }, 202);
         }
       }
       if (catalog.mode === "demo" || !xyopsUrl || !env.XYOPS_API_KEY) {
-        const run = operationRun({ request, eventId: event.id, title: event.title, kind: event.kind, mode: "demo", jobId: `DEMO-${Date.now()}`, status: "success", values, targets: requestedTargets });
+        const run = operationRun({ request, eventId: event.id, title: displayEvent.title, kind: event.kind, mode: "demo", jobId: `DEMO-${Date.now()}`, status: "success", values, targets: requestedTargets });
         await saveOperationRun(baseEnv, run);
         await saveRunReplay(baseEnv, run.id, event, values, requestedTargets, typeof body.replayOf === "string" ? body.replayOf.slice(0, 160) : "");
         await appendAuditEvent(baseEnv, audit, { action: "xyops.run", resourceType: "xyops_run", resourceId: run.id, eventId: event.id, schemaVersion: event.schemaVersion, approvalId: approvalExecutionId, runId: run.id, jobId: run.jobId, outcome: "success", metadata: { mode: "demo", kind: event.kind, targets: requestedTargets, replayOf: typeof body.replayOf === "string" ? body.replayOf : "" } }).catch(() => {});
-        return json({ mode: "demo", queued: true, runId: run.id, jobId: run.jobId, status: run.status, process: { id: event.id, title: event.title, kind: event.kind } }, 202);
+        return json({ mode: "demo", queued: true, runId: run.id, jobId: run.jobId, status: run.status, process: { id: event.id, title: displayEvent.title, kind: event.kind } }, 202);
       }
       const response = await fetch(`${xyopsUrl}/api/app/run_event/v1`, { method: "POST", headers: { "content-type": "application/json", "x-api-key": env.XYOPS_API_KEY }, body: JSON.stringify(launchPayload), signal: AbortSignal.timeout(15000) });
       const result = await response.json().catch(() => ({})) as Record<string, unknown>;
       const resultData = result.data && typeof result.data === "object" ? result.data as Record<string, unknown> : {};
       const jobId = String(result.job_id ?? result.jobId ?? result.id ?? resultData.job_id ?? "");
       if (!response.ok) {
-        const run = operationRun({ request, eventId: event.id, title: event.title, kind: event.kind, mode: "live", jobId, status: "failed", values, targets: requestedTargets, error: "XYOps rejected run_event" });
+        const retryAfter = String(response.headers.get("retry-after") ?? "").replace(/[^0-9A-Za-z, .:-]/g, "").slice(0, 120);
+        const portalStatus = response.status === 409 || response.status === 429 ? response.status : 502;
+        const message = response.status === 429 ? "XYOps ограничил частоту запусков" : response.status === 409 ? "XYOps не разрешил параллельный запуск" : "XYOps rejected run_event";
+        const run = operationRun({ request, eventId: event.id, title: displayEvent.title, kind: event.kind, mode: "live", jobId, status: "failed", values, targets: requestedTargets, error: message });
         await saveOperationRun(baseEnv, run);
         await saveRunReplay(baseEnv, run.id, event, values, requestedTargets, typeof body.replayOf === "string" ? body.replayOf.slice(0, 160) : "");
-        await appendAuditEvent(baseEnv, audit, { action: "xyops.run", resourceType: "xyops_run", resourceId: run.id, eventId: event.id, schemaVersion: event.schemaVersion, approvalId: approvalExecutionId, runId: run.id, jobId, outcome: "failure", errorCode: "xyops_run_event_rejected", metadata: { httpStatus: response.status, kind: event.kind, targets: requestedTargets } }).catch(() => {});
-        return json({ error: "XYOps run_event failed", runId: run.id }, 502);
+        await appendAuditEvent(baseEnv, audit, { action: "xyops.run", resourceType: "xyops_run", resourceId: run.id, eventId: event.id, schemaVersion: event.schemaVersion, approvalId: approvalExecutionId, runId: run.id, jobId, outcome: "failure", errorCode: response.status === 429 ? "xyops_rate_limited" : response.status === 409 ? "xyops_concurrency_conflict" : "xyops_run_event_rejected", metadata: { httpStatus: response.status, retryAfter, kind: event.kind, targets: requestedTargets } }).catch(() => {});
+        return json({ error: message, runId: run.id, xyopsStatus: response.status, retryAfter: retryAfter || null }, portalStatus);
       }
       const reported = runStatus(result.status ?? result.state ?? resultData.status ?? resultData.state);
-      const run = operationRun({ request, eventId: event.id, title: event.title, kind: event.kind, mode: "live", jobId, status: reported === "unknown" ? "queued" : reported, values, targets: requestedTargets, stages: extractJobStages(result) });
+      const run = operationRun({ request, eventId: event.id, title: displayEvent.title, kind: event.kind, mode: "live", jobId, status: reported === "unknown" ? "queued" : reported, values, targets: requestedTargets, stages: extractJobStages(result) });
       await saveOperationRun(baseEnv, run);
       await saveRunReplay(baseEnv, run.id, event, values, requestedTargets, typeof body.replayOf === "string" ? body.replayOf.slice(0, 160) : "");
       await appendAuditEvent(baseEnv, audit, { action: "xyops.run", resourceType: "xyops_run", resourceId: run.id, eventId: event.id, schemaVersion: event.schemaVersion, approvalId: approvalExecutionId, runId: run.id, jobId: run.jobId, outcome: "success", metadata: { mode: "live", initialStatus: run.status, kind: event.kind, targets: requestedTargets, replayOf: typeof body.replayOf === "string" ? body.replayOf : "" } }).catch(() => {});
-      return json({ mode: "live", queued: true, runId: run.id, jobId: run.jobId, status: run.status, process: { id: event.id, title: event.title, kind: event.kind } }, 202);
+      return json({ mode: "live", queued: true, runId: run.id, jobId: run.jobId, status: run.status, process: { id: event.id, title: displayEvent.title, kind: event.kind } }, 202);
     } catch (error) {
       const message = error instanceof Error ? error.message : "XYOps request failed";
       const run = operationRun({ request, eventId: eventId || "unknown", title: eventId || "XYOps process", kind: "event", mode: "live", jobId: "", status: "failed", values, error: message });

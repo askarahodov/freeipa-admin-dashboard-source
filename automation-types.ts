@@ -43,6 +43,10 @@ export type CatalogEvent = {
   targets: string[];
   dangerous: boolean;
   schemaVersion?: string;
+  icon?: string;
+  order?: number;
+  help?: string;
+  presentationOverridden?: boolean;
 };
 
 export type AutomationRoute = {

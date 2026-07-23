@@ -21,6 +21,7 @@ type SettingsData = { source: "database" | "environment"; persistenceAvailable: 
 type PortalRole = "viewer" | "operator" | "admin";
 type PortalPermission = "directory.read" | "freeipa.write" | "freeipa.delete" | "xyops.run" | "settings.manage";
 type PortalAccess = { identity: string; role: PortalRole; permissions: PortalPermission[] };
+type AutomationSection = { category: string; slug: string; count: number; events: number; workflows: number };
 
 const nav: { id: Page; label: string; icon: string }[] = [
   { id: "overview", label: "Обзор", icon: "⌂" },
@@ -31,6 +32,17 @@ const nav: { id: Page; label: string; icon: string }[] = [
   { id: "settings", label: "Настройки", icon: "⚙" },
 ];
 const roleLabels: Record<PortalRole, string> = { viewer: "Наблюдатель", operator: "Оператор", admin: "Администратор" };
+const pagePaths: Record<Page, string> = { overview: "/", automation: "/automation", users: "/users", groups: "/groups", operations: "/operations", settings: "/settings" };
+
+function automationSlug(value: string): string {
+  const cyrillic: Record<string, string> = { а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "e", ж: "zh", з: "z", и: "i", й: "y", к: "k", л: "l", м: "m", н: "n", о: "o", п: "p", р: "r", с: "s", т: "t", у: "u", ф: "f", х: "h", ц: "ts", ч: "ch", ш: "sh", щ: "sch", ъ: "", ы: "y", ь: "", э: "e", ю: "yu", я: "ya" };
+  const transliterated = Array.from(value.trim().toLowerCase()).map((letter) => cyrillic[letter] ?? letter).join("");
+  const slug = transliterated.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80);
+  if (slug) return slug;
+  let hash = 2166136261;
+  for (const letter of value) { hash ^= letter.charCodeAt(0); hash = Math.imul(hash, 16777619); }
+  return `section-${(hash >>> 0).toString(36)}`;
+}
 
 const routeOperations = [
   ["user_add", "Создать пользователя"], ["user_mod", "Редактировать пользователя"], ["user_enable", "Включить пользователя"], ["user_disable", "Отключить пользователя"], ["user_del", "Удалить пользователя"],
@@ -74,6 +86,7 @@ export default function Home() {
   const [catalogMeta, setCatalogMeta] = useState<CatalogMeta>({ syncedAt: null, source: "none", stale: false, changes: [] });
   const [catalogError, setCatalogError] = useState("");
   const [catalogLoading, setCatalogLoading] = useState(false);
+  const [automationCategory, setAutomationCategory] = useState("all");
   const [selectedProcess, setSelectedProcess] = useState<{ event: CatalogEvent; preset: Record<string, string> } | null>(null);
   const [recentRuns, setRecentRuns] = useState<RunRecord[]>([]);
   const [runStats, setRunStats] = useState<RunStats>({ today: 0, queued: 0, success: 0, failed: 0 });
@@ -173,10 +186,43 @@ export default function Home() {
   const canRunXyops = integration.access.permissions.includes("xyops.run");
   const canManageSettings = integration.access.permissions.includes("settings.manage");
   const visibleNav = nav.filter((item) => item.id !== "settings" || canManageSettings);
-  const title = nav.find((item) => item.id === page)?.label ?? "Обзор";
+  const automationSections = useMemo<AutomationSection[]>(() => Array.from(new Set(catalog.map((event) => event.category || "general"))).sort((left, right) => left.localeCompare(right)).map((category) => {
+    const items = catalog.filter((event) => (event.category || "general") === category);
+    return { category, slug: automationSlug(category), count: items.length, events: items.filter((event) => event.kind === "event").length, workflows: items.filter((event) => event.kind === "workflow").length };
+  }), [catalog]);
+  const activeAutomationSection = automationSections.find((section) => section.category === automationCategory) ?? null;
+  const title = page === "automation" && activeAutomationSection ? activeAutomationSection.category : nav.find((item) => item.id === page)?.label ?? "Обзор";
   const filteredUsers = useMemo(() => directoryUsers.filter((u) => `${u.uid} ${u.name} ${u.email}`.toLowerCase().includes(query.toLowerCase())), [directoryUsers, query]);
   const filteredGroups = useMemo(() => directoryGroups.filter((g) => `${g.name} ${g.description} ${g.type}`.toLowerCase().includes(query.toLowerCase())), [directoryGroups, query]);
   const filteredCatalog = useMemo(() => catalog.filter((event) => `${event.title} ${event.description} ${event.category} ${event.plugin ?? ""}`.toLowerCase().includes(query.toLowerCase())), [catalog, query]);
+
+  const navigateTo = useCallback((nextPage: Page, category = "all", replace = false) => {
+    const section = category === "all" ? null : automationSections.find((item) => item.category === category);
+    const path = nextPage === "automation" && section ? `/automation/${section.slug}` : pagePaths[nextPage];
+    setPage(nextPage);
+    setAutomationCategory(nextPage === "automation" && section ? section.category : "all");
+    setQuery("");
+    if (window.location.pathname !== path) window.history[replace ? "replaceState" : "pushState"]({}, "", path);
+  }, [automationSections]);
+
+  useEffect(() => {
+    const applyLocation = () => {
+      const path = window.location.pathname.replace(/\/+$/, "") || "/";
+      if (path === "/automation" || path.startsWith("/automation/")) {
+        const slug = path.split("/")[2] ?? "";
+        const section = automationSections.find((item) => item.slug === slug);
+        setPage("automation");
+        setAutomationCategory(section?.category ?? "all");
+        return;
+      }
+      const match = (Object.entries(pagePaths) as Array<[Page, string]>).find(([, value]) => value === path);
+      setPage(match?.[0] ?? "overview");
+      setAutomationCategory("all");
+    };
+    applyLocation();
+    window.addEventListener("popstate", applyLocation);
+    return () => window.removeEventListener("popstate", applyLocation);
+  }, [automationSections]);
   function notify(message: string) {
     setToast(message);
     window.setTimeout(() => setToast(""), 2600);
@@ -219,7 +265,7 @@ export default function Home() {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand"><span className="brand-mark">◇</span><div><strong>FreeIPA Admin</strong><small>XYOps</small></div></div>
-        <nav>{visibleNav.map((item) => <button key={item.id} className={page === item.id ? "active" : ""} onClick={() => { setPage(item.id); setQuery(""); }}><span>{item.icon}</span>{item.label}</button>)}</nav>
+        <nav>{visibleNav.map((item) => <div className="nav-entry" key={item.id}><button className={page === item.id && (item.id !== "automation" || automationCategory === "all") ? "active" : ""} onClick={() => navigateTo(item.id)}><span>{item.icon}</span>{item.label}</button>{item.id === "automation" && automationSections.length > 0 && <div className="generated-nav">{automationSections.map((section) => <button key={section.category} className={page === "automation" && automationCategory === section.category ? "active" : ""} onClick={() => navigateTo("automation", section.category)} title={`${section.events} Events · ${section.workflows} Workflows`}><i /> <span>{section.category}</span><b>{section.count}</b></button>)}</div>}</div>)}</nav>
         <div className="sidebar-bottom"><div className="system-ok"><i className={integration.freeipa.reachable ? "" : "warning"} /> <div><strong>{integration.freeipa.reachable ? "FreeIPA готов" : "Требуется настройка"}</strong><small>{integration.xyops.reachable ? "XYOps также подключён" : "XYOps подключается отдельно"}</small></div></div><p>© 2026 Admin Portal</p></div>
       </aside>
 
@@ -229,8 +275,8 @@ export default function Home() {
           <div className="header-actions"><label className="global-search"><span>⌕</span><input aria-label="Глобальный поиск" placeholder="Поиск процессов, пользователей, групп…" value={query} onChange={(e) => setQuery(e.target.value)} /></label><button className="bell" aria-label="Ошибки операций" onClick={() => notify(runStats.failed ? `Ошибок сегодня: ${runStats.failed}` : "Новых ошибок нет")}>♢{runStats.failed > 0 && <b>{runStats.failed}</b>}</button><button className="profile" title={`Роль: ${roleLabels[integration.access.role]}`}>{integration.viewer.slice(0, 2).toUpperCase()} <span>{integration.viewer}<small>{roleLabels[integration.access.role]}</small></span></button></div>
         </header>
 
-        {page === "overview" && <Overview goTo={setPage} integration={integration} userCount={directoryUsers.length} groupCount={directoryGroups.length} directorySource={directorySource} runs={recentRuns} runStats={runStats} />}
-        {page === "automation" && <AutomationCatalog items={filteredCatalog} mode={catalogMode} meta={catalogMeta} error={catalogError} loading={catalogLoading} recentRuns={recentRuns} canRun={canRunXyops} canManageSettings={canManageSettings} onSync={() => void syncCatalog()} onOpenSettings={() => setPage("settings")} onLaunch={(event) => setSelectedProcess({ event, preset: {} })} />}
+        {page === "overview" && <Overview goTo={(nextPage) => navigateTo(nextPage)} integration={integration} userCount={directoryUsers.length} groupCount={directoryGroups.length} directorySource={directorySource} runs={recentRuns} runStats={runStats} />}
+        {page === "automation" && <AutomationCatalog items={filteredCatalog} sections={automationSections} selectedCategory={automationCategory} mode={catalogMode} meta={catalogMeta} error={catalogError} loading={catalogLoading} recentRuns={recentRuns} canRun={canRunXyops} canManageSettings={canManageSettings} onCategoryChange={(category) => navigateTo("automation", category)} onSync={() => void syncCatalog()} onOpenSettings={() => navigateTo("settings")} onLaunch={(event) => setSelectedProcess({ event, preset: {} })} />}
         {page === "users" && <Users items={filteredUsers} allGroups={directoryGroups} total={directoryUsers.length} source={directorySource} canWrite={canWriteFreeIpa} canDelete={canDeleteFreeIpa} onCreate={() => setFreeIpaAction({ operation: "user_add", title: "Новый пользователь", preset: {} })} onAction={setFreeIpaAction} />}
         {page === "groups" && <Groups items={filteredGroups} allUsers={directoryUsers} source={directorySource} canWrite={canWriteFreeIpa} canDelete={canDeleteFreeIpa} onCreate={() => setFreeIpaAction({ operation: "group_add", title: "Новая группа", preset: {} })} onAction={setFreeIpaAction} />}
         {page === "operations" && <Operations runs={recentRuns} stats={runStats} loading={runsLoading} refresh={() => void loadRuns(true)} />}
@@ -290,17 +336,16 @@ function GroupDetails({ group, users, canWrite, canDelete, close, action }: { gr
   return <div className="modal-backdrop"><section className="modal identity-modal"><button className="modal-x" onClick={close}>×</button><div className="identity-head"><span>♣</span><div><small>ГРУППА FREEIPA</small><h2>{group.name}</h2><p>{group.description}</p></div><Status tone="violet">{group.type}</Status></div><div className="membership-head"><div><h3>Участники</h3><p>{group.members} пользователей в группе.</p></div>{canWrite && <button className="primary" disabled={!availableUsers.length} onClick={() => action({ operation: "group_add_member", title: `Добавить участника в ${group.name}`, preset: { group: group.name }, choices: { users: availableUsers } })}>＋ Добавить</button>}</div><div className="member-table">{group.memberUids.map((uid) => { const user = users.find((item) => item.uid === uid); return <div key={uid}><span className="person"><b>{(user?.name || uid).split(" ").map((part) => part[0]).join("")}</b><span><strong>{user?.name || uid}</strong><small>{user?.email || uid}</small></span></span><Status tone={user?.active === false ? "neutral" : "success"}>{user?.active === false ? "Отключён" : "Активен"}</Status>{canWrite && <button className="danger-link" onClick={() => action({ operation: "group_remove_member", title: `Удалить ${uid} из ${group.name}`, preset: { group: group.name, username: uid } })}>Удалить</button>}</div>; })}{!group.memberUids.length && <p>В группе пока нет участников.</p>}</div><div className="identity-actions">{canDelete && <button className="danger-button" onClick={() => action({ operation: "group_del", title: `Удалить группу ${group.name}`, preset: { group: group.name } })}>Удалить группу</button>}<button className="secondary" onClick={close}>Закрыть</button></div></section></div>;
 }
 
-function AutomationCatalog({ items, mode, meta, error, loading, recentRuns, canRun, canManageSettings, onSync, onOpenSettings, onLaunch }: { items: CatalogEvent[]; mode: IntegrationMode; meta: CatalogMeta; error: string; loading: boolean; recentRuns: RunRecord[]; canRun: boolean; canManageSettings: boolean; onSync: () => void; onOpenSettings: () => void; onLaunch: (event: CatalogEvent) => void }) {
-  const categories = new Set(items.map((event) => event.category)).size;
-  const [selectedCategory, setSelectedCategory] = useState("all");
-  const categoryNames = Array.from(new Set(items.map((event) => event.category))).sort((left, right) => left.localeCompare(right));
+function AutomationCatalog({ items, sections, selectedCategory, mode, meta, error, loading, recentRuns, canRun, canManageSettings, onCategoryChange, onSync, onOpenSettings, onLaunch }: { items: CatalogEvent[]; sections: AutomationSection[]; selectedCategory: string; mode: IntegrationMode; meta: CatalogMeta; error: string; loading: boolean; recentRuns: RunRecord[]; canRun: boolean; canManageSettings: boolean; onCategoryChange: (category: string) => void; onSync: () => void; onOpenSettings: () => void; onLaunch: (event: CatalogEvent) => void }) {
+  const categories = sections.length;
   const visibleItems = selectedCategory === "all" ? items : items.filter((event) => event.category === selectedCategory);
+  const activeSection = sections.find((section) => section.category === selectedCategory) ?? null;
   const changeMap = new Map(meta.changes.map((change) => [change.id, change.kind]));
   return <div className="content-stack automation-page">
-    <section className="automation-hero"><div><span className="eyebrow">XYOPS AUTOMATION PORTAL</span><h2>Портал автоматизаций</h2><p>Разделы, карточки и формы создаются из метаданных Events и Workflows. XYOps остаётся оркестратором, а портал предоставляет пользовательский интерфейс и визуализацию.</p></div><div>{!canRun && <Status tone="neutral">Только просмотр</Status>}<button className="secondary" disabled={loading} onClick={onSync}>{loading ? "Синхронизация…" : "⟳ Обновить каталог"}</button></div></section>
+    <section className="automation-hero"><div><span className="eyebrow">XYOPS AUTOMATION PORTAL</span><h2>{activeSection ? activeSection.category : "Портал автоматизаций"}</h2><p>{activeSection ? `Автоматически созданный раздел: ${activeSection.events} Events и ${activeSection.workflows} Workflows. Поля форм и правила запуска получены из XYOps.` : "Разделы, маршруты, карточки и формы создаются из метаданных Events и Workflows. XYOps остаётся оркестратором, а портал предоставляет пользовательский интерфейс и визуализацию."}</p>{activeSection && <code className="generated-route">/automation/{activeSection.slug}</code>}</div><div>{!canRun && <Status tone="neutral">Только просмотр</Status>}<button className="secondary" disabled={loading} onClick={onSync}>{loading ? "Синхронизация…" : "⟳ Обновить каталог"}</button></div></section>
     <section className={`catalog-sync ${meta.stale || error ? "stale" : ""}`}><span className={`source-dot ${mode}`} /><div><strong>{error ? "Ошибка загрузки каталога XYOps" : meta.source === "xyops" ? "Каталог синхронизирован с XYOps" : meta.source === "cache" ? "Показан сохранённый снимок" : meta.source === "demo" ? "Демонстрационный каталог" : "XYOps не настроен"}</strong><small>{error || (meta.syncedAt ? `Последняя успешная синхронизация: ${new Date(meta.syncedAt).toLocaleString("ru-RU")}` : "Снимок каталога ещё не создан")}</small></div>{meta.changes.length > 0 && <Status tone="violet">{meta.changes.filter((change) => change.kind === "new").length} новых · {meta.changes.filter((change) => change.kind === "changed").length} изменено · {meta.changes.filter((change) => change.kind === "removed").length} удалено</Status>}{(meta.stale || error) && <Status tone="warning">Требуется проверка</Status>}</section>
     <section className="catalog-summary"><article><span>⌘</span><div><strong>{items.length}</strong><small>доступных процессов</small></div></article><article><span>▦</span><div><strong>{categories}</strong><small>категорий</small></div></article><article><span>◇</span><div><strong>{items.reduce((sum, event) => sum + event.fields.length, 0)}</strong><small>динамических полей</small></div></article><article><span className={`source-dot ${mode}`} /><div><strong>{mode === "live" ? "LIVE" : mode === "cached" ? "CACHE" : mode === "demo" ? "DEMO" : "OFF"}</strong><small>источник каталога</small></div></article></section>
-    <div className="category-tabs"><button className={selectedCategory === "all" ? "active" : ""} onClick={() => setSelectedCategory("all")}>Все процессы <b>{items.length}</b></button>{categoryNames.map((category) => <button className={selectedCategory === category ? "active" : ""} onClick={() => setSelectedCategory(category)} key={category}>{category} <b>{items.filter((event) => event.category === category).length}</b></button>)}</div>
+    <div className="category-tabs"><button className={selectedCategory === "all" ? "active" : ""} onClick={() => onCategoryChange("all")}>Все процессы <b>{items.length}</b></button>{sections.map((section) => <button className={selectedCategory === section.category ? "active" : ""} onClick={() => onCategoryChange(section.category)} key={section.category}>{section.category} <b>{section.count}</b></button>)}</div>
     <div className="automation-layout"><section className="process-grid">{visibleItems.map((event) => <article className="process-card" key={event.id}><div className="process-top"><span className={`route-kind ${event.kind}`}>{event.kind === "workflow" ? "⌘" : "▶"}</span><div>{changeMap.get(event.id) && <Status tone="warning">{changeMap.get(event.id) === "new" ? "Новый" : "Схема изменена"}</Status>}<Status tone={event.kind === "workflow" ? "violet" : "success"}>{event.kind === "workflow" ? "Workflow" : "Event"}</Status>{event.dangerous && <Status tone="warning">Подтверждение</Status>}</div></div><small className="process-category">{event.category}{event.plugin ? ` · ${event.plugin}` : ""}</small><h3>{event.title}</h3><p>{event.description || "Описание будет загружено из XYOps."}</p><div className="process-meta"><span>{event.fields.length} полей</span><span>{event.targets.length ? `${event.targets.length} targets` : "Targets из XYOps"}</span></div><button className="primary" disabled={!event.enabled || mode === "cached" || !canRun} onClick={() => onLaunch(event)}>{!canRun ? "Недостаточно прав" : mode === "cached" ? "Ожидается подключение XYOps" : "Сформировать и запустить →"}</button></article>)}</section><aside className="runs-panel panel"><div><h3>Последние запуски</h3><small>Постоянный журнал D1</small></div>{recentRuns.length ? recentRuns.slice(0, 6).map((run) => <article key={run.id}><i className={run.status} /><div><strong>{run.title}</strong><small>{formatDateTime(run.startedAt)} · {run.kind}</small><code>{run.jobId}</code></div><RunStatusBadge status={run.status} /></article>) : <div className="runs-empty"><span>◷</span><strong>Запусков пока нет</strong><small>Выберите процесс из каталога</small></div>}</aside></div>
     {!loading && !items.length && <section className="panel catalog-empty"><strong>{error ? "Каталог не загружен" : "Процессы не найдены"}</strong><span>{error || "XYOps вернул пустой каталог либо текущий поиск не нашёл процессов."}</span><div className="empty-actions">{canManageSettings && <button className="secondary" onClick={onOpenSettings}>Открыть настройки</button>}<button className="primary" onClick={onSync}>Повторить синхронизацию</button></div></section>}
   </div>;

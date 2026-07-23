@@ -111,6 +111,34 @@ test("FreeIPA connection test uses the Docker Node Gateway when configured", asy
   }
 });
 
+test("integration status probes FreeIPA through the Docker Node Gateway", async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url, init) => {
+    calls.push(String(url));
+    assert.equal(String(url), "http://127.0.0.1:3301/rpc");
+    const body = JSON.parse(init.body);
+    assert.equal(body.method, "user_find");
+    assert.equal(body.options.sizelimit, 1);
+    return Response.json({ result: [{ uid: ["alice"] }] });
+  };
+  try {
+    const response = await worker.fetch(new Request("https://dashboard.test/api/integrations/status"), {
+      IPA_URL: "https://ipa.example.test",
+      IPA_USERNAME: "reader",
+      IPA_PASSWORD: "secret",
+      IPA_NODE_GATEWAY_URL: "http://127.0.0.1:3301",
+      IPA_NODE_GATEWAY_TOKEN: "gateway-token",
+    }, {});
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.deepEqual(body.freeipa, { configured: true, reachable: true, error: null });
+    assert.deepEqual(calls, ["http://127.0.0.1:3301/rpc"]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("automation routes require admin auth and persist without secret defaults", async () => {
   const db = new MemoryD1();
   const env = { DB: db, ADMIN_TOKEN: "admin-token", CONFIG_ENCRYPTION_KEY: Buffer.alloc(32, 9).toString("base64") };

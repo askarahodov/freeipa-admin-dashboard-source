@@ -40,6 +40,19 @@ jobs:
         with:
           show-progress: false
 
+      - name: Upload source snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-snapshot
+          path: |
+            .
+            !node_modules
+            !dist
+            !.git
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:

@@ -609,6 +609,84 @@ async function ipaRpc(env: Env, ipaUrl: string, method: string, args: unknown[] 
 
 const allowedOperations = new Set(["user_add", "user_mod", "user_enable", "user_disable", "user_del", "group_add", "group_del", "group_add_member", "group_remove_member"]);
 
+type FreeIpaOperation = "user_add" | "user_mod" | "user_enable" | "user_disable" | "user_del" | "group_add" | "group_del" | "group_add_member" | "group_remove_member";
+
+function directText(source: Record<string, unknown>, keys: string[], maxLength = 255): string {
+  for (const key of keys) {
+    if (typeof source[key] !== "string") continue;
+    const value = source[key].trim();
+    if (value && value.length <= maxLength && !/[\u0000-\u001f\u007f]/.test(value)) return value;
+  }
+  return "";
+}
+
+function directId(source: Record<string, unknown>, keys: string[], label: string): string {
+  const value = directText(source, keys);
+  if (!value || !/^[A-Za-z0-9_.@$-]+$/.test(value)) throw new Error(`Некорректное поле: ${label}`);
+  return value;
+}
+
+function directSecret(source: Record<string, unknown>, keys: string[], maxLength = 1024): string {
+  for (const key of keys) {
+    if (typeof source[key] !== "string") continue;
+    const value = source[key];
+    if (value && value.length <= maxLength && !value.includes("\u0000")) return value;
+  }
+  return "";
+}
+
+function freeIpaDirectCall(operation: FreeIpaOperation, body: Record<string, unknown>): { method: string; args: unknown[]; options: Record<string, unknown>; title: string; values: Record<string, unknown> } {
+  const username = () => directId(body, ["username", "uid", "user"], "логин");
+  const group = () => directId(body, ["group", "groupname", "cn"], "группа");
+  if (operation === "user_add") {
+    const uid = username();
+    const givenname = directText(body, ["firstName", "givenname"]);
+    const sn = directText(body, ["lastName", "sn"]);
+    if (!givenname || !sn) throw new Error("Имя и фамилия обязательны");
+    const mail = directText(body, ["email", "mail"]);
+    const password = directSecret(body, ["password", "userpassword"]);
+    const options: Record<string, unknown> = { givenname, sn };
+    if (mail) options.mail = mail;
+    if (password) options.userpassword = password;
+    return { method: "user_add", args: [uid], options, title: "Создание пользователя FreeIPA", values: { uid, mail } };
+  }
+  if (operation === "user_mod") {
+    const uid = username();
+    const options: Record<string, unknown> = {};
+    const givenname = directText(body, ["firstName", "givenname"]);
+    const sn = directText(body, ["lastName", "sn"]);
+    const mail = directText(body, ["email", "mail"]);
+    if (givenname) options.givenname = givenname;
+    if (sn) options.sn = sn;
+    if (mail) options.mail = mail;
+    if (!Object.keys(options).length) throw new Error("Укажите хотя бы одно изменяемое поле");
+    return { method: "user_mod", args: [uid], options, title: "Редактирование пользователя FreeIPA", values: { uid, mail } };
+  }
+  if (operation === "user_enable" || operation === "user_disable" || operation === "user_del") {
+    const uid = username();
+    const titles = { user_enable: "Включение пользователя FreeIPA", user_disable: "Отключение пользователя FreeIPA", user_del: "Удаление пользователя FreeIPA" };
+    return { method: operation, args: [uid], options: {}, title: titles[operation], values: { uid } };
+  }
+  if (operation === "group_add") {
+    const cn = group();
+    const description = directText(body, ["description"], 1024);
+    return { method: "group_add", args: [cn], options: description ? { description } : {}, title: "Создание группы FreeIPA", values: { group: cn } };
+  }
+  if (operation === "group_del") {
+    const cn = group();
+    return { method: "group_del", args: [cn], options: {}, title: "Удаление группы FreeIPA", values: { group: cn } };
+  }
+  const cn = group();
+  const uid = username();
+  return {
+    method: operation,
+    args: [cn],
+    options: { user: [uid] },
+    title: operation === "group_add_member" ? "Добавление участника FreeIPA" : "Удаление участника FreeIPA",
+    values: { group: cn, uid },
+  };
+}
+
 function sanitizeRoutes(raw: unknown): AutomationRoute[] {
   if (!Array.isArray(raw) || raw.length > 100) throw new Error("routes must be an array with at most 100 items");
   const keys = new Set<string>();
@@ -1108,6 +1186,8 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
       const users = list.map((entry) => ({
         uid: String(firstValue(entry.uid) ?? ""),
         name: String(firstValue(entry.cn) ?? firstValue(entry.displayname) ?? firstValue(entry.uid) ?? ""),
+        firstName: String(firstValue(entry.givenname) ?? ""),
+        lastName: String(firstValue(entry.sn) ?? ""),
         email: String(firstValue(entry.mail) ?? ""),
         active: !boolValue(entry.nsaccountlock),
         groups: Array.isArray(entry.memberof_group) ? entry.memberof_group.length : 0,
@@ -1146,6 +1226,35 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
       return json({ mode: "live", source: "user_membership", degraded: true, groups });
     } catch {
       return json({ error: groupFindError instanceof Error ? groupFindError.message : "FreeIPA group_find and membership fallback failed" }, 502);
+    }
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/integrations/freeipa/actions") {
+    let body: Record<string, unknown>;
+    try { body = await request.json() as Record<string, unknown>; } catch { return json({ error: "Invalid JSON" }, 400); }
+    if (typeof body.operation !== "string" || !allowedOperations.has(body.operation)) return json({ error: "Unsupported operation" }, 400);
+    if (!boolValue(env.DEMO_MODE) && (!ipaUrl || !env.IPA_USERNAME || !env.IPA_PASSWORD)) return json({ error: "FreeIPA is not configured" }, 503);
+    let call: ReturnType<typeof freeIpaDirectCall>;
+    try {
+      call = freeIpaDirectCall(body.operation as FreeIpaOperation, body);
+    } catch (error) {
+      return json({ error: error instanceof Error ? error.message : "Некорректные параметры FreeIPA" }, 400);
+    }
+    if (boolValue(env.DEMO_MODE)) {
+      const run = operationRun({ request, eventId: `freeipa:${body.operation}`, title: call.title, kind: "event", mode: "demo", jobId: `IPA-DEMO-${Date.now()}`, status: "success", values: call.values });
+      await saveOperationRun(baseEnv, run);
+      return json({ mode: "demo", direct: true, ok: true, runId: run.id, status: run.status });
+    }
+    try {
+      await ipaRpc(env, ipaUrl as string, call.method, call.args, call.options);
+      const run = operationRun({ request, eventId: `freeipa:${body.operation}`, title: call.title, kind: "event", mode: "live", jobId: `IPA-${Date.now()}`, status: "success", values: call.values });
+      await saveOperationRun(baseEnv, run);
+      return json({ mode: "live", direct: true, ok: true, runId: run.id, status: run.status });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "FreeIPA request failed";
+      const run = operationRun({ request, eventId: `freeipa:${body.operation}`, title: call.title, kind: "event", mode: "live", jobId: "", status: "failed", values: call.values, error: message });
+      await saveOperationRun(baseEnv, run);
+      return json({ error: message, runId: run.id }, 502);
     }
   }
 

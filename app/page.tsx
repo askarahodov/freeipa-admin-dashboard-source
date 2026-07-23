@@ -9,8 +9,10 @@ type RunStatus = "queued" | "running" | "success" | "failed" | "unknown";
 type RunStage = { id: string; title: string; status: RunStatus; startedAt: number | null; completedAt: number | null; error: string };
 type RunRecord = { id: string; jobId: string; eventId: string; title: string; kind: "event" | "workflow"; mode: "demo" | "live"; status: RunStatus; actor: string; subject: string; error: string | null; stages: RunStage[]; startedAt: number; updatedAt: number; completedAt: number | null };
 type RunStats = { today: number; queued: number; success: number; failed: number };
-type DirectoryUser = { uid: string; name: string; email: string; groups: number; active: boolean };
+type DirectoryUser = { uid: string; name: string; firstName: string; lastName: string; email: string; groups: number; active: boolean };
 type DirectoryGroup = { name: string; description: string; members: number; type: string };
+type FreeIpaOperation = "user_add" | "user_mod" | "user_enable" | "user_disable" | "user_del" | "group_add" | "group_del" | "group_add_member" | "group_remove_member";
+type FreeIpaAction = { operation: FreeIpaOperation; title: string; preset: Record<string, string> };
 type IntegrationMode = "demo" | "live" | "cached" | "unconfigured";
 type CatalogChange = { id: string; title: string; kind: "new" | "changed" | "removed" };
 type CatalogMeta = { syncedAt: string | null; source: "demo" | "xyops" | "cache" | "none"; stale: boolean; changes: CatalogChange[] };
@@ -32,11 +34,11 @@ const routeOperations = [
 ] as const;
 
 const demoUsers: DirectoryUser[] = [
-  { uid: "jpetrov", name: "Петров Иван", email: "j.petrov@company.local", groups: 4, active: true },
-  { uid: "mivanova", name: "Иванова Мария", email: "m.ivanova@company.local", groups: 3, active: true },
-  { uid: "asmirnov", name: "Смирнов Алексей", email: "a.smirnov@company.local", groups: 2, active: false },
-  { uid: "ekuznetsova", name: "Кузнецова Елена", email: "e.kuznetsova@company.local", groups: 5, active: true },
-  { uid: "dvolkov", name: "Волков Дмитрий", email: "d.volkov@company.local", groups: 1, active: true },
+  { uid: "jpetrov", name: "Петров Иван", firstName: "Иван", lastName: "Петров", email: "j.petrov@company.local", groups: 4, active: true },
+  { uid: "mivanova", name: "Иванова Мария", firstName: "Мария", lastName: "Иванова", email: "m.ivanova@company.local", groups: 3, active: true },
+  { uid: "asmirnov", name: "Смирнов Алексей", firstName: "Алексей", lastName: "Смирнов", email: "a.smirnov@company.local", groups: 2, active: false },
+  { uid: "ekuznetsova", name: "Кузнецова Елена", firstName: "Елена", lastName: "Кузнецова", email: "e.kuznetsova@company.local", groups: 5, active: true },
+  { uid: "dvolkov", name: "Волков Дмитрий", firstName: "Дмитрий", lastName: "Волков", email: "d.volkov@company.local", groups: 1, active: true },
 ];
 
 const demoGroups: DirectoryGroup[] = [
@@ -59,8 +61,7 @@ function routeSchemaDrift(route: AutomationRoute, event: CatalogEvent | undefine
 export default function Home() {
   const [page, setPage] = useState<Page>("overview");
   const [query, setQuery] = useState("");
-  const [targetAction, setTargetAction] = useState<{ operation: string; title: string; preset: Record<string, string> } | null>(null);
-  const [operationPicker, setOperationPicker] = useState<TargetAction | null>(null);
+  const [freeIpaAction, setFreeIpaAction] = useState<FreeIpaAction | null>(null);
   const [toast, setToast] = useState("");
   const [integration, setIntegration] = useState<{ mode: IntegrationMode; viewer: string; freeipa: { reachable: boolean }; xyops: { reachable: boolean } }>({ mode: "unconfigured", viewer: "Пользователь", freeipa: { reachable: false }, xyops: { reachable: false } });
   const [routes, setRoutes] = useState<AutomationRoute[]>([]);
@@ -92,34 +93,36 @@ export default function Home() {
       .catch((cause) => { setCatalog([]); setCatalogMode("unconfigured"); setCatalogError(cause instanceof Error ? cause.message : "Каталог XYOps недоступен"); });
   }, []);
 
-  useEffect(() => {
+  const loadDirectory = useCallback(async () => {
     if (integration.mode === "demo") {
-      Promise.resolve().then(() => { setDirectoryUsers(demoUsers); setDirectoryGroups(demoGroups); setDirectorySource("demo"); });
+      setDirectoryUsers(demoUsers); setDirectoryGroups(demoGroups); setDirectorySource("demo");
       return;
     }
     if (!integration.freeipa.reachable) {
-      Promise.resolve().then(() => { setDirectoryUsers([]); setDirectoryGroups([]); setDirectorySource("unconfigured"); });
+      setDirectoryUsers([]); setDirectoryGroups([]); setDirectorySource("unconfigured");
       return;
     }
-    let cancelled = false;
-    Promise.all([
+    try {
+      const [usersResponse, groupsResponse] = await Promise.all([
       fetch("/api/integrations/users", { cache: "no-store" }),
       fetch("/api/integrations/groups", { cache: "no-store" }),
-    ]).then(async ([usersResponse, groupsResponse]) => {
+      ]);
       if (!usersResponse.ok || !groupsResponse.ok) throw new Error("FreeIPA data request failed");
       const [usersPayload, groupsPayload] = await Promise.all([usersResponse.json(), groupsResponse.json()]);
-      if (cancelled) return;
       setDirectoryUsers(Array.isArray(usersPayload.users) ? usersPayload.users : []);
       setDirectoryGroups(Array.isArray(groupsPayload.groups) ? groupsPayload.groups : []);
       setDirectorySource("live");
-    }).catch(() => {
-      if (cancelled) return;
+    } catch {
       setDirectoryUsers([]);
       setDirectoryGroups([]);
       setDirectorySource("unconfigured");
-    });
-    return () => { cancelled = true; };
+    }
   }, [integration.freeipa.reachable, integration.mode]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void loadDirectory(), 0);
+    return () => window.clearTimeout(timer);
+  }, [loadDirectory]);
 
   const loadRuns = useCallback(async (sync = true) => {
     setRunsLoading(true);
@@ -165,44 +168,25 @@ export default function Home() {
   const filteredUsers = useMemo(() => directoryUsers.filter((u) => `${u.uid} ${u.name} ${u.email}`.toLowerCase().includes(query.toLowerCase())), [directoryUsers, query]);
   const filteredGroups = useMemo(() => directoryGroups.filter((g) => `${g.name} ${g.description} ${g.type}`.toLowerCase().includes(query.toLowerCase())), [directoryGroups, query]);
   const filteredCatalog = useMemo(() => catalog.filter((event) => `${event.title} ${event.description} ${event.category} ${event.plugin ?? ""}`.toLowerCase().includes(query.toLowerCase())), [catalog, query]);
-  const availableOperations = useMemo(() => new Set([
-    ...routes.filter((route) => route.enabled).map((route) => route.operation),
-    ...catalog.filter((event) => event.enabled && event.operation).map((event) => event.operation as string),
-  ]), [routes, catalog]);
-  const canAutomate = catalogMode === "demo" || routes.some((route) => route.enabled) || catalog.some((event) => event.enabled);
-
   function notify(message: string) {
     setToast(message);
     window.setTimeout(() => setToast(""), 2600);
   }
 
-  function openOperation(action: TargetAction) {
-    const process = catalog.find((event) => event.enabled && event.operation === action.operation);
-    if (process && (catalogMode === "live" || catalogMode === "demo")) {
-      setSelectedProcess({ event: process, preset: action.preset });
-      return;
-    }
-    if (routes.some((route) => route.enabled && route.operation === action.operation)) {
-      setTargetAction(action);
-      return;
-    }
-    if (catalog.some((event) => event.enabled) && (catalogMode === "live" || catalogMode === "demo")) {
-      setOperationPicker(action);
-      return;
-    }
-    notify("Нет доступного Event или Workflow XYOps для этой операции");
-  }
-
-  async function queueAction(operation: string, payload: Record<string, string>) {
+  async function runFreeIpaAction(operation: FreeIpaOperation, payload: Record<string, string>) {
     try {
-      const response = await fetch("/api/integrations/actions", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ operation, ...payload }) });
+      const response = await fetch("/api/integrations/freeipa/actions", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ operation, ...payload }) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error);
+      setFreeIpaAction(null);
+      await loadDirectory();
       await loadRuns(false);
-      notify(result.mode === "live" ? "Задание отправлено в XYOps" : `Демо-задание создано: ${result.jobId}`);
+      notify(result.mode === "live" ? "Изменение применено в FreeIPA" : "Демо-операция FreeIPA выполнена");
+      return true;
     } catch (error) {
       await loadRuns(false);
-      notify(error instanceof Error ? error.message : "Не удалось отправить задание");
+      notify(error instanceof Error ? error.message : "Не удалось выполнить операцию FreeIPA");
+      return false;
     }
   }
 
@@ -227,25 +211,24 @@ export default function Home() {
       <aside className="sidebar">
         <div className="brand"><span className="brand-mark">◇</span><div><strong>FreeIPA Admin</strong><small>XYOps</small></div></div>
         <nav>{nav.map((item) => <button key={item.id} className={page === item.id ? "active" : ""} onClick={() => { setPage(item.id); setQuery(""); }}><span>{item.icon}</span>{item.label}</button>)}</nav>
-        <div className="sidebar-bottom"><div className="system-ok"><i className={integration.freeipa.reachable && integration.xyops.reachable ? "" : "warning"} /> <div><strong>{integration.freeipa.reachable && integration.xyops.reachable ? "Система в норме" : "Требуется настройка"}</strong><small>{integration.freeipa.reachable && integration.xyops.reachable ? "FreeIPA и XYOps доступны" : "Проверьте подключения"}</small></div></div><p>© 2026 XYOps</p></div>
+        <div className="sidebar-bottom"><div className="system-ok"><i className={integration.freeipa.reachable ? "" : "warning"} /> <div><strong>{integration.freeipa.reachable ? "FreeIPA готов" : "Требуется настройка"}</strong><small>{integration.xyops.reachable ? "XYOps также подключён" : "XYOps подключается отдельно"}</small></div></div><p>© 2026 Admin Portal</p></div>
       </aside>
 
       <main className="main">
         <header className="topbar">
-          <div><h1>{page === "overview" ? "Обзор инфраструктуры" : title}</h1><p>{page === "overview" ? "Управление FreeIPA через XYOps" : `Управление разделом «${title}»`}</p></div>
+          <div><h1>{page === "overview" ? "Обзор инфраструктуры" : title}</h1><p>{page === "overview" ? "FreeIPA и портал автоматизаций XYOps" : `Управление разделом «${title}»`}</p></div>
           <div className="header-actions"><label className="global-search"><span>⌕</span><input aria-label="Глобальный поиск" placeholder="Поиск процессов, пользователей, групп…" value={query} onChange={(e) => setQuery(e.target.value)} /></label><button className="bell" aria-label="Ошибки операций" onClick={() => notify(runStats.failed ? `Ошибок сегодня: ${runStats.failed}` : "Новых ошибок нет")}>♢{runStats.failed > 0 && <b>{runStats.failed}</b>}</button><button className="profile">{integration.viewer.slice(0, 2).toUpperCase()} <span>{integration.viewer}</span></button></div>
         </header>
 
         {page === "overview" && <Overview goTo={setPage} integration={integration} userCount={directoryUsers.length} groupCount={directoryGroups.length} directorySource={directorySource} runs={recentRuns} runStats={runStats} />}
         {page === "automation" && <AutomationCatalog items={filteredCatalog} mode={catalogMode} meta={catalogMeta} error={catalogError} loading={catalogLoading} recentRuns={recentRuns} onSync={() => void syncCatalog()} onOpenSettings={() => setPage("settings")} onLaunch={(event) => setSelectedProcess({ event, preset: {} })} />}
-        {page === "users" && <Users items={filteredUsers} total={directoryUsers.length} source={directorySource} availableOperations={availableOperations} canAutomate={canAutomate} onCreate={() => openOperation({ operation: "user_add", title: "Новый пользователь", preset: {} })} onAction={openOperation} />}
-        {page === "groups" && <Groups items={filteredGroups} source={directorySource} availableOperations={availableOperations} canAutomate={canAutomate} onCreate={() => openOperation({ operation: "group_add", title: "Новая группа", preset: {} })} onAction={openOperation} />}
+        {page === "users" && <Users items={filteredUsers} total={directoryUsers.length} source={directorySource} onCreate={() => setFreeIpaAction({ operation: "user_add", title: "Новый пользователь", preset: {} })} onAction={setFreeIpaAction} />}
+        {page === "groups" && <Groups items={filteredGroups} source={directorySource} onCreate={() => setFreeIpaAction({ operation: "group_add", title: "Новая группа", preset: {} })} onAction={setFreeIpaAction} />}
         {page === "operations" && <Operations runs={recentRuns} stats={runStats} loading={runsLoading} refresh={() => void loadRuns(true)} />}
         {page === "settings" && <Settings routes={routes} catalog={catalog} catalogLoading={catalogLoading} onSync={() => void syncCatalog()} onRoutesChange={setRoutes} notify={notify} />}
       </main>
 
-      {targetAction && <ActionModal {...targetAction} routes={routes} close={() => setTargetAction(null)} submit={(operation, data) => { setTargetAction(null); void queueAction(operation, data); }} />}
-      {operationPicker && <OperationPickerModal action={operationPicker} events={catalog.filter((event) => event.enabled)} close={() => setOperationPicker(null)} select={(event) => { setOperationPicker(null); setSelectedProcess({ event, preset: operationPicker.preset }); }} />}
+      {freeIpaAction && <FreeIpaActionModal action={freeIpaAction} close={() => setFreeIpaAction(null)} submit={runFreeIpaAction} />}
       {selectedProcess && <ProcessModal event={selectedProcess.event} preset={selectedProcess.preset} close={() => setSelectedProcess(null)} submit={(values, targets) => runProcess(selectedProcess.event, values, targets)} />}
       {toast && <div className="toast"><i />{toast}</div>}
     </div>
@@ -258,12 +241,12 @@ function Overview({ goTo, integration, userCount, groupCount, directorySource, r
       <Metric icon="♙" label="Пользователи" value={userCount.toLocaleString("ru-RU")} delta={directorySource === "live" ? "FreeIPA" : directorySource === "demo" ? "Демо" : "Не настроено"} color="violet" />
       <Metric icon="♣" label="Группы" value={groupCount.toLocaleString("ru-RU")} delta={directorySource === "live" ? "FreeIPA" : directorySource === "demo" ? "Демо" : "Не настроено"} color="blue" />
       <Metric icon="⌁" label="Активные операции" value={String(runStats.queued)} delta="сегодня" color="teal" />
-      <Metric icon="△" label="Ошибки сегодня" value={String(runStats.failed)} delta="журнал XYOps" color="red" />
+      <Metric icon="△" label="Ошибки сегодня" value={String(runStats.failed)} delta="общий журнал" color="red" />
     </section>
     <section className="panel connections"><h2>Состояние подключения</h2><div className="connection-grid">
       <div className="service"><span className="service-icon teal">▤</span><div><h3><i className={`dot ${integration.freeipa.reachable ? "green" : "amber"}`} />FreeIPA {integration.freeipa.reachable ? "подключён" : integration.mode === "demo" ? "демо-режим" : "не настроен"}</h3><small>Источник данных</small><strong>{integration.freeipa.reachable ? "Сохранённая конфигурация" : integration.mode === "demo" ? "Демонстрационные данные" : "Требуется настройка"}</strong></div></div>
       <div className="pulse"><span><i className={`dot ${integration.freeipa.reachable ? "teal-dot" : "amber"}`} /> {integration.freeipa.reachable ? "LIVE" : integration.mode === "demo" ? "DEMO" : "OFF"}</span><b>⌁⌁⌁⌁</b><small>Проверено автоматически</small></div>
-      <div className="service"><span className="service-icon violet">⚙</span><div><h3><i className={`dot ${integration.xyops.reachable ? "violet-dot" : "amber"}`} />XYOps {integration.xyops.reachable ? "подключён" : integration.mode === "demo" ? "демо-режим" : "не настроен"}</h3><small>Исполнение операций</small><strong>{integration.xyops.reachable ? "Задания отправляются" : integration.mode === "demo" ? "Без внешних изменений" : "Требуется настройка"}</strong></div></div>
+      <div className="service"><span className="service-icon violet">⚙</span><div><h3><i className={`dot ${integration.xyops.reachable ? "violet-dot" : "amber"}`} />XYOps {integration.xyops.reachable ? "подключён" : integration.mode === "demo" ? "демо-режим" : "не настроен"}</h3><small>Дополнительная автоматизация</small><strong>{integration.xyops.reachable ? "Events и Workflows доступны" : integration.mode === "demo" ? "Без внешних изменений" : "Не влияет на FreeIPA"}</strong></div></div>
       <div className="pulse purple"><span><i className={`dot ${integration.xyops.reachable ? "violet-dot" : "amber"}`} /> {integration.xyops.reachable ? "LIVE" : integration.mode === "demo" ? "DEMO" : "OFF"}</span><b>⌁⌁⌁⌁</b><small>Проверено автоматически</small></div>
     </div></section>
     <section className="panel table-panel"><div className="panel-title"><h2>Последние операции</h2><button onClick={() => goTo("operations")}>Смотреть все операции →</button></div><OperationTable rows={runs.slice(0, 4)} /></section>
@@ -274,16 +257,14 @@ function Metric({ icon, label, value, delta, color }: { icon: string; label: str
   return <article className="metric"><div className={`metric-icon ${color}`}>{icon}</div><div><span>{label}</span><strong>{value}</strong></div><small className={color === "red" ? "down" : "up"}>{delta} <em>{color === "red" ? "по сравнению со вчера" : "за 7 дней"}</em></small></article>;
 }
 
-type TargetAction = { operation: string; title: string; preset: Record<string, string> };
-
-function Users({ items, total, source, availableOperations, canAutomate, onCreate, onAction }: { items: DirectoryUser[]; total: number; source: "demo" | "live" | "unconfigured"; availableOperations: Set<string>; canAutomate: boolean; onCreate: () => void; onAction: (action: TargetAction) => void }) {
+function Users({ items, total, source, onCreate, onAction }: { items: DirectoryUser[]; total: number; source: "demo" | "live" | "unconfigured"; onCreate: () => void; onAction: (action: FreeIpaAction) => void }) {
   const [filter, setFilter] = useState<"all" | "active" | "disabled">("all");
   const visible = items.filter((user) => filter === "all" || (filter === "active" ? user.active : !user.active));
-  return <section className="panel table-panel section-page"><div className="panel-title"><div><h2>Пользователи FreeIPA</h2><p>{`${visible.length} из ${total} учетных записей · ${source === "live" ? "данные FreeIPA" : source === "demo" ? "демо-данные" : "FreeIPA не настроен"}`}</p></div><button className="primary" disabled={source === "unconfigured" || !canAutomate} onClick={onCreate}>＋ Создать пользователя</button></div><div className="filter-row"><button className={`filter ${filter === "all" ? "active-filter" : ""}`} onClick={() => setFilter("all")}>Все</button><button className={`filter ${filter === "active" ? "active-filter" : ""}`} onClick={() => setFilter("active")}>Активные</button><button className={`filter ${filter === "disabled" ? "active-filter" : ""}`} onClick={() => setFilter("disabled")}>Отключённые</button></div><div className="data-table"><div className="tr th users-row"><span>Пользователь</span><span>Логин</span><span>Группы</span><span>Статус</span><span>Действия</span></div>{visible.map((u) => <div className="tr users-row" key={u.uid}><span className="person"><b>{u.name.split(" ").map(x => x[0]).join("")}</b><span><strong>{u.name}</strong><small>{u.email}</small></span></span><span className="mono">{u.uid}</span><span>{u.groups}</span><span><Status tone={u.active ? "success" : "neutral"}>{u.active ? "Активен" : "Отключён"}</Status></span><span className="row-actions">{canAutomate && <button onClick={() => onAction({ operation: "user_mod", title: `Редактировать ${u.uid}`, preset: { username: u.uid, uid: u.uid, user: u.uid, mail: u.email, email: u.email } })}>Редактировать</button>}{availableOperations.has(u.active ? "user_disable" : "user_enable") && <button onClick={() => onAction({ operation: u.active ? "user_disable" : "user_enable", title: `${u.active ? "Отключить" : "Включить"} ${u.uid}`, preset: { username: u.uid, uid: u.uid, user: u.uid } })}>{u.active ? "Отключить" : "Включить"}</button>}{availableOperations.has("user_del") && <button className="danger-link" onClick={() => onAction({ operation: "user_del", title: `Удалить ${u.uid}`, preset: { username: u.uid, uid: u.uid, user: u.uid } })}>Удалить</button>}{!canAutomate && <Status tone="neutral">Нет процессов XYOps</Status>}</span></div>)}</div>{source === "unconfigured" && <div className="catalog-empty"><strong>FreeIPA не настроен</strong><span>Сохраните подключение в разделе «Настройки».</span></div>}</section>;
+  return <section className="panel table-panel section-page"><div className="panel-title"><div><h2>Пользователи FreeIPA</h2><p>{`${visible.length} из ${total} учетных записей · ${source === "live" ? "прямое подключение FreeIPA" : source === "demo" ? "демо-данные" : "FreeIPA не настроен"}`}</p></div><button className="primary" disabled={source === "unconfigured"} onClick={onCreate}>＋ Создать пользователя</button></div><div className="filter-row"><button className={`filter ${filter === "all" ? "active-filter" : ""}`} onClick={() => setFilter("all")}>Все</button><button className={`filter ${filter === "active" ? "active-filter" : ""}`} onClick={() => setFilter("active")}>Активные</button><button className={`filter ${filter === "disabled" ? "active-filter" : ""}`} onClick={() => setFilter("disabled")}>Отключённые</button></div><div className="data-table"><div className="tr th users-row"><span>Пользователь</span><span>Логин</span><span>Группы</span><span>Статус</span><span>Действия</span></div>{visible.map((u) => <div className="tr users-row" key={u.uid}><span className="person"><b>{u.name.split(" ").map(x => x[0]).join("")}</b><span><strong>{u.name}</strong><small>{u.email}</small></span></span><span className="mono">{u.uid}</span><span>{u.groups}</span><span><Status tone={u.active ? "success" : "neutral"}>{u.active ? "Активен" : "Отключён"}</Status></span><span className="row-actions"><button onClick={() => onAction({ operation: "user_mod", title: `Редактировать ${u.uid}`, preset: { username: u.uid, firstName: u.firstName, lastName: u.lastName, email: u.email } })}>Редактировать</button><button onClick={() => onAction({ operation: u.active ? "user_disable" : "user_enable", title: `${u.active ? "Отключить" : "Включить"} ${u.uid}`, preset: { username: u.uid } })}>{u.active ? "Отключить" : "Включить"}</button><button className="danger-link" onClick={() => onAction({ operation: "user_del", title: `Удалить ${u.uid}`, preset: { username: u.uid } })}>Удалить</button></span></div>)}</div>{source === "unconfigured" && <div className="catalog-empty"><strong>FreeIPA не настроен</strong><span>Сохраните подключение в разделе «Настройки».</span></div>}</section>;
 }
 
-function Groups({ items, source, availableOperations, canAutomate, onCreate, onAction }: { items: DirectoryGroup[]; source: "demo" | "live" | "unconfigured"; availableOperations: Set<string>; canAutomate: boolean; onCreate: () => void; onAction: (action: TargetAction) => void }) {
-  return <div className="content-stack"><div className="page-tools"><div><h2>Группы доступа</h2><p>{`${items.length} групп · ${source === "live" ? "данные FreeIPA" : source === "demo" ? "демо-данные" : "FreeIPA не настроен"}`}</p></div><button className="primary" disabled={source === "unconfigured" || !canAutomate} onClick={onCreate}>＋ Создать группу</button></div>{source === "unconfigured" ? <section className="panel catalog-empty"><strong>FreeIPA не настроен</strong><span>Сохраните подключение в разделе «Настройки».</span></section> : <section className="group-grid">{items.map((g, i) => <article className="group-card" key={g.name}><div className={`group-avatar c${i % 4}`}>♣</div><h3>{g.name}</h3><p>{g.description}</p><div><span><strong>{g.members}</strong><small>участников</small></span><Status tone="violet">{g.type}</Status></div><div className="group-actions">{availableOperations.has("group_add_member") && <button onClick={() => onAction({ operation: "group_add_member", title: `Добавить участника в ${g.name}`, preset: { group: g.name, groupname: g.name } })}>＋ Участник</button>}{availableOperations.has("group_remove_member") && <button onClick={() => onAction({ operation: "group_remove_member", title: `Удалить участника из ${g.name}`, preset: { group: g.name, groupname: g.name } })}>− Участник</button>}{availableOperations.has("group_del") && <button className="danger-link" onClick={() => onAction({ operation: "group_del", title: `Удалить группу ${g.name}`, preset: { group: g.name, groupname: g.name } })}>Удалить</button>}{!["group_add_member", "group_remove_member", "group_del"].some((operation) => availableOperations.has(operation)) && <Status tone="neutral">{canAutomate ? "Выберите процесс при создании" : "Нет процессов XYOps"}</Status>}</div></article>)}</section>}</div>;
+function Groups({ items, source, onCreate, onAction }: { items: DirectoryGroup[]; source: "demo" | "live" | "unconfigured"; onCreate: () => void; onAction: (action: FreeIpaAction) => void }) {
+  return <div className="content-stack"><div className="page-tools"><div><h2>Группы доступа</h2><p>{`${items.length} групп · ${source === "live" ? "прямое подключение FreeIPA" : source === "demo" ? "демо-данные" : "FreeIPA не настроен"}`}</p></div><button className="primary" disabled={source === "unconfigured"} onClick={onCreate}>＋ Создать группу</button></div>{source === "unconfigured" ? <section className="panel catalog-empty"><strong>FreeIPA не настроен</strong><span>Сохраните подключение в разделе «Настройки».</span></section> : <section className="group-grid">{items.map((g, i) => <article className="group-card" key={g.name}><div className={`group-avatar c${i % 4}`}>♣</div><h3>{g.name}</h3><p>{g.description}</p><div><span><strong>{g.members}</strong><small>участников</small></span><Status tone="violet">{g.type}</Status></div><div className="group-actions"><button onClick={() => onAction({ operation: "group_add_member", title: `Добавить участника в ${g.name}`, preset: { group: g.name } })}>＋ Участник</button><button onClick={() => onAction({ operation: "group_remove_member", title: `Удалить участника из ${g.name}`, preset: { group: g.name } })}>− Участник</button><button className="danger-link" onClick={() => onAction({ operation: "group_del", title: `Удалить группу ${g.name}`, preset: { group: g.name } })}>Удалить</button></div></article>)}</section>}</div>;
 }
 
 function AutomationCatalog({ items, mode, meta, error, loading, recentRuns, onSync, onOpenSettings, onLaunch }: { items: CatalogEvent[]; mode: IntegrationMode; meta: CatalogMeta; error: string; loading: boolean; recentRuns: RunRecord[]; onSync: () => void; onOpenSettings: () => void; onLaunch: (event: CatalogEvent) => void }) {
@@ -305,7 +286,7 @@ function AutomationCatalog({ items, mode, meta, error, loading, recentRuns, onSy
 function Operations({ runs, stats, loading, refresh }: { runs: RunRecord[]; stats: RunStats; loading: boolean; refresh: () => void }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = runs.find((run) => run.id === selectedId) ?? null;
-  return <div className="content-stack"><section className="panel table-panel section-page"><div className="panel-title"><div><h2>Журнал операций XYOps</h2><p>Постоянная история запусков и актуальные состояния заданий</p></div><button className="secondary" disabled={loading} onClick={refresh}>{loading ? "Обновление…" : "⟳ Обновить"}</button></div><div className="stats-strip"><span><b>{stats.today}</b> операций сегодня</span><span><i className="dot green" /><b>{stats.success}</b> успешно</span><span><i className="dot amber" /><b>{stats.queued}</b> выполняются</span><span><i className="dot red-dot" /><b>{stats.failed}</b> ошибки</span></div><OperationTable rows={runs} detailed onSelect={(run) => setSelectedId(run.id)} /></section>{selected && <RunDetails run={selected} close={() => setSelectedId(null)} />}</div>;
+  return <div className="content-stack"><section className="panel table-panel section-page"><div className="panel-title"><div><h2>Журнал операций</h2><p>Прямые изменения FreeIPA и запуски автоматизаций XYOps</p></div><button className="secondary" disabled={loading} onClick={refresh}>{loading ? "Обновление…" : "⟳ Обновить"}</button></div><div className="stats-strip"><span><b>{stats.today}</b> операций сегодня</span><span><i className="dot green" /><b>{stats.success}</b> успешно</span><span><i className="dot amber" /><b>{stats.queued}</b> выполняются</span><span><i className="dot red-dot" /><b>{stats.failed}</b> ошибки</span></div><OperationTable rows={runs} detailed onSelect={(run) => setSelectedId(run.id)} /></section>{selected && <RunDetails run={selected} close={() => setSelectedId(null)} />}</div>;
 }
 
 function RunDetails({ run, close }: { run: RunRecord; close: () => void }) {
@@ -377,7 +358,7 @@ function PersistentConnectionSettings({ notify }: { notify: (message: string) =>
     <section className="panel settings-access"><div><span className="eyebrow">ADMIN ACCESS</span><h2>Постоянная конфигурация</h2><p>Токен администратора хранится только в текущей вкладке и не записывается в базу.</p></div><label>ADMIN_TOKEN<input type="password" value={adminToken} onChange={(event) => setAdminToken(event.target.value)} placeholder="Введите серверный ADMIN_TOKEN" autoComplete="off" /></label><button className="primary" disabled={!adminToken || busy === "load"} onClick={() => void loadSettings()}>{busy === "load" ? "Загрузка…" : settings ? "Перезагрузить" : "Открыть настройки"}</button></section>
     {error && <div className="settings-error"><strong>Ошибка конфигурации</strong><span>{error}</span></div>}
     {settings && <><div className="persistence-strip"><Status tone={settings.persistenceAvailable ? "success" : "error"}>{settings.persistenceAvailable ? "D1 / SQLite доступна" : "База недоступна"}</Status><Status tone={settings.encryptionConfigured ? "success" : "error"}>{settings.encryptionConfigured ? "Шифрование настроено" : "Нет ключа шифрования"}</Status><span>Источник: <b>{settings.source === "database" ? "база данных" : "переменные окружения"}</b></span>{settings.updatedAt && <span>Сохранено: {new Date(settings.updatedAt).toLocaleString("ru-RU")}</span>}<label className="demo-switch"><input type="checkbox" checked={draft.demoMode} onChange={(event) => setDraft({ ...draft, demoMode: event.target.checked })} /> Демо-режим</label></div><div className="settings-grid">
-      <section className="panel settings-card"><div className="settings-head"><span className="service-icon teal">▤</span><div><h2>FreeIPA — чтение</h2><p>JSON-RPC с серверными учётными данными</p></div><Status tone={tests.freeipa ? "success" : "neutral"}>{tests.freeipa ?? "Не проверено"}</Status></div><label>Адрес сервера<input value={draft.ipaUrl} onChange={(event) => setDraft({ ...draft, ipaUrl: event.target.value })} placeholder="https://ipa.company.local" /></label><label>Service account<input value={draft.ipaUsername} onChange={(event) => setDraft({ ...draft, ipaUsername: event.target.value })} placeholder="xyops-freeipa-reader" /></label><label>Пароль<input type="password" value={draft.ipaPassword} onChange={(event) => setDraft({ ...draft, ipaPassword: event.target.value })} placeholder={settings.freeipa.passwordConfigured ? "Сохранён — оставьте пустым без изменений" : "Введите пароль"} autoComplete="new-password" /></label><p className="settings-note">Пароль шифруется AES-GCM перед записью. Пустое поле сохраняет текущий пароль.</p><button className="secondary" disabled={Boolean(busy)} onClick={() => void testConnection("freeipa")}>{busy === "freeipa" ? "Проверка…" : "Проверить FreeIPA"}</button></section>
+      <section className="panel settings-card"><div className="settings-head"><span className="service-icon teal">▤</span><div><h2>FreeIPA — управление</h2><p>Независимый JSON-RPC модуль пользователей и групп</p></div><Status tone={tests.freeipa ? "success" : "neutral"}>{tests.freeipa ?? "Не проверено"}</Status></div><label>Адрес сервера<input value={draft.ipaUrl} onChange={(event) => setDraft({ ...draft, ipaUrl: event.target.value })} placeholder="https://ipa.company.local" /></label><label>Service account<input value={draft.ipaUsername} onChange={(event) => setDraft({ ...draft, ipaUsername: event.target.value })} placeholder="portal-freeipa-manager" /></label><label>Пароль<input type="password" value={draft.ipaPassword} onChange={(event) => setDraft({ ...draft, ipaPassword: event.target.value })} placeholder={settings.freeipa.passwordConfigured ? "Сохранён — оставьте пустым без изменений" : "Введите пароль"} autoComplete="new-password" /></label><p className="settings-note">Учётной записи нужны только разрешения на требуемые операции пользователей и групп. Пароль шифруется AES-GCM.</p><button className="secondary" disabled={Boolean(busy)} onClick={() => void testConnection("freeipa")}>{busy === "freeipa" ? "Проверка…" : "Проверить FreeIPA"}</button></section>
       <section className="panel settings-card"><div className="settings-head"><span className="service-icon violet">⚙</span><div><h2>XYOps — выполнение</h2><p>Каталог Events и запуск Workflows</p></div><Status tone={tests.xyops ? "success" : "neutral"}>{tests.xyops ?? "Не проверено"}</Status></div><label>Адрес XYOps<input value={draft.xyopsUrl} onChange={(event) => setDraft({ ...draft, xyopsUrl: event.target.value })} placeholder="https://xyops.company.local" /></label><label>API Key<input type="password" value={draft.xyopsApiKey} onChange={(event) => setDraft({ ...draft, xyopsApiKey: event.target.value })} placeholder={settings.xyops.apiKeyConfigured ? "Сохранён — оставьте пустым без изменений" : "Введите API Key"} autoComplete="new-password" /></label><p className="settings-note">API Key никогда не возвращается в браузер. Тест выполняет read-only запрос каталога.</p><button className="secondary" disabled={Boolean(busy)} onClick={() => void testConnection("xyops")}>{busy === "xyops" ? "Проверка…" : "Проверить XYOps"}</button></section>
     </div><section className="panel settings-savebar"><div><strong>Сохранение в persistent storage</strong><span>Настройки переживут перезапуск контейнера при подключённом volume.</span></div><button className="primary" disabled={Boolean(busy) || !settings.persistenceAvailable || !settings.encryptionConfigured} onClick={() => void saveSettings()}>{busy === "save" ? "Сохранение…" : "Сохранить настройки"}</button></section></>}
   </>;
@@ -449,27 +430,30 @@ function SchemaReviewModal({ route, source, busy, close, apply }: { route: Autom
   return <div className="modal-backdrop"><div className="modal schema-review-modal"><button className="modal-x" onClick={close}>×</button><span className="eyebrow">SCHEMA REVIEW</span><h2>Изменения маршрута «{route.title}»</h2><p>Сравнение сохранённой схемы с текущим процессом XYOps. Обновление выполняется только после подтверждения.</p><div className="schema-version-line"><code>{route.schemaVersion ?? "legacy"}</code><span>→</span><code>{source.schemaVersion ?? "legacy"}</code></div><div className="schema-diff-summary"><Status tone="success">＋ {added.length} добавлено</Status><Status tone="warning">△ {changed.length} изменено</Status><Status tone="error">− {removed.length} удалено</Status>{topologyChanged && <Status tone="violet">Targets или тип изменены</Status>}</div><div className="schema-diff-list">{added.map((field) => <article key={`add-${field.key}`}><i className="added">＋</i><div><strong>{field.label}</strong><code>{field.key}</code><small>{field.type} · {field.target ?? "params"}</small></div><Status tone="success">Новое поле</Status></article>)}{changed.map((field) => <article key={`change-${field.key}`}><i className="changed">△</i><div><strong>{field.label}</strong><code>{field.key}</code><small>{before.get(field.key)?.type} → {field.type}{before.get(field.key)?.required !== field.required ? ` · обязательность: ${field.required ? "да" : "нет"}` : ""}</small></div><Status tone="warning">Изменено</Status></article>)}{removed.map((field) => <article key={`remove-${field.key}`}><i className="removed">−</i><div><strong>{field.label}</strong><code>{field.key}</code><small>Поле отсутствует в актуальной схеме</small></div><Status tone="error">Будет удалено</Status></article>)}{!hasChanges && <div className="catalog-empty"><strong>Схемы совпадают</strong><span>Маршрут уже использует актуальный контракт XYOps.</span></div>}</div><div className="modal-actions"><button className="secondary" onClick={close}>Закрыть</button><button className="primary" disabled={!hasChanges || busy} onClick={apply}>{busy ? "Сохранение…" : "Применить новую схему"}</button></div></div></div>;
 }
 
-function Modal({ type, routes, close, submit }: { type: "user" | "group"; routes: AutomationRoute[]; close: () => void; submit: (s: string, payload?: { operation: string; data: Record<string, string> }) => void }) {
-  const isUser = type === "user";
-  const operation = isUser ? "user_add" : "group_add";
-  const availableRoutes = routes.filter((route) => route.operation === operation && route.enabled);
-  const [selectedKey, setSelectedKey] = useState(availableRoutes[0]?.key ?? "");
-  const selectedRoute = availableRoutes.find((route) => route.key === selectedKey) ?? availableRoutes[0];
-  return <div className="modal-backdrop"><form className="modal dynamic-modal" onSubmit={(e) => { e.preventDefault(); const form = new FormData(e.currentTarget); const data = Object.fromEntries(Array.from(form.entries()).map(([key, value]) => [key, String(value)])); submit("", { operation, data }); }}><button type="button" className="modal-x" onClick={close}>×</button><h2>{isUser ? "Новый пользователь" : "Новая группа"}</h2><p>Форма сформирована из схемы выбранного маршрута XYOps.</p><label>Маршрут автоматизации<select name="routeKey" value={selectedRoute?.key ?? ""} onChange={(event) => setSelectedKey(event.target.value)}>{availableRoutes.map((route) => <option key={route.key} value={route.key}>{route.title} · {route.kind === "workflow" ? "Workflow" : "Event"}</option>)}</select></label>{selectedRoute ? <><div className="selected-route"><span className={`route-kind ${selectedRoute.kind}`}>{selectedRoute.kind === "workflow" ? "⌘" : "▶"}</span><div><strong>{selectedRoute.title}</strong><code>{selectedRoute.eventId}</code></div><Status tone={selectedRoute.kind === "workflow" ? "violet" : "success"}>{selectedRoute.fields.length} полей</Status></div><GeneratedFields fields={selectedRoute.fields} eventId={selectedRoute.eventId} key={selectedRoute.key} /></> : <div className="catalog-empty"><strong>Нет доступного маршрута</strong><span>Создайте привязку для операции {operation}.</span></div>}<div className="modal-actions"><button type="button" className="secondary" onClick={close}>Отмена</button><button className="primary" disabled={!selectedRoute}>Запустить</button></div></form></div>;
-}
-
-function ActionModal({ operation, title, preset, routes, close, submit }: TargetAction & { routes: AutomationRoute[]; close: () => void; submit: (operation: string, data: Record<string, string>) => void }) {
-  const availableRoutes = routes.filter((route) => route.operation === operation && route.enabled);
-  const [selectedKey, setSelectedKey] = useState(availableRoutes[0]?.key ?? "");
-  const selectedRoute = availableRoutes.find((route) => route.key === selectedKey) ?? availableRoutes[0];
-  const destructive = operation.endsWith("_del") || operation.includes("remove") || operation.includes("disable");
-  return <div className="modal-backdrop"><form className="modal dynamic-modal" onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); const data = Object.fromEntries(Array.from(form.entries()).map(([key, value]) => [key, String(value)])); submit(operation, data); }}><button type="button" className="modal-x" onClick={close}>×</button><h2>{title}</h2><p>Поля и способ запуска получены из сохранённого маршрута XYOps.</p><label>Маршрут автоматизации<select name="routeKey" value={selectedRoute?.key ?? ""} onChange={(event) => setSelectedKey(event.target.value)}>{availableRoutes.map((route) => <option key={route.key} value={route.key}>{route.title} · {route.kind}</option>)}</select></label>{selectedRoute && <><div className="selected-route"><span className={`route-kind ${selectedRoute.kind}`}>{selectedRoute.kind === "workflow" ? "⌘" : "▶"}</span><div><strong>{selectedRoute.title}</strong><code>{selectedRoute.eventId}</code></div><Status tone={selectedRoute.kind === "workflow" ? "violet" : "success"}>{selectedRoute.fields.length} полей</Status></div><GeneratedFields fields={selectedRoute.fields} eventId={selectedRoute.eventId} preset={preset} key={selectedRoute.key} /></>}{destructive && <label className="checkbox-field danger-confirm"><input type="checkbox" required /><span><strong>Подтверждаю выполнение операции</strong><small>Действие будет передано в XYOps</small></span></label>}<div className="modal-actions"><button type="button" className="secondary" onClick={close}>Отмена</button><button className="primary" disabled={!selectedRoute}>Запустить через XYOps</button></div></form></div>;
-}
-
-function OperationPickerModal({ action, events, close, select }: { action: TargetAction; events: CatalogEvent[]; close: () => void; select: (event: CatalogEvent) => void }) {
-  const [query, setQuery] = useState("");
-  const visible = events.filter((event) => `${event.title} ${event.description} ${event.category} ${event.plugin ?? ""}`.toLowerCase().includes(query.toLowerCase()));
-  return <div className="modal-backdrop"><div className="modal dynamic-modal"><button type="button" className="modal-x" onClick={close}>×</button><span className="eyebrow">XYOPS PROCESS MATCHING</span><h2>{action.title}</h2><p>Автоматическое сопоставление не найдено. Выберите существующий Event или Workflow — форма будет построена из его полей.</p><label>Поиск процесса<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Название, категория или plugin…" autoFocus /></label><div className="catalog-grid">{visible.map((event) => <button type="button" className="route-main" onClick={() => select(event)} key={event.id}><span className={`route-kind ${event.kind}`}>{event.kind === "workflow" ? "⌘" : "▶"}</span><span><strong>{event.title}</strong><small>{event.category}{event.operation ? ` · ${event.operation}` : ""}</small></span><Status tone={event.kind === "workflow" ? "violet" : "success"}>{event.fields.length} полей</Status></button>)}</div>{!visible.length && <div className="catalog-empty"><strong>Процессы не найдены</strong><span>Измените запрос или синхронизируйте каталог XYOps.</span></div>}<div className="modal-actions"><button type="button" className="secondary" onClick={close}>Отмена</button></div></div></div>;
+function FreeIpaActionModal({ action, close, submit }: { action: FreeIpaAction; close: () => void; submit: (operation: FreeIpaOperation, data: Record<string, string>) => Promise<boolean> }) {
+  const [busy, setBusy] = useState(false);
+  const { operation, preset } = action;
+  const isUserForm = operation === "user_add" || operation === "user_mod";
+  const isGroupForm = operation === "group_add";
+  const isMemberForm = operation === "group_add_member" || operation === "group_remove_member";
+  const destructive = operation === "user_del" || operation === "group_del" || operation === "user_disable" || operation === "group_remove_member";
+  return <div className="modal-backdrop"><form className="modal dynamic-modal" onSubmit={async (event) => {
+    event.preventDefault();
+    setBusy(true);
+    const data = Object.fromEntries(Array.from(new FormData(event.currentTarget).entries()).map(([key, value]) => [key, String(value)]));
+    if (!await submit(operation, data)) setBusy(false);
+  }}><button type="button" className="modal-x" onClick={close}>×</button><span className="eyebrow">ПРЯМОЕ УПРАВЛЕНИЕ FREEIPA</span><h2>{action.title}</h2><p>Операция выполняется отдельным модулем FreeIPA. XYOps для неё не требуется.</p>
+    {(isUserForm || operation === "user_enable" || operation === "user_disable" || operation === "user_del") && <label>Логин<input name="username" required readOnly={operation !== "user_add"} defaultValue={preset.username ?? ""} pattern="[A-Za-z0-9_.@$-]+" autoFocus={operation !== "user_add"} /></label>}
+    {isUserForm && <div className="two-cols"><label>Имя<input name="firstName" required={operation === "user_add"} defaultValue={preset.firstName ?? ""} autoFocus={operation === "user_add"} /></label><label>Фамилия<input name="lastName" required={operation === "user_add"} defaultValue={preset.lastName ?? ""} /></label></div>}
+    {isUserForm && <label>Email<input name="email" type="email" defaultValue={preset.email ?? ""} /></label>}
+    {operation === "user_add" && <label>Начальный пароль<input name="password" type="password" autoComplete="new-password" /><small>Необязательно. Пароль передаётся напрямую в FreeIPA и не сохраняется порталом.</small></label>}
+    {(isGroupForm || isMemberForm || operation === "group_del") && <label>Группа<input name="group" required readOnly={!isGroupForm} defaultValue={preset.group ?? ""} pattern="[A-Za-z0-9_.@$-]+" autoFocus={isGroupForm} /></label>}
+    {isGroupForm && <label>Описание<input name="description" defaultValue={preset.description ?? ""} /></label>}
+    {isMemberForm && <label>Логин участника<input name="username" required pattern="[A-Za-z0-9_.@$-]+" autoFocus /></label>}
+    {destructive && <label className="checkbox-field danger-confirm"><input type="checkbox" required /><span><strong>Подтверждаю выполнение операции</strong><small>Изменение будет немедленно применено в FreeIPA</small></span></label>}
+    <div className="schema-note"><span>▤</span><div><strong>Независимый модуль FreeIPA</strong><small>JSON-RPC через защищённый серверный Gateway</small></div></div>
+    <div className="modal-actions"><button type="button" className="secondary" onClick={close}>Отмена</button><button className="primary" disabled={busy}>{busy ? "Выполнение…" : "Применить в FreeIPA"}</button></div>
+  </form></div>;
 }
 
 function ProcessModal({ event, preset = {}, close, submit }: { event: CatalogEvent; preset?: Record<string, string>; close: () => void; submit: (values: Record<string, unknown>, targets: string[]) => Promise<boolean> }) {

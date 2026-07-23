@@ -6,9 +6,9 @@ import { conditionFieldNames, fieldConditionMatches } from "../field-conditions"
 
 type Page = "overview" | "automation" | "users" | "groups" | "operations" | "settings";
 type AutomationRoute = SourceAutomationRoute & { enabled: boolean; targets: string[]; fields: RouteField[] };
-type RunStatus = "queued" | "running" | "success" | "failed" | "unknown";
+type RunStatus = "queued" | "running" | "success" | "failed" | "cancelled" | "unknown";
 type RunStage = { id: string; title: string; status: RunStatus; startedAt: number | null; completedAt: number | null; error: string };
-type RunRecord = { id: string; jobId: string; eventId: string; title: string; kind: "event" | "workflow"; mode: "demo" | "live"; status: RunStatus; actor: string; subject: string; error: string | null; stages: RunStage[]; startedAt: number; updatedAt: number; completedAt: number | null };
+type RunRecord = { id: string; jobId: string; eventId: string; title: string; kind: "event" | "workflow"; mode: "demo" | "live"; status: RunStatus; actor: string; subject: string; error: string | null; stages: RunStage[]; startedAt: number; updatedAt: number; completedAt: number | null; actions: { cancel: boolean; rerun: boolean; rerunLabel: string; reason: string; parentRunId: string } };
 type RunStats = { today: number; queued: number; success: number; failed: number };
 type DirectoryUser = { uid: string; name: string; firstName: string; lastName: string; email: string; groups: number; groupNames: string[]; active: boolean };
 type DirectoryGroup = { name: string; description: string; members: number; memberUids: string[]; type: string };
@@ -262,6 +262,28 @@ export default function Home() {
     }
   }
 
+  async function runJobAction(run: RunRecord, action: "cancel" | "rerun") {
+    const confirmation = action === "cancel"
+      ? `Остановить активное задание ${run.jobId}?`
+      : `${run.actions.rerunLabel} процесс «${run.title}» с прежними проверенными параметрами?`;
+    if (!window.confirm(confirmation)) return false;
+    try {
+      const response = await fetch(`/api/integrations/runs/${encodeURIComponent(run.id)}/${action}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ confirm: true }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Операция с заданием не выполнена");
+      await loadRuns(true);
+      notify(action === "cancel" ? "Команда остановки отправлена в XYOps" : `Создан новый запуск: ${result.jobId ?? "ожидает Job ID"}`);
+      return true;
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Не удалось выполнить действие с заданием");
+      return false;
+    }
+  }
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -280,7 +302,7 @@ export default function Home() {
         {page === "automation" && <AutomationCatalog items={filteredCatalog} sections={automationSections} selectedCategory={automationCategory} mode={catalogMode} meta={catalogMeta} error={catalogError} loading={catalogLoading} recentRuns={recentRuns} canRun={canRunXyops} canManageSettings={canManageSettings} onCategoryChange={(category) => navigateTo("automation", category)} onSync={() => void syncCatalog()} onOpenSettings={() => navigateTo("settings")} onLaunch={(event) => setSelectedProcess({ event, preset: {} })} />}
         {page === "users" && <Users items={filteredUsers} allGroups={directoryGroups} total={directoryUsers.length} source={directorySource} canWrite={canWriteFreeIpa} canDelete={canDeleteFreeIpa} onCreate={() => setFreeIpaAction({ operation: "user_add", title: "Новый пользователь", preset: {} })} onAction={setFreeIpaAction} />}
         {page === "groups" && <Groups items={filteredGroups} allUsers={directoryUsers} source={directorySource} canWrite={canWriteFreeIpa} canDelete={canDeleteFreeIpa} onCreate={() => setFreeIpaAction({ operation: "group_add", title: "Новая группа", preset: {} })} onAction={setFreeIpaAction} />}
-        {page === "operations" && <Operations runs={recentRuns} stats={runStats} loading={runsLoading} refresh={() => void loadRuns(true)} />}
+        {page === "operations" && <Operations runs={recentRuns} stats={runStats} loading={runsLoading} refresh={() => void loadRuns(true)} onAction={runJobAction} />}
         {page === "settings" && canManageSettings && <Settings routes={routes} catalog={catalog} catalogLoading={catalogLoading} onSync={() => void syncCatalog()} onRoutesChange={setRoutes} notify={notify} />}
       </main>
 
@@ -352,21 +374,23 @@ function AutomationCatalog({ items, sections, selectedCategory, mode, meta, erro
   </div>;
 }
 
-function Operations({ runs, stats, loading, refresh }: { runs: RunRecord[]; stats: RunStats; loading: boolean; refresh: () => void }) {
+function Operations({ runs, stats, loading, refresh, onAction }: { runs: RunRecord[]; stats: RunStats; loading: boolean; refresh: () => void; onAction: (run: RunRecord, action: "cancel" | "rerun") => Promise<boolean> }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = runs.find((run) => run.id === selectedId) ?? null;
-  return <div className="content-stack"><section className="panel table-panel section-page"><div className="panel-title"><div><h2>Журнал операций</h2><p>Прямые изменения FreeIPA и запуски автоматизаций XYOps</p></div><button className="secondary" disabled={loading} onClick={refresh}>{loading ? "Обновление…" : "⟳ Обновить"}</button></div><div className="stats-strip"><span><b>{stats.today}</b> операций сегодня</span><span><i className="dot green" /><b>{stats.success}</b> успешно</span><span><i className="dot amber" /><b>{stats.queued}</b> выполняются</span><span><i className="dot red-dot" /><b>{stats.failed}</b> ошибки</span></div><OperationTable rows={runs} detailed onSelect={(run) => setSelectedId(run.id)} /></section>{selected && <RunDetails run={selected} close={() => setSelectedId(null)} />}</div>;
+  return <div className="content-stack"><section className="panel table-panel section-page"><div className="panel-title"><div><h2>Журнал операций</h2><p>Прямые изменения FreeIPA и запуски автоматизаций XYOps</p></div><button className="secondary" disabled={loading} onClick={refresh}>{loading ? "Обновление…" : "⟳ Обновить"}</button></div><div className="stats-strip"><span><b>{stats.today}</b> операций сегодня</span><span><i className="dot green" /><b>{stats.success}</b> успешно</span><span><i className="dot amber" /><b>{stats.queued}</b> выполняются</span><span><i className="dot red-dot" /><b>{stats.failed}</b> ошибки</span></div><OperationTable rows={runs} detailed onSelect={(run) => setSelectedId(run.id)} /></section>{selected && <RunDetails run={selected} close={() => setSelectedId(null)} onAction={onAction} />}</div>;
 }
 
-function RunDetails({ run, close }: { run: RunRecord; close: () => void }) {
-  return <div className="modal-backdrop"><section className="modal run-details-modal"><button className="modal-x" onClick={close}>×</button><div className="run-detail-head"><div><span className="eyebrow">XYOPS {run.kind.toUpperCase()}</span><h2>{run.title}</h2><p>{run.subject} · {run.actor}</p></div><RunStatusBadge status={run.status} /></div><div className="run-facts"><span><small>Job ID</small><code>{run.jobId}</code></span><span><small>Запущено</small><strong>{formatDateTime(run.startedAt)}</strong></span><span><small>Обновлено</small><strong>{formatDateTime(run.updatedAt)}</strong></span></div>{run.stages?.length ? <div className="workflow-timeline">{run.stages.map((stage, index) => <article key={stage.id}><div className="timeline-marker"><i className={stage.status}>{stage.status === "success" ? "✓" : stage.status === "failed" ? "!" : index + 1}</i>{index < run.stages.length - 1 && <span />}</div><div><strong>{stage.title}</strong><small>{stage.startedAt ? formatDateTime(stage.startedAt) : "Ожидает данных времени"}{stage.completedAt ? ` → ${formatDateTime(stage.completedAt)}` : ""}</small>{stage.error && <p>{stage.error}</p>}</div><RunStatusBadge status={stage.status} /></article>)}</div> : <div className="catalog-empty"><strong>XYOps не вернул этапы Workflow</strong><span>Отображается общий статус задания. Этапы появятся, если `get_active_jobs` содержит `stages`, `steps`, `tasks` или `nodes`.</span></div>}{run.error && <div className="settings-error"><strong>Ошибка</strong><span>{run.error}</span></div>}<div className="modal-actions"><button className="secondary" onClick={close}>Закрыть</button></div></section></div>;
+function RunDetails({ run, close, onAction }: { run: RunRecord; close: () => void; onAction: (run: RunRecord, action: "cancel" | "rerun") => Promise<boolean> }) {
+  const [busy, setBusy] = useState<"cancel" | "rerun" | null>(null);
+  const act = async (action: "cancel" | "rerun") => { setBusy(action); if (await onAction(run, action)) close(); else setBusy(null); };
+  return <div className="modal-backdrop"><section className="modal run-details-modal"><button className="modal-x" onClick={close}>×</button><div className="run-detail-head"><div><span className="eyebrow">XYOPS {run.kind.toUpperCase()}</span><h2>{run.title}</h2><p>{run.subject} · {run.actor}</p></div><RunStatusBadge status={run.status} /></div><div className="run-facts"><span><small>Job ID</small><code>{run.jobId}</code></span><span><small>Запущено</small><strong>{formatDateTime(run.startedAt)}</strong></span><span><small>Обновлено</small><strong>{formatDateTime(run.updatedAt)}</strong></span></div>{run.stages?.length ? <div className="workflow-timeline">{run.stages.map((stage, index) => <article key={stage.id}><div className="timeline-marker"><i className={stage.status}>{stage.status === "success" ? "✓" : stage.status === "failed" || stage.status === "cancelled" ? "!" : index + 1}</i>{index < run.stages.length - 1 && <span />}</div><div><strong>{stage.title}</strong><small>{stage.startedAt ? formatDateTime(stage.startedAt) : "Ожидает данных времени"}{stage.completedAt ? ` → ${formatDateTime(stage.completedAt)}` : ""}</small>{stage.error && <p>{stage.error}</p>}</div><RunStatusBadge status={stage.status} /></article>)}</div> : <div className="catalog-empty"><strong>XYOps не вернул этапы Workflow</strong><span>Отображается общий статус задания. Этапы появятся, если `get_active_jobs` содержит `stages`, `steps`, `tasks` или `nodes`.</span></div>}{run.error && <div className="settings-error"><strong>{run.status === "cancelled" ? "Остановка" : "Ошибка"}</strong><span>{run.error}</span></div>}{!run.actions.rerun && run.actions.reason && <div className="settings-error"><strong>Повтор недоступен</strong><span>{run.actions.reason}</span></div>}<div className="modal-actions"><button className="secondary" onClick={close}>Закрыть</button>{run.actions.rerun && <button className="primary" disabled={Boolean(busy)} onClick={() => void act("rerun")}>{busy === "rerun" ? "Запуск…" : run.actions.rerunLabel}</button>}{run.actions.cancel && <button className="danger-button" disabled={Boolean(busy)} onClick={() => void act("cancel")}>{busy === "cancel" ? "Остановка…" : "Остановить задание"}</button>}</div></section></div>;
 }
 
 function formatDateTime(value: number) { return value ? new Date(value).toLocaleString("ru-RU") : "—"; }
 
 function RunStatusBadge({ status }: { status: RunStatus }) {
-  const labels: Record<RunStatus, string> = { queued: "В очереди", running: "Выполняется", success: "Успешно", failed: "Ошибка", unknown: "Неизвестно" };
-  const tones: Record<RunStatus, string> = { queued: "warning", running: "violet", success: "success", failed: "error", unknown: "neutral" };
+  const labels: Record<RunStatus, string> = { queued: "В очереди", running: "Выполняется", success: "Успешно", failed: "Ошибка", cancelled: "Остановлено", unknown: "Неизвестно" };
+  const tones: Record<RunStatus, string> = { queued: "warning", running: "violet", success: "success", failed: "error", cancelled: "neutral", unknown: "neutral" };
   return <Status tone={tones[status]}>{labels[status]}</Status>;
 }
 

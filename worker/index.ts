@@ -3,6 +3,7 @@ import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } fr
 import handler from "vinext/server/app-router-entry";
 import type { AutomationRoute, CatalogEvent, RouteField } from "../automation-types";
 import { fieldConditionMatches, normalizeFieldCondition } from "../field-conditions";
+import { listRunReplaySummaries, readRunReplay, saveRunReplay, type RunReplaySummary } from "../run-replays";
 
 interface Env {
   ASSETS: Fetcher;
@@ -36,7 +37,7 @@ interface ExecutionContext {
   passThroughOnException(): void;
 }
 
-type RunStatus = "queued" | "running" | "success" | "failed" | "unknown";
+type RunStatus = "queued" | "running" | "success" | "failed" | "cancelled" | "unknown";
 type RunStage = { id: string; title: string; status: RunStatus; startedAt: number | null; completedAt: number | null; error: string };
 
 type OperationRun = {
@@ -185,7 +186,8 @@ function requirePortalPermission(request: Request, env: Env, permission: PortalP
 function runStatus(value: unknown): RunStatus {
   const normalized = String(value ?? "").toLowerCase().replace(/[\s-]+/g, "_");
   if (["success", "succeeded", "completed", "complete", "done", "ok"].includes(normalized)) return "success";
-  if (["failed", "failure", "error", "cancelled", "canceled", "timeout", "timed_out"].includes(normalized)) return "failed";
+  if (["cancelled", "canceled", "aborted", "abort"].includes(normalized)) return "cancelled";
+  if (["failed", "failure", "error", "timeout", "timed_out"].includes(normalized)) return "failed";
   if (["running", "active", "processing", "in_progress", "executing"].includes(normalized)) return "running";
   if (["queued", "pending", "created", "scheduled", "waiting"].includes(normalized)) return "queued";
   return "unknown";
@@ -223,8 +225,20 @@ function runSubject(values: Record<string, unknown>, targets: string[] = []): st
   return targets.filter(Boolean).slice(0, 3).join(", ").slice(0, 240) || "—";
 }
 
-function publicRun(run: OperationRun) {
-  return { ...run, error: run.error || null };
+function publicRun(run: OperationRun, replay: RunReplaySummary | undefined, canRun: boolean) {
+  const active = ["queued", "running", "unknown"].includes(run.status);
+  const terminal = ["success", "failed", "cancelled"].includes(run.status);
+  return {
+    ...run,
+    error: run.error || null,
+    actions: {
+      cancel: canRun && run.mode === "live" && active && /^[a-z0-9_]+$/.test(run.jobId),
+      rerun: canRun && terminal && Boolean(replay?.replayable) && !run.eventId.startsWith("freeipa:"),
+      rerunLabel: run.status === "success" ? "Запустить снова" : "Повторить",
+      reason: replay?.reason || "",
+      parentRunId: replay?.parentRunId || "",
+    },
+  };
 }
 
 async function ensureOperationRuns(env: Env): Promise<void> {
@@ -1074,7 +1088,7 @@ function operationRun(input: {
     id: crypto.randomUUID(), jobId: input.jobId || `LOCAL-${now}`, eventId: input.eventId, title: input.title,
     kind: input.kind, mode: input.mode, status: input.status, actor: requestActor(input.request),
     subject: runSubject(input.values ?? {}, input.targets), error: (input.error ?? "").slice(0, 500), stages: input.stages ?? [],
-    startedAt: now, updatedAt: now, completedAt: input.status === "success" || input.status === "failed" ? now : null,
+    startedAt: now, updatedAt: now, completedAt: ["success", "failed", "cancelled"].includes(input.status) ? now : null,
   };
 }
 
@@ -1099,13 +1113,76 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
     return json({ mode: demoMode ? "demo" : ipaConfigured || xyopsConfigured ? "live" : "unconfigured", viewer: requestActor(request), access: { identity: access.identity, role: access.role, permissions: access.permissions }, persistence: { available: Boolean(baseEnv.DB), configured: Boolean(baseEnv.CONFIG_ENCRYPTION_KEY) }, freeipa: { configured: ipaConfigured, reachable: ipaProbe.reachable, error: ipaProbe.error }, xyops: { configured: xyopsConfigured, reachable: xyopsReachable } });
   }
 
+  const runActionMatch = url.pathname.match(/^\/api\/integrations\/runs\/([A-Za-z0-9_-]{1,160})\/(cancel|rerun)$/);
+  if (request.method === "POST" && runActionMatch) {
+    const denied = requirePortalPermission(request, baseEnv, "xyops.run");
+    if (denied) return denied;
+    const runId = runActionMatch[1];
+    const action = runActionMatch[2];
+    const run = (await listOperationRuns(baseEnv, 200)).find((item) => item.id === runId);
+    if (!run) return json({ error: "Запуск не найден" }, 404);
+
+    if (action === "cancel") {
+      if (run.mode !== "live" || !["queued", "running", "unknown"].includes(run.status)) return json({ error: "Остановить можно только активное задание XYOps" }, 409);
+      if (!xyopsUrl || !env.XYOPS_API_KEY) return json({ error: "XYOps is not configured" }, 503);
+      if (!/^[a-z0-9_]+$/.test(run.jobId)) return json({ error: "Некорректный Job ID XYOps" }, 400);
+      try {
+        const response = await fetch(`${xyopsUrl}/api/app/abort_job/v1`, {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-api-key": env.XYOPS_API_KEY, accept: "application/json" },
+          body: JSON.stringify({ id: run.jobId }),
+          signal: AbortSignal.timeout(15000),
+        });
+        const payload = await response.json().catch(() => null);
+        if (!response.ok || !xyopsPayloadSucceeded(payload)) return json({ error: "XYOps не подтвердил остановку задания" }, 502);
+        const now = Date.now();
+        run.status = "cancelled";
+        run.error = `Остановлено пользователем: ${requestActor(request)}`.slice(0, 500);
+        run.updatedAt = now;
+        run.completedAt = now;
+        await saveOperationRun(baseEnv, run);
+        return json({ ok: true, action: "cancel", run: publicRun(run, undefined, true) });
+      } catch {
+        return json({ error: "Не удалось отправить команду остановки в XYOps" }, 502);
+      }
+    }
+
+    if (["queued", "running", "unknown"].includes(run.status)) return json({ error: "Активное задание нельзя запускать повторно" }, 409);
+    const replay = await readRunReplay(baseEnv, run.id);
+    if (!replay?.summary.replayable || !replay.spec) return json({ error: replay?.summary.reason || "Параметры безопасного повтора недоступны" }, 409);
+    try {
+      const catalog = await loadCatalog(env, xyopsUrl);
+      if (catalog.mode === "unconfigured") return json({ error: "XYOps is not configured" }, 503);
+      const event = catalog.events.find((item) => item.id === replay.spec?.eventId && item.enabled);
+      if (!event) return json({ error: "Исходный процесс отсутствует или отключён" }, 409);
+      if (!event.schemaVersion || event.schemaVersion !== replay.summary.schemaVersion) return json({ error: "Схема процесса изменилась. Откройте актуальную форму и проверьте параметры заново.", schemaChanged: true }, 409);
+      let actionBody: Record<string, unknown> = {};
+      try { actionBody = await request.json() as Record<string, unknown>; } catch {}
+      if (event.dangerous && actionBody.confirm !== true) return json({ error: "Для опасного процесса требуется повторное подтверждение", requiresConfirmation: true }, 409);
+      const rerunUrl = new URL(request.url);
+      rerunUrl.pathname = "/api/integrations/catalog/run";
+      rerunUrl.search = "";
+      const headers = new Headers(request.headers);
+      headers.set("content-type", "application/json");
+      return handleIntegrationApi(new Request(rerunUrl, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ eventId: replay.spec.eventId, values: replay.spec.values, targets: replay.spec.targets, replayOf: run.id }),
+      }), baseEnv, rerunUrl);
+    } catch {
+      return json({ error: "Не удалось подготовить безопасный повтор запуска" }, 502);
+    }
+  }
+
   if (request.method === "GET" && url.pathname === "/api/integrations/runs") {
     const limit = Number(url.searchParams.get("limit") ?? 100);
     let runs = await listOperationRuns(baseEnv, Number.isFinite(limit) ? limit : 100);
     if (url.searchParams.get("sync") !== "0") runs = await syncOperationRuns(env, xyopsUrl, runs);
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const todayRuns = runs.filter((run) => run.startedAt >= today.getTime());
-    return json({ persistenceAvailable: Boolean(baseEnv.DB), runs: runs.map(publicRun), stats: {
+    const access = portalAccess(request, baseEnv);
+    const replay = await listRunReplaySummaries(baseEnv, runs.map((run) => run.id));
+    return json({ persistenceAvailable: Boolean(baseEnv.DB), runs: runs.map((run) => publicRun(run, replay.get(run.id), access.permissions.includes("xyops.run"))), stats: {
       today: todayRuns.length,
       queued: todayRuns.filter((run) => run.status === "queued" || run.status === "running").length,
       success: todayRuns.filter((run) => run.status === "success").length,
@@ -1195,6 +1272,7 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
       if (catalog.mode === "demo" || !xyopsUrl || !env.XYOPS_API_KEY) {
         const run = operationRun({ request, eventId: event.id, title: event.title, kind: event.kind, mode: "demo", jobId: `DEMO-${Date.now()}`, status: "success", values, targets: requestedTargets });
         await saveOperationRun(baseEnv, run);
+        await saveRunReplay(baseEnv, run.id, event, values, requestedTargets, typeof body.replayOf === "string" ? body.replayOf.slice(0, 160) : "");
         return json({ mode: "demo", queued: true, runId: run.id, jobId: run.jobId, status: run.status, process: { id: event.id, title: event.title, kind: event.kind } }, 202);
       }
       const response = await fetch(`${xyopsUrl}/api/app/run_event/v1`, { method: "POST", headers: { "content-type": "application/json", "x-api-key": env.XYOPS_API_KEY }, body: JSON.stringify(launchPayload), signal: AbortSignal.timeout(15000) });
@@ -1204,11 +1282,13 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
       if (!response.ok) {
         const run = operationRun({ request, eventId: event.id, title: event.title, kind: event.kind, mode: "live", jobId, status: "failed", values, targets: requestedTargets, error: "XYOps rejected run_event" });
         await saveOperationRun(baseEnv, run);
+        await saveRunReplay(baseEnv, run.id, event, values, requestedTargets, typeof body.replayOf === "string" ? body.replayOf.slice(0, 160) : "");
         return json({ error: "XYOps run_event failed", runId: run.id }, 502);
       }
       const reported = runStatus(result.status ?? result.state ?? resultData.status ?? resultData.state);
       const run = operationRun({ request, eventId: event.id, title: event.title, kind: event.kind, mode: "live", jobId, status: reported === "unknown" ? "queued" : reported, values, targets: requestedTargets, stages: extractJobStages(result) });
       await saveOperationRun(baseEnv, run);
+      await saveRunReplay(baseEnv, run.id, event, values, requestedTargets, typeof body.replayOf === "string" ? body.replayOf.slice(0, 160) : "");
       return json({ mode: "live", queued: true, runId: run.id, jobId: run.jobId, status: run.status, process: { id: event.id, title: event.title, kind: event.kind } }, 202);
     } catch (error) {
       const message = error instanceof Error ? error.message : "XYOps request failed";

@@ -4,6 +4,14 @@ ADMIN_TOKEN=replace-with-a-long-random-admin-token
 # but replace it before any production or shared deployment.
 CONFIG_ENCRYPTION_KEY=d0ee92e4c9b6b9e1282d4808ff08e03de28087b1b0b3b5f44198f7bdbe782ec5
 DEMO_MODE=false
+
+# Explicit local-only identity. Use workspace on OpenAI Sites or proxy behind
+# an authenticated reverse proxy. The application default is anonymous/viewer.
+PORTAL_IDENTITY_MODE=static
+PORTAL_STATIC_IDENTITY=admin@company.local
+PORTAL_DEFAULT_ROLE=viewer
+PORTAL_RBAC_JSON={"admin@company.local":"admin","ops@company.local":"operator","audit@company.local":"viewer"}
+
 IPA_USERNAME=xyops-freeipa-reader
 IPA_PASSWORD=change-me
 IPA_VERIFY_TLS=true

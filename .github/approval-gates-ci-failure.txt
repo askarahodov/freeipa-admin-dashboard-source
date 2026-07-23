@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "/home/runner/work/freeipa-admin-dashboard-source/freeipa-admin-dashboard-source/scripts/apply-approval-gates-patch.py", line 272, in <module>
+    app = replace_once(
+          ^^^^^^^^^^^^^
+  File "/home/runner/work/freeipa-admin-dashboard-source/freeipa-admin-dashboard-source/scripts/apply-approval-gates-patch.py", line 7, in replace_once
+    raise RuntimeError(f"{label}: expected one match, found {count}")
+RuntimeError: run process approval response: expected one match, found 0

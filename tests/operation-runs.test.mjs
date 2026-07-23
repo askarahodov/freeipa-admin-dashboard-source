@@ -29,6 +29,16 @@ class RunsD1 {
   }
 }
 
+function operatorEnv(values = {}) {
+  return {
+    PORTAL_IDENTITY_MODE: "static",
+    PORTAL_STATIC_IDENTITY: "operator@example.test",
+    PORTAL_DEFAULT_ROLE: "viewer",
+    PORTAL_RBAC_JSON: JSON.stringify({ "operator@example.test": "operator" }),
+    ...values,
+  };
+}
+
 test("persists XYOps launches and synchronizes their status", async () => {
   const originalFetch = globalThis.fetch;
   const db = new RunsD1();
@@ -42,11 +52,11 @@ test("persists XYOps launches and synchronizes their status", async () => {
     return new Response("not found", { status: 404 });
   };
 
-  const env = { DB: db, XYOPS_URL: "https://xyops.example.test", XYOPS_API_KEY: "secret" };
+  const env = operatorEnv({ DB: db, XYOPS_URL: "https://xyops.example.test", XYOPS_API_KEY: "secret" });
   try {
     const launched = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog/run", {
       method: "POST",
-      headers: { "content-type": "application/json", "oai-authenticated-user-email": "operator@example.test" },
+      headers: { "content-type": "application/json" },
       body: JSON.stringify({ eventId: "backup-db", values: { database: "billing" } }),
     }), env, {});
     assert.equal(launched.status, 202);
@@ -86,7 +96,7 @@ test("records rejected XYOps launches as failed without persisting response bodi
     return new Response("not found", { status: 404 });
   };
   try {
-    const response = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog/run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ eventId: "danger", values: {} }) }), { DB: db, XYOPS_URL: "https://xyops.example.test", XYOPS_API_KEY: "secret" }, {});
+    const response = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog/run", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ eventId: "danger", values: {} }) }), operatorEnv({ DB: db, XYOPS_URL: "https://xyops.example.test", XYOPS_API_KEY: "secret" }), {});
     assert.equal(response.status, 502);
     assert.equal(db.rows[0].status, "failed");
     assert.doesNotMatch(JSON.stringify(db.rows[0]), /private backend details|leak/);

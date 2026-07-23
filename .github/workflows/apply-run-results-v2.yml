@@ -1,0 +1,66 @@
+name: Apply XYOps result widgets v2
+
+on:
+  push:
+    branches: [agent/security-hardening]
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-verify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/security-hardening
+          show-progress: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+
+      - name: Repair patch generator
+        run: python scripts/fix-run-results-generator.py
+
+      - name: Apply source patch
+        run: python scripts/apply-run-results-patch.py
+
+      - name: Verify implementation
+        id: verify
+        shell: bash
+        run: |
+          set +e
+          {
+            npm ci &&
+            npm run lint &&
+            npm test
+          } 2>&1 | tee /tmp/run-results-ci.log
+          status=${PIPESTATUS[0]}
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Commit result
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ "${{ steps.verify.outputs.status }}" = "0" ]; then
+            rm -f scripts/apply-run-results-patch.py
+            rm -f scripts/fix-run-results-generator.py
+            rm -f .github/workflows/apply-run-results-v2.yml
+            rm -f .github/run-results-ci-failure.txt
+            git add -A
+            git commit -m "Add sanitized XYOps result widgets"
+          else
+            git reset --hard HEAD
+            tail -n 500 /tmp/run-results-ci.log > .github/run-results-ci-failure.txt
+            git add .github/run-results-ci-failure.txt
+            git commit -m "Record XYOps result widgets CI failure v2"
+          fi
+          git push origin HEAD:agent/security-hardening

@@ -3,6 +3,16 @@ import test from "node:test";
 
 import worker from "../dist/server/index.js";
 
+function operatorEnv(values = {}) {
+  return {
+    PORTAL_IDENTITY_MODE: "static",
+    PORTAL_STATIC_IDENTITY: "operator@example.test",
+    PORTAL_DEFAULT_ROLE: "viewer",
+    PORTAL_RBAC_JSON: JSON.stringify({ "operator@example.test": "operator" }),
+    ...values,
+  };
+}
+
 test("normalizes FreeIPA users and groups without exposing credentials", async () => {
   const originalFetch = globalThis.fetch;
   const calls = [];
@@ -49,7 +59,7 @@ test("performs FreeIPA CRUD directly without XYOps", async () => {
     rpcCalls.push(payload);
     return Response.json({ result: { result: [{}] }, error: null });
   };
-  const env = { IPA_URL: "https://ipa.example.test", IPA_USERNAME: "administrator", IPA_PASSWORD: "secret" };
+  const env = operatorEnv({ IPA_URL: "https://ipa.example.test", IPA_USERNAME: "administrator", IPA_PASSWORD: "secret" });
   const actions = [
     { operation: "user_add", username: "alice", firstName: "Alice", lastName: "Admin", email: "alice@example.test", password: "temporary" },
     { operation: "user_mod", username: "alice", firstName: "Alicia", lastName: "Admin", email: "alicia@example.test" },
@@ -88,7 +98,7 @@ test("validates direct FreeIPA mutations before making a network request", async
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ operation: "user_add", username: "invalid user", firstName: "A", lastName: "B" }),
-    }), { IPA_URL: "https://ipa.example.test", IPA_USERNAME: "administrator", IPA_PASSWORD: "secret" }, {});
+    }), operatorEnv({ IPA_URL: "https://ipa.example.test", IPA_USERNAME: "administrator", IPA_PASSWORD: "secret" }), {});
     assert.equal(response.status, 400);
     assert.match((await response.json()).error, /логин/);
   } finally {

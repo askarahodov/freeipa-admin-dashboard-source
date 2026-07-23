@@ -93,6 +93,12 @@ const worker = {
       }, allowedWidths);
     }
 
+    if (request.method === "GET" && request.headers.get("accept")?.includes("text/html") && /^\/(?:automation(?:\/[^/]+)?|users|groups|operations|settings)\/?$/.test(url.pathname)) {
+      const appUrl = new URL(request.url);
+      appUrl.pathname = "/";
+      return handler.fetch(new Request(appUrl, request), env, ctx);
+    }
+
     return handler.fetch(request, env, ctx);
   },
 };

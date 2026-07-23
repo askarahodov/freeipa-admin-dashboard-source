@@ -946,8 +946,13 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): P
     const demoMode = boolValue(env.DEMO_MODE);
     const ipaConfigured = Boolean(ipaUrl && env.IPA_USERNAME && env.IPA_PASSWORD);
     const xyopsConfigured = Boolean(xyopsUrl && env.XYOPS_API_KEY);
-    const [ipaReachable, xyopsReachable] = await Promise.all([!demoMode && ipaConfigured ? reachable(ipaUrl) : false, !demoMode && xyopsConfigured ? reachable(xyopsUrl) : false]);
-    return json({ mode: demoMode ? "demo" : ipaConfigured || xyopsConfigured ? "live" : "unconfigured", viewer: requestActor(request), persistence: { available: Boolean(baseEnv.DB), configured: Boolean(baseEnv.CONFIG_ENCRYPTION_KEY) }, freeipa: { configured: ipaConfigured, reachable: ipaReachable }, xyops: { configured: xyopsConfigured, reachable: xyopsReachable } });
+    const [ipaProbe, xyopsReachable] = await Promise.all([
+      !demoMode && ipaConfigured && ipaUrl
+        ? ipaRpc(env, ipaUrl, "user_find", [""], { sizelimit: 1 }).then(() => ({ reachable: true, error: null })).catch((error) => ({ reachable: false, error: error instanceof Error ? error.message : "FreeIPA connection failed" }))
+        : Promise.resolve({ reachable: false, error: null }),
+      !demoMode && xyopsConfigured ? reachable(xyopsUrl) : false,
+    ]);
+    return json({ mode: demoMode ? "demo" : ipaConfigured || xyopsConfigured ? "live" : "unconfigured", viewer: requestActor(request), persistence: { available: Boolean(baseEnv.DB), configured: Boolean(baseEnv.CONFIG_ENCRYPTION_KEY) }, freeipa: { configured: ipaConfigured, reachable: ipaProbe.reachable, error: ipaProbe.error }, xyops: { configured: xyopsConfigured, reachable: xyopsReachable } });
   }
 
   if (request.method === "GET" && url.pathname === "/api/integrations/runs") {

@@ -1,31 +1,31 @@
-# XYOps Contract Inspector
+# Инспектор контрактов XYOps
 
-The inspector performs read-only requests against a test or production XYOps
-instance and creates a sanitized JSON report. Its purpose is to replace guessed
-field mappings with the exact API contracts returned by your installed XYOps
-version.
+Инспектор выполняет запросы только для чтения против тестового или production
+инстанса XYOps и создает санитизированный JSON-отчет. Его цель — заменить
+угаданные сопоставления полей точными контрактами API, возвращаемыми вашей
+установленной версией XYOps.
 
-## Safety properties
+## Свойства безопасности
 
-- only `GET` probes are performed;
-- the API key is read from `XYOPS_API_KEY` and is never written to the report;
-- authorization headers and raw response bodies are not stored;
-- password, secret, token, key, cookie, credential, and session properties are
-  replaced with `[REDACTED]`;
-- hostnames, IDs, titles, names, descriptions, usernames, and URLs are replaced
-  with typed placeholders by default;
-- reports are created with mode `0600` and their timestamped filenames are
-  ignored by Git.
+- выполняются только зонды `GET`;
+- ключ API считывается из `XYOPS_API_KEY` и никогда не записывается в отчет;
+- заголовки авторизации и необработанные тела ответов не сохраняются;
+- свойства password, secret, token, key, cookie, credential и session
+  заменяются на `[REDACTED]`;
+- хосты, ID, заголовки, имена, описания, имена пользователей и URL заменяются
+  типизированными заполнителями по умолчанию;
+- отчеты создаются с правами `0600`, а их имена с временными метками
+  игнорируются Git.
 
-The report retains JSON property names and safe structural values such as field
-types, destinations, required flags, ranges, and enabled states. Always review
-the generated file before sharing it because custom property names may still
-describe internal concepts.
+Отчет сохраняет имена свойств JSON и безопасные структурные значения, такие как
+типы полей, назначения, флаги обязательности, диапазоны и включенные состояния.
+Всегда проверяйте сгенерированный файл перед отправкой, потому что
+пользовательские имена свойств все еще могут описывать внутренние понятия.
 
-## Run
+## Запуск
 
-Use a dedicated read-only XYOps API key where possible. Do not put the key in a
-command-line argument:
+Используйте выделенный API-ключ XYOps только для чтения, где это возможно.
+Не указывайте ключ в аргументе командной строки:
 
 ```bash
 export XYOPS_URL="https://xyops.company.local"
@@ -33,52 +33,53 @@ export XYOPS_API_KEY="replace-with-read-only-key"
 npm run inspect:xyops
 ```
 
-The command probes the Event catalog plus optional server, server-group,
-Toolset, and active-job endpoints. Unsupported optional endpoints are recorded
-as failures without preventing creation of the report. Failure of the Event
-catalog sets a non-zero exit code because that contract is required by the
-portal.
+Команда проверяет каталог Event и опциональные endpoints сервера, серверной
+группы, Toolset и активных заданий. Неподдерживаемые опциональные endpoints
+записываются как сбои, не мешая созданию отчета. Сбой каталога Event задает
+ненулевой код завершения, потому что этот контракт требуется порталом.
 
-Inspector version 3 also classifies failures that happen before an HTTP
-response. The report records only a safe category, an allowlisted system error
-code and a generic hint; it never stores the raw error message or target
-address. Common categories are `dns`, `tls`, `timeout`,
-`connection_refused`, `connection_reset` and `network`.
+Инспектор версии 3 также классифицирует сбои, происходящие до HTTP-ответа.
+Отчет записывает только безопасную категорию, разрешенный системный код ошибки
+и общую подсказку; он никогда не сохраняет необработанное сообщение об ошибке
+или целевой адрес. Распространенные категории: `dns`, `tls`, `timeout`,
+`connection_refused`, `connection_reset` и `network`.
 
-If every probe has `status: 0`, first read `results[].error.category` and
-`results[].error.hint`. This means no XYOps API contract was received yet:
+Если каждый зонд имеет `status: 0`, сначала прочитайте
+`results[].error.category` и `results[].error.hint`. Это означает, что
+контракт API XYOps еще не получен:
 
-- `dns`: run the inspector on a computer connected to the required DNS/VPN;
-- `tls`: add the organization's CA certificate to Node.js trust with
-  `NODE_EXTRA_CA_CERTS=/path/to/company-ca.pem` and run again;
-- `connection_refused`: verify the XYOps scheme and port;
-- `timeout`: verify routing, firewall/VPN and increase `--timeout` if needed;
-- `network`: verify Node.js meets the version in `package.json`, then check the
-  URL, proxy and TLS configuration.
+- `dns`: запустите инспектор на компьютере, подключенном к требуемому DNS/VPN;
+- `tls`: добавьте сертификат CA организации в доверие Node.js с
+  `NODE_EXTRA_CA_CERTS=/path/to/company-ca.pem` и запустите повторно;
+- `connection_refused`: проверьте схему и порт XYOps;
+- `timeout`: проверьте маршрутизацию, firewall/VPN и увеличьте `--timeout`
+  при необходимости;
+- `network`: проверьте, что Node.js соответствует версии в `package.json`,
+  затем проверьте URL, proxy и конфигурацию TLS.
 
-Do not disable TLS verification and do not add credentials to the URL.
+Не отключайте проверку TLS и не добавляйте учетные данные в URL.
 
-XYOps can return HTTP 200 with a non-zero JSON `code`. Version 3 records both
-`httpOk` and `apiCode`, and treats these application-level errors as failed
-probes instead of successful API contracts.
+XYOps может возвращать HTTP 200 с ненулевым JSON `code`. Версия 3 записывает
+оба значения `httpOk` и `apiCode` и рассматривает эти ошибки application-level
+как неудавшие зонды вместо успешных контрактов API.
 
-To choose the output path:
+Чтобы выбрать путь вывода:
 
 ```bash
 npm run inspect:xyops -- --output ./xyops-inspection.json
 ```
 
-Use `--include-names` only when preserving identifiers, labels, and the XYOps
-hostname is acceptable. It still redacts secret-like properties and URLs, and
-never stores the API key:
+Используйте `--include-names` только тогда, когда сохранение идентификаторов,
+меток и хоста XYOps приемлемо. Он все еще маскирует свойства, похожие на
+секреты, и URL, и никогда не сохраняет ключ API:
 
 ```bash
 npm run inspect:xyops -- --include-names
 ```
 
-## What to send back
+## Что отправлять обратно
 
-After reviewing the file, provide the generated `xyops-inspection-*.json`.
-With that report the dashboard adapter can be updated for the actual Event,
-Workflow, Toolset, target, and job response shapes without receiving network
-access or credentials.
+После проверки файла предоставьте сгенерированный `xyops-inspection-*.json`.
+Имея этот отчет, адаптер панели управления может быть обновлен для реальных
+форм ответов Event, Workflow, Toolset, target и job без получения сетевого
+доступа или учетных данных.

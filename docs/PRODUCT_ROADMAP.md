@@ -1,67 +1,68 @@
-# XYOps Automation Portal — product roadmap
+# Дорожная карта продукта XYOps Automation Portal
 
-## Product contract
+## Контракт продукта
 
-The portal is a generated user interface and visualization layer over XYOps.
-XYOps remains the source of truth and the only automation orchestrator. Events,
-Workflows, execution logic and operational integrations are not duplicated in
-the portal.
+Портал является сгенерированным пользовательским интерфейсом и слоем визуализации поверх XYOps.
+XYOps остается источником истины и единственным оркестратором автоматизации. События,
+Рабочие процессы, логика выполнения и операционные интеграции не дублируются в
+портале.
 
-The portal must discover XYOps metadata, turn it into navigable sections and
-validated forms, launch the original XYOps process, and visualize its lifecycle
-for the user. FreeIPA is the first domain module, not a limit of the platform.
+Портал должен обнаруживать метаданные XYOps, превращать их в навигационные разделы и
+валидированные формы, запускать исходный процесс XYOps и визуализировать его жизненный цикл
+для пользователя. FreeIPA является первым доменным модулем, а не ограничением платформы.
 
-## Delivery backlog
+## Бэклог доставки
 
-### P0 — dynamic execution core
+### P0 — динамическое исполняемое ядро
 
-- [x] Read and normalize Events and Workflows from `get_events`.
-- [x] Generate forms from field types, requirements, options and targets.
-- [x] Route submitted values to `params`, `input.data` and `workflowData`.
-- [x] Launch the original process through `run_event` without exposing API keys.
-- [x] Persist operation history and synchronize active job states.
-- [x] Persist admin configuration and route mappings with encrypted secrets.
-- [x] Persist a safe catalog snapshot and detect added, changed and removed schemas.
-- [x] Generate portal category navigation from XYOps categories.
+- [x] Чтение и нормализация Events и Workflows из `get_events`.
+- [x] Генерация форм из типов полей, требований, опций и targets.
+- [x] Маршрутизация отправленных значений в `params`, `input.data` и `workflowData`.
+- [x] Запуск исходного процесса через `run_event` без раскрытия ключей API.
+- [x] Персистентность истории операций и синхронизация активных состояний заданий.
+- [x] Персистентность конфигурации администратора и сопоставлений маршрутов с зашифрованными секретами.
+- [x] Персистентность безопасного снимка каталога и детекция добавленных, измененных и удаленных схем.
+- [x] Генерация навигации по категориям портала из категорий XYOps.
 
-### P1 — real XYOps contract hardening
+### P1 — форжинг контракта реального XYOps
 
-- [x] Validate normalization against a sanitized diagnostic export from the target XYOps installation.
-- [x] Support conditional fields, generated sections and allowlisted server-side remote option providers.
-- [x] Flatten and render nested `group`, `section` and `fieldset` collections as nested form groups.
-- [ ] Validate multi-level dependency expressions against the target XYOps contract.
-- [x] Add deterministic schema-version identifiers and a route compatibility report.
-- [x] Detect route schema drift and refresh a saved route from its source Event or Workflow.
-- [x] Add a reviewed field-by-field change summary before applying a route refresh.
-- [x] Persist catalog-change history with bounded retention.
-- [ ] Add scheduled catalog synchronization.
+- [x] Валидация нормализации против санитизированной диагностической выгрузки из целевой установки XYOps.
+- [x] Поддержка условных полей, генерируемых секций и разрешенного серверного провайдера удаленных опций.
+- [x] Уплощение и рендеринг вложенных коллекций `group`, `section` и `fieldset` как вложенные групппы форм.
+- [ ] Валидация выражений мног уровневой зависимости против контракта целевого XYOps.
+- [x] Добавление детерминированных идентификаторов версии схемы и отчета совместимости маршрутов.
+- [x] Детекция дрейфа схемы маршрута и обновление сохраненного маршрута из его исходного Event или Workflow.
+- [x] Добавление просмотренного поэлементного резюме изменений перед применением обновления маршрута.
+- [x] Персистентность истории изменений каталога с ограниченным удержанием.
+- [ ] Добавление планированной синхронизации каталога.
 
-### P1 — execution visualization
+### P1 — визуализация выполнения
 
-- [x] Add a process run details view with workflow stages, timing and sanitized stage errors.
-- [ ] Add retry, cancel and safe re-run where the XYOps contract supports them.
-- [ ] Render process-specific result widgets, files and links from declared output metadata.
-- [ ] Add notifications for completion and failure.
+- [x] Добавление представления деталей запуска процесса с этапами workflow, таймингом и санитизированными ошибками этапов.
+- [ ] Добавление повтора, отмены и безопасного повторного запуска там, где контракт XYOps это поддерживает.
+- [ ] Рендеринг виджетов результата, файлов и ссылок процесса из объявленных выходных метаданных.
+- [ ] Добавление уведомлений о завершении и ошибках.
 
-### P1 — portal governance
+### P1 — губернаторство портала
 
-- [ ] Add roles and policies for catalog visibility and execution permissions.
-- [ ] Add approval gates for dangerous or privileged processes.
-- [ ] Extend the audit trail with actor, approval and schema-version context.
-- [ ] Add rate limits and per-process concurrency controls.
+- [ ] Добавление ролей и политик для видимости каталога и разрешений выполнения.
+- [ ] Добавление approval-гейтов для опасных или привилегированных процессов.
+- [ ] Расширение журнала аудита контекстом актера, approval и версии схемы.
+- [ ] Добавление лимитов частоты и ограничений параллельности на процесс.
 
-### P2 — administration modules
+### P2 — административные модули
 
-- [ ] Add generated FreeIPA user/group detail surfaces backed by declared XYOps actions.
-- [ ] Add reusable presentation templates for database backups, infrastructure maintenance and access requests.
-- [ ] Add administrator-controlled labels, icons, ordering and help text without forking process schemas.
-- [ ] Add multilingual presentation metadata.
+- [ ] Добавление генерируемых поверхностей деталей пользователя/группы FreeIPA на основе объявленных действий XYOps.
+- [ ] Добавление повторно используемых презентационных шаблонов для резервного копирования баз данных, обслуживания инфраструктуры и запросов доступа.
+- [ ] Добавление управляемых администратором меток, значков, порядка и справки без форкинга схем процессов.
+- [ ] Добавление многоязычных презентационных метаданных.
 
-## Definition of done for a generated process
+## Критерии готовности для генерируемого процесса
 
-A newly published XYOps Event or Workflow appears after synchronization without
-a portal code change, in the correct generated category, with all supported
-fields and validation. A permitted user can launch it, follow its real XYOps
-job state, and inspect a sanitized result. Schema changes are visible before
-they affect a saved route. No API key, password, secret default or raw sensitive
-response is returned to the browser or written to the audit journal.
+Новопубликованный Event или Workflow XYOps появляется после синхронизации без
+изменения кода портала, в корректной генерируемой категории, со всеми
+поддерживаемыми полями и валидацией. Разрешенный пользователь может запустить
+его, отслеживать реальное состояние задания XYOps и инспектировать санитизированный
+результат. Изменения схемы видны до того, как они повлияют на сохраненный маршрут.
+Ни ключ API, ни пароль, ни секретный дефолт, ни сырое чувствительный ответ не
+возвращаются в браузер или не записываются в журнал аудита.

@@ -1,128 +1,156 @@
-# vinext-starter
+# FreeIPA Admin Dashboard
 
-A clean full-stack starter running on
-[vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
-Drizzle support.
+Чистый full-stack стартовый шаблон для панели управления FreeIPA, работающий на
+[vinext](https://github.com/cloudflare/vinext), с опциональной поддержкой
+Cloudflare D1 и Drizzle ORM. Панель управляет пользователями и группами
+FreeIPA через платформу автоматизации XYOps.
 
-## Prerequisites
+## Требования
 
 - Node.js `>=22.13.0`
-- Linux with `flock`, `curl`, and GNU `timeout`
+- Linux с утилитами `flock`, `curl` и GNU `timeout`
 
-## Sites Lifecycle
+## Жизненный цикл сборки
 
-The Sites lifecycle CLI runs the locked dependency install before returning this checkout. Edit the source under `app/`, then checkpoint when a coherent milestone is ready to inspect or share. The remote Sites builder runs `npm run build` against the pushed commit. Do not repeat install or build as a normal pre-checkpoint step.
+CLI жизненного цикла Sites выполняет блокированную установку зависимостей
+перед возвратом этого чек-аута. Редактируйте исходный код в каталоге `app/`,
+затем создавайте контрольную точку, когда согласованная веха готова к
+проверке или отправке. Удаленный сборщик Sites выполняет `npm run build`
+против запущенного коммита. Не повторяйте установку или сборку как обычный
+предшествующий контрольной точке шаг.
 
-This starter does not use `wrangler.jsonc`.
+Этот проект не использует `wrangler.jsonc`.
 
-`install:ci` is intentionally a single, non-retrying `npm ci`. It refuses a concurrent install for the same project, consumes a matching image-seeded npm cache with `--prefer-offline` while retaining registry fallback for a missing cache object, otherwise downloads and verifies the complete vinext tarball recorded in `package-lock.json`, limits npm to one socket, and terminates a stalled install. `build` applies a short timeout and then validates the Sites artifact. These helpers target Linux and use GNU `timeout`; they are not native macOS scripts.
+`install:ci` намеренно является одной командой `npm ci` без повторных попыток.
+Она запрещает параллельную установку для одного проекта, потребляет кэш npm
+с изображением-семенем через `--prefer-offline`, сохраняя резервный вариант
+реестра на случай отсутствия объекта кэша, иначе загружает и проверяет полный
+tarball vinext, записанный в `package-lock.json`, ограничивает npm одним
+сокетом и завершает зависшую установку. `build` применяет короткий таймаут,
+а затем проверяет артефакт Sites. Эти вспомогательные скрипты предназначены
+для Linux и используют GNU `timeout`; они не являются нативными скриптами
+для macOS.
 
-Scripts that need writable project-scoped home, npm, XDG, and temporary paths use `scripts/sites-env.sh`. The `dev` and `start` scripts honor the caller's runtime environment and keep Wrangler logs inside the checkout. The generated `.sites-runtime/` directory is disposable and ignored by Git.
+Скриптам, которым нужны доступные для записи пути домашнего каталога проекта,
+npm, XDG и временные файлы, используйте `scripts/sites-env.sh`. Скрипты
+`dev` и `start` используют среду выполнения вызывающего и хранят логи
+Wrangler внутри чек-аута. Сгенерированный каталог `.sites-runtime/` является
+вспомогательным и игнорируется Git.
 
-## Included Shape
+## Структура проекта
 
-- edit site code under `app/`
-- `app/chatgpt-auth.ts` provides optional dispatch-owned ChatGPT sign-in helpers
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
-- `vite.config.ts` simulates declared bindings for local development
-- `db/index.ts` reads the D1 binding from the Cloudflare Worker environment
-- `db/schema.ts` starts intentionally empty
-- `examples/d1/` contains an optional D1 example surface
-- `drizzle.config.ts` supports local migration generation when needed
+- редактируйте код сайта в каталоге `app/`
+- `app/chatgpt-auth.ts` предоставляет опциональные вспомогательные средства
+  для входа через ChatGPT
+- `.openai/hosting.json` объявляет опциональные привязки Sites D1 и R2
+- `vite.config.ts` симулирует объявленные привязки для локальной разработки
+- `db/index.ts` читает привязку D1 из окружения Cloudflare Worker
+- `db/schema.ts` изначально оставлен пустым
+- `examples/d1/` содержит опциональный пример поверхности D1
+- `drizzle.config.ts` поддерживает локальную генерацию миграций при
+  необходимости
 
-## FreeIPA and XYOps modules
+## Модули FreeIPA и XYOps
 
-The dashboard treats FreeIPA and XYOps as independent integrations. The
-FreeIPA module reads and mutates users, groups and membership directly through
-an allowlisted server-side JSON-RPC Gateway. It continues to work when XYOps is
-unconfigured or unavailable. XYOps remains the optional orchestrator for
-Events, Workflows and cross-system automation.
-The long-term product contract and prioritized delivery backlog are maintained
-in [docs/PRODUCT_ROADMAP.md](docs/PRODUCT_ROADMAP.md).
+Панель управления рассматривает FreeIPA и XYOps как независимые интеграции.
+Модуль FreeIPA читает и изменяет пользователей, группы и членство напрямую
+через разрешенный серверный JSON-RPC-шлюз. Он продолжает работать, когда XYOps
+не настроен или недоступен. XYOps остается опциональным оркестратором для
+Событий, Рабочих процессов и межсистемной автоматизации.
+Долгосрочный продуктовый контракт и приоритизированный бэклог доставки
+ведется в [docs/PRODUCT_ROADMAP.md](docs/PRODUCT_ROADMAP.md).
 
-Copy `.dev.vars.example` to `.dev.vars` for local development. Routes can be
-created in **Settings → Automation routes** by selecting a catalog Event or
-Workflow and mapping it to a dashboard operation. They are stored persistently
-in D1/SQLite and may contain multiple routes for the same operation. The
-`XYOPS_ROUTES_JSON` environment value remains available as a bootstrap fallback
-when no routes have been saved. Each route declares:
+Скопируйте `.dev.vars.example` в `.dev.vars` для локальной разработки.
+Маршруты можно создать в разделе **Settings → Automation routes**, выбрав
+каталог Event или Workflow и сопоставив его с операцией панели управления.
+Они сохраняются персистентно в D1/SQLite и могут содержать несколько маршрутов
+для одной операции. Значение окружения `XYOPS_ROUTES_JSON` остается доступным
+как запасной вариант bootstrap, когда никакие маршруты не сохранены.
+Каждый маршрут объявляет:
 
-- a stable `key` and user-facing `title`;
-- the dashboard `operation` it accepts;
-- `kind`, either `event` or `workflow`;
-- the xyOps `eventId` and optional `targets` override;
-- a field schema with type, required flag and destination (`params`, `input`,
-  or `workflowData`).
+- стабильный `key` и отображаемый для пользователя `title`;
+- операцию панели управления `operation`, которую он принимает;
+- `kind`: `event` или `workflow`;
+- xyOps `eventId` и опциональное переопределение `targets`;
+- схема полей с типом, флагом обязательности и назначением (`params`, `input`
+  или `workflowData`).
 
-The browser receives only the public route schema. The XYOps API key and
-FreeIPA password remain server-side. Direct FreeIPA mutations are validated
-before the allowlisted JSON-RPC method is called. XYOps action endpoints
-separately reject unknown operations, routes and invalid generated form values.
+Браузер получает только публичную схему маршрута. Ключ API XYOps и пароль
+FreeIPA остаются на стороне сервера. Прямые мутации FreeIPA проверяются
+перед вызовом разрешенного JSON-RPC метода. Endpoints действий XYOps
+отдельно отклоняют неизвестные операции, маршруты и неверные сгенерированные
+значения форм.
 
-When xyOps is configured, the dashboard also calls `GET
-/api/app/get_events/v1` through its server-side proxy. Event definitions are
-normalized into a safe public catalog containing IDs, titles, kind, category,
-and user-field schemas. The API key is never exposed. Launch dialogs render
-their inputs from the selected route schema rather than from hard-coded forms.
-Generated XYOps forms are confined to the Automation section. Core user and
-group controls never depend on a matching Event or Workflow.
+Когда XYOps настроен, панель управления также вызывает `GET
+/api/app/get_events/v1` через свой серверный прокси. Определения событий
+нормализуются в безопасный публичный каталог, содержащий ID, заголовки, kind,
+категорию и схемы пользовательских полей. Ключ API никогда не раскрывается.
+Диалоги запуска отображают свои поля из схемы выбранного маршрута, а не из
+жестко заданных форм. Сгенерированные формы XYOps ограничены разделом
+Automation. Основные элементы управления пользователями и группами никогда не
+зависят от соответствующего Event или Workflow.
 
-The normalized catalog is persisted as a safe D1/SQLite snapshot. Every live
-synchronization compares process schemas and reports added, changed and removed
-items. If XYOps is temporarily unavailable, the portal can still visualize the
-last snapshot, but execution is disabled until a live contract is available.
+Нормализованный каталог сохраняется как безопасный снимок D1/SQLite. Каждая
+живая синхронизация сравнивает схемы процессов и сообщает добавленные,
+измененные и удаленные элементы. Если XYOps временно недоступен, портал
+все еще может визуализировать последний снимок, но выполнение отключено до
+доступности живого контракта.
 
-Generated forms also understand section metadata, ordering and common
-`visible_when` / `show_when` dependency shapes. Select fields may declare an
-XYOps-side option provider. Those requests are proxied with the server API key
-only when the declared endpoint is a relative `/api/app/…` path; arbitrary URLs
-are rejected. Saved routes indicate schema drift and can be refreshed from the
-current Event or Workflow without recreating the route.
+Сгенерированные формы также понимают метаданные секций, порядок и распространенные
+формы зависимостей `visible_when` / `show_when`. Поля выбора могут объявлять
+провайдера опций на стороне XYOps. Эти запросы проксируются с API-ключом
+сервера только тогда, когда объявленный endpoint является относительным путем
+`/api/app/…`; произвольные URL отклоняются. Сохраненные маршруты указывают
+на дрейф схемы и могут быть обновлены из текущего Event или Workflow без
+пересоздания маршрута.
 
-Nested `group`, `section` and `fieldset` collections are flattened into a safe
-field contract while retaining their hierarchy for the generated form. Before
-a saved route is refreshed, the UI lists added, changed and removed fields for
-explicit review. The operation journal also persists sanitized stage metadata
-from `stages`, `steps`, `tasks`, `nodes` or `workflow_steps` returned by XYOps
-and renders it as a run timeline.
+Вложенные коллекции `group`, `section` и `fieldset` уплощаются в безопасный
+контракт полей, сохраняя их иерархию для генерируемой формы. Перед обновлением
+сохраненного маршрута интерфейс перечисляет добавленные, измененные и удаленные
+поля для явного просмотра. Журнал операций также сохраняет обезличенные
+метаданные этапов из `stages`, `steps`, `tasks`, `nodes` или `workflow_steps`,
+возвращаемые XYOps, и отображает их как временную шкалу запуска.
 
-Each normalized Event and Workflow receives a deterministic `schemaVersion`
-derived from its executable contract. Saved routes retain the version they were
-reviewed against. Catalog changes are stored in a bounded D1 history, and the
-Settings screen reports compatibility plus the added, changed and removed
-process counts for every retained synchronization.
+Каждое нормализованное Event и Workflow получает детерминированную
+`schemaVersion`, выведенную из его исполняемого контракта. Сохраненные
+маршруты сохраняют версию, против которой они были проверены. Изменения
+каталога сохраняются в ограниченной истории D1, а экран Settings сообщает о
+совместимости и количестве добавленных, измененных и удаленных процессов для
+каждой сохраненной синхронизации.
 
 ## Schema-driven XYOps self-service
 
-The **Automation** section is generated from `GET /api/app/get_events/v1` and
-does not require a dashboard code change when a new XYOps Event or Workflow is
-published. The server normalizes XYOps field metadata and supports text,
-password, textarea, number, boolean, select, multiselect, date, datetime, and
-JSON controls, including defaults, required flags, ranges, descriptions,
-destinations, and targets.
+Раздел **Automation** генерируется из `GET /api/app/get_events/v1` и не
+требует изменения кода панели управления при публикации нового Event или
+Workflow XYOps. Сервер нормализует метаданные полей XYOps и поддерживает
+текстовые, парольные, многострочные, числовые, логические, выбор,
+мультивыбор, дату, datetime и JSON-элементы управления, включая значения по
+умолчанию, флаги обязательности, диапазоны, описания, назначения и цели.
 
-Launching a process uses `POST /api/integrations/catalog/run`. The server
-reloads the catalog, confirms that the selected process exists and is enabled,
-validates every submitted value, rejects unknown targets, and then builds the
-`run_event` payload. Fields are routed to `params`, `input.data`, or
-`workflowData` according to their XYOps metadata. The API key stays server-side.
-When XYOps is not configured, the catalog is explicitly marked as unavailable
-and no process can be started. Set `DEMO_MODE=true` only when you intentionally
-want the non-mutating example catalog, including a database-backup Workflow.
+Запуск процесса использует `POST /api/integrations/catalog/run`. Сервер
+перезагружает каталог, подтверждает, что выбранный процесс существует и
+включен, проверяет каждое отправленное значение, отклоняет неизвестные цели,
+затем собирает `run_event` payload. Поля направляются в `params`,
+`input.data` или `workflowData` в соответствии с их метаданными XYOps.
+Ключ API остается на стороне сервера. Когда XYOps не настроен, каталог явно
+помечается как недоступный, и никакой процесс не может быть запущен.
+Установите `DEMO_MODE=true` только когда вы намеренно хотите не изменяющий
+примерный каталог, включая Workflow `database-backup`.
 
-Every accepted or rejected launch is recorded in the `operation_runs` D1 table
-without raw XYOps response bodies or submitted secret fields. The Operations
-page reads this persistent journal from `GET /api/integrations/runs`. While a
-job is active, the server compares its ID with the read-only
-`GET /api/app/get_active_jobs/v1` response and normalizes XYOps states to
-`queued`, `running`, `success`, `failed`, or `unknown`. The UI refreshes the
-journal automatically and derives overview counters from the stored records.
+Каждый принятый или отклоненный запуск записывается в таблицу D1
+`operation_runs` без необработанных тел ответов XYOps или отправленных
+секретных полей. Страница Operations читает этот персистентный журнал из
+`GET /api/integrations/runs`. Пока задание активно, сервер сравнивает его ID
+с ответом на чтение `GET /api/app/get_active_jobs/v1` и нормализует состояния
+XYOps к `queued`, `running`, `success`, `failed` или `unknown`.
+Интерфейс обновляет журнал автоматически и получает обзорные счетчики из
+сохраненных записей.
 
-### Inspect a real XYOps contract
+### Проверка реального контракта XYOps
 
-Before enabling the portal against a real instance, run the read-only contract
-inspector. It records response shapes and sanitized samples without storing the
-API key, request headers, or raw response bodies:
+Перед включением портала для реального инстанса запустите инспектор контрактов
+только для чтения. Он записывает формы ответов и обезличенные образцы, не
+сохраняя ключ API, заголовки запросов или необработанные тела ответов:
 
 ```bash
 export XYOPS_URL="https://xyops.company.local"
@@ -130,80 +158,84 @@ export XYOPS_API_KEY="replace-with-read-only-key"
 npm run inspect:xyops
 ```
 
-Review the resulting `xyops-inspection-*.json` before sharing it. Identifiers,
-names, titles, hostnames, URLs, and secret-like properties are redacted by
-default. See [docs/XYOPS_INSPECTOR.md](docs/XYOPS_INSPECTOR.md) for all safety
-properties, options, and the expected handoff.
+Ознакомьтесь с полученным файлом `xyops-inspection-*.json` перед отправкой.
+Идентификаторы, имена, заголовки, хосты, URL и свойства, похожие на секреты,
+по умолчанию маскируются. См. [docs/XYOPS_INSPECTOR.md](docs/XYOPS_INSPECTOR.md)
+для всех свойств безопасности, опций и ожидаемой передачи.
 
-## Local production deployment with Docker
+## Локальное production-развертывание через Docker
 
-Create the local environment file and replace all placeholder addresses and
-secrets:
+Создайте локальный файл окружения и замените все адреса-заполнители и секреты:
 
 ```bash
 cp .env.example .env
-# .env.example includes a fixed public encryption key for local testing.
-# Generate a private administrator token and place it into .env:
+# В .env.example содержится фиксированный публичный ключ шифрования для локального тестирования.
+# Сгенерируйте токен администратора и поместите его в .env:
 openssl rand -hex 32  # ADMIN_TOKEN
 docker compose up -d --build
 docker compose ps
 ```
 
-Open `http://localhost:3001`. Stop the service with `docker compose down`.
-The local Compose service uses `network_mode: host`, so on Linux it shares the
-host network stack and can use the host's VPN routes and network interfaces.
-Port publishing is intentionally omitted because it is incompatible with host
-networking. Port 3001 on the host must be available. Docker Desktop requires
-host networking support to be enabled explicitly; Linux Docker Engine supports
-it directly.
+Откройте `http://localhost:3001`. Остановите сервис командой `docker compose down`.
+Локальный сервис Compose использует `network_mode: host`, поэтому на Linux он
+разделяет сетевой стек хоста и может использовать маршруты и сетевые
+интерфейсы хоста. Публикация порта намеренно опущена, так как она
+несовместима с сетевым режимом хоста. Порт 3001 на хосте должен быть свободен.
+Docker Desktop требует явного включения поддержки хостовой сети; Linux Docker
+Engine поддерживает это напрямую.
 
-The Docker entrypoint also starts a private FreeIPA Node Gateway on a random
-`127.0.0.1` port. The Worker calls this gateway with an ephemeral bearer token,
-and the gateway performs the documented FreeIPA password login, retains the
-session cookie, and executes explicitly allowlisted read and mutation JSON-RPC
-methods. This avoids
-local Workerd outbound-fetch incompatibilities while keeping FreeIPA passwords
-encrypted at rest and off external interfaces. The gateway is not exposed as a
-Docker or public port.
+Точка входа Docker также запускает частный Node-шлюз FreeIPA на случайном
+порту `127.0.0.1`. Worker вызывает этот шлюз с эфемерным токеном bearer,
+а шлюз выполняет документированный вход FreeIPA по паролю, сохраняет
+cookie-сессию и выполняет явно разрешенные чтение и мутации JSON-RPC
+методы. Это избегает несовместимости локального Workerd с
+outbound-fetch, сохраняя при этом пароли FreeIPA зашифрованными на диске
+и за внешними интерфейсами. Шлюз не открывается как Docker- или публичный
+порт.
 
-The container is non-root, read-only, drops Linux capabilities, and exposes
-only the dashboard port. The named `dashboard-data` volume persists the local
-D1/SQLite database across container restarts. It must have network access to
-the configured FreeIPA and XYOps addresses. FreeIPA needs a certificate trusted
-by Node.js inside the container; for an internal CA, add the CA certificate to a
-derived image and set `NODE_EXTRA_CA_CERTS` to its container path. TLS
-verification is not disabled.
+Контейнер работает от не-root, только для чтения, сбрасывает Linux
+capabilities и открывает только порт панели управления. Именованный том
+`dashboard-data` сохраняет локальную базу D1/SQLite между перезапусками
+контейнера. Он должен иметь доступ к настроенным адресам FreeIPA и XYOps
+по сети. FreeIPA требуется сертификат, доверенный Node.js внутри
+контейнера; для внутреннего CA добавьте сертификат CA в производящий
+образ и установите `NODE_EXTRA_CA_CERTS` в путь внутри контейнера.
+Проверка TLS не отключена.
 
-Open **Settings**, enter the `ADMIN_TOKEN` from `.env`, and select **Open
-settings**. Saved non-secret values are stored in D1/SQLite. FreeIPA passwords
-and XYOps API keys are encrypted with AES-256-GCM using
-`CONFIG_ENCRYPTION_KEY`. Empty secret inputs retain the currently stored value;
-the browser never receives it. Changing `CONFIG_ENCRYPTION_KEY` after saving
-settings makes the encrypted values unreadable, so back up both the volume and
-the key securely. For predictable local startup, `compose.yaml` explicitly
-overrides `CONFIG_ENCRYPTION_KEY` with a fixed public development key; a stale
-value in `.env` therefore cannot break settings persistence. This key is only
-for an isolated local test environment. Replace the Compose value with
-`openssl rand -hex 32` before any production or shared deployment.
+Откройте **Settings**, введите `ADMIN_TOKEN` из `.env` и выберите **Open
+settings**. Сохраненные несекретные значения хранятся в D1/SQLite. Пароли
+FreeIPA и ключи API XYOps шифруются AES-256-GCM с использованием
+`CONFIG_ENCRYPTION_KEY`. Пустые секретные входы сохраняют текущее сохраненное
+значение; браузер никогда его не получает. Изменение `CONFIG_ENCRYPTION_KEY`
+после сохранения настроек делает зашифрованные значения нечитаемыми,
+поэтому резервно сохраните том и ключ. Для предсказуемого локального запуска
+`compose.yaml` явно переопределяет `CONFIG_ENCRYPTION_KEY` фиксированным
+публичным ключом разработки; устаревшее значение в `.env` поэтому не может
+сломать персистентность настроек. Этот ключ предназначен только для
+изолированного локального тестового окружения. Замените значение Compose
+на `openssl rand -hex 32` перед любым production или shared-развертыванием.
 
-At runtime, FreeIPA credentials are used only by the server-side proxy for
-`user_find` and `group_find`. The browser never receives the password. If an
-integration is not configured, the UI displays an explicit `OFF` state and
-does not invent directory records or jobs. Mutations are validated server-side
-and sent to the selected XYOps Event or Workflow route. Demo records and demo
-jobs exist only when `DEMO_MODE=true` is set deliberately.
+ Во время выполнения учетные данные FreeIPA используются только серверным прокси
+для `user_find` и `group_find`. Браузер никогда не получает пароль. Если
+интеграция не настроена, интерфейс отображает явное состояние `OFF` и
+не изобретает записи каталога или задания. Мутации проверяются на стороне
+сервера и отправляются в выбранный маршрут Event или Workflow XYOps.
+Демо-записи и демо-задания существуют только когда `DEMO_MODE=true` установлен
+намеренно.
 
-## Workspace Auth Headers
+## Заголовки аутентификации Workspace
 
-OpenAI workspace sites can read the current user's email from
+Сайты OpenAI workspace могут читать email текущего пользователя из
 `oai-authenticated-user-email`.
 
-SIWC-authenticated workspace sites may also receive
-`oai-authenticated-user-full-name` when the user's SIWC profile has a non-empty
-`name` claim. The full-name value is percent-encoded UTF-8 and is accompanied by
+Аутентифицированные через SIWC сайты workspace также могут получать
+`oai-authenticated-user-full-name`, когда профиль SIWC пользователя имеет
+непустое поле `name`. Значение полного имени представляет собой
+процентно-закодированный UTF-8 и сопровождается заголовком
 `oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
 
-Treat the full name as optional and fall back to email when it is absent:
+Рассматривайте полное имя как опциональное и возвращайтесь к email, когда оно
+отсутствует:
 
 ```tsx
 import { headers } from "next/headers";
@@ -224,49 +256,56 @@ export default async function Home() {
 }
 ```
 
-## Optional Dispatch-Owned ChatGPT Sign-In
+## Опциональный вход через ChatGPT
 
-Import the ready-to-use helpers from `app/chatgpt-auth.ts` when the site needs
-optional or required ChatGPT sign-in:
+Импортируйте готовые вспомогательные средства из `app/chatgpt-auth.ts`, когда
+сайту нужен опциональный или обязательный вход через ChatGPT:
 
-- Use `getChatGPTUser()` for optional signed-in UI.
-- Use `requireChatGPTUser(returnTo)` for server-rendered pages that should send
-  anonymous visitors through Sign in with ChatGPT.
-- Use `chatGPTSignInPath(returnTo)` and `chatGPTSignOutPath(returnTo)` for
-  browser links or actions.
-- Pass a same-origin relative `returnTo` path for the destination after sign-in
-  or sign-out. The helper validates and safely encodes it.
-- Mark protected pages with `export const dynamic = "force-dynamic"` because
-  they depend on per-request identity headers.
+- Используйте `getChatGPTUser()` для опционального авторизованного UI.
+- Используйте `requireChatGPTUser(returnTo)` для серверно-рендеримых страниц,
+  которые должны перенаправлять анонимных посетителей через Sign in with ChatGPT.
+- Используйте `chatGPTSignInPath(returnTo)` и `chatGPTSignOutPath(returnTo)` для
+  браузерных ссылок или действий.
+- Передайте путь возврата `returnTo` того же происхождения для назначения после
+  входа или выхода. Вспомогательное средство проверяет и безопасно кодирует его.
+- Отмечайте защищенные страницы `export const dynamic = "force-dynamic"`, потому
+  что они зависят от заголовков идентификации для каждого запроса.
 
-Dispatch owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, `/callback`, the
-OAuth cookies, and identity header injection. Do not implement app routes for
-those reserved paths. Routes that do not import and call the helper remain
-anonymous-compatible.
+Dispatch владеет `/signin-with-chatgpt`, `/signout-with-chatgpt`, `/callback`,
+OAuth-cookie и внедрением заголовков идентичности. Не реализовывайте
+app-route для этих зарезервированных путей. Маршруты, которые не импортируют
+и не вызывают вспомогательное средство, остаются совместимыми с анонимным
+доступом.
 
-SIWC establishes identity only; it does not prove workspace membership. Use the
-Sites hosting platform's access policy controls for workspace-wide restrictions,
-or enforce explicit server-side membership or allowlist checks.
+SIWC устанавливает только идентичность; он не доказывает членство в workspace.
+Используйте элементы управления политикой доступа платформы Sites для
+ограничений по всему workspace или применяйте явные серверные проверки
+членства или разрешений.
 
-Use SIWC for account pages, user-specific dashboards, saved records, and write
-actions tied to the current ChatGPT user. Leave public content anonymous.
+Используйте SIWC для страниц аккаунтов, пользовательских дашбордов,
+сохраненных записей и записываемых действий, привязанных к текущему
+пользователю ChatGPT. Оставляйте публичный контент анонимным.
 
-## Diagnostic Commands
+## Диагностические команды
 
-- `npm run install:ci`: perform the one bounded lockfile install
-- `npm run dev`: start the Vite/Vinext development server
-- `npm run build`: build and validate the deployable Sites artifact
-- `npm run start`: start the built Vinext application
-- `npm run start:docker`: start the built Worker with persistent local D1 (used by Docker)
-- `npm test`: build, validate, and verify the rendered development-preview metadata
-- `npm run validate:artifact`: recheck an existing artifact's manifest and ESM `default.fetch` export
-- `npm run db:generate`: generate Drizzle migrations after schema changes
+- `npm run install:ci`: выполнить одну блокированную установку по lockfile
+- `npm run dev`: запустить сервер разработки Vite/Vinext
+- `npm run build`: собрать и проверить готовый к развертыванию артефакт Sites
+- `npm run start`: запустить собранное приложение Vinext
+- `npm run start:docker`: запустить собранный Worker с персистентным локальным D1 (используется Docker)
+- `npm test`: собрать, проверить и верифицировать рендереную метадату development-preview
+- `npm run validate:artifact`: повторно проверить манифест существующего артефакта и экспорт ESM `default.fetch`
+- `npm run db:generate`: сгенерировать миграции Drizzle после изменений схемы
 
-Use build and validation commands for targeted diagnosis after a remote failure, not as part of the normal checkpoint path.
+Используйте команды сборки и проверки для targeted-диагностики после удаленного
+сбоя, а не как часть обычного checkpoint-пути.
 
-The timeout defaults can be overridden for a controlled canary with `SITES_INSTALL_TIMEOUT`, `SITES_INSTALL_KILL_AFTER`, `SITES_BUILD_TIMEOUT`, and `SITES_BUILD_KILL_AFTER`. A timeout fails the command; the helpers never retry an unchanged install or build.
+Таймауты по умолчанию можно переопределить для контролируемого канARY с
+`SITES_INSTALL_TIMEOUT`, `SITES_INSTALL_KILL_AFTER`, `SITES_BUILD_TIMEOUT` и
+`SITES_BUILD_KILL_AFTER`. Таймаут завершает команду; вспомогательные скрипты
+никогда не повторяют неизмененную установку или сборку.
 
-## Learn More
+## Дополнительные материалы
 
-- [vinext Documentation](https://github.com/cloudflare/vinext)
-- [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
+- [Документация vinext](https://github.com/cloudflare/vinext)
+- [Руководство Drizzle D1](https://orm.drizzle.team/docs/get-started/d1-new)

@@ -27,11 +27,11 @@ test("normalizes FreeIPA users and groups without exposing credentials", async (
   try {
     const usersResponse = await worker.fetch(new Request("https://dashboard.test/api/integrations/users"), env, {});
     assert.equal(usersResponse.status, 200);
-    assert.deepEqual(await usersResponse.json(), { mode: "live", users: [{ uid: "asmirnov", name: "Смирнов Алексей", firstName: "", lastName: "", email: "a@example.test", active: false, groups: 2 }] });
+    assert.deepEqual(await usersResponse.json(), { mode: "live", users: [{ uid: "asmirnov", name: "Смирнов Алексей", firstName: "", lastName: "", email: "a@example.test", active: false, groups: 2, groupNames: ["devops", "security"] }] });
 
     const groupsResponse = await worker.fetch(new Request("https://dashboard.test/api/integrations/groups"), env, {});
     assert.equal(groupsResponse.status, 200);
-    assert.deepEqual(await groupsResponse.json(), { mode: "live", source: "group_find", groups: [{ name: "devops", description: "Инфраструктура", members: 1, type: "POSIX" }] });
+    assert.deepEqual(await groupsResponse.json(), { mode: "live", source: "group_find", groups: [{ name: "devops", description: "Инфраструктура", members: 1, memberUids: ["asmirnov"], type: "POSIX" }] });
     assert.equal(calls.length, 4);
   } finally {
     globalThis.fetch = originalFetch;
@@ -53,6 +53,7 @@ test("performs FreeIPA CRUD directly without XYOps", async () => {
   const actions = [
     { operation: "user_add", username: "alice", firstName: "Alice", lastName: "Admin", email: "alice@example.test", password: "temporary" },
     { operation: "user_mod", username: "alice", firstName: "Alicia", lastName: "Admin", email: "alicia@example.test" },
+    { operation: "user_password", username: "alice", password: "temporary-new" },
     { operation: "user_disable", username: "alice" },
     { operation: "group_add", group: "devops", description: "Infrastructure" },
     { operation: "group_add_member", group: "devops", username: "alice" },
@@ -70,9 +71,10 @@ test("performs FreeIPA CRUD directly without XYOps", async () => {
       assert.equal(body.ok, true);
       assert.equal(JSON.stringify(body).includes("temporary"), false);
     }
-    assert.deepEqual(rpcCalls.map((call) => call.method), ["user_add", "user_mod", "user_disable", "group_add", "group_add_member"]);
+    assert.deepEqual(rpcCalls.map((call) => call.method), ["user_add", "user_mod", "user_mod", "user_disable", "group_add", "group_add_member"]);
     assert.deepEqual(rpcCalls[0].params, [["alice"], { givenname: "Alice", sn: "Admin", mail: "alice@example.test", userpassword: "temporary" }]);
-    assert.deepEqual(rpcCalls[4].params, [["devops"], { user: ["alice"] }]);
+    assert.deepEqual(rpcCalls[2].params, [["alice"], { userpassword: "temporary-new" }]);
+    assert.deepEqual(rpcCalls[5].params, [["devops"], { user: ["alice"] }]);
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -116,8 +118,8 @@ test("derives groups from user memberships when group_find is unavailable", asyn
       source: "user_membership",
       degraded: true,
       groups: [
-        { name: "devops", description: "Получено из членства пользователей", members: 2, type: "Directory" },
-        { name: "vpn", description: "Получено из членства пользователей", members: 1, type: "Directory" },
+        { name: "devops", description: "Получено из членства пользователей", members: 2, memberUids: ["alice", "bob"], type: "Directory" },
+        { name: "vpn", description: "Получено из членства пользователей", members: 1, memberUids: ["alice"], type: "Directory" },
       ],
     });
   } finally {

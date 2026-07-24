@@ -32,6 +32,7 @@ yarn-error.log*
 .env*
 !.env.example
 !.env.test.example
+!.env.local-auth-acceptance.example
 
 # vercel
 .vercel

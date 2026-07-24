@@ -16,7 +16,7 @@ function rpcPayload(init) {
   return JSON.parse(String(init.body));
 }
 
-test("loads and paginates members through existing groups and users APIs", async () => {
+test("loads members through existing groups and users APIs with pagination metadata", async () => {
   const originalFetch = globalThis.fetch;
   const methods = [];
   globalThis.fetch = async (input, init = {}) => {
@@ -37,13 +37,13 @@ test("loads and paginates members through existing groups and users APIs", async
   };
 
   try {
-    const response = await worker.fetch(new Request("https://dashboard.test/api/integrations/groups/members?group=devops&status=all&sort=status&direction=asc&page=1&pageSize=2"), env, {});
+    const response = await worker.fetch(new Request("https://dashboard.test/api/integrations/groups/members?group=devops&status=all&sort=status&direction=asc&page=1&pageSize=10"), env, {});
     assert.equal(response.status, 200);
     const body = await response.json();
     assert.equal(body.mode, "live");
     assert.equal(body.group.name, "devops");
-    assert.deepEqual(body.members.map((member) => member.uid), ["alice", "bob"]);
-    assert.deepEqual(body.pagination, { page: 1, pageSize: 2, total: 3, totalPages: 2, from: 1, to: 2 });
+    assert.deepEqual(body.members.map((member) => member.uid), ["alice", "bob", "ghost"]);
+    assert.deepEqual(body.pagination, { page: 1, pageSize: 10, total: 3, totalPages: 1, from: 1, to: 3 });
     assert.deepEqual(body.summary, { total: 3, active: 1, disabled: 1, unknown: 1, filtered: 3 });
     assert.deepEqual(new Set(methods), new Set(["group_find", "user_find"]));
     assert.equal(methods.filter((method) => method === "group_find").length, 1);

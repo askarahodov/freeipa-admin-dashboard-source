@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import LocalAuthToolbar from "./LocalAuthToolbar";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,7 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "FreeIPA Admin — XYOps",
-  description: "Панель управления пользователями и группами FreeIPA через XYOps.",
+  description: "Локальная панель управления FreeIPA и автоматизациями XYOps.",
   other: {
     "codex-preview": "development",
   },
@@ -31,10 +32,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ru">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         {children}
+        <LocalAuthToolbar />
       </body>
     </html>
   );

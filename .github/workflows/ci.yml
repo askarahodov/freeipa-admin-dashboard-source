@@ -94,4 +94,4 @@ jobs:
           path: dist
 
       - name: Run test
-        run: node --test "${{ matrix.test }}"
+        run: node --experimental-strip-types --test "${{ matrix.test }}"

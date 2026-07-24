@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 type PortalRole = "viewer" | "operator" | "admin";
@@ -62,8 +63,12 @@ export default function AccessPage() {
       ]);
       if (!sessionResponse.ok) throw new Error(sessionData.error || "Требуется повторный вход");
       if (!usersResponse.ok) throw new Error(usersData.error || "Не удалось загрузить пользователей");
+      const loadedAt = Date.now();
       setSession(sessionData);
-      setUsers(Array.isArray(usersData.users) ? usersData.users : []);
+      setUsers(Array.isArray(usersData.users) ? usersData.users.map((user: LocalAuthUser) => ({
+        ...user,
+        lockedUntil: user.lockedUntil && user.lockedUntil > loadedAt ? user.lockedUntil : null,
+      })) : []);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Не удалось загрузить управление доступом");
     } finally {
@@ -71,7 +76,10 @@ export default function AccessPage() {
     }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
 
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -164,7 +172,7 @@ export default function AccessPage() {
     <main className="access-shell">
       <header className="access-topbar">
         <div>
-          <a href="/" className="access-back">← Вернуться в портал</a>
+          <Link href="/" className="access-back">← Вернуться в портал</Link>
           <span className="eyebrow">LOCAL RBAC</span>
           <h1>Управление доступом</h1>
           <p>Внутренние пользователи портала. Учётные записи и группы FreeIPA не предоставляют доступ автоматически.</p>
@@ -205,7 +213,7 @@ export default function AccessPage() {
         <div className="access-users">
           {filtered.map((user) => {
             const own = user.id === session?.user?.id;
-            const locked = Boolean(user.lockedUntil && user.lockedUntil > Date.now());
+            const locked = Boolean(user.lockedUntil);
             return (
               <article className={`access-user-card ${user.disabled ? "disabled" : ""}`} key={user.id}>
                 <div className="access-user-summary">

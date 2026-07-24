@@ -10,6 +10,12 @@ type Session = {
   user?: { username: string; displayName: string; role: "viewer" | "operator" | "admin" };
 };
 
+const roleLabels = {
+  viewer: "Наблюдатель",
+  operator: "Оператор",
+  admin: "Администратор",
+};
+
 export default function LocalAuthToolbar() {
   const pathname = usePathname();
   const [session, setSession] = useState<Session | null>(null);
@@ -29,10 +35,13 @@ export default function LocalAuthToolbar() {
     window.location.assign("/login");
   }
 
+  const role = session.user?.role ?? "viewer";
+
   return (
     <div className="local-auth-toolbar">
-      <span><strong>{session.user?.displayName || session.user?.username}</strong><small>{session.user?.role}</small></span>
-      {session.user?.role === "admin" && <Link href="/access">Доступ</Link>}
+      <span><strong>{session.user?.displayName || session.user?.username}</strong><small>{roleLabels[role]}</small></span>
+      {role === "admin" && pathname !== "/access" && <Link href="/access">Управление доступом</Link>}
+      {pathname === "/access" && <Link href="/">Вернуться в портал</Link>}
       <button onClick={() => void logout()}>Выйти</button>
     </div>
   );

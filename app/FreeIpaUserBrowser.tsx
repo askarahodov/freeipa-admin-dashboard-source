@@ -30,6 +30,7 @@ function readQuery(): QueryState {
   const status = params.get("ustatus");
   const sort = params.get("usort");
   const direction = params.get("udir");
+  const pageValue = Number(params.get("upage"));
   const pageSize = Number(params.get("usize"));
   return {
     q: String(params.get("uq") ?? "").slice(0, 160),
@@ -37,14 +38,17 @@ function readQuery(): QueryState {
     group: String(params.get("ugroup") ?? "").slice(0, 120),
     sort: sort === "name" || sort === "email" || sort === "groups" || sort === "status" ? sort : "uid",
     direction: direction === "desc" ? "desc" : "asc",
-    page: Math.max(1, Number(params.get("upage")) || 1),
+    page: Number.isFinite(pageValue) ? Math.max(1, Math.min(Math.floor(pageValue), 100_000)) : 1,
     pageSize: [10, 25, 50, 100].includes(pageSize) ? pageSize : 25,
   };
 }
 
 function writeQuery(query: QueryState): void {
   const url = new URL(window.location.href);
-  const set = (name: string, value: string, defaultValue = "") => value && value !== defaultValue ? url.searchParams.set(name, value) : url.searchParams.delete(name);
+  const set = (name: string, value: string, defaultValue = "") => {
+    if (value && value !== defaultValue) url.searchParams.set(name, value);
+    else url.searchParams.delete(name);
+  };
   set("uq", query.q);
   set("ustatus", query.status, "all");
   set("ugroup", query.group);
@@ -66,8 +70,12 @@ function legacyUserButton(uid: string, label: string): HTMLButtonElement | null 
   return Array.from(row?.querySelectorAll<HTMLButtonElement>("button") ?? []).find((button) => button.textContent?.trim() === label) ?? null;
 }
 
+function legacyCreateButton(): HTMLButtonElement | null {
+  return document.querySelector<HTMLButtonElement>(".section-page > .panel-title button.primary");
+}
+
 function clickLegacyCreate(): void {
-  document.querySelector<HTMLButtonElement>(".section-page > .panel-title button.primary")?.click();
+  legacyCreateButton()?.click();
 }
 
 function clickLegacyUser(uid: string, label: "Карточка" | "Редактировать"): void {
@@ -94,15 +102,17 @@ function useUsersMount(active: boolean): HTMLElement | null {
       return true;
     };
 
-    if (!install()) {
+    const initial = window.setTimeout(() => {
+      if (install()) return;
       observer = new MutationObserver(() => {
         if (install()) observer?.disconnect();
       });
       observer.observe(document.body, { childList: true, subtree: true });
-    }
+    }, 0);
 
     return () => {
       cancelled = true;
+      window.clearTimeout(initial);
       observer?.disconnect();
       setMount((current) => {
         current?.remove();
@@ -123,7 +133,9 @@ export default function FreeIpaUserBrowser() {
   const [payload, setPayload] = useState<UsersPayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [canWrite, setCanWrite] = useState(false);
   const requestId = useRef(0);
+  const lastFreeIpaToast = useRef("");
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -135,10 +147,19 @@ export default function FreeIpaUserBrowser() {
 
   useEffect(() => {
     if (!active) return;
-    const current = readQuery();
-    setQuery(current);
-    setDraft(current.q);
+    const timer = window.setTimeout(() => {
+      const current = readQuery();
+      setQuery(current);
+      setDraft(current.q);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [active]);
+
+  useEffect(() => {
+    if (!active || !mount) return;
+    const timer = window.setTimeout(() => setCanWrite(Boolean(legacyCreateButton())), 0);
+    return () => window.clearTimeout(timer);
+  }, [active, mount, payload?.mode]);
 
   const load = useCallback(async () => {
     if (!active) return;
@@ -182,8 +203,15 @@ export default function FreeIpaUserBrowser() {
   useEffect(() => {
     if (!active) return;
     const observer = new MutationObserver(() => {
-      const toast = document.querySelector<HTMLElement>(".toast");
-      if (toast?.textContent?.includes("FreeIPA")) void load();
+      const message = document.querySelector<HTMLElement>(".toast")?.textContent?.trim() ?? "";
+      if (!message) {
+        lastFreeIpaToast.current = "";
+        return;
+      }
+      if (message.includes("FreeIPA") && message !== lastFreeIpaToast.current) {
+        lastFreeIpaToast.current = message;
+        void load();
+      }
     });
     observer.observe(document.body, { childList: true, subtree: true });
     return () => observer.disconnect();
@@ -217,7 +245,7 @@ export default function FreeIpaUserBrowser() {
     <div className="freeipa-user-browser-shell">
       <div className="freeipa-user-browser-head">
         <div><span className="eyebrow">FREEIPA DIRECTORY</span><h2>Пользователи FreeIPA</h2><p>{summary.total} учётных записей · {summary.active} активны · {summary.disabled} отключены</p></div>
-        <div><button className="secondary" disabled={loading} onClick={() => void load()}>{loading ? "Обновление…" : "⟳ Обновить"}</button><button className="primary" onClick={clickLegacyCreate}>＋ Создать пользователя</button></div>
+        <div><button className="secondary" disabled={loading} onClick={() => void load()}>{loading ? "Обновление…" : "⟳ Обновить"}</button>{canWrite ? <button className="primary" disabled={payload?.mode !== "live"} onClick={clickLegacyCreate}>＋ Создать пользователя</button> : <span className="freeipa-user-readonly">Только просмотр</span>}</div>
       </div>
 
       <form className="freeipa-user-query" onSubmit={(event) => { event.preventDefault(); setFilter({ q: draft.trim() }); }}>
@@ -237,7 +265,7 @@ export default function FreeIpaUserBrowser() {
 
       {!error && payload?.mode === "live" && <>
         <div className="freeipa-user-result-summary"><span>Показано <b>{pagination.from}–{pagination.to}</b> из <b>{pagination.total}</b></span><span>{summary.filtered !== summary.total ? `Фильтр: ${summary.filtered} из ${summary.total}` : "Без фильтра"}</span></div>
-        <div className="freeipa-user-table-wrap"><table className="freeipa-user-table"><thead><tr><th>Пользователь</th><th>Логин</th><th>Группы</th><th>Статус</th><th>Действия</th></tr></thead><tbody>{users.map((user) => <tr key={user.uid}><td><span className="freeipa-user-person"><b>{initials(user)}</b><span><strong>{user.name || user.uid}</strong><small>{user.email || "Email не указан"}</small></span></span></td><td><code>{user.uid}</code></td><td><strong>{user.groups}</strong><small title={user.groupNames.join(", ")}>{user.groupNames.slice(0, 2).join(", ") || "—"}{user.groupNames.length > 2 ? ` +${user.groupNames.length - 2}` : ""}</small></td><td><span className={`freeipa-user-status ${user.active ? "active" : "disabled"}`}>{user.active ? "Активен" : "Отключён"}</span></td><td><div className="freeipa-user-actions"><button onClick={() => clickLegacyUser(user.uid, "Карточка")}>Карточка</button><button onClick={() => clickLegacyUser(user.uid, "Редактировать")}>Редактировать</button></div></td></tr>)}</tbody></table></div>
+        <div className="freeipa-user-table-wrap"><table className="freeipa-user-table"><thead><tr><th>Пользователь</th><th>Логин</th><th>Группы</th><th>Статус</th><th>Действия</th></tr></thead><tbody>{users.map((user) => <tr key={user.uid}><td><span className="freeipa-user-person"><b>{initials(user)}</b><span><strong>{user.name || user.uid}</strong><small>{user.email || "Email не указан"}</small></span></span></td><td><code>{user.uid}</code></td><td><strong>{user.groups}</strong><small title={user.groupNames.join(", ")}>{user.groupNames.slice(0, 2).join(", ") || "—"}{user.groupNames.length > 2 ? ` +${user.groupNames.length - 2}` : ""}</small></td><td><span className={`freeipa-user-status ${user.active ? "active" : "disabled"}`}>{user.active ? "Активен" : "Отключён"}</span></td><td><div className="freeipa-user-actions"><button onClick={() => clickLegacyUser(user.uid, "Карточка")}>Карточка</button>{canWrite && <button onClick={() => clickLegacyUser(user.uid, "Редактировать")}>Редактировать</button>}</div></td></tr>)}</tbody></table></div>
         {!users.length && <div className="freeipa-user-query-state"><strong>Пользователи не найдены</strong><span>Измените поисковую строку, состояние или выбранную группу.</span></div>}
         <div className="freeipa-user-pagination"><button className="secondary" disabled={pagination.page <= 1 || loading} onClick={() => setFilter({ page: pagination.page - 1 })}>← Назад</button><div>{pages.map((page, index) => <span key={page}>{index > 0 && page - pages[index - 1] > 1 && <i>…</i>}<button className={page === pagination.page ? "active" : ""} onClick={() => setFilter({ page })}>{page}</button></span>)}</div><button className="secondary" disabled={pagination.page >= pagination.totalPages || loading} onClick={() => setFilter({ page: pagination.page + 1 })}>Вперёд →</button></div>
       </>}

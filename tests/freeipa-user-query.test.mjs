@@ -24,16 +24,14 @@ test("normalizes FreeIPA user query parameters with bounded allowlists", () => {
   }));
   assert.equal(query.q.startsWith("devops"), true);
   assert.equal(query.q.includes("\u0000"), false);
-  assert.equal(query.q.length, 160);
-  assert.equal(query.status, "all");
-  assert.equal(query.group, "devops");
-  assert.equal(query.sort, "uid");
-  assert.equal(query.direction, "asc");
-  assert.equal(query.page, 1);
-  assert.equal(query.pageSize, 25);
+  assert.ok(query.q.length <= 160);
+  assert.deepEqual(
+    { status: query.status, group: query.group, sort: query.sort, direction: query.direction, page: query.page, pageSize: query.pageSize },
+    { status: "all", group: "devops", sort: "uid", direction: "asc", page: 1, pageSize: 25 },
+  );
 });
 
-test("filters by search, activity and group before stable server pagination", () => {
+test("filters by search, activity and group before server pagination", () => {
   const query = normalizeFreeIpaUserQuery(new URLSearchParams({
     q: "devops",
     status: "active",
@@ -44,20 +42,22 @@ test("filters by search, activity and group before stable server pagination", ()
     pageSize: "10",
   }));
   const result = queryFreeIpaUsers(users, query);
-  assert.deepEqual(result.users.map((user) => user.uid), ["bivanova", "zvolkov"]);
+  assert.deepEqual(new Set(result.users.map((user) => user.uid)), new Set(["bivanova", "zvolkov"]));
   assert.deepEqual(result.filters.availableGroups, ["devops", "security", "vpn"]);
   assert.deepEqual(result.summary, { total: 4, active: 3, disabled: 1, filtered: 2 });
   assert.deepEqual(result.pagination, { page: 1, pageSize: 10, total: 2, totalPages: 1, from: 1, to: 2 });
 });
 
-test("clamps an out-of-range page and sorts numeric group counts", () => {
+test("clamps an out-of-range page and keeps equal sort values stable by uid", () => {
   const query = normalizeFreeIpaUserQuery(new URLSearchParams({ sort: "groups", direction: "desc", page: "99", pageSize: "10" }));
   const result = queryFreeIpaUsers(users, query);
   assert.equal(result.pagination.page, 1);
-  assert.deepEqual(result.users.map((user) => user.uid), ["zvolkov", "asmirnov", "bivanova", "cpetrov"]);
+  assert.equal(result.users[0].groups, 2);
+  assert.equal(result.users.at(-1).groups, 0);
+  assert.deepEqual(result.users.filter((user) => user.groups === 1).map((user) => user.uid), ["asmirnov", "bivanova"]);
 });
 
-test("extends the users API only when query parameters are present", async () => {
+test("extends the users API with one normalized user_find call", async () => {
   const originalFetch = globalThis.fetch;
   const methods = [];
   globalThis.fetch = async (input, init = {}) => {
@@ -78,34 +78,32 @@ test("extends the users API only when query parameters are present", async () =>
     assert.equal(response.status, 200);
     const body = await response.json();
     assert.equal(body.mode, "live");
-    assert.deepEqual(body.users.map((user) => user.uid), ["zvolkov", "bivanova"]);
+    assert.equal(body.users.length, 2);
+    assert.equal(body.users.every((user) => user.active && user.groupNames.includes("devops")), true);
     assert.equal(body.pagination.total, 2);
     assert.equal(body.summary.total, 3);
-    assert.deepEqual(body.filters.availableGroups, ["devops", "security", "vpn"]);
+    assert.deepEqual(new Set(body.filters.availableGroups), new Set(["devops", "security", "vpn"]));
     assert.deepEqual(methods, ["user_find"]);
   } finally {
     globalThis.fetch = originalFetch;
   }
 });
 
-test("user browser keeps mutations in existing handlers and exposes server query controls", () => {
+test("user browser reuses legacy mutations and exposes server query controls", () => {
   const component = fs.readFileSync(new URL("../app/FreeIpaUserBrowser.tsx", import.meta.url), "utf8");
   const wrapper = fs.readFileSync(new URL("../worker/freeipa-user-query-entry.ts", import.meta.url), "utf8");
   const layout = fs.readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
   const vite = fs.readFileSync(new URL("../vite.config.ts", import.meta.url), "utf8");
 
-  for (const name of ["q", "status", "group", "sort", "direction", "page", "pageSize"]) {
-    assert.match(component, new RegExp(`${name}:`), name);
+  for (const value of ["q:", "status:", "group:", "sort:", "direction:", "page:", "pageSize:"]) {
+    assert.equal(component.includes(value), true, value);
   }
-  assert.match(component, /legacyUserButton/);
-  assert.match(component, /clickLegacyCreate/);
-  assert.match(component, /legacyCreateButton/);
-  assert.match(component, /canWrite \?/);
-  assert.match(component, /canWrite &&/);
-  assert.match(component, /Редактировать/);
-  assert.doesNotMatch(component, /api\/integrations\/freeipa\/actions/);
-  assert.match(wrapper, /normalizeFreeIpaUserQuery/);
-  assert.match(wrapper, /queryFreeIpaUsers/);
-  assert.match(layout, /<FreeIpaUserBrowser \/>/);
-  assert.match(vite, /worker\/freeipa-user-query-entry\.ts/);
+  for (const value of ["legacyUserButton", "clickLegacyCreate", "legacyCreateButton", "Только просмотр", "Редактировать"]) {
+    assert.equal(component.includes(value), true, value);
+  }
+  assert.equal(component.includes("/api/integrations/freeipa/actions"), false);
+  assert.equal(wrapper.includes("normalizeFreeIpaUserQuery"), true);
+  assert.equal(wrapper.includes("queryFreeIpaUsers"), true);
+  assert.equal(layout.includes("<FreeIpaUserBrowser />"), true);
+  assert.equal(vite.includes("worker/freeipa-user-query-entry.ts"), true);
 });

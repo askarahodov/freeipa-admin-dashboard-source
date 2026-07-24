@@ -14,6 +14,7 @@
     "test": "npm run build && node --experimental-strip-types --test tests/*.test.mjs",
     "test:integration:smoke": "node scripts/local-integration-smoke.mjs",
     "test:local": "bash scripts/run-local-integration.sh",
+    "test:local-auth:acceptance": "node scripts/local-auth-acceptance.mjs",
     "validate:artifact": "bash scripts/validate-artifact.sh",
     "lint": "bash scripts/sites-env.sh -- eslint . --ignore-pattern dist --ignore-pattern .next",
     "inspect:xyops": "node scripts/xyops-inspect.mjs",

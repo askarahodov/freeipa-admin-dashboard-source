@@ -84,10 +84,10 @@ function userSearchText(user: FreeIpaDirectoryUser): string {
     .toLocaleLowerCase("ru");
 }
 
-function compareUsers(left: FreeIpaDirectoryUser, right: FreeIpaDirectoryUser, sort: FreeIpaUserSort): number {
-  if (sort === "groups") return left.groups - right.groups || collator.compare(left.uid, right.uid);
-  if (sort === "status") return Number(right.active) - Number(left.active) || collator.compare(left.uid, right.uid);
-  return collator.compare(String(left[sort] ?? ""), String(right[sort] ?? "")) || collator.compare(left.uid, right.uid);
+function comparePrimary(left: FreeIpaDirectoryUser, right: FreeIpaDirectoryUser, sort: FreeIpaUserSort): number {
+  if (sort === "groups") return left.groups - right.groups;
+  if (sort === "status") return Number(right.active) - Number(left.active);
+  return collator.compare(String(left[sort] ?? ""), String(right[sort] ?? ""));
 }
 
 export function queryFreeIpaUsers(users: FreeIpaDirectoryUser[], query: FreeIpaUserQuery): FreeIpaUserQueryResult {
@@ -117,8 +117,9 @@ export function queryFreeIpaUsers(users: FreeIpaDirectoryUser[], query: FreeIpaU
   });
 
   filtered.sort((left, right) => {
-    const value = compareUsers(left, right, query.sort);
-    return query.direction === "desc" ? -value : value;
+    const primary = comparePrimary(left, right, query.sort);
+    if (primary !== 0) return query.direction === "desc" ? -primary : primary;
+    return collator.compare(left.uid, right.uid);
   });
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / query.pageSize));

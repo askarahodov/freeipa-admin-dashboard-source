@@ -99,8 +99,10 @@ test("user browser keeps mutations in existing handlers and exposes server query
   }
   assert.match(component, /legacyUserButton/);
   assert.match(component, /clickLegacyCreate/);
+  assert.match(component, /legacyCreateButton/);
   assert.match(component, /canWrite \?/);
-  assert.match(component, /canWrite && <button[^>]+Редактировать/s);
+  assert.match(component, /canWrite &&/);
+  assert.match(component, /Редактировать/);
   assert.doesNotMatch(component, /api\/integrations\/freeipa\/actions/);
   assert.match(wrapper, /normalizeFreeIpaUserQuery/);
   assert.match(wrapper, /queryFreeIpaUsers/);

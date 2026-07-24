@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import "./local-auth.css";
 import "./local-auth-enhancements.css";
+import "./diagnostics.css";
 import LocalAuthToolbar from "./LocalAuthToolbar";
 
 const geistSans = Geist({

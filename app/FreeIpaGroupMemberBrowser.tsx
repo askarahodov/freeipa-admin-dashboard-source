@@ -143,7 +143,7 @@ export default function FreeIpaGroupMemberBrowser() {
       setCanWrite(Boolean(target.modal.querySelector(".membership-head button.primary")));
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [target?.groupName]);
+  }, [target]);
 
   const load = useCallback(async () => {
     if (!active || !target?.groupName) return;

@@ -16,8 +16,15 @@ if (!adminUsername || !adminPassword) {
   console.error("Set PORTAL_TEST_ADMIN_USERNAME and PORTAL_TEST_ADMIN_PASSWORD.");
   process.exit(2);
 }
-if (!/^https?:\/\//i.test(baseUrl)) {
-  console.error("PORTAL_TEST_BASE_URL must be an http:// or https:// URL.");
+
+let targetOrigin = "";
+try {
+  const target = new URL(baseUrl);
+  if (!["http:", "https:"].includes(target.protocol)) throw new Error("unsupported protocol");
+  if (target.username || target.password) throw new Error("credentials in URL are not allowed");
+  targetOrigin = target.origin;
+} catch {
+  console.error("PORTAL_TEST_BASE_URL must be an http:// or https:// URL without embedded credentials.");
   process.exit(2);
 }
 
@@ -52,7 +59,12 @@ function cookieFrom(response) {
   const value = response.headers.get("set-cookie") ?? "";
   const cookie = value.split(";", 1)[0]?.trim() ?? "";
   if (!cookie.includes("=")) throw new Error("Login response did not set a session cookie");
+  secrets.add(cookie);
   return cookie;
+}
+
+function stepResult(value, detail = "ok") {
+  return { __acceptanceStepResult: true, value, detail };
 }
 
 async function request(pathname, { method = "GET", cookie = "", body, expected } = {}) {
@@ -76,9 +88,12 @@ async function request(pathname, { method = "GET", cookie = "", body, expected }
 async function step(name, action) {
   const started = Date.now();
   try {
-    const detail = await action();
-    steps.push({ name, status: "success", durationMs: Date.now() - started, detail: redact(detail ?? "ok") });
-    return detail;
+    const output = await action();
+    const wrapped = output && typeof output === "object" && output.__acceptanceStepResult === true;
+    const value = wrapped ? output.value : output;
+    const detail = wrapped ? output.detail : typeof output === "string" ? output : "ok";
+    steps.push({ name, status: "success", durationMs: Date.now() - started, detail: redact(detail) });
+    return value;
   } catch (error) {
     const message = redact(error instanceof Error ? error.message : error);
     steps.push({ name, status: "failed", durationMs: Date.now() - started, detail: message });
@@ -136,7 +151,7 @@ async function writeReport() {
   const report = {
     runId,
     generatedAt: new Date().toISOString(),
-    target: new URL(baseUrl).origin,
+    target: targetOrigin,
     status: failed || fatalError ? "failed" : "success",
     summary: { total: steps.length, success: steps.length - failed, failed },
     error: redact(fatalError),
@@ -160,7 +175,7 @@ try {
     return "HTTP 200";
   });
 
-  adminCookie = await step("Bootstrap admin login", async () => login(adminUsername, adminPassword));
+  adminCookie = await step("Bootstrap admin login", async () => stepResult(await login(adminUsername, adminPassword), "authenticated"));
 
   await step("Admin session", async () => {
     const { payload } = await request("/api/auth/session", { cookie: adminCookie, expected: 200 });
@@ -177,9 +192,9 @@ try {
   const operator = await step("Create operator", () => createUser(`${prefix}-operator`, "operator", operatorPassword));
   const secondaryAdmin = await step("Create second admin", () => createUser(`${prefix}-admin`, "admin", secondaryAdminPassword));
 
-  const viewerCookie = await step("Viewer login", () => login(viewer.username, viewerPassword));
-  const operatorCookie = await step("Operator login", () => login(operator.username, operatorPassword));
-  const secondaryAdminCookie = await step("Second admin login", () => login(secondaryAdmin.username, secondaryAdminPassword));
+  const viewerCookie = await step("Viewer login", async () => stepResult(await login(viewer.username, viewerPassword), "authenticated"));
+  const operatorCookie = await step("Operator login", async () => stepResult(await login(operator.username, operatorPassword), "authenticated"));
+  const secondaryAdminCookie = await step("Second admin login", async () => stepResult(await login(secondaryAdmin.username, secondaryAdminPassword), "authenticated"));
 
   await step("Viewer is denied RBAC management", async () => {
     await request("/api/auth/users", { cookie: viewerCookie, expected: 403 });
@@ -231,7 +246,7 @@ try {
     return "old cookie returned HTTP 401";
   });
 
-  const replacementViewerCookie = await step("Viewer login with replacement password", () => login(viewer.username, replacementViewerPassword));
+  const replacementViewerCookie = await step("Viewer login with replacement password", async () => stepResult(await login(viewer.username, replacementViewerPassword), "authenticated"));
 
   await step("Revoke one selected viewer session", async () => {
     const { payload } = await request("/api/auth/sessions?limit=500", { cookie: adminCookie, expected: 200 });

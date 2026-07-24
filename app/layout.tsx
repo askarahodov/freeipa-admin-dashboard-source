@@ -6,6 +6,7 @@ import "./local-auth-enhancements.css";
 import "./diagnostics.css";
 import "./sessions.css";
 import "./local-administration-context.css";
+import "./settings-tabs.css";
 import LocalAuthToolbar from "./LocalAuthToolbar";
 import LocalAdministrationContext from "./LocalAdministrationContext";
 

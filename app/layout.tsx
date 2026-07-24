@@ -8,9 +8,11 @@ import "./sessions.css";
 import "./local-administration-context.css";
 import "./settings-tabs.css";
 import "./portal-interaction-layer.css";
+import "./freeipa-user-browser.css";
 import LocalAuthToolbar from "./LocalAuthToolbar";
 import LocalAdministrationContext from "./LocalAdministrationContext";
 import PortalInteractionLayer from "./PortalInteractionLayer";
+import FreeIpaUserBrowser from "./FreeIpaUserBrowser";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -44,6 +46,7 @@ export default function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <PortalInteractionLayer />
         {children}
+        <FreeIpaUserBrowser />
         <LocalAdministrationContext />
         <LocalAuthToolbar />
       </body>

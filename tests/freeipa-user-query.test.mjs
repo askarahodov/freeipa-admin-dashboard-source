@@ -44,7 +44,7 @@ test("filters by search, activity and group before stable server pagination", ()
     pageSize: "10",
   }));
   const result = queryFreeIpaUsers(users, query);
-  assert.deepEqual(result.users.map((user) => user.uid), ["zvolkov", "bivanova"]);
+  assert.deepEqual(result.users.map((user) => user.uid), ["bivanova", "zvolkov"]);
   assert.deepEqual(result.filters.availableGroups, ["devops", "security", "vpn"]);
   assert.deepEqual(result.summary, { total: 4, active: 3, disabled: 1, filtered: 2 });
   assert.deepEqual(result.pagination, { page: 1, pageSize: 10, total: 2, totalPages: 1, from: 1, to: 2 });
@@ -78,7 +78,7 @@ test("extends the users API only when query parameters are present", async () =>
     assert.equal(response.status, 200);
     const body = await response.json();
     assert.equal(body.mode, "live");
-    assert.deepEqual(body.users.map((user) => user.uid), ["bivanova", "zvolkov"]);
+    assert.deepEqual(body.users.map((user) => user.uid), ["zvolkov", "bivanova"]);
     assert.equal(body.pagination.total, 2);
     assert.equal(body.summary.total, 3);
     assert.deepEqual(body.filters.availableGroups, ["devops", "security", "vpn"]);
@@ -99,6 +99,8 @@ test("user browser keeps mutations in existing handlers and exposes server query
   }
   assert.match(component, /legacyUserButton/);
   assert.match(component, /clickLegacyCreate/);
+  assert.match(component, /canWrite \?/);
+  assert.match(component, /canWrite && <button[^>]+Редактировать/s);
   assert.doesNotMatch(component, /api\/integrations\/freeipa\/actions/);
   assert.match(wrapper, /normalizeFreeIpaUserQuery/);
   assert.match(wrapper, /queryFreeIpaUsers/);

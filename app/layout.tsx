@@ -4,6 +4,7 @@ import "./globals.css";
 import "./local-auth.css";
 import "./local-auth-enhancements.css";
 import "./diagnostics.css";
+import "./sessions.css";
 import LocalAuthToolbar from "./LocalAuthToolbar";
 
 const geistSans = Geist({

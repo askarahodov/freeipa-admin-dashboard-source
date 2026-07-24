@@ -36,7 +36,8 @@ test("access and diagnostics tabs use existing protected pages", () => {
     assert.match(component, new RegExp(`href=\\"${path}\\"`), path);
   }
   assert.match(component, /fetch\("\/api\/auth\/diagnostics"/);
-  assert.match(component, /session\.user\?\.role === "admin"/);
+  assert.match(component, /sessionData\.user\?\.role === "admin"/);
+  assert.match(component, /session\.user\?\.role !== "admin"/);
 });
 
 test("settings tab styles are loaded globally", () => {

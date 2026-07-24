@@ -34,8 +34,9 @@ test("exports the complete filtered set as formula-safe UTF-8 CSV", async () => 
     assert.match(response.headers.get("content-type"), /text\/csv/);
     assert.equal(response.headers.get("x-exported-users"), "2");
     assert.match(response.headers.get("content-disposition"), /freeipa-users-/);
-    const csv = await response.text();
-    assert.equal(csv.startsWith("\uFEFF"), true);
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    assert.deepEqual(Array.from(bytes.slice(0, 3)), [0xef, 0xbb, 0xbf]);
+    const csv = new TextDecoder("utf-8").decode(bytes);
     assert.match(csv, /"Логин";"Имя";"Email"/);
     assert.match(csv, /"alice";"'=HYPERLINK/);
     assert.match(csv, /"carol"/);

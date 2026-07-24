@@ -1,0 +1,179 @@
+.portal-request-progress {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 10000;
+  height: 3px;
+  pointer-events: none;
+  opacity: 0;
+  overflow: hidden;
+  transition: opacity 160ms ease;
+}
+
+.portal-request-progress.active { opacity: 1; }
+.portal-request-progress span {
+  display: block;
+  width: 35%;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #7458ff, #19c7b1);
+  animation: portal-request-progress 1.15s ease-in-out infinite;
+}
+
+@keyframes portal-request-progress {
+  from { transform: translateX(-120%); }
+  to { transform: translateX(390%); }
+}
+
+.portal-feedback-stack {
+  position: fixed;
+  z-index: 9500;
+  top: 78px;
+  right: 24px;
+  display: grid;
+  width: min(440px, calc(100vw - 32px));
+  gap: 12px;
+  pointer-events: none;
+}
+
+.portal-feedback-card {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  padding: 16px;
+  border: 1px solid rgba(148, 163, 184, .24);
+  border-left: 4px solid #64748b;
+  border-radius: 16px;
+  background: rgba(15, 23, 42, .96);
+  color: #e2e8f0;
+  box-shadow: 0 18px 60px rgba(2, 6, 23, .34);
+  backdrop-filter: blur(16px);
+  pointer-events: auto;
+}
+
+.portal-feedback-card.forbidden { border-left-color: #f59e0b; }
+.portal-feedback-card.timeout,
+.portal-feedback-card.rate-limit { border-left-color: #eab308; }
+.portal-feedback-card.conflict { border-left-color: #8b5cf6; }
+.portal-feedback-card.unavailable,
+.portal-feedback-card.error { border-left-color: #ef4444; }
+
+.portal-feedback-icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: rgba(148, 163, 184, .12);
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.portal-feedback-card strong { display: block; margin: 1px 0 5px; font-size: 14px; }
+.portal-feedback-card p { margin: 0; color: #cbd5e1; font-size: 13px; line-height: 1.45; }
+.portal-feedback-card small { display: block; margin-top: 9px; color: #94a3b8; font: 11px/1.35 var(--font-geist-mono), monospace; }
+.portal-feedback-actions { display: flex; align-items: center; gap: 6px; }
+.portal-feedback-actions button {
+  min-height: 30px;
+  padding: 5px 9px;
+  border: 1px solid rgba(148, 163, 184, .24);
+  border-radius: 9px;
+  background: rgba(148, 163, 184, .08);
+  color: inherit;
+  cursor: pointer;
+}
+
+.portal-confirm-backdrop {
+  position: fixed;
+  z-index: 12000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(2, 6, 23, .72);
+  backdrop-filter: blur(7px);
+}
+
+.portal-confirm-dialog {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  gap: 18px;
+  width: min(570px, 100%);
+  max-height: min(720px, calc(100vh - 48px));
+  overflow: auto;
+  padding: 26px;
+  border: 1px solid rgba(139, 92, 246, .34);
+  border-radius: 22px;
+  background: #fff;
+  color: #172033;
+  box-shadow: 0 28px 90px rgba(2, 6, 23, .4);
+}
+
+.portal-confirm-dialog.danger { border-color: rgba(239, 68, 68, .42); }
+.portal-confirm-symbol {
+  display: grid;
+  place-items: center;
+  width: 50px;
+  height: 50px;
+  border-radius: 16px;
+  background: #ede9fe;
+  color: #6d28d9;
+  font-size: 24px;
+  font-weight: 900;
+}
+.portal-confirm-dialog.danger .portal-confirm-symbol { background: #fee2e2; color: #b91c1c; }
+.portal-confirm-dialog h2 { margin: 4px 0 8px; font-size: 22px; }
+.portal-confirm-dialog p { margin: 0; color: #5b6474; line-height: 1.55; }
+.portal-confirm-dialog > label {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.portal-confirm-dialog input,
+.portal-confirm-dialog textarea {
+  width: 100%;
+  border: 1px solid #d7dce5;
+  border-radius: 12px;
+  padding: 11px 12px;
+  background: #fff;
+  color: #172033;
+  font: inherit;
+}
+.portal-confirm-dialog textarea { min-height: 105px; resize: vertical; }
+.portal-confirm-dialog label small { color: #7a8495; font-weight: 400; }
+.portal-confirm-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 3px;
+}
+.portal-confirm-actions button:disabled { opacity: .46; cursor: not-allowed; }
+
+:where(.catalog-empty, .access-empty, .notification-empty, .diagnostic-empty) {
+  border: 1px dashed rgba(100, 116, 139, .35);
+  border-radius: 16px;
+  background: rgba(148, 163, 184, .055);
+}
+
+:where(.settings-error, .approval-error, .access-error) {
+  border-left: 4px solid #ef4444;
+  border-radius: 12px;
+}
+
+@media (max-width: 720px) {
+  .portal-feedback-stack { top: 64px; right: 16px; }
+  .portal-feedback-card { grid-template-columns: 34px minmax(0, 1fr); }
+  .portal-feedback-actions { grid-column: 2; justify-content: flex-end; }
+  .portal-confirm-backdrop { padding: 12px; }
+  .portal-confirm-dialog { grid-template-columns: 42px minmax(0, 1fr); padding: 20px; border-radius: 18px; }
+  .portal-confirm-symbol { width: 42px; height: 42px; border-radius: 13px; }
+  .portal-confirm-actions { flex-direction: column-reverse; }
+  .portal-confirm-actions button { width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .portal-request-progress span { animation-duration: 3s; }
+}

@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 type PortalRole = "viewer" | "operator" | "admin";
+type RoleFilter = "all" | PortalRole;
+type StateFilter = "all" | "active" | "disabled" | "locked";
 type LocalAuthUser = {
   id: string;
   username: string;
@@ -22,6 +24,13 @@ type LocalAuthUser = {
 type SessionState = {
   authenticated: boolean;
   user?: { id: string; username: string; displayName: string; role: PortalRole };
+};
+
+type PasswordDialog = {
+  user: LocalAuthUser;
+  password: string;
+  confirmation: string;
+  submitting: boolean;
 };
 
 const roleLabels: Record<PortalRole, string> = {
@@ -44,10 +53,20 @@ export default function AccessPage() {
   const [session, setSession] = useState<SessionState | null>(null);
   const [users, setUsers] = useState<LocalAuthUser[]>([]);
   const [query, setQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
+  const [stateFilter, setStateFilter] = useState<StateFilter>("all");
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
-  const [form, setForm] = useState({ username: "", displayName: "", password: "", role: "viewer" as PortalRole });
+  const [editingNames, setEditingNames] = useState<Record<string, string>>({});
+  const [passwordDialog, setPasswordDialog] = useState<PasswordDialog | null>(null);
+  const [form, setForm] = useState({
+    username: "",
+    displayName: "",
+    password: "",
+    confirmation: "",
+    role: "viewer" as PortalRole,
+  });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -64,11 +83,13 @@ export default function AccessPage() {
       if (!sessionResponse.ok) throw new Error(sessionData.error || "Требуется повторный вход");
       if (!usersResponse.ok) throw new Error(usersData.error || "Не удалось загрузить пользователей");
       const loadedAt = Date.now();
-      setSession(sessionData);
-      setUsers(Array.isArray(usersData.users) ? usersData.users.map((user: LocalAuthUser) => ({
+      const items: LocalAuthUser[] = Array.isArray(usersData.users) ? usersData.users.map((user: LocalAuthUser) => ({
         ...user,
         lockedUntil: user.lockedUntil && user.lockedUntil > loadedAt ? user.lockedUntil : null,
-      })) : []);
+      })) : [];
+      setSession(sessionData);
+      setUsers(items);
+      setEditingNames(Object.fromEntries(items.map((user) => [user.id, user.displayName])));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Не удалось загрузить управление доступом");
     } finally {
@@ -83,9 +104,25 @@ export default function AccessPage() {
 
   const filtered = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    if (!normalized) return users;
-    return users.filter((user) => `${user.username} ${user.displayName} ${user.role}`.toLowerCase().includes(normalized));
-  }, [query, users]);
+    return users.filter((user) => {
+      const matchesQuery = !normalized || `${user.username} ${user.displayName} ${user.identity} ${user.role}`.toLowerCase().includes(normalized);
+      const matchesRole = roleFilter === "all" || user.role === roleFilter;
+      const locked = Boolean(user.lockedUntil);
+      const matchesState = stateFilter === "all"
+        || (stateFilter === "active" && !user.disabled && !locked)
+        || (stateFilter === "disabled" && user.disabled)
+        || (stateFilter === "locked" && locked);
+      return matchesQuery && matchesRole && matchesState;
+    });
+  }, [query, roleFilter, stateFilter, users]);
+
+  const stats = useMemo(() => ({
+    total: users.length,
+    admins: users.filter((user) => user.role === "admin" && !user.disabled).length,
+    operators: users.filter((user) => user.role === "operator" && !user.disabled).length,
+    locked: users.filter((user) => Boolean(user.lockedUntil)).length,
+    sessions: users.reduce((sum, user) => sum + user.activeSessions, 0),
+  }), [users]);
 
   function flash(message: string) {
     setNotice(message);
@@ -95,15 +132,24 @@ export default function AccessPage() {
   async function createUser(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
+    if (form.password !== form.confirmation) {
+      setError("Пароль и подтверждение не совпадают");
+      return;
+    }
     try {
       const response = await fetch("/api/auth/users", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          username: form.username,
+          displayName: form.displayName,
+          password: form.password,
+          role: form.role,
+        }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Не удалось создать пользователя");
-      setForm({ username: "", displayName: "", password: "", role: "viewer" });
+      setForm({ username: "", displayName: "", password: "", confirmation: "", role: "viewer" });
       await load();
       flash("Локальный пользователь создан");
     } catch (cause) {
@@ -111,7 +157,7 @@ export default function AccessPage() {
     }
   }
 
-  async function updateUser(user: LocalAuthUser, patch: Record<string, unknown>) {
+  async function updateUser(user: LocalAuthUser, patch: Record<string, unknown>, successMessage = "Пользователь обновлён") {
     setError("");
     try {
       const response = await fetch(`/api/auth/users/${user.id}`, {
@@ -122,27 +168,38 @@ export default function AccessPage() {
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Не удалось обновить пользователя");
       await load();
-      flash("Права пользователя обновлены");
+      flash(successMessage);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Не удалось обновить пользователя");
     }
   }
 
-  async function resetPassword(user: LocalAuthUser) {
-    const password = window.prompt(`Новый пароль для ${user.username}. Минимум 12 символов.`);
-    if (!password) return;
+  async function saveDisplayName(user: LocalAuthUser) {
+    const displayName = String(editingNames[user.id] ?? "").trim();
+    if (!displayName) return setError("Отображаемое имя не может быть пустым");
+    await updateUser(user, { displayName }, "Отображаемое имя обновлено");
+  }
+
+  async function submitPassword(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!passwordDialog) return;
+    if (passwordDialog.password.length < 12) return setError("Пароль должен содержать не менее 12 символов");
+    if (passwordDialog.password !== passwordDialog.confirmation) return setError("Пароль и подтверждение не совпадают");
     setError("");
+    setPasswordDialog({ ...passwordDialog, submitting: true });
     try {
-      const response = await fetch(`/api/auth/users/${user.id}/password`, {
+      const response = await fetch(`/api/auth/users/${passwordDialog.user.id}/password`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ password: passwordDialog.password }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Не удалось сменить пароль");
+      setPasswordDialog(null);
       await load();
       flash("Пароль изменён, активные сессии отозваны");
     } catch (cause) {
+      setPasswordDialog((current) => current ? { ...current, submitting: false } : current);
       setError(cause instanceof Error ? cause.message : "Не удалось сменить пароль");
     }
   }
@@ -188,6 +245,14 @@ export default function AccessPage() {
       {error && <div className="access-error">{error}</div>}
 
       <section className="access-panel access-role-guide">
+        <article><strong>{stats.total}</strong><span>Всего пользователей</span></article>
+        <article><strong>{stats.admins}</strong><span>Активных администраторов</span></article>
+        <article><strong>{stats.operators}</strong><span>Активных операторов</span></article>
+        <article><strong>{stats.locked}</strong><span>Заблокировано входов</span></article>
+        <article><strong>{stats.sessions}</strong><span>Активных сессий</span></article>
+      </section>
+
+      <section className="access-panel access-role-guide">
         {(Object.keys(roleLabels) as PortalRole[]).map((role) => (
           <article key={role}>
             <strong>{roleLabels[role]}</strong>
@@ -200,7 +265,8 @@ export default function AccessPage() {
         <div className="access-section-title"><div><span className="eyebrow">NEW USER</span><h2>Создать пользователя портала</h2></div></div>
         <label>Логин<input value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value })} placeholder="operator01" required /></label>
         <label>Отображаемое имя<input value={form.displayName} onChange={(event) => setForm({ ...form, displayName: event.target.value })} placeholder="Оператор портала" /></label>
-        <label>Пароль<input type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} minLength={12} required /></label>
+        <label>Пароль<input type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} minLength={12} autoComplete="new-password" required /><small>От 12 до 256 символов</small></label>
+        <label>Подтверждение<input type="password" value={form.confirmation} onChange={(event) => setForm({ ...form, confirmation: event.target.value })} minLength={12} autoComplete="new-password" required /></label>
         <label>Роль<select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value as PortalRole })}><option value="viewer">Наблюдатель</option><option value="operator">Оператор</option><option value="admin">Администратор</option></select></label>
         <button className="primary">Создать</button>
       </form>
@@ -208,12 +274,18 @@ export default function AccessPage() {
       <section className="access-panel">
         <div className="access-section-title">
           <div><span className="eyebrow">USERS</span><h2>Локальные пользователи</h2></div>
-          <div className="access-tools"><input placeholder="Поиск…" value={query} onChange={(event) => setQuery(event.target.value)} /><button className="secondary" onClick={() => void load()} disabled={loading}>{loading ? "Обновление…" : "Обновить"}</button></div>
+          <div className="access-tools">
+            <input aria-label="Поиск локальных пользователей" placeholder="Поиск…" value={query} onChange={(event) => setQuery(event.target.value)} />
+            <select aria-label="Фильтр по роли" value={roleFilter} onChange={(event) => setRoleFilter(event.target.value as RoleFilter)}><option value="all">Все роли</option><option value="viewer">Наблюдатели</option><option value="operator">Операторы</option><option value="admin">Администраторы</option></select>
+            <select aria-label="Фильтр по состоянию" value={stateFilter} onChange={(event) => setStateFilter(event.target.value as StateFilter)}><option value="all">Все состояния</option><option value="active">Активные</option><option value="disabled">Отключённые</option><option value="locked">Заблокированные</option></select>
+            <button className="secondary" onClick={() => void load()} disabled={loading}>{loading ? "Обновление…" : "Обновить"}</button>
+          </div>
         </div>
         <div className="access-users">
           {filtered.map((user) => {
             const own = user.id === session?.user?.id;
             const locked = Boolean(user.lockedUntil);
+            const displayNameChanged = String(editingNames[user.id] ?? "").trim() !== user.displayName;
             return (
               <article className={`access-user-card ${user.disabled ? "disabled" : ""}`} key={user.id}>
                 <div className="access-user-summary">
@@ -224,17 +296,36 @@ export default function AccessPage() {
                   {locked && <b className="access-badge warning">Временно заблокирован</b>}
                 </div>
                 <div className="access-user-controls">
-                  <label>Роль<select value={user.role} disabled={own} onChange={(event) => void updateUser(user, { role: event.target.value })}><option value="viewer">Наблюдатель</option><option value="operator">Оператор</option><option value="admin">Администратор</option></select></label>
-                  <label className="access-switch"><input type="checkbox" checked={!user.disabled} disabled={own} onChange={(event) => void updateUser(user, { disabled: !event.target.checked })} /> Активен</label>
+                  <label>Отображаемое имя<input value={editingNames[user.id] ?? user.displayName} onChange={(event) => setEditingNames({ ...editingNames, [user.id]: event.target.value })} /></label>
+                  <button className="secondary" disabled={!displayNameChanged} onClick={() => void saveDisplayName(user)}>Сохранить имя</button>
+                  <label>Роль<select value={user.role} disabled={own} onChange={(event) => void updateUser(user, { role: event.target.value }, "Роль пользователя обновлена")}><option value="viewer">Наблюдатель</option><option value="operator">Оператор</option><option value="admin">Администратор</option></select></label>
+                  <label className="access-switch"><input type="checkbox" checked={!user.disabled} disabled={own} onChange={(event) => void updateUser(user, { disabled: !event.target.checked }, event.target.checked ? "Пользователь включён" : "Пользователь отключён")} /> Активен</label>
                 </div>
                 <div className="access-user-meta"><span>Последний вход: <b>{formatDate(user.lastLoginAt)}</b></span><span>Активные сессии: <b>{user.activeSessions}</b></span><span>Неудачные попытки: <b>{user.failedAttempts}</b></span>{locked && <span>Блокировка до: <b>{formatDate(user.lockedUntil)}</b></span>}</div>
-                <div className="access-user-actions"><button className="secondary" onClick={() => void resetPassword(user)}>Сменить пароль</button><button className="secondary" onClick={() => void revokeSessions(user)}>Отозвать сессии</button><button className="danger-button" disabled={own} onClick={() => void deleteUser(user)}>Удалить</button></div>
+                <div className="access-user-actions">
+                  <button className="secondary" onClick={() => setPasswordDialog({ user, password: "", confirmation: "", submitting: false })}>Сменить пароль</button>
+                  {locked && <button className="secondary" onClick={() => void updateUser(user, { disabled: false }, "Пользователь разблокирован")}>Разблокировать</button>}
+                  <button className="secondary" disabled={user.activeSessions < 1} onClick={() => void revokeSessions(user)}>Отозвать сессии</button>
+                  <button className="danger-button" disabled={own} onClick={() => void deleteUser(user)}>Удалить</button>
+                </div>
               </article>
             );
           })}
           {!filtered.length && <div className="access-empty">Пользователи не найдены</div>}
         </div>
       </section>
+
+      {passwordDialog && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={() => !passwordDialog.submitting && setPasswordDialog(null)}>
+          <form className="modal" onSubmit={submitPassword} onMouseDown={(event) => event.stopPropagation()}>
+            <button className="modal-close" type="button" aria-label="Закрыть" disabled={passwordDialog.submitting} onClick={() => setPasswordDialog(null)}>×</button>
+            <div><span className="eyebrow">PASSWORD RESET</span><h2>Сменить пароль</h2><p>Пользователь: <strong>{passwordDialog.user.username}</strong>. После сохранения все его активные сессии будут отозваны.</p></div>
+            <label>Новый пароль<input type="password" minLength={12} maxLength={256} autoComplete="new-password" value={passwordDialog.password} onChange={(event) => setPasswordDialog({ ...passwordDialog, password: event.target.value })} required /><small>От 12 до 256 символов</small></label>
+            <label>Подтверждение пароля<input type="password" minLength={12} maxLength={256} autoComplete="new-password" value={passwordDialog.confirmation} onChange={(event) => setPasswordDialog({ ...passwordDialog, confirmation: event.target.value })} required /></label>
+            <div className="modal-actions"><button className="secondary" type="button" disabled={passwordDialog.submitting} onClick={() => setPasswordDialog(null)}>Отмена</button><button className="primary" disabled={passwordDialog.submitting}>{passwordDialog.submitting ? "Сохранение…" : "Сменить пароль"}</button></div>
+          </form>
+        </div>
+      )}
     </main>
   );
 }

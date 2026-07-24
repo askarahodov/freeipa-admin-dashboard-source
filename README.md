@@ -1,293 +1,239 @@
 # FreeIPA Admin Dashboard
 
-Панель управления пользователями и группами FreeIPA на
-[vinext](https://github.com/cloudflare/vinext) для Cloudflare Workers.
-Использует платформу автоматизации XYOps как оркестратор операций и хранит
-конфигурацию, журнал запусков и снимки каталога в D1/SQLite.
+Локальный административный портал для управления FreeIPA и запуска процессов XYOps.
+
+Проект собирается и запускается на собственной машине или сервере через Docker Compose. Облачные сервисы, внешние SSO-провайдеры и облачные базы данных для работы портала не требуются.
+
+## Возможности
+
+- управление пользователями и группами FreeIPA;
+- включение, отключение, редактирование и удаление пользователей;
+- сброс пароля и управление членством в группах;
+- каталог Events и Workflows из XYOps;
+- генерация форм по метаданным XYOps;
+- запуск, отмена и повтор операций;
+- согласование опасных процессов;
+- журнал операций, уведомления и append-only аудит;
+- собственная локальная база пользователей портала;
+- управление ролями `viewer`, `operator` и `admin` через UI.
 
 ## Требования
 
-- Node.js `>=22.13.0`
-- Linux с утилитами `flock`, `curl` и GNU `timeout`
+- Docker Engine с Docker Compose;
+- свободный порт `3001`;
+- доступ с хоста портала до тестового или рабочего FreeIPA;
+- доступ до XYOps, когда используется модуль автоматизации.
 
-## Быстрый старт
+Для разработки без Docker требуется Node.js `>=22.13.0`.
+
+## Быстрый запуск
 
 ```bash
 cp .env.example .env
-# Замените ADMIN_TOKEN и CONFIG_ENCRYPTION_KEY в .env на реальные значения
+```
+
+Перед запуском обязательно измените:
+
+```env
+PORTAL_BOOTSTRAP_ADMIN_PASSWORD=надежный-пароль-не-короче-12-символов
+ADMIN_TOKEN=длинный-случайный-токен
+CONFIG_ENCRYPTION_KEY=64-символьный-hex-ключ
+```
+
+Затем настройте FreeIPA и XYOps в `.env` и запустите портал:
+
+```bash
 docker compose up -d --build
 docker compose ps
 ```
 
-Панель доступна на `http://localhost:3001`.
+Портал доступен по адресу:
 
-## Архитектура
+```text
+http://localhost:3001
+```
 
-- **Frontend**: React SPA в каталоге `app/` (Vinext SSR/SSR streaming).
-- **Backend**: Cloudflare Worker (`worker/index.ts`) — API-шлюз для FreeIPA и XYOps.
-- **База данных**: D1/SQLite через Drizzle ORM (`db/`, `drizzle/`).
-- **Шлюз FreeIPA**: опциональный Node.js-процесс (`scripts/freeipa-gateway.mjs`) для
-  обхода ограничений Workerd с TLS и сессиями FreeIPA.
-
-### Хранилище D1
-
-| Таблица | Назначение |
-|---------|-----------|
-| `app_settings` | Зашифрованные секреты и конфигурация |
-| `operation_runs` | Журнал запусков Events/Workflows и прямых действий FreeIPA |
-| `xyops_catalog_snapshot` | Текущий снимок каталога XYOps |
-| `xyops_catalog_history` | История изменений каталога (последние 30 записей) |
-| `process_presentation_sets` | Управляемые названия, категории, значки, порядок и справка |
-| `portal_audit_events` | Append-only аудит административных действий |
-
-### Роли и права (RBAC)
-
-Портал определяет три роли:
-
-| Роль | Права |
-|------|-------|
-| `viewer` | `directory.read` |
-| `operator` | `directory.read`, `freeipa.write`, `xyops.run` |
-| `admin` | все права, включая `freeipa.delete` и `settings.manage` |
-
-Идентичность определяется по заголовку `oai-authenticated-user-email`.
-Назначение ролей задается в `PORTAL_RBAC_JSON` в формате
-`{"user@company.local":"admin", ...}`. По умолчанию — `admin`.
-
-## API Endpoints
-
-### Информация и состояние
-
-- `GET /api/integrations/health` — легковесная проверка доступности.
-- `GET /api/integrations/status` — статус интеграций, режим работы, роль
-  пользователя и состояние D1.
-
-### Пользователи и группы FreeIPA
-
-- `GET /api/integrations/users` — список пользователей (`user_find`).
-- `GET /api/integrations/groups` — список групп (`group_find` или fallback
-  через членство пользователей).
-- `POST /api/integrations/freeipa/actions` — прямые мутации FreeIPA:
-  создание, редактирование, включение, отключение, удаление пользователей,
-  создание и удаление групп, добавление и удаление участников.
-
-### Автоматизация XYOps
-
-- `GET /api/integrations/routes` — маршруты автоматизации (persisted + bootstrap).
-- `PUT /api/integrations/routes` — сохранение маршрутов (требует `admin`).
-- `GET /api/integrations/catalog` — нормализованный каталог Events/Workflows.
-- `GET /api/integrations/catalog/history` — история изменений каталога.
-- `GET/PUT /api/integrations/catalog/presentation` — презентационные metadata процессов.
-- `GET /api/integrations/catalog/options` — динамические опции для полей выбора.
-- `POST /api/integrations/catalog/run` — запуск Event/Workflow.
-- `POST /api/integrations/actions` — запуск через маршрут автоматизации.
-- `GET /api/integrations/runs` — журнал операций с автоматической синхронизацией
-  статусов активных заданий.
-
-### Настройки
-
-- `GET /api/integrations/settings` — публичная информация о конфигурации.
-- `PUT /api/integrations/settings` — сохранение настроек в D1 (требует `admin`).
-- `POST /api/integrations/settings/test` — проверка подключения FreeIPA/XYOps.
-
-Без `DEMO_MODE=true` все мутации требуют настроенной интеграции.
-
-## Конфигурация
-
-Основные переменные окружения:
-
-| Переменная | Назначение |
-|------------|-----------|
-| `ADMIN_TOKEN` | Токен для доступа к настройкам и маршрутам |
-| `CONFIG_ENCRYPTION_KEY` | 32-байтовый ключ AES-256-GCM для секретов |
-| `DEMO_MODE` | Демо-режим без внешних интеграций |
-| `IPA_URL` | Адрес FreeIPA сервера |
-| `IPA_USERNAME` / `IPA_PASSWORD` | Учетные данные FreeIPA |
-| `IPA_VERIFY_TLS` | Включить проверку TLS |
-| `IPA_NODE_GATEWAY_URL` | Адрес Node.js-шлюза FreeIPA |
-| `IPA_NODE_GATEWAY_TOKEN` | Токен доступа к шлюзу |
-| `XYOPS_URL` | Адрес XYOps |
-| `XYOPS_API_KEY` | API-ключ XYOps |
-| `XYOPS_EVENT_ID` | Событие по умолчанию |
-| `XYOPS_ROUTES_JSON` | Bootstrap-маршруты (если нет сохраненных в D1) |
-| `PORTAL_DEFAULT_ROLE` | Роль по умолчанию |
-| `PORTAL_RBAC_JSON` | JSON с назначениями ролей |
-
-## Docker
-
-Локальный сервис использует `network_mode: host`, чтобы разделять сетевой
-стек хоста. Порт `3001` на хосте должен быть свободен. Именованный том
-`dashboard-data` сохраняет базу D1 между перезапусками.
+Остановка:
 
 ```bash
-docker compose up -d --build
 docker compose down
 ```
 
-Контейнер запускает:
-1. Dashboard (`vinext start` на порту `3001`);
-2. приватный Node.js-шлюз FreeIPA на случайном порту `127.0.0.1`;
-3. healthcheck на `GET /api/integrations/health`.
+Данные сохраняются в именованном томе `dashboard-data`.
 
-## Диагностика
+## Локальная аутентификация
 
-```bash
-npm run dev                  # локальный сервер разработки
-npm run build                # сборка и валидация артефакта
-npm run start:docker         # продакшен-запуск через wrangler dev
-npm run inspect:xyops        # инспектор контрактов XYOps
-npm run db:generate          # генерация миграций Drizzle
-npm test                     # тесты
-npm run lint                 # линтинг
-```
+Основной режим:
 
-## Документация
-
-- [Дорожная карта продукта](docs/PRODUCT_ROADMAP.md)
-- [Инспектор контрактов XYOps](docs/XYOPS_INSPECTOR.md)
-- [Презентационные метаданные процессов](docs/PROCESS_PRESENTATION_METADATA.md)
-- [Ответственность XYOps за rate limits и concurrency](docs/XYOPS_EXECUTION_OWNERSHIP.md)
-- [Расширенный аудит](docs/AUDIT_LOG.md)
-
-## Тестирование
-
-```bash
-npm test
-```
-
-Набор тестов покрывает:
-
-- `freeipa-api.test.mjs` — нормализация ответов FreeIPA JSON-RPC.
-- `persistent-settings.test.mjs` — шифрование/дешифрование настроек в D1.
-- `xyops-catalog-api.test.mjs` — нормализация каталога XYOps и сценарии drift.
-- `xyops-inspector.test.mjs` — инспектор контрактов.
-- `rendered-html.test.mjs` — smoke-проверка рендеринга UI.
-- `rbac.test.mjs` — проверка ролевой матрицы.
-- `freeipa-gateway.test.mjs` — корректность запуска и responses Node.js-шлюза.
-
-## Локальная разработка
-
-Для разработки без Docker:
-
-```bash
-cp .dev.vars.example .dev.vars
-npm run dev
-```
-
-Lokaly Vinext симулирует D1 через Wrangler/Miniflare. Миграции не применяются
-автоматически; для проверки сценариев с persistent storage используйте Docker.
-
-## FreeIPA Node Gateway
-
-FreeIPA использует сессионные cookies и часто самоподписанные сертификаты,
-что несовместимо с Cloudflare Workerd. Для этого запускается отдельный
-Node.js-процесс (`scripts/freeipa-gateway.mjs`), который:
-
-- выполняет вход по логину/паролю;
-- сохраняет cookie-сессию;
-- проксирует разрешенные JSON-RPC методы (`user_find`, `group_find`,
-  `user_add`, `user_mod`, `user_password`, `user_enable`, `user_disable`,
-  `user_del`, `group_add`, `group_del`, `group_add_member`,
-  `group_remove_member`).
-
-Worker вызывает шлюз по `IPA_NODE_GATEWAY_URL` с токеном
-`IPA_NODE_GATEWAY_TOKEN`. Шлюз не exposes наружу.
-
-В Docker compose шлюз запускается автоматически. При ручном запуске:
-
-```bash
-node scripts/freeipa-gateway.mjs
-```
-
-## Развертывание
-
-### Cloudflare Workers / Pages
-
-Проект собирается в Sites-артефакт через `npm run build`. Результат
-(`dist/`) разворачивается на Cloudflare Pages или Workers. Требуются
-привязки D1 и опционально R2, описанные в `.openai/hosting.json`.
-
-Переменные окружения задаются в дашборде Cloudflare:
-- `ADMIN_TOKEN`
-- `CONFIG_ENCRYPTION_KEY`
-- `IPA_URL`, `IPA_USERNAME`, `IPA_PASSWORD`, `IPA_VERIFY_TLS`
-- `XYOPS_URL`, `XYOPS_API_KEY`, `XYOPS_ROUTES_JSON`
-- `PORTAL_DEFAULT_ROLE`, `PORTAL_RBAC_JSON`
-
-FreeIPA Node Gateway не работает в чистом Worker; для production используйте
-внешний прокси или разверните gateway отдельно.
-
-### Docker
-
-```bash
-docker compose up -d --build
-docker compose down
-```
-
-Контейнер работает от не-root, только для чтения, сбрасывает capabilities.
-Том `dashboard-data` сохраняет D1 между перезапусками.
-
-## RBAC и безопасность
-
-По умолчанию все аутентифицированные пользователи получают роль `admin`.
-Для production назначьте роли через `PORTAL_RBAC_JSON`:
-
-```bash
-PORTAL_RBAC_JSON={"admin@company.local":"admin","ops@company.local":"operator","audit@company.local":"viewer"}
+```env
+PORTAL_IDENTITY_MODE=local
+PORTAL_BOOTSTRAP_ADMIN_USERNAME=admin
+PORTAL_BOOTSTRAP_ADMIN_PASSWORD=replace-with-a-strong-password-at-least-12-characters
+PORTAL_BOOTSTRAP_ADMIN_NAME=Локальный администратор
+PORTAL_SESSION_TTL_HOURS=12
 PORTAL_DEFAULT_ROLE=viewer
 ```
 
-Идентичность берется из заголовка `oai-authenticated-user-email`, который
-внедряет платформа Sites или обратный прокси. Если заголовок отсутствует,
-используется `portal-user`.
+Первый администратор создаётся только при пустой таблице `portal_users`. После этого bootstrap-переменные не изменяют его пароль или роль.
 
-Пароли FreeIPA и ключи XYOps хранятся в D1 зашифрованными AES-256-GCM.
-Браузер никогда не получает сырые секреты. Пустые поля в форме настроек
-сохраняют текущее значение.
+Вход выполняется на странице `/login`. Управление пользователями и ролями доступно администратору на странице `/access`.
 
-Секретные endpoint настроек и маршрутов требуют заголовок
-`x-admin-token` с SHA-256 хешем `ADMIN_TOKEN`.
+Пользователи портала и пользователи FreeIPA — независимые сущности:
 
-## Troubleshooting
+- FreeIPA хранит доменные учётные записи и группы;
+- локальная SQLite-база хранит пользователей административного портала;
+- совпадение логина не связывает учётные записи;
+- группы FreeIPA не назначают роли портала;
+- удаление пользователя в одной системе не удаляет его в другой.
 
-### FreeIPA: TLS error
+## Роли и права
 
-Если FreeIPA использует самоподписанный сертификат, добавьте CA в
-доверенные Node.js внутри контейнера:
+| Роль | Права |
+|---|---|
+| `viewer` | просмотр каталога, FreeIPA, операций и собственных уведомлений |
+| `operator` | права viewer, изменения FreeIPA и запуск XYOps |
+| `admin` | все права, удаление объектов, согласования, настройки, аудит и RBAC |
 
-```bash
-# В Dockerfile или derived image:
-COPY company-ca.pem /usr/local/share/ca-certificates/
-RUN update-ca-certificates
+Сервер запрещает удалить, отключить или понизить последнего активного администратора.
+
+## Безопасность локального входа
+
+- пароли хешируются PBKDF2-SHA-256;
+- для каждого пароля используется отдельная случайная salt;
+- сырой пароль не сохраняется;
+- после пяти неверных паролей вход блокируется на 15 минут;
+- браузер получает `HttpOnly`, `SameSite=Strict` cookie;
+- при HTTPS cookie получает флаг `Secure`;
+- в базе хранится только SHA-256 hash session token;
+- смена пароля и блокировка пользователя отзывают его сессии;
+- изменения RBAC записываются в append-only аудит.
+
+Подробности: [docs/LOCAL_AUTH_RBAC.md](docs/LOCAL_AUTH_RBAC.md).
+
+## Архитектура
+
+- **Frontend:** React и Vinext, каталог `app/`;
+- **Backend:** Worker API в `worker/`;
+- **Локальный runtime:** Wrangler/Workerd внутри контейнера;
+- **Хранилище:** локальная D1/SQLite-совместимая база в Docker volume;
+- **FreeIPA Gateway:** приватный Node.js-процесс `scripts/freeipa-gateway.mjs`;
+- **Интеграция XYOps:** серверный API-клиент, ключи не передаются браузеру.
+
+FreeIPA Gateway запускается автоматически вместе с Dashboard и доступен только локальному процессу портала.
+
+## Основные таблицы
+
+| Таблица | Назначение |
+|---|---|
+| `portal_users` | локальные пользователи, password hash, роль и блокировка |
+| `portal_sessions` | hash сессии, время жизни и User-Agent |
+| `app_settings` | зашифрованные настройки интеграций |
+| `operation_runs` | история FreeIPA и XYOps операций |
+| `xyops_catalog_snapshot` | текущий снимок каталога XYOps |
+| `xyops_catalog_history` | ограниченная история изменений каталога |
+| `process_presentation_sets` | названия, категории, значки, порядок и локализация |
+| `portal_audit_events` | append-only аудит административных действий |
+
+## Основные API
+
+### Аутентификация и RBAC
+
+```text
+POST   /api/auth/login
+GET    /api/auth/session
+POST   /api/auth/logout
+GET    /api/auth/users
+POST   /api/auth/users
+PUT    /api/auth/users/:id
+DELETE /api/auth/users/:id
+POST   /api/auth/users/:id/password
+DELETE /api/auth/users/:id/sessions
 ```
 
-Или для локального запуска:
+### FreeIPA
 
-```bash
-NODE_EXTRA_CA_CERTS=/path/to/company-ca.pem npm run start:docker
+```text
+GET  /api/integrations/users
+GET  /api/integrations/groups
+POST /api/integrations/freeipa/actions
 ```
 
-Никогда не отключайте `IPA_VERIFY_TLS` в production.
+### XYOps
 
-### XYOps: 502/timeout
-
-Проверьте сетевую доступность из контейнера/Worker:
-
-```bash
-curl -v https://xyops.company.local/api/app/get_events/v1
+```text
+GET  /api/integrations/catalog
+GET  /api/integrations/catalog/history
+GET  /api/integrations/catalog/options
+POST /api/integrations/catalog/run
+GET  /api/integrations/runs
+POST /api/integrations/runs/:id/cancel
+POST /api/integrations/runs/:id/rerun
 ```
 
-Убедитесь, что API-ключ валиден и имеет права на `get_events`, `run_event`,
-`get_active_jobs`.
+### Состояние и настройки
 
-### D1: миграции
+```text
+GET  /api/integrations/health
+GET  /api/integrations/status
+GET  /api/integrations/settings
+PUT  /api/integrations/settings
+POST /api/integrations/settings/test
+```
 
-Миграции Drizzle хранятся в `drizzle/`. Для применения новых миграций
-используйте `npm run db:generate` локально, а в продакшене обновите
-артефакт развертывания.
+Часть критичных endpoint дополнительно использует `ADMIN_TOKEN`. Он остаётся серверным секретом и не заменяет пользовательскую RBAC-проверку.
 
-### Контейнер: port 3001 занят
+## Локальная разработка
 
-Остановите конфликтующий сервис или измените `DASHBOARD_PORT` в `.env`
-и сопоставьте порт в `compose.yaml`.
+```bash
+cp .dev.vars.example .dev.vars
+npm ci
+npm run dev
+```
 
+Полезные команды:
+
+```bash
+npm run lint
+npm run build
+npm test
+npm run inspect:xyops
+npm run test:local
+```
+
+## Реальное локальное тестирование
+
+Отдельный тестовый профиль не использует рабочую базу портала:
+
+```bash
+cp .env.test.example .env.test
+npm run test:local
+```
+
+По умолчанию выполняются безопасные read-only проверки. Реальные мутации FreeIPA и запуск тестового процесса XYOps включаются только явными флагами в `.env.test`.
+
+Результаты сохраняются в:
+
+```text
+artifacts/local-integration/latest.json
+artifacts/local-integration/<run-id>/report.json
+artifacts/local-integration/<run-id>/report.html
+artifacts/local-integration/compose.log
+```
+
+Пошаговая эксплуатационная проверка: [docs/LOCAL_ACCEPTANCE_TESTS.md](docs/LOCAL_ACCEPTANCE_TESTS.md).
+
+## Документация
+
+- [Локальная аутентификация и RBAC](docs/LOCAL_AUTH_RBAC.md)
+- [Локальные acceptance-тесты](docs/LOCAL_ACCEPTANCE_TESTS.md)
+- [Дорожная карта](docs/PRODUCT_ROADMAP.md)
+- [Контракт XYOps](docs/XYOPS_EXECUTION_OWNERSHIP.md)
+- [Инспектор XYOps](docs/XYOPS_INSPECTOR.md)
+- [Презентационные метаданные](docs/PROCESS_PRESENTATION_METADATA.md)
+- [Аудит](docs/AUDIT_LOG.md)
+
+## Резервное копирование
+
+Для резервного копирования остановите контейнер и сохраните содержимое volume `dashboard-data`. В резервную копию входят локальные пользователи, роли, сессии, настройки, история операций, approvals, метаданные и аудит.
+
+Пароли FreeIPA, ключ XYOps и другие секреты внутри базы зашифрованы ключом `CONFIG_ENCRYPTION_KEY`. Этот ключ необходимо хранить отдельно от резервной копии базы.

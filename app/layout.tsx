@@ -10,10 +10,12 @@ import "./settings-tabs.css";
 import "./portal-interaction-layer.css";
 import "./freeipa-user-browser.css";
 import "./freeipa-user-bulk.css";
+import "./freeipa-group-member-browser.css";
 import LocalAuthToolbar from "./LocalAuthToolbar";
 import LocalAdministrationContext from "./LocalAdministrationContext";
 import PortalInteractionLayer from "./PortalInteractionLayer";
 import FreeIpaUserBrowser from "./FreeIpaUserBrowser";
+import FreeIpaGroupMemberBrowser from "./FreeIpaGroupMemberBrowser";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -48,6 +50,7 @@ export default function RootLayout({
         <PortalInteractionLayer />
         {children}
         <FreeIpaUserBrowser />
+        <FreeIpaGroupMemberBrowser />
         <LocalAdministrationContext />
         <LocalAuthToolbar />
       </body>

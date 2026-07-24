@@ -1,4 +1,4 @@
-import { ensureLocalAuthTables, type LocalAuthEnv, type LocalPortalRole } from "./local-auth";
+import { ensureLocalAuthTables, type LocalAuthEnv, type LocalPortalRole } from "./local-auth.ts";
 
 export type LocalPortalSessionRecord = {
   id: string;

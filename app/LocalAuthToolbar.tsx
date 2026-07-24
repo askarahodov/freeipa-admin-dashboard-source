@@ -36,12 +36,13 @@ export default function LocalAuthToolbar() {
   }
 
   const role = session.user?.role ?? "viewer";
-  const administrativePage = pathname === "/access" || pathname === "/diagnostics";
+  const administrativePage = ["/access", "/diagnostics", "/sessions"].includes(pathname);
 
   return (
     <div className="local-auth-toolbar">
       <span><strong>{session.user?.displayName || session.user?.username}</strong><small>{roleLabels[role]}</small></span>
       {role === "admin" && pathname !== "/access" && <Link href="/access">Доступ</Link>}
+      {role === "admin" && pathname !== "/sessions" && <Link href="/sessions">Сессии</Link>}
       {role === "admin" && pathname !== "/diagnostics" && <Link href="/diagnostics">Диагностика</Link>}
       {administrativePage && <Link href="/">Портал</Link>}
       <button onClick={() => void logout()}>Выйти</button>

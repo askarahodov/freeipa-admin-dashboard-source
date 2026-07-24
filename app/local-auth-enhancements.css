@@ -1,0 +1,113 @@
+.access-create-form small,
+.modal small {
+  color: #7a8394;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.access-tools select,
+.access-user-controls input {
+  min-width: 0;
+  border: 1px solid #d8dce6;
+  border-radius: 9px;
+  padding: 10px 11px;
+  background: #fff;
+  color: #252b3c;
+}
+
+.access-tools select:focus,
+.access-user-controls input:focus {
+  outline: 0;
+  border-color: #8175ee;
+  box-shadow: 0 0 0 3px rgba(99, 91, 255, 0.12);
+}
+
+.access-user-controls {
+  flex-wrap: wrap;
+}
+
+.access-user-controls label:first-child {
+  min-width: 220px;
+  flex: 1 1 260px;
+}
+
+.access-user-controls > .secondary {
+  align-self: end;
+}
+
+.access-role-guide article > strong:first-child {
+  font-size: 20px;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  background: rgba(18, 23, 38, 0.58);
+  backdrop-filter: blur(4px);
+}
+
+.modal-backdrop .modal {
+  position: relative;
+  width: min(520px, 100%);
+  display: grid;
+  gap: 16px;
+  padding: 26px;
+  border: 1px solid #e0e4ed;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 30px 90px rgba(16, 24, 40, 0.28);
+}
+
+.modal-backdrop .modal h2 {
+  margin: 5px 0 7px;
+}
+
+.modal-backdrop .modal p {
+  margin: 0;
+  color: #697386;
+  line-height: 1.5;
+}
+
+.modal-backdrop .modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 9px;
+  background: #f0f2f7;
+  color: #4a5263;
+  font-size: 22px;
+}
+
+.modal-backdrop .modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+@media (max-width: 1050px) {
+  .access-tools {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 680px) {
+  .modal-backdrop {
+    padding: 12px;
+  }
+
+  .modal-backdrop .modal-actions {
+    flex-direction: column-reverse;
+  }
+
+  .modal-backdrop .modal-actions button {
+    width: 100%;
+  }
+}

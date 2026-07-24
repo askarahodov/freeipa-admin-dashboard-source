@@ -5,7 +5,9 @@ import "./local-auth.css";
 import "./local-auth-enhancements.css";
 import "./diagnostics.css";
 import "./sessions.css";
+import "./local-administration-context.css";
 import LocalAuthToolbar from "./LocalAuthToolbar";
+import LocalAdministrationContext from "./LocalAdministrationContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -38,6 +40,7 @@ export default function RootLayout({
     <html lang="ru">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         {children}
+        <LocalAdministrationContext />
         <LocalAuthToolbar />
       </body>
     </html>

@@ -9,6 +9,7 @@ import "./local-administration-context.css";
 import "./settings-tabs.css";
 import "./portal-interaction-layer.css";
 import "./freeipa-user-browser.css";
+import "./freeipa-user-bulk.css";
 import LocalAuthToolbar from "./LocalAuthToolbar";
 import LocalAdministrationContext from "./LocalAdministrationContext";
 import PortalInteractionLayer from "./PortalInteractionLayer";

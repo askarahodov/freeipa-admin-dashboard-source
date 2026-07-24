@@ -15,21 +15,9 @@ import {
   type OperationStatusFilter,
 } from "../operation-explorer";
 
-type RunsPayload = {
-  runs?: OperationRun[];
-  error?: string;
-};
-
-type OperationsMount = {
-  node: HTMLElement;
-  page: HTMLElement;
-};
-
-type DetailMount = {
-  node: HTMLElement;
-  modal: HTMLElement;
-  jobId: string;
-};
+type RunsPayload = { runs?: OperationRun[]; error?: string };
+type OperationsMount = { node: HTMLElement; page: HTMLElement };
+type DetailMount = { node: HTMLElement; modal: HTMLElement; jobId: string };
 
 const defaultQuery: OperationQuery = {
   q: "",
@@ -285,7 +273,7 @@ export default function OperationExplorer() {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch(`/api/integrations/runs?limit=500&sync=${sync ? "1" : "0"}`, { cache: "no-store" });
+      const response = await fetch(`/api/integrations/runs?limit=100&sync=${sync ? "1" : "0"}`, { cache: "no-store" });
       const data = await response.json().catch(() => ({})) as RunsPayload;
       if (!response.ok) throw new Error(data.error || "Журнал операций недоступен");
       if (id !== requestId.current) return;

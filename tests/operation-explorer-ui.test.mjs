@@ -8,7 +8,7 @@ test("operation explorer adds filters without bypassing legacy run actions", () 
   const layout = fs.readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
   const css = fs.readFileSync(new URL("../app/operation-explorer.css", import.meta.url), "utf8");
 
-  assert.equal(component.includes("/api/integrations/runs?limit=500"), true);
+  assert.equal(component.includes("/api/integrations/runs?limit=100"), true);
   assert.equal(component.includes("sync=${sync ? \"1\" : \"0\"}"), true);
   assert.equal(component.includes("clickLegacyRun"), true);
   assert.equal(component.includes(".data-table .tr.ops-detailed:not(.th)"), true);

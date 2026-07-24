@@ -1,0 +1,105 @@
+.settings-tabs-context { display: grid; gap: 14px; }
+
+.settings-tabs-header {
+  display: grid;
+  gap: 16px;
+  padding: 18px 20px;
+}
+.settings-tabs-header h2 { margin: 4px 0 6px; }
+.settings-tabs-header p { margin: 0; color: var(--muted); }
+.settings-tabs-header nav { display: flex; flex-wrap: wrap; gap: 8px; }
+.settings-tabs-header nav button {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 9px 12px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 750;
+  cursor: pointer;
+}
+.settings-tabs-header nav button:hover { border-color: #9288e8; background: #faf9ff; }
+.settings-tabs-header nav button.active { border-color: #7c68dd; background: #eeeaff; color: #5743bc; }
+
+/* Existing settings sections keep their React state and API bindings. The
+   selected tab only changes visibility through the stable section classes. */
+.settings-page[data-settings-tab] > :not(#local-administration-context) { display: none; }
+
+.settings-page[data-settings-tab="general"] > .settings-access,
+.settings-page[data-settings-tab="freeipa"] > .settings-access,
+.settings-page[data-settings-tab="xyops"] > .settings-access { display: grid; }
+
+.settings-page[data-settings-tab="general"] > .settings-error,
+.settings-page[data-settings-tab="freeipa"] > .settings-error,
+.settings-page[data-settings-tab="xyops"] > .settings-error { display: flex; }
+
+.settings-page[data-settings-tab="general"] > .persistence-strip,
+.settings-page[data-settings-tab="freeipa"] > .persistence-strip,
+.settings-page[data-settings-tab="xyops"] > .persistence-strip { display: flex; }
+
+.settings-page[data-settings-tab="general"] > .settings-savebar,
+.settings-page[data-settings-tab="freeipa"] > .settings-savebar,
+.settings-page[data-settings-tab="xyops"] > .settings-savebar { display: flex; }
+
+.settings-page[data-settings-tab="freeipa"] > .settings-grid,
+.settings-page[data-settings-tab="xyops"] > .settings-grid { display: grid; grid-template-columns: minmax(0, 1fr); }
+.settings-page[data-settings-tab="freeipa"] > .settings-grid > .settings-card:nth-child(2) { display: none; }
+.settings-page[data-settings-tab="xyops"] > .settings-grid > .settings-card:nth-child(1) { display: none; }
+
+.settings-page[data-settings-tab="policies"] > .policy-editor { display: flex; }
+
+.settings-page[data-settings-tab="catalog"] > .inspector-panel { display: grid; }
+.settings-page[data-settings-tab="catalog"] > .contract-history,
+.settings-page[data-settings-tab="catalog"] > .routes-panel { display: block; }
+
+.settings-link-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  padding: 18px;
+}
+.settings-link-grid a {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #f8f9fc;
+  color: inherit;
+  text-decoration: none;
+}
+.settings-link-grid a:hover { border-color: #9288e8; background: #f8f6ff; }
+.settings-link-grid a > span { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 11px; background: #ece9ff; color: #5d49c6; font-size: 20px; }
+.settings-link-grid a div { min-width: 0; display: grid; gap: 4px; }
+.settings-link-grid small { color: var(--muted); line-height: 1.4; }
+
+.settings-diagnostics-summary {
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+}
+.settings-diagnostics-summary h3 { margin: 4px 0 6px; }
+.settings-diagnostics-summary p { margin: 0; color: var(--muted); }
+.settings-diagnostics-facts { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
+.settings-diagnostics-facts span { min-width: 0; display: grid; gap: 4px; padding: 13px; border: 1px solid var(--line); border-radius: 11px; background: #f8f9fc; }
+.settings-diagnostics-facts small { color: var(--muted); }
+.settings-diagnostics-link { width: fit-content; text-decoration: none; }
+
+@media (max-width: 1050px) {
+  .settings-link-grid { grid-template-columns: 1fr; }
+  .settings-diagnostics-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 680px) {
+  .settings-tabs-header nav { display: grid; grid-template-columns: 1fr 1fr; }
+  .settings-tabs-header nav button { width: 100%; }
+  .settings-page[data-settings-tab="general"] > .settings-savebar,
+  .settings-page[data-settings-tab="freeipa"] > .settings-savebar,
+  .settings-page[data-settings-tab="xyops"] > .settings-savebar { align-items: stretch; flex-direction: column; }
+  .settings-diagnostics-facts { grid-template-columns: 1fr 1fr; }
+  .settings-diagnostics-link { width: 100%; text-align: center; }
+}

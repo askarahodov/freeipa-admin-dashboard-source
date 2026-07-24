@@ -42,7 +42,21 @@ type PortalSummary = {
 
 type DiagnosticsPayload = {
   portal?: Partial<PortalSummary>;
+  database?: { available?: boolean; sizeBytes?: number | null; tables?: Record<string, number | null> };
+  configuration?: { encryptionConfigured?: boolean; freeipaConfigured?: boolean; freeipaGatewayConfigured?: boolean; xyopsConfigured?: boolean };
 };
+
+type SettingsTab = "general" | "freeipa" | "xyops" | "access" | "policies" | "catalog" | "diagnostics";
+
+const settingsTabs: Array<{ id: SettingsTab; label: string; description: string }> = [
+  { id: "general", label: "Общие", description: "Хранилище, шифрование и режим портала" },
+  { id: "freeipa", label: "FreeIPA", description: "Адрес, service account и проверка подключения" },
+  { id: "xyops", label: "XYOps", description: "API, каталог и проверка подключения" },
+  { id: "access", label: "Доступ", description: "Локальные пользователи, роли и сессии" },
+  { id: "policies", label: "Политики", description: "Visibility, approvals и presentation metadata" },
+  { id: "catalog", label: "Каталог", description: "Контракт, история и маршруты автоматизации" },
+  { id: "diagnostics", label: "Диагностика", description: "Состояние базы и интеграций" },
+];
 
 function safeSummary(value: DiagnosticsPayload["portal"]): PortalSummary {
   const number = (item: unknown) => Math.max(0, Number(item) || 0);
@@ -77,6 +91,10 @@ function usePortalMount(pathname: string) {
         const target = document.querySelector(".access-topbar");
         if (!target?.parentElement) return;
         target.insertAdjacentElement("afterend", node);
+      } else if (pathname === "/settings") {
+        const target = document.querySelector(".settings-page");
+        if (!target) return;
+        target.prepend(node);
       } else {
         return;
       }
@@ -156,15 +174,73 @@ function PermissionMatrix({ currentRole, effectivePermissions }: { currentRole: 
   );
 }
 
+function formatBytes(value: number | null | undefined): string {
+  const bytes = Number(value ?? 0);
+  if (!bytes) return "не определён";
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} КБ`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} МБ`;
+}
+
+function SettingsTabs({ diagnostics }: { diagnostics: DiagnosticsPayload | null }) {
+  const [activeTab, setActiveTab] = useState<SettingsTab>(() => {
+    if (typeof window === "undefined") return "general";
+    const value = new URLSearchParams(window.location.search).get("tab") as SettingsTab | null;
+    return settingsTabs.some((tab) => tab.id === value) ? value! : "general";
+  });
+
+  useEffect(() => {
+    const page = document.querySelector<HTMLElement>(".settings-page");
+    if (!page) return;
+    page.dataset.settingsTab = activeTab;
+    const url = new URL(window.location.href);
+    if (activeTab === "general") url.searchParams.delete("tab");
+    else url.searchParams.set("tab", activeTab);
+    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+    return () => { delete page.dataset.settingsTab; };
+  }, [activeTab]);
+
+  const summary = safeSummary(diagnostics?.portal);
+  const selected = settingsTabs.find((tab) => tab.id === activeTab) ?? settingsTabs[0];
+
+  return (
+    <div className="settings-tabs-context">
+      <section className="panel settings-tabs-header">
+        <div><span className="eyebrow">ADMIN SETTINGS</span><h2>Настройки портала</h2><p>{selected.description}</p></div>
+        <nav aria-label="Вкладки настроек">{settingsTabs.map((tab) => <button className={activeTab === tab.id ? "active" : ""} onClick={() => setActiveTab(tab.id)} key={tab.id}>{tab.label}</button>)}</nav>
+      </section>
+
+      {activeTab === "access" && <section className="panel settings-link-grid">
+        <Link href="/access"><span>♙</span><div><strong>Пользователи и роли</strong><small>{summary.users} пользователей · {summary.admins} администраторов</small></div></Link>
+        <Link href="/sessions"><span>◷</span><div><strong>Активные сессии</strong><small>{summary.activeSessions} сессий · HttpOnly cookies</small></div></Link>
+        <Link href="/audit"><span>≣</span><div><strong>Аудит доступа</strong><small>RBAC, смены паролей и отзывы сессий</small></div></Link>
+      </section>}
+
+      {activeTab === "diagnostics" && <section className="panel settings-diagnostics-summary">
+        <div><span className="eyebrow">LOCAL DIAGNOSTICS</span><h3>Эксплуатационная сводка</h3><p>Детальные проверки и безопасная JSON-выгрузка доступны на отдельной странице.</p></div>
+        <div className="settings-diagnostics-facts">
+          <span><small>База</small><strong>{diagnostics?.database?.available ? "Доступна" : "Недоступна"}</strong></span>
+          <span><small>Размер</small><strong>{formatBytes(diagnostics?.database?.sizeBytes)}</strong></span>
+          <span><small>Шифрование</small><strong>{diagnostics?.configuration?.encryptionConfigured ? "Настроено" : "Не настроено"}</strong></span>
+          <span><small>FreeIPA</small><strong>{diagnostics?.configuration?.freeipaConfigured ? "Настроен" : "Не настроен"}</strong></span>
+          <span><small>Gateway</small><strong>{diagnostics?.configuration?.freeipaGatewayConfigured ? "Настроен" : "Не настроен"}</strong></span>
+          <span><small>XYOps</small><strong>{diagnostics?.configuration?.xyopsConfigured ? "Настроен" : "Не настроен"}</strong></span>
+        </div>
+        <Link className="primary settings-diagnostics-link" href="/diagnostics">Открыть полную диагностику</Link>
+      </section>}
+    </div>
+  );
+}
+
 export default function LocalAdministrationContext() {
   const pathname = usePathname();
   const mount = usePortalMount(pathname);
   const [session, setSession] = useState<SessionPayload | null>(null);
   const [access, setAccess] = useState<AccessPayload["access"] | null>(null);
   const [summary, setSummary] = useState<PortalSummary | null>(null);
+  const [diagnostics, setDiagnostics] = useState<DiagnosticsPayload | null>(null);
 
   useEffect(() => {
-    if (pathname !== "/" && pathname !== "/access") return;
+    if (!["/", "/access", "/settings"].includes(pathname)) return;
     let active = true;
     Promise.all([
       fetch("/api/auth/session", { cache: "no-store" }).then((response) => response.json().catch(() => ({}))),
@@ -173,14 +249,20 @@ export default function LocalAdministrationContext() {
       if (!active) return;
       setSession(sessionData);
       setAccess(accessData.access ?? null);
-      if (pathname === "/" && sessionData.authenticated && sessionData.user?.role === "admin") {
+      if ((pathname === "/" || pathname === "/settings") && sessionData.authenticated && sessionData.user?.role === "admin") {
         fetch("/api/auth/diagnostics", { cache: "no-store" })
           .then((response) => response.ok ? response.json() : Promise.reject())
-          .then((data: DiagnosticsPayload) => active && setSummary(safeSummary(data.portal)))
-          .catch(() => active && setSummary(null));
+          .then((data: DiagnosticsPayload) => {
+            if (!active) return;
+            setDiagnostics(data);
+            setSummary(safeSummary(data.portal));
+          })
+          .catch(() => {
+            if (active) { setDiagnostics(null); setSummary(null); }
+          });
       }
     }).catch(() => {
-      if (active) { setSession(null); setAccess(null); setSummary(null); }
+      if (active) { setSession(null); setAccess(null); setSummary(null); setDiagnostics(null); }
     });
     return () => { active = false; };
   }, [pathname]);
@@ -191,5 +273,6 @@ export default function LocalAdministrationContext() {
 
   if (pathname === "/" && summary) return createPortal(<DashboardSummary summary={summary} role={currentRole} permissions={effectivePermissions} />, mount);
   if (pathname === "/access") return createPortal(<PermissionMatrix currentRole={currentRole} effectivePermissions={effectivePermissions} />, mount);
+  if (pathname === "/settings") return createPortal(<SettingsTabs diagnostics={diagnostics} />, mount);
   return null;
 }

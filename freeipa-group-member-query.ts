@@ -87,8 +87,7 @@ export function normalizeFreeIpaGroupMemberQuery(searchParams: URLSearchParams):
 function normalizeGroup(group: FreeIpaDirectoryGroup): FreeIpaDirectoryGroup {
   const memberUids = Array.from(new Set((Array.isArray(group.memberUids) ? group.memberUids : [])
     .map((uid) => cleanText(uid, 160))
-    .filter(Boolean)))
-    .sort(collator.compare);
+    .filter(Boolean)));
   return {
     name: cleanText(group.name, 160),
     description: cleanText(group.description, 1024),

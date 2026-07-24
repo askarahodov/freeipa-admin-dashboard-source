@@ -1,0 +1,36 @@
+services:
+  dashboard:
+    build:
+      context: .
+    image: freeipa-admin-dashboard:local-test
+    restart: "no"
+    network_mode: host
+    env_file:
+      - .env.test
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      HOST: 0.0.0.0
+    volumes:
+      - dashboard-test-data:/app/.wrangler
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - >-
+          fetch('http://127.0.0.1:3001/api/integrations/health')
+          .then((response) => { if (!response.ok) process.exit(1); })
+          .catch(() => process.exit(1))
+      interval: 5s
+      timeout: 3s
+      retries: 24
+      start_period: 20s
+
+volumes:
+  dashboard-test-data:
+    name: freeipa-admin-dashboard-test-data

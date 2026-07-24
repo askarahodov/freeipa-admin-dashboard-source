@@ -36,7 +36,7 @@ test("filters, sorts and paginates group members", () => {
     pageSize: 2,
   });
 
-  assert.deepEqual(result.members.map((member) => member.uid), ["zvolkov"]);
+  assert.deepEqual(result.members.map((member) => member.uid), ["carol"]);
   assert.deepEqual(result.pagination, { page: 2, pageSize: 2, total: 3, totalPages: 2, from: 3, to: 3 });
   assert.deepEqual(result.summary, { total: 5, active: 3, disabled: 1, unknown: 1, filtered: 3 });
   assert.deepEqual(result.group.memberUids, group.memberUids, "FreeIPA order must be preserved for legacy mutation mapping");

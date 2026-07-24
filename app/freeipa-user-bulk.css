@@ -1,0 +1,160 @@
+.freeipa-user-bulk-bar {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.8fr) minmax(210px, 1fr) minmax(360px, 2fr);
+  align-items: end;
+  gap: 14px;
+  padding: 15px 16px;
+  border: 1px solid rgba(109, 74, 229, 0.22);
+  border-radius: 14px;
+  background: rgba(109, 74, 229, 0.055);
+}
+
+.freeipa-user-bulk-bar > div:first-child,
+.freeipa-user-bulk-bar label {
+  display: grid;
+  gap: 5px;
+}
+
+.freeipa-user-bulk-bar span {
+  color: var(--muted, #667085);
+  font-size: 13px;
+}
+
+.freeipa-user-bulk-bar label > span {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.freeipa-user-bulk-bar select {
+  min-height: 40px;
+  border: 1px solid rgba(120, 124, 153, 0.28);
+  border-radius: 10px;
+  padding: 0 11px;
+  background: #fff;
+  color: inherit;
+}
+
+.freeipa-user-bulk-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.freeipa-user-bulk-confirm,
+.freeipa-user-bulk-result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 16px 18px;
+  border: 1px solid rgba(109, 74, 229, 0.25);
+  border-radius: 14px;
+  background: rgba(109, 74, 229, 0.065);
+}
+
+.freeipa-user-bulk-confirm > div,
+.freeipa-user-bulk-result {
+  min-width: 0;
+}
+
+.freeipa-user-bulk-confirm > div:first-child,
+.freeipa-user-bulk-result {
+  gap: 5px;
+}
+
+.freeipa-user-bulk-confirm > div:first-child {
+  display: grid;
+  flex: 1;
+}
+
+.freeipa-user-bulk-confirm > div:last-child {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.freeipa-user-bulk-confirm span,
+.freeipa-user-bulk-result > span {
+  color: var(--muted, #667085);
+}
+
+.freeipa-user-bulk-result {
+  display: grid;
+}
+
+.freeipa-user-bulk-result.success {
+  border-color: rgba(8, 116, 67, 0.24);
+  background: rgba(8, 116, 67, 0.055);
+}
+
+.freeipa-user-bulk-result.partial {
+  border-color: rgba(190, 116, 19, 0.28);
+  background: rgba(190, 116, 19, 0.06);
+}
+
+.freeipa-user-bulk-result details {
+  margin-top: 4px;
+}
+
+.freeipa-user-bulk-result summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.freeipa-user-bulk-result ul {
+  margin: 10px 0 0;
+  padding-left: 20px;
+}
+
+.freeipa-user-table th.freeipa-user-select,
+.freeipa-user-table td.freeipa-user-select {
+  width: 46px;
+  padding-left: 14px;
+  padding-right: 8px;
+  text-align: center;
+}
+
+.freeipa-user-select input {
+  width: 17px;
+  height: 17px;
+  accent-color: #6d4ae5;
+  cursor: pointer;
+}
+
+.freeipa-user-table tbody tr.selected {
+  background: rgba(109, 74, 229, 0.07);
+}
+
+@media (max-width: 1180px) {
+  .freeipa-user-bulk-bar {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .freeipa-user-bulk-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 760px) {
+  .freeipa-user-bulk-bar {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .freeipa-user-bulk-actions {
+    grid-column: auto;
+  }
+
+  .freeipa-user-bulk-actions button {
+    flex: 1;
+  }
+
+  .freeipa-user-bulk-confirm {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

@@ -116,6 +116,8 @@ export default function FreeIpaGroupMemberBrowser() {
   const [pathname, setPathname] = useState(() => typeof window === "undefined" ? "" : window.location.pathname);
   const active = pathname === "/groups";
   const target = useGroupMount(active);
+  const groupName = target?.groupName ?? "";
+  const modal = target?.modal ?? null;
   const [query, setQuery] = useState<QueryState>(defaultQuery);
   const [draft, setDraft] = useState("");
   const [payload, setPayload] = useState<MembersPayload | null>(null);
@@ -134,24 +136,24 @@ export default function FreeIpaGroupMemberBrowser() {
   }, []);
 
   useEffect(() => {
-    if (!target) return;
+    if (!modal || !groupName) return;
     const timer = window.setTimeout(() => {
       setQuery(defaultQuery);
       setDraft("");
       setPayload(null);
       setError("");
-      setCanWrite(Boolean(target.modal.querySelector(".membership-head button.primary")));
+      setCanWrite(Boolean(modal.querySelector(".membership-head button.primary")));
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [target]);
+  }, [groupName, modal]);
 
   const load = useCallback(async () => {
-    if (!active || !target?.groupName) return;
+    if (!active || !groupName) return;
     const id = ++requestId.current;
     setLoading(true);
     setError("");
     const params = new URLSearchParams({
-      group: target.groupName,
+      group: groupName,
       q: query.q,
       status: query.status,
       sort: query.sort,
@@ -175,23 +177,23 @@ export default function FreeIpaGroupMemberBrowser() {
     } finally {
       if (id === requestId.current) setLoading(false);
     }
-  }, [active, query, target?.groupName]);
+  }, [active, groupName, query]);
 
   useEffect(() => {
-    if (!active || !target) return;
+    if (!active || !groupName) return;
     const timer = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(timer);
-  }, [active, load, target]);
+  }, [active, groupName, load]);
 
   useEffect(() => {
-    if (!target) return;
+    if (!modal) return;
     const enhanced = payload?.mode === "live";
-    target.modal.classList.toggle("freeipa-group-member-browser-active", enhanced);
-    return () => target.modal.classList.remove("freeipa-group-member-browser-active");
-  }, [payload?.mode, target]);
+    modal.classList.toggle("freeipa-group-member-browser-active", enhanced);
+    return () => modal.classList.remove("freeipa-group-member-browser-active");
+  }, [modal, payload?.mode]);
 
   useEffect(() => {
-    if (!active || !target) return;
+    if (!active || !modal) return;
     const observer = new MutationObserver(() => {
       const message = document.querySelector<HTMLElement>(".toast")?.textContent?.trim() ?? "";
       if (!message) {
@@ -205,7 +207,7 @@ export default function FreeIpaGroupMemberBrowser() {
     });
     observer.observe(document.body, { childList: true, subtree: true });
     return () => observer.disconnect();
-  }, [active, load, target]);
+  }, [active, load, modal]);
 
   const setFilter = useCallback((change: Partial<QueryState>) => {
     setQuery((current) => ({ ...current, ...change, page: change.page ?? 1 }));

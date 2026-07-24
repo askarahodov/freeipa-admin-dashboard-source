@@ -7,8 +7,10 @@ import "./diagnostics.css";
 import "./sessions.css";
 import "./local-administration-context.css";
 import "./settings-tabs.css";
+import "./portal-interaction-layer.css";
 import LocalAuthToolbar from "./LocalAuthToolbar";
 import LocalAdministrationContext from "./LocalAdministrationContext";
+import PortalInteractionLayer from "./PortalInteractionLayer";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -40,6 +42,7 @@ export default function RootLayout({
   return (
     <html lang="ru">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        <PortalInteractionLayer />
         {children}
         <LocalAdministrationContext />
         <LocalAuthToolbar />

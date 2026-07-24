@@ -43,7 +43,7 @@ test("serves generated automation and portal routes through the application shel
   };
   const ctx = { waitUntil() {}, passThroughOnException() {} };
 
-  for (const path of ["/automation/databases", "/automation/server-management", "/users", "/groups", "/operations", "/settings"]) {
+  for (const path of ["/automation/databases", "/automation/server-management", "/users", "/groups", "/operations", "/settings", "/diagnostics"]) {
     const response = await worker.fetch(new Request(`http://localhost${path}`, { headers: { accept: "text/html" } }), env, ctx);
     assert.equal(response.status, 200, path);
     assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i, path);

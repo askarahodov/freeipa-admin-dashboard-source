@@ -58,14 +58,15 @@ function positiveInteger(value: string | null, fallback: number, maximum: number
   return Math.min(parsed, maximum);
 }
 
+function allowedPageSize(value: string | null): number {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  return allowedPageSizes.includes(parsed as (typeof allowedPageSizes)[number]) ? parsed : 25;
+}
+
 export function normalizeFreeIpaUserQuery(searchParams: URLSearchParams): FreeIpaUserQuery {
   const statusValue = searchParams.get("status");
   const sortValue = searchParams.get("sort");
   const directionValue = searchParams.get("direction");
-  const requestedPageSize = positiveInteger(searchParams.get("pageSize"), 25, 100);
-  const pageSize = allowedPageSizes.includes(requestedPageSize as (typeof allowedPageSizes)[number])
-    ? requestedPageSize
-    : 25;
 
   return {
     q: cleanText(searchParams.get("q"), 160),
@@ -74,7 +75,7 @@ export function normalizeFreeIpaUserQuery(searchParams: URLSearchParams): FreeIp
     sort: sortValue === "name" || sortValue === "email" || sortValue === "groups" || sortValue === "status" ? sortValue : "uid",
     direction: directionValue === "desc" ? "desc" : "asc",
     page: positiveInteger(searchParams.get("page"), 1, 100_000),
-    pageSize,
+    pageSize: allowedPageSize(searchParams.get("pageSize")),
   };
 }
 

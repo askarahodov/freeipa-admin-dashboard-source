@@ -18,6 +18,7 @@ import PortalInteractionLayer from "./PortalInteractionLayer";
 import FreeIpaUserBrowser from "./FreeIpaUserBrowser";
 import FreeIpaGroupMemberBrowser from "./FreeIpaGroupMemberBrowser";
 import FreeIpaDirectorySync from "./FreeIpaDirectorySync";
+import FreeIpaLegacyActionBridge from "./FreeIpaLegacyActionBridge";
 import OperationExplorer from "./OperationExplorer";
 
 const geistSans = Geist({
@@ -53,6 +54,7 @@ export default function RootLayout({
         <PortalInteractionLayer />
         {children}
         <FreeIpaDirectorySync />
+        <FreeIpaLegacyActionBridge />
         <FreeIpaUserBrowser />
         <FreeIpaGroupMemberBrowser />
         <OperationExplorer />

@@ -2,9 +2,16 @@
 
 import { useEffect } from "react";
 
-function visibleRefreshButton(selector: string): HTMLButtonElement | null {
+function refreshButton(selector: string): HTMLButtonElement | null {
   return Array.from(document.querySelectorAll<HTMLButtonElement>(selector))
-    .find((button) => !button.disabled && button.getClientRects().length > 0 && button.textContent?.includes("Обновить")) ?? null;
+    .find((button) => !button.disabled && button.textContent?.includes("Обновить")) ?? null;
+}
+
+function triggerRefresh(selector: string): void {
+  const run = () => refreshButton(selector)?.click();
+  run();
+  window.setTimeout(run, 150);
+  window.setTimeout(run, 500);
 }
 
 function textSignature(selector: string): string {
@@ -25,19 +32,19 @@ export default function FreeIpaDirectorySync() {
 
       const nextUsers = textSignature(".section-page .data-table .tr.users-row:not(.th)");
       if (pathname === "/users" && usersSignature && nextUsers !== usersSignature) {
-        visibleRefreshButton(".freeipa-user-browser-head button")?.click();
+        triggerRefresh(".freeipa-user-browser-head button");
       }
       usersSignature = nextUsers;
 
       const nextMembers = textSignature(".identity-modal .member-table > div");
       if (pathname === "/groups" && membersSignature && nextMembers !== membersSignature) {
-        visibleRefreshButton(".freeipa-group-member-summary button")?.click();
+        triggerRefresh(".freeipa-group-member-summary button");
       }
       membersSignature = nextMembers;
     };
 
     const schedule = () => {
-      if (scheduled) window.clearTimeout(scheduled);
+      if (scheduled) return;
       scheduled = window.setTimeout(synchronize, 60);
     };
 

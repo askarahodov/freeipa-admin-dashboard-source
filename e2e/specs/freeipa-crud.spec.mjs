@@ -47,11 +47,12 @@ test("FreeIPA user, group and membership CRUD works through the browser", async 
   const updatedEmail = `${uid}.updated@example.test`;
 
   await login(page, "/users");
-  await expect(page.locator(".freeipa-user-browser-shell")).toBeVisible();
-  await expect(page.getByText("прямое подключение FreeIPA")).toBeVisible();
+  const userBrowser = page.locator(".freeipa-user-browser-shell");
+  await expect(userBrowser).toBeVisible();
+  await expect(userBrowser.getByRole("button", { name: /Создать пользователя/ })).toBeEnabled();
 
   try {
-    await page.locator(".freeipa-user-browser-shell").getByRole("button", { name: /Создать пользователя/ }).click();
+    await userBrowser.getByRole("button", { name: /Создать пользователя/ }).click();
     await submitFreeIpaModal(page, {
       username: uid,
       firstName: "E2E",

@@ -20,6 +20,14 @@ function markLegacyMemberRemovalConfirmed(uid: string): void {
   if (button) button.dataset.portalConfirmed = "1";
 }
 
+function markFreeIpaModalSubmitHandled(): void {
+  for (const modal of document.querySelectorAll<HTMLElement>(".dynamic-modal")) {
+    if (!modal.querySelector(".danger-confirm")) continue;
+    const submit = modal.querySelector<HTMLButtonElement>(".modal-actions button.primary");
+    if (submit) submit.dataset.portalConfirmationControl = "1";
+  }
+}
+
 function retryLegacyAction(resolveButton: () => HTMLButtonElement | null, modalSelector: string, attempt = 0): void {
   if (document.querySelector(modalSelector)) return;
   const button = resolveButton();
@@ -29,6 +37,10 @@ function retryLegacyAction(resolveButton: () => HTMLButtonElement | null, modalS
 
 export default function FreeIpaLegacyActionBridge() {
   useEffect(() => {
+    markFreeIpaModalSubmitHandled();
+    const observer = new MutationObserver(markFreeIpaModalSubmitHandled);
+    observer.observe(document.body, { childList: true, subtree: true });
+
     const handleClick = (event: MouseEvent) => {
       const button = (event.target as HTMLElement | null)?.closest<HTMLButtonElement>("button");
       if (!button) return;
@@ -61,7 +73,10 @@ export default function FreeIpaLegacyActionBridge() {
     };
 
     document.addEventListener("click", handleClick, true);
-    return () => document.removeEventListener("click", handleClick, true);
+    return () => {
+      observer.disconnect();
+      document.removeEventListener("click", handleClick, true);
+    };
   }, []);
 
   return null;

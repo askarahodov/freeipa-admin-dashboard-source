@@ -13,6 +13,13 @@ function legacyUserButton(uid: string, label: string): HTMLButtonElement | null 
     .find((button) => normalizedText(button) === label) ?? null;
 }
 
+function markLegacyMemberRemovalConfirmed(uid: string): void {
+  const rows = Array.from(document.querySelectorAll<HTMLElement>(".identity-modal .member-table > div"));
+  const row = rows.find((item) => normalizedText(item).includes(uid));
+  const button = row?.querySelector<HTMLButtonElement>("button.danger-link");
+  if (button) button.dataset.portalConfirmed = "1";
+}
+
 function retryLegacyAction(resolveButton: () => HTMLButtonElement | null, modalSelector: string, attempt = 0): void {
   if (document.querySelector(modalSelector)) return;
   const button = resolveButton();
@@ -24,8 +31,16 @@ export default function FreeIpaLegacyActionBridge() {
   useEffect(() => {
     const handleClick = (event: MouseEvent) => {
       const button = (event.target as HTMLElement | null)?.closest<HTMLButtonElement>("button");
-      if (!button || !button.closest(".freeipa-user-browser-shell")) return;
+      if (!button) return;
 
+      const memberRow = button.closest(".freeipa-group-member-row");
+      if (memberRow && normalizedText(button) === "Удалить") {
+        const uid = memberRow.querySelector("code")?.textContent?.trim() ?? "";
+        if (uid) markLegacyMemberRemovalConfirmed(uid);
+        return;
+      }
+
+      if (!button.closest(".freeipa-user-browser-shell")) return;
       const text = normalizedText(button);
       if (text.includes("Создать пользователя")) {
         window.setTimeout(() => retryLegacyAction(
@@ -45,8 +60,8 @@ export default function FreeIpaLegacyActionBridge() {
       ), 0);
     };
 
-    document.addEventListener("click", handleClick);
-    return () => document.removeEventListener("click", handleClick);
+    document.addEventListener("click", handleClick, true);
+    return () => document.removeEventListener("click", handleClick, true);
   }, []);
 
   return null;

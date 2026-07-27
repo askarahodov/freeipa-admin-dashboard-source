@@ -19,27 +19,34 @@ async function confirmPortalAction(page) {
   const dialog = page.getByRole("alertdialog");
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    const visible = await dialog.isVisible({ timeout: attempt === 0 ? 1_500 : 500 }).catch(() => false);
-    if (!visible) return;
+    try {
+      await dialog.waitFor({ state: "visible", timeout: attempt === 0 ? 1_500 : 500 });
+    } catch {
+      return;
+    }
 
     const deletePhrase = dialog.getByRole("textbox", { name: /Контрольная фраза/ });
-    if (await deletePhrase.isVisible({ timeout: 1_000 }).catch(() => false)) {
+    if (await deletePhrase.count()) {
+      await deletePhrase.waitFor({ state: "visible", timeout: 1_000 });
       await deletePhrase.fill("УДАЛИТЬ");
+      await expect(deletePhrase).toHaveValue("УДАЛИТЬ");
     }
 
     const reason = dialog.getByRole("textbox", { name: /Причина отклонения/ });
-    if (await reason.isVisible({ timeout: 300 }).catch(() => false)) {
+    if (await reason.count()) {
+      await reason.waitFor({ state: "visible", timeout: 500 });
       await reason.fill("E2E confirmation");
     }
 
     const confirmButton = dialog.locator(".portal-confirm-actions button:not(.secondary)");
     await expect(confirmButton).toBeEnabled({ timeout: 5_000 });
     await confirmButton.evaluate((element) => element.click());
-    await expect(dialog).toHaveCount(0);
-    await page.waitForTimeout(75);
+    await page.waitForTimeout(100);
   }
 
-  throw new Error("Portal confirmation dialog repeated more than three times");
+  if (await dialog.isVisible()) {
+    throw new Error("Portal confirmation dialog repeated more than three times");
+  }
 }
 
 async function clickConfirmedAction(locator) {

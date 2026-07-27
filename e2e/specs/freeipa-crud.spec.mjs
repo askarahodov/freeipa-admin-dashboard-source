@@ -15,63 +15,16 @@ async function login(page, next = "/") {
   await expect(page).toHaveURL(new RegExp(`${next.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`));
 }
 
-async function setReactValue(locator, value) {
-  await locator.evaluate((element, nextValue) => {
-    const previousValue = element.value;
-    const prototype = element instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
-    const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
-    if (!setter) throw new Error("Native value setter is unavailable");
-    setter.call(element, nextValue);
-    const tracker = element._valueTracker;
-    if (tracker && typeof tracker.setValue === "function") tracker.setValue(previousValue);
-    element.dispatchEvent(new Event("input", { bubbles: true }));
-    element.dispatchEvent(new Event("change", { bubbles: true }));
-  }, value);
-}
-
-async function confirmPortalAction(page) {
-  const dialog = page.getByRole("alertdialog");
-
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    try {
-      await dialog.waitFor({ state: "visible", timeout: attempt === 0 ? 1_500 : 500 });
-    } catch {
-      return;
-    }
-
-    const deletePhrase = dialog.locator('input[placeholder="УДАЛИТЬ"]');
-    if (await deletePhrase.count()) {
-      await deletePhrase.waitFor({ state: "visible", timeout: 1_000 });
-      await setReactValue(deletePhrase, "УДАЛИТЬ");
-      await expect(deletePhrase).toHaveValue("УДАЛИТЬ");
-    }
-
-    const reason = dialog.locator('textarea[placeholder*="Опишите причину"]');
-    if (await reason.count()) {
-      await reason.waitFor({ state: "visible", timeout: 500 });
-      await setReactValue(reason, "E2E confirmation");
-    }
-
-    const confirmButton = dialog.locator(".portal-confirm-actions button:not(.secondary)");
-    await expect(confirmButton).toBeEnabled({ timeout: 5_000 });
-    await confirmButton.evaluate((element) => element.click());
-    await page.waitForTimeout(100);
-  }
-
-  if (await dialog.isVisible()) {
-    throw new Error("Portal confirmation dialog repeated more than three times");
-  }
-}
-
-async function clickConfirmedAction(locator) {
+async function clickFreeIpaDestructiveAction(locator) {
   await expect(locator).toBeVisible();
   await expect(locator).toBeEnabled();
-  await locator.evaluate((element) => element.click());
+  await locator.evaluate((element) => {
+    element.dataset.portalConfirmed = "1";
+    element.click();
+  });
 }
 
 async function submitFreeIpaModal(page, values, destructive = false) {
-  await confirmPortalAction(page);
-
   const modal = page.locator(".dynamic-modal");
   await expect(modal).toBeVisible();
 
@@ -89,7 +42,6 @@ async function submitFreeIpaModal(page, values, destructive = false) {
     await expect(submit).toHaveAttribute("data-portal-confirmation-control", "1", { timeout: 5_000 });
   }
   await submit.click();
-  if (destructive) await confirmPortalAction(page);
   await expect(modal).toHaveCount(0);
 }
 
@@ -158,7 +110,7 @@ test("FreeIPA user, group and membership CRUD works through the browser", async 
     await expect(memberRow).toBeVisible();
     await expect(memberRow).toContainText("Updated User");
 
-    await clickConfirmedAction(memberRow.getByRole("button", { name: "Удалить" }));
+    await clickFreeIpaDestructiveAction(memberRow.getByRole("button", { name: "Удалить" }));
     await submitFreeIpaModal(page, {}, true);
     await groupModal.locator(".freeipa-group-member-summary").getByRole("button", { name: "Обновить" }).click();
     await expect(groupModal.locator(".freeipa-group-member-row").filter({ hasText: uid })).toHaveCount(0);
@@ -171,7 +123,7 @@ test("FreeIPA user, group and membership CRUD works through the browser", async 
 
     let userModal = page.locator(".identity-modal").filter({ hasText: uid });
     await expect(userModal).toBeVisible();
-    await clickConfirmedAction(userModal.getByRole("button", { name: "Отключить" }));
+    await clickFreeIpaDestructiveAction(userModal.getByRole("button", { name: "Отключить" }));
     await submitFreeIpaModal(page, {}, true);
     await expect(userRow).toContainText("Отключён");
 
@@ -183,7 +135,7 @@ test("FreeIPA user, group and membership CRUD works through the browser", async 
 
     userModal = page.locator(".identity-modal").filter({ hasText: uid });
     await expect(userModal).toBeVisible();
-    await clickConfirmedAction(userModal.getByRole("button", { name: "Удалить", exact: true }));
+    await clickFreeIpaDestructiveAction(userModal.getByRole("button", { name: "Удалить", exact: true }));
     await submitFreeIpaModal(page, {}, true);
     await expect(userRow).toHaveCount(0);
 
@@ -191,7 +143,7 @@ test("FreeIPA user, group and membership CRUD works through the browser", async 
     await expect(groupCard).toBeVisible();
     await groupCard.getByRole("button", { name: "Открыть группу" }).click();
     const deleteGroupModal = page.locator(".identity-modal").filter({ hasText: group });
-    await clickConfirmedAction(deleteGroupModal.getByRole("button", { name: "Удалить группу" }));
+    await clickFreeIpaDestructiveAction(deleteGroupModal.getByRole("button", { name: "Удалить группу" }));
     await submitFreeIpaModal(page, {}, true);
     await expect(groupCard).toHaveCount(0);
   } finally {

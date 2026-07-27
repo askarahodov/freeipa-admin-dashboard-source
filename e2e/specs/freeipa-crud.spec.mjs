@@ -24,7 +24,7 @@ async function clickFreeIpaDestructiveAction(locator) {
   });
 }
 
-async function dismissDuplicateConfirmation(page, modal, timeout = 1_200) {
+async function dismissPortalConfirmation(page, timeout = 1_200) {
   const dialog = page.getByRole("alertdialog");
   try {
     await dialog.waitFor({ state: "visible", timeout });
@@ -32,7 +32,6 @@ async function dismissDuplicateConfirmation(page, modal, timeout = 1_200) {
     return;
   }
 
-  await expect(modal).toBeVisible();
   const cancel = dialog.getByRole("button", { name: "Отмена" });
   await cancel.evaluate((element) => element.click());
   await dialog.waitFor({ state: "detached", timeout: 2_000 });
@@ -41,7 +40,7 @@ async function dismissDuplicateConfirmation(page, modal, timeout = 1_200) {
 async function submitFreeIpaModal(page, values, destructive = false) {
   const modal = page.locator(".dynamic-modal");
   await expect(modal).toBeVisible();
-  await dismissDuplicateConfirmation(page, modal);
+  await dismissPortalConfirmation(page);
 
   for (const [name, value] of Object.entries(values)) {
     const field = modal.locator(`[name="${name}"]`);
@@ -52,7 +51,7 @@ async function submitFreeIpaModal(page, values, destructive = false) {
   }
 
   if (destructive) {
-    await dismissDuplicateConfirmation(page, modal, 500);
+    await dismissPortalConfirmation(page, 500);
     const checkbox = modal.locator(".danger-confirm input[type=checkbox]");
     await expect(checkbox).toBeVisible();
     await checkbox.check();
@@ -62,9 +61,10 @@ async function submitFreeIpaModal(page, values, destructive = false) {
   if (destructive) {
     await expect(submit).toHaveAttribute("data-portal-confirmation-control", "1", { timeout: 5_000 });
   }
-  await dismissDuplicateConfirmation(page, modal, 300);
+  await dismissPortalConfirmation(page, 300);
   await submit.click();
   await expect(modal).toHaveCount(0);
+  await dismissPortalConfirmation(page, 1_200);
 }
 
 async function cleanup(page, operation, payload) {
@@ -134,7 +134,6 @@ test("FreeIPA user, group and membership CRUD works through the browser", async 
 
     await clickFreeIpaDestructiveAction(memberRow.getByRole("button", { name: "Удалить" }));
     await submitFreeIpaModal(page, {}, true);
-    await groupModal.locator(".freeipa-group-member-summary").getByRole("button", { name: "Обновить" }).click();
     await expect(groupModal.locator(".freeipa-group-member-row").filter({ hasText: uid })).toHaveCount(0);
     await groupModal.getByRole("button", { name: "Закрыть" }).click();
 

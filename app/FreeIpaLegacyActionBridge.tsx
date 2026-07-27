@@ -31,7 +31,13 @@ function markLegacyMemberRemovalConfirmed(uid: string): void {
 }
 
 function markFreeIpaConfirmationControls(root: ParentNode = document): void {
-  for (const modal of elementsIncludingRoot<HTMLElement>(root, ".dynamic-modal")) {
+  const modals = elementsIncludingRoot<HTMLElement>(root, ".dynamic-modal");
+  if (root instanceof Element) {
+    const ancestorModal = root.closest<HTMLElement>(".dynamic-modal");
+    if (ancestorModal && !modals.includes(ancestorModal)) modals.unshift(ancestorModal);
+  }
+
+  for (const modal of modals) {
     if (!modal.querySelector(".danger-confirm")) continue;
     const submit = modal.querySelector<HTMLButtonElement>(".modal-actions button.primary");
     if (submit) submit.dataset.portalConfirmationControl = "1";
@@ -46,9 +52,17 @@ function markFreeIpaConfirmationControls(root: ParentNode = document): void {
 
 export default function FreeIpaLegacyActionBridge() {
   useEffect(() => {
-    const retryTimers = new Set<number>();
+    const timers = new Set<number>();
 
-    const scheduleRetry = (
+    const schedule = (callback: () => void, delay: number): void => {
+      const timer = window.setTimeout(() => {
+        timers.delete(timer);
+        callback();
+      }, delay);
+      timers.add(timer);
+    };
+
+    const retryLegacyAction = (
       resolveButton: () => HTMLButtonElement | null,
       modalSelector: string,
       attempt = 0,
@@ -56,13 +70,13 @@ export default function FreeIpaLegacyActionBridge() {
       if (document.querySelector(modalSelector)) return;
       const button = resolveButton();
       if (button && !button.disabled) button.click();
-      if (attempt >= retryLimit) return;
+      if (attempt < retryLimit) {
+        schedule(() => retryLegacyAction(resolveButton, modalSelector, attempt + 1), retryDelayMs);
+      }
+    };
 
-      const timer = window.setTimeout(() => {
-        retryTimers.delete(timer);
-        scheduleRetry(resolveButton, modalSelector, attempt + 1);
-      }, retryDelayMs);
-      retryTimers.add(timer);
+    const startLegacyAction = (resolveButton: () => HTMLButtonElement | null, modalSelector: string): void => {
+      schedule(() => retryLegacyAction(resolveButton, modalSelector), 0);
     };
 
     markFreeIpaConfirmationControls();
@@ -89,7 +103,7 @@ export default function FreeIpaLegacyActionBridge() {
       if (!button.closest(".freeipa-user-browser-shell")) return;
       const text = normalizedText(button);
       if (text.includes("Создать пользователя")) {
-        scheduleRetry(
+        startLegacyAction(
           () => document.querySelector<HTMLButtonElement>(".section-page > .panel-title button.primary"),
           ".dynamic-modal",
         );
@@ -100,7 +114,7 @@ export default function FreeIpaLegacyActionBridge() {
       const row = button.closest("tr");
       const uid = row?.querySelector("code")?.textContent?.trim() ?? "";
       if (!uid) return;
-      scheduleRetry(
+      startLegacyAction(
         () => legacyUserButton(uid, text),
         text === "Карточка" ? ".identity-modal" : ".dynamic-modal",
       );
@@ -110,8 +124,8 @@ export default function FreeIpaLegacyActionBridge() {
     return () => {
       observer.disconnect();
       document.removeEventListener("click", handleClick, true);
-      for (const timer of retryTimers) window.clearTimeout(timer);
-      retryTimers.clear();
+      for (const timer of timers) window.clearTimeout(timer);
+      timers.clear();
     };
   }, []);
 

@@ -2,17 +2,21 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 
-test("group member browser reuses legacy mutations and paginated API", () => {
+test("group member browser uses direct FreeIPA actions and the paginated API", () => {
   const component = fs.readFileSync(new URL("../app/FreeIpaGroupMemberBrowser.tsx", import.meta.url), "utf8");
+  const events = fs.readFileSync(new URL("../freeipa-ui-events.ts", import.meta.url), "utf8");
   const wrapper = fs.readFileSync(new URL("../worker/freeipa-group-member-entry.ts", import.meta.url), "utf8");
   const layout = fs.readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
   const vite = fs.readFileSync(new URL("../vite.config.ts", import.meta.url), "utf8");
 
-  for (const value of ["/api/integrations/groups/members", "status", "sort", "direction", "pageSize", "Без карточки", "legacyRemove"]) {
+  for (const value of ["/api/integrations/groups/members", "status", "sort", "direction", "pageSize", "Без карточки", "openFreeIpaAction", "FREEIPA_DIRECTORY_CHANGED_EVENT", "loadFreeIpaAccess"]) {
     assert.equal(component.includes(value), true, value);
   }
+  assert.doesNotMatch(component, /legacyRemove|lastFreeIpaToast/);
   assert.equal(component.includes("/api/integrations/freeipa/actions"), false);
-  assert.equal(component.includes("button.danger-link"), true);
+  assert.equal(component.includes('className="danger-link"'), true);
+  assert.equal(component.includes('data-portal-confirmation-control="1"'), true);
+  assert.equal(events.includes("FREEIPA_OPEN_ACTION_EVENT"), true);
   assert.equal(wrapper.includes("/api/integrations/groups"), true);
   assert.equal(wrapper.includes("/api/integrations/users"), true);
   assert.equal(wrapper.includes("queryFreeIpaGroupMembers"), true);

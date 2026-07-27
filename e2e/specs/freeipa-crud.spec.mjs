@@ -24,15 +24,18 @@ async function clickFreeIpaDestructiveAction(locator) {
   });
 }
 
-async function dismissDuplicateConfirmation(page, modal) {
+async function dismissDuplicateConfirmation(page, modal, timeout = 1_200) {
   const dialog = page.getByRole("alertdialog");
-  const duplicateVisible = await dialog.isVisible().catch(() => false);
-  if (!duplicateVisible) return;
+  try {
+    await dialog.waitFor({ state: "visible", timeout });
+  } catch {
+    return;
+  }
 
   await expect(modal).toBeVisible();
   const cancel = dialog.getByRole("button", { name: "Отмена" });
   await cancel.evaluate((element) => element.click());
-  await expect(dialog).toHaveCount(0);
+  await dialog.waitFor({ state: "detached", timeout: 2_000 });
 }
 
 async function submitFreeIpaModal(page, values, destructive = false) {
@@ -48,11 +51,18 @@ async function submitFreeIpaModal(page, values, destructive = false) {
     else await field.fill(String(value));
   }
 
-  if (destructive) await modal.locator(".danger-confirm input[type=checkbox]").check();
+  if (destructive) {
+    await dismissDuplicateConfirmation(page, modal, 500);
+    const checkbox = modal.locator(".danger-confirm input[type=checkbox]");
+    await expect(checkbox).toBeVisible();
+    await checkbox.check();
+  }
+
   const submit = modal.getByRole("button", { name: "Применить в FreeIPA" });
   if (destructive) {
     await expect(submit).toHaveAttribute("data-portal-confirmation-control", "1", { timeout: 5_000 });
   }
+  await dismissDuplicateConfirmation(page, modal, 300);
   await submit.click();
   await expect(modal).toHaveCount(0);
 }

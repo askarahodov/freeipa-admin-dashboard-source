@@ -2,8 +2,18 @@
 
 import { useEffect } from "react";
 
+const destructiveIdentityActions = new Set(["Удалить", "Удалить группу", "Отключить"]);
+const retryDelayMs = 50;
+const retryLimit = 12;
+
 function normalizedText(element: HTMLElement): string {
   return (element.textContent || "").replace(/\s+/g, " ").trim();
+}
+
+function elementsIncludingRoot<T extends Element>(root: ParentNode, selector: string): T[] {
+  const elements = Array.from(root.querySelectorAll<T>(selector));
+  if (root instanceof Element && root.matches(selector)) elements.unshift(root as T);
+  return elements;
 }
 
 function legacyUserButton(uid: string, label: string): HTMLButtonElement | null {
@@ -20,32 +30,49 @@ function markLegacyMemberRemovalConfirmed(uid: string): void {
   if (button) button.dataset.portalConfirmed = "1";
 }
 
-function markFreeIpaConfirmationHandled(): void {
-  for (const modal of document.querySelectorAll<HTMLElement>(".dynamic-modal")) {
+function markFreeIpaConfirmationControls(root: ParentNode = document): void {
+  for (const modal of elementsIncludingRoot<HTMLElement>(root, ".dynamic-modal")) {
     if (!modal.querySelector(".danger-confirm")) continue;
     const submit = modal.querySelector<HTMLButtonElement>(".modal-actions button.primary");
     if (submit) submit.dataset.portalConfirmationControl = "1";
   }
 
-  for (const button of document.querySelectorAll<HTMLButtonElement>(".identity-modal button")) {
-    const text = normalizedText(button);
-    if (text === "Удалить" || text === "Удалить группу" || text === "Отключить") {
+  for (const button of elementsIncludingRoot<HTMLButtonElement>(root, ".identity-modal button")) {
+    if (destructiveIdentityActions.has(normalizedText(button))) {
       button.dataset.portalConfirmationControl = "1";
     }
   }
 }
 
-function retryLegacyAction(resolveButton: () => HTMLButtonElement | null, modalSelector: string, attempt = 0): void {
-  if (document.querySelector(modalSelector)) return;
-  const button = resolveButton();
-  if (button && !button.disabled) button.click();
-  if (attempt < 12) window.setTimeout(() => retryLegacyAction(resolveButton, modalSelector, attempt + 1), 50);
-}
-
 export default function FreeIpaLegacyActionBridge() {
   useEffect(() => {
-    markFreeIpaConfirmationHandled();
-    const observer = new MutationObserver(markFreeIpaConfirmationHandled);
+    const retryTimers = new Set<number>();
+
+    const scheduleRetry = (
+      resolveButton: () => HTMLButtonElement | null,
+      modalSelector: string,
+      attempt = 0,
+    ): void => {
+      if (document.querySelector(modalSelector)) return;
+      const button = resolveButton();
+      if (button && !button.disabled) button.click();
+      if (attempt >= retryLimit) return;
+
+      const timer = window.setTimeout(() => {
+        retryTimers.delete(timer);
+        scheduleRetry(resolveButton, modalSelector, attempt + 1);
+      }, retryDelayMs);
+      retryTimers.add(timer);
+    };
+
+    markFreeIpaConfirmationControls();
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        for (const node of mutation.addedNodes) {
+          if (node instanceof Element) markFreeIpaConfirmationControls(node);
+        }
+      }
+    });
     observer.observe(document.body, { childList: true, subtree: true });
 
     const handleClick = (event: MouseEvent) => {
@@ -62,10 +89,10 @@ export default function FreeIpaLegacyActionBridge() {
       if (!button.closest(".freeipa-user-browser-shell")) return;
       const text = normalizedText(button);
       if (text.includes("Создать пользователя")) {
-        window.setTimeout(() => retryLegacyAction(
+        scheduleRetry(
           () => document.querySelector<HTMLButtonElement>(".section-page > .panel-title button.primary"),
           ".dynamic-modal",
-        ), 0);
+        );
         return;
       }
 
@@ -73,16 +100,18 @@ export default function FreeIpaLegacyActionBridge() {
       const row = button.closest("tr");
       const uid = row?.querySelector("code")?.textContent?.trim() ?? "";
       if (!uid) return;
-      window.setTimeout(() => retryLegacyAction(
+      scheduleRetry(
         () => legacyUserButton(uid, text),
         text === "Карточка" ? ".identity-modal" : ".dynamic-modal",
-      ), 0);
+      );
     };
 
     document.addEventListener("click", handleClick, true);
     return () => {
       observer.disconnect();
       document.removeEventListener("click", handleClick, true);
+      for (const timer of retryTimers) window.clearTimeout(timer);
+      retryTimers.clear();
     };
   }, []);
 

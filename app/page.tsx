@@ -333,7 +333,7 @@ export default function Home() {
       if (result.approvalRequired) { await loadApprovals(); setSelectedProcess(null); navigateTo("approvals"); notify(`Заявка на согласование создана: ${result.approvalId}`); return true; }
       await loadRuns(false);
       setSelectedProcess(null);
-      notify(result.mode === "live" ? `XYOps запущен: ${result.jobId}` : `Демо-задание создано: ${result.jobId}`);
+      notify(result.mode === "live" ? `XYOps запущен: ${result.process?.title ?? result.jobId}` : `Демо-задание создано: ${result.process?.title ?? result.jobId}`);
       return true;
     } catch (error) {
       await loadRuns(false);
@@ -357,7 +357,7 @@ export default function Home() {
       if (!response.ok) throw new Error(result.error || "Операция с заданием не выполнена");
       if (result.approvalRequired) { await loadApprovals(); navigateTo("approvals"); notify(`Повторный запуск ожидает согласования: ${result.approvalId}`); return true; }
       await loadRuns(true);
-      notify(action === "cancel" ? "Команда остановки отправлена в XYOps" : `Создан новый запуск: ${result.jobId ?? "ожидает Job ID"}`);
+      notify(action === "cancel" ? "Команда остановки отправлена в XYOps" : `Создан новый запуск: ${result.process?.title ?? result.jobId ?? "ожидает Job ID"}`);
       return true;
     } catch (error) {
       notify(error instanceof Error ? error.message : "Не удалось выполнить действие с заданием");
@@ -390,7 +390,7 @@ export default function Home() {
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Действие с заявкой не выполнено");
       await Promise.all([loadApprovals(), loadRuns(true)]);
-      notify(action === "approve" ? "Заявка согласована" : action === "reject" ? "Заявка отклонена" : action === "cancel" ? "Заявка отменена" : `XYOps запущен: ${data.jobId ?? "ожидает Job ID"}`);
+      notify(action === "approve" ? "Заявка согласована" : action === "reject" ? "Заявка отклонена" : action === "cancel" ? "Заявка отменена" : `XYOps запущен: ${data.process?.title ?? data.jobId ?? "ожидает Job ID"}`);
       if (action === "execute") navigateTo("operations");
       return true;
     } catch (error) { notify(error instanceof Error ? error.message : "Действие с заявкой не выполнено"); return false; }

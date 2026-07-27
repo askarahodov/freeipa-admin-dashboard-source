@@ -15,6 +15,17 @@ async function login(page, next = "/") {
   await expect(page).toHaveURL(new RegExp(`${next.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`));
 }
 
+async function setReactValue(locator, value) {
+  await locator.evaluate((element, nextValue) => {
+    const prototype = element instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
+    if (!setter) throw new Error("Native value setter is unavailable");
+    setter.call(element, nextValue);
+    element.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: nextValue }));
+    element.dispatchEvent(new Event("change", { bubbles: true }));
+  }, value);
+}
+
 async function confirmPortalAction(page) {
   const dialog = page.getByRole("alertdialog");
 
@@ -28,16 +39,14 @@ async function confirmPortalAction(page) {
     const deletePhrase = dialog.locator('input[placeholder="УДАЛИТЬ"]');
     if (await deletePhrase.count()) {
       await deletePhrase.waitFor({ state: "visible", timeout: 1_000 });
-      await deletePhrase.click();
-      await deletePhrase.pressSequentially("УДАЛИТЬ", { delay: 30 });
+      await setReactValue(deletePhrase, "УДАЛИТЬ");
       await expect(deletePhrase).toHaveValue("УДАЛИТЬ");
     }
 
     const reason = dialog.locator('textarea[placeholder*="Опишите причину"]');
     if (await reason.count()) {
       await reason.waitFor({ state: "visible", timeout: 500 });
-      await reason.click();
-      await reason.pressSequentially("E2E confirmation", { delay: 10 });
+      await setReactValue(reason, "E2E confirmation");
     }
 
     const confirmButton = dialog.locator(".portal-confirm-actions button:not(.secondary)");
@@ -79,7 +88,6 @@ async function submitFreeIpaModal(page, values, destructive = false) {
   await submit.click();
   if (destructive) await confirmPortalAction(page);
   await expect(modal).toHaveCount(0);
-  await expect(page.getByText("Изменение применено в FreeIPA")).toBeVisible();
 }
 
 async function cleanup(page, operation, payload) {

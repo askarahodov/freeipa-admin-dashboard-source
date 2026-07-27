@@ -24,9 +24,21 @@ async function clickFreeIpaDestructiveAction(locator) {
   });
 }
 
+async function dismissDuplicateConfirmation(page, modal) {
+  const dialog = page.getByRole("alertdialog");
+  const duplicateVisible = await dialog.isVisible().catch(() => false);
+  if (!duplicateVisible) return;
+
+  await expect(modal).toBeVisible();
+  const cancel = dialog.getByRole("button", { name: "Отмена" });
+  await cancel.evaluate((element) => element.click());
+  await expect(dialog).toHaveCount(0);
+}
+
 async function submitFreeIpaModal(page, values, destructive = false) {
   const modal = page.locator(".dynamic-modal");
   await expect(modal).toBeVisible();
+  await dismissDuplicateConfirmation(page, modal);
 
   for (const [name, value] of Object.entries(values)) {
     const field = modal.locator(`[name="${name}"]`);

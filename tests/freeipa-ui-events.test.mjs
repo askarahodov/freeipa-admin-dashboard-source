@@ -97,6 +97,7 @@ test("layout and enhanced browsers no longer depend on legacy FreeIPA action bri
 
   assert.doesNotMatch(layout, /FreeIpaDirectorySync|FreeIpaLegacyActionBridge/);
   assert.doesNotMatch(users, /clickLegacy|legacyCreateButton|lastFreeIpaToast/);
+  assert.doesNotMatch(users, /if \(!active\) \{\s*setCanWrite/);
   assert.doesNotMatch(members, /legacyRemove|lastFreeIpaToast/);
   assert.match(users, /openFreeIpaAction/);
   assert.match(members, /openFreeIpaAction/);

@@ -17,11 +17,14 @@ async function login(page, next = "/") {
 
 async function setReactValue(locator, value) {
   await locator.evaluate((element, nextValue) => {
+    const previousValue = element.value;
     const prototype = element instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
     const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
     if (!setter) throw new Error("Native value setter is unavailable");
     setter.call(element, nextValue);
-    element.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: nextValue }));
+    const tracker = element._valueTracker;
+    if (tracker && typeof tracker.setValue === "function") tracker.setValue(previousValue);
+    element.dispatchEvent(new Event("input", { bubbles: true }));
     element.dispatchEvent(new Event("change", { bubbles: true }));
   }, value);
 }

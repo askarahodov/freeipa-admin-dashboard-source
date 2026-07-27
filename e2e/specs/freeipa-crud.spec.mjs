@@ -15,7 +15,26 @@ async function login(page, next = "/") {
   await expect(page).toHaveURL(new RegExp(`${next.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`));
 }
 
+async function confirmPortalAction(page) {
+  const dialog = page.getByRole("alertdialog");
+  const visible = await dialog.isVisible({ timeout: 1_500 }).catch(() => false);
+  if (!visible) return;
+
+  const deletePhrase = dialog.getByPlaceholder("УДАЛИТЬ");
+  if (await deletePhrase.count()) await deletePhrase.fill("УДАЛИТЬ");
+
+  const reason = dialog.getByPlaceholder(/Опишите причину/);
+  if (await reason.count()) await reason.fill("E2E confirmation");
+
+  const confirmButton = dialog.locator("button:not(.secondary)");
+  await expect(confirmButton).toBeEnabled();
+  await confirmButton.click();
+  await expect(dialog).toHaveCount(0);
+}
+
 async function submitFreeIpaModal(page, values, destructive = false) {
+  await confirmPortalAction(page);
+
   const modal = page.locator(".dynamic-modal");
   await expect(modal).toBeVisible();
 

@@ -47,7 +47,12 @@ async function submitFreeIpaModal(page, values, destructive = false) {
   }
 
   if (destructive) await modal.locator(".danger-confirm input[type=checkbox]").check();
-  await modal.getByRole("button", { name: "Применить в FreeIPA" }).click();
+  const submit = modal.getByRole("button", { name: "Применить в FreeIPA" });
+  if (destructive) {
+    await expect(submit).toHaveAttribute("data-portal-confirmation-control", "1", { timeout: 5_000 });
+  }
+  await submit.click();
+  if (destructive) await confirmPortalAction(page);
   await expect(modal).toHaveCount(0);
   await expect(page.getByText("Изменение применено в FreeIPA")).toBeVisible();
 }
@@ -119,6 +124,7 @@ test("FreeIPA user, group and membership CRUD works through the browser", async 
 
     await memberRow.getByRole("button", { name: "Удалить" }).click();
     await submitFreeIpaModal(page, {}, true);
+    await groupModal.locator(".freeipa-group-member-summary").getByRole("button", { name: "Обновить" }).click();
     await expect(groupModal.locator(".freeipa-group-member-row").filter({ hasText: uid })).toHaveCount(0);
     await groupModal.getByRole("button", { name: "Закрыть" }).click();
 

@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 
+const baseURL = String(process.env.E2E_BASE_URL || "http://127.0.0.1:3001").replace(/\/+$/, "");
 const adminUsername = String(process.env.E2E_ADMIN_USERNAME || "").trim();
 const adminPassword = String(process.env.E2E_ADMIN_PASSWORD || "");
 
@@ -26,8 +27,8 @@ test("administrator creates a local user and assigns the operator role", async (
   const createForm = page.locator(".access-create-form");
   await createForm.getByLabel("Логин").fill(username);
   await createForm.getByLabel("Отображаемое имя").fill(displayName);
-  await createForm.getByLabel("Пароль", { exact: true }).fill(password);
-  await createForm.getByLabel("Подтверждение", { exact: true }).fill(password);
+  await createForm.locator('input[type="password"]').nth(0).fill(password);
+  await createForm.locator('input[type="password"]').nth(1).fill(password);
   await createForm.getByLabel("Роль").selectOption("viewer");
   await createForm.getByRole("button", { name: "Создать" }).click();
 
@@ -43,7 +44,7 @@ test("administrator creates a local user and assigns the operator role", async (
   await expect(page.getByText("Роль пользователя обновлена")).toBeVisible();
   await expect(userCard.getByLabel("Роль")).toHaveValue("operator");
 
-  const operatorContext = await browser.newContext();
+  const operatorContext = await browser.newContext({ baseURL });
   const operatorPage = await operatorContext.newPage();
   try {
     await login(operatorPage, username, password, "/");

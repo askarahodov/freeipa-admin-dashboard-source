@@ -141,7 +141,7 @@ FreeIPA отвечает за доменные учётные записи, гр
 
 - [x] Playwright: login/logout и неверный пароль.
 - [x] Playwright: создание пользователя и назначение ролей.
-- [ ] Playwright: ограничения viewer/operator/admin.
+- [x] Playwright: ограничения viewer/operator/admin.
 - [ ] Playwright: FreeIPA CRUD и membership.
 - [ ] Playwright: XYOps run, approval, cancel и result.
 - [ ] Playwright: сохранение состояния после перезапуска.

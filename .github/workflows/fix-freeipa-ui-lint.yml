@@ -1,0 +1,43 @@
+name: Fix FreeIPA UI Lint
+
+on:
+  push:
+    branches:
+      - agent/playwright-freeipa-crud-e2e
+    paths:
+      - scripts/fix_freeipa_ui_lint.py
+      - .github/workflows/fix-freeipa-ui-lint.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fix-freeipa-ui-lint
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout refactor branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/playwright-freeipa-crud-e2e
+          fetch-depth: 0
+
+      - name: Apply verified lint fix
+        run: python3 scripts/fix_freeipa_ui_lint.py
+
+      - name: Validate diff
+        run: |
+          git diff --check
+          test ! -e scripts/fix_freeipa_ui_lint.py
+          test ! -e .github/workflows/fix-freeipa-ui-lint.yml
+
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: satisfy hooks lint after FreeIPA refactor"
+          git push origin HEAD:agent/playwright-freeipa-crud-e2e

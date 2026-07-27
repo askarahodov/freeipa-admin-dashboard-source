@@ -36,7 +36,7 @@ function feedbackForStatus(status: number, fallback: string): Pick<Feedback, "ki
   if (status === 403) return { kind: "forbidden", title: "Недостаточно прав", message: fallback || "Текущая роль не разрешает это действие." };
   if (status === 408 || status === 504) return { kind: "timeout", title: "Превышено время ожидания", message: fallback || "Сервис не ответил вовремя. Проверьте подключение и повторите операцию." };
   if (status === 409) return { kind: "conflict", title: "Конфликт состояния", message: fallback || "Данные изменились. Обновите страницу и повторите действие с актуальным состоянием." };
-  if (status === 429) return { kind: "rate-limit", title: "Слишком много запросов", message: fallback || "Сервис временно ограничил запросы. Дождитесь указанного времени и повторите действие." };
+  if (status === 429) return { kind: "rate-limit", title: "Слишком много запросов", message: fallback || "Сервис временно ограничил запросы. Дождитесь указанного времени и повторите операцию." };
   if (status >= 500) return { kind: "unavailable", title: "Сервис временно недоступен", message: fallback || "Внешний сервис или локальный gateway вернул ошибку." };
   return { kind: "error", title: "Операция не выполнена", message: fallback || `Сервер вернул HTTP ${status}.` };
 }
@@ -139,7 +139,7 @@ function confirmationFor(button: HTMLButtonElement): Omit<Confirmation, "button"
   if (text.includes("отменить заявку")) return { title: "Отменить заявку?", message: "Текущая заявка больше не сможет быть согласована или выполнена.", confirmLabel: "Отменить заявку", tone: "danger", requireReason: false, requireDeletePhrase: false };
   if (text.includes("выполнить в xyops")) return { title: "Выполнить согласованную операцию?", message: "После подтверждения портал отправит команду в XYOps. Секретные поля, если они есть, будут запрошены следующим шагом.", confirmLabel: "Выполнить в XYOps", tone: "warning", requireReason: false, requireDeletePhrase: false };
   if (text === "отключить" || text.includes("отключить пользователя")) return { title: "Отключить пользователя?", message: "Пользователь потеряет возможность входа или выполнения операций до повторного включения.", confirmLabel: "Отключить", tone: "danger", requireReason: false, requireDeletePhrase: false };
-  const deleting = text.includes("удалить") || (/удалить (пользователя|группу)/i.test(context) && (button.type === "submit" || button.classList.contains("primary")));
+  const deleting = text.includes("удалить") || (/удалить (пользователя|группу)/i.test(context) && button.classList.contains("primary"));
   if (deleting) return { title: "Безвозвратно удалить объект?", message: `${context.slice(0, 220) || "Выбранный объект будет удалён."} Для защиты от случайного действия введите слово УДАЛИТЬ.`, confirmLabel: "Удалить безвозвратно", tone: "danger", requireReason: false, requireDeletePhrase: true };
   return null;
 }

@@ -171,12 +171,13 @@ export default function FreeIpaUserBrowser() {
   }, [active]);
 
   useEffect(() => {
-    if (!active) {
+    if (!active) return;
+    let cancelled = false;
+    const reset = window.setTimeout(() => {
+      if (cancelled) return;
       setCanWrite(false);
       setCanDelete(false);
-      return;
-    }
-    let cancelled = false;
+    }, 0);
     void loadFreeIpaAccess().then((access) => {
       if (cancelled) return;
       setCanWrite(access.canWrite);
@@ -186,7 +187,10 @@ export default function FreeIpaUserBrowser() {
       setCanWrite(false);
       setCanDelete(false);
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      window.clearTimeout(reset);
+    };
   }, [active]);
 
   const load = useCallback(async () => {
@@ -234,10 +238,6 @@ export default function FreeIpaUserBrowser() {
     window.addEventListener(FREEIPA_DIRECTORY_CHANGED_EVENT, refresh);
     return () => window.removeEventListener(FREEIPA_DIRECTORY_CHANGED_EVENT, refresh);
   }, [active, load]);
-
-  useEffect(() => {
-    if (selectedUid && payload && !payload.users.some((user) => user.uid === selectedUid)) setSelectedUid(null);
-  }, [payload, selectedUid]);
 
   useEffect(() => {
     const enhanced = active && payload?.mode !== "demo";

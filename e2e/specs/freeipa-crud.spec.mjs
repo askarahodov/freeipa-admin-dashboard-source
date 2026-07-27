@@ -35,9 +35,8 @@ async function submitFreeIpaModal(page, values, destructive = false) {
   }
 
   const submit = modal.getByRole("button", { name: "Применить в FreeIPA" });
-  if (destructive) {
-    await expect(submit).toHaveAttribute("data-portal-confirmation-control", "1", { timeout: 5_000 });
-  }
+  await expect(submit).toBeEnabled();
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
   await submit.click();
   await expect(modal).toHaveCount(0);
   await expect(page.getByRole("alertdialog")).toHaveCount(0);

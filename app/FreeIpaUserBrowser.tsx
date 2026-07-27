@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { FreeIpaDirectoryUser, FreeIpaSortDirection, FreeIpaUserSort, FreeIpaUserStatus } from "../freeipa-user-query";
+import { FREEIPA_DIRECTORY_CHANGED_EVENT, announceFreeIpaDirectoryChanged, loadFreeIpaAccess, openFreeIpaAction } from "../freeipa-ui-events";
 
 type QueryState = {
   q: string;
@@ -78,24 +79,6 @@ function initials(user: FreeIpaDirectoryUser): string {
   return value.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("") || "U";
 }
 
-function legacyUserButton(uid: string, label: string): HTMLButtonElement | null {
-  const rows = Array.from(document.querySelectorAll<HTMLElement>(".section-page .data-table .tr.users-row:not(.th)"));
-  const row = rows.find((item) => item.querySelector(".mono")?.textContent?.trim() === uid);
-  return Array.from(row?.querySelectorAll<HTMLButtonElement>("button") ?? []).find((button) => button.textContent?.trim() === label) ?? null;
-}
-
-function legacyCreateButton(): HTMLButtonElement | null {
-  return document.querySelector<HTMLButtonElement>(".section-page > .panel-title button.primary");
-}
-
-function clickLegacyCreate(): void {
-  legacyCreateButton()?.click();
-}
-
-function clickLegacyUser(uid: string, label: "Карточка" | "Редактировать"): void {
-  legacyUserButton(uid, label)?.click();
-}
-
 function useUsersMount(active: boolean): HTMLElement | null {
   const [mount, setMount] = useState<HTMLElement | null>(null);
 
@@ -144,6 +127,11 @@ function bulkLabel(action: BulkAction): string {
   return "добавить в группу";
 }
 
+function FreeIpaUserDetails({ user, groups, canWrite, canDelete, close }: { user: FreeIpaDirectoryUser; groups: string[]; canWrite: boolean; canDelete: boolean; close: () => void }) {
+  const availableGroups = groups.filter((group) => !user.groupNames.includes(group));
+  return <div className="modal-backdrop"><section className="modal identity-modal"><button className="modal-x" onClick={close}>×</button><div className="identity-head"><span>{initials(user)}</span><div><small>ПОЛЬЗОВАТЕЛЬ FREEIPA</small><h2>{user.name || user.uid}</h2><code>{user.uid}</code></div><span className={`freeipa-user-status ${user.active ? "active" : "disabled"}`}>{user.active ? "Активен" : "Отключён"}</span></div><div className="identity-facts"><span><small>Email</small><strong>{user.email || "Не указан"}</strong></span><span><small>Группы</small><strong>{user.groups}</strong></span></div><div className="membership-head"><div><h3>Членство в группах</h3><p>{canWrite ? "Изменения применяются напрямую в FreeIPA." : "Доступно только для просмотра."}</p></div>{canWrite && <button className="secondary" disabled={!availableGroups.length} onClick={() => openFreeIpaAction({ operation: "group_add_member", title: `Добавить ${user.uid} в группу`, preset: { username: user.uid }, choices: { groups: availableGroups } })}>＋ Добавить группу</button>}</div><div className="membership-list">{user.groupNames.map((group) => <span key={group}><b>{group}</b>{canWrite && <button data-portal-confirmation-control="1" aria-label={`Удалить ${user.uid} из ${group}`} onClick={() => openFreeIpaAction({ operation: "group_remove_member", title: `Удалить ${user.uid} из ${group}`, preset: { username: user.uid, group } })}>×</button>}</span>)}{!user.groupNames.length && <p>Пользователь не входит в группы.</p>}</div><div className="identity-actions">{canWrite && <><button className="secondary" onClick={() => openFreeIpaAction({ operation: "user_mod", title: `Редактировать ${user.uid}`, preset: { username: user.uid, firstName: user.firstName, lastName: user.lastName, email: user.email } })}>Редактировать</button><button className="secondary" onClick={() => openFreeIpaAction({ operation: "user_password", title: `Сбросить пароль ${user.uid}`, preset: { username: user.uid } })}>Сбросить пароль</button><button className="secondary" data-portal-confirmation-control={user.active ? "1" : undefined} onClick={() => openFreeIpaAction({ operation: user.active ? "user_disable" : "user_enable", title: `${user.active ? "Отключить" : "Включить"} ${user.uid}`, preset: { username: user.uid } })}>{user.active ? "Отключить" : "Включить"}</button></>}{canDelete && <button className="danger-button" data-portal-confirmation-control="1" onClick={() => openFreeIpaAction({ operation: "user_del", title: `Удалить ${user.uid}`, preset: { username: user.uid } })}>Удалить</button>}<button className="secondary" onClick={close}>Закрыть</button></div></section></div>;
+}
+
 export default function FreeIpaUserBrowser() {
   const [pathname, setPathname] = useState(() => typeof window === "undefined" ? "" : window.location.pathname);
   const active = pathname === "/users";
@@ -154,6 +142,8 @@ export default function FreeIpaUserBrowser() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [canWrite, setCanWrite] = useState(false);
+  const [canDelete, setCanDelete] = useState(false);
+  const [selectedUid, setSelectedUid] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [bulkAction, setBulkAction] = useState<BulkAction | null>(null);
   const [bulkGroup, setBulkGroup] = useState("");
@@ -161,7 +151,6 @@ export default function FreeIpaUserBrowser() {
   const [bulkError, setBulkError] = useState("");
   const [bulkResult, setBulkResult] = useState<BulkPayload | null>(null);
   const requestId = useRef(0);
-  const lastFreeIpaToast = useRef("");
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -182,10 +171,23 @@ export default function FreeIpaUserBrowser() {
   }, [active]);
 
   useEffect(() => {
-    if (!active || !mount) return;
-    const timer = window.setTimeout(() => setCanWrite(Boolean(legacyCreateButton())), 0);
-    return () => window.clearTimeout(timer);
-  }, [active, mount, payload?.mode]);
+    if (!active) {
+      setCanWrite(false);
+      setCanDelete(false);
+      return;
+    }
+    let cancelled = false;
+    void loadFreeIpaAccess().then((access) => {
+      if (cancelled) return;
+      setCanWrite(access.canWrite);
+      setCanDelete(access.canDelete);
+    }).catch(() => {
+      if (cancelled) return;
+      setCanWrite(false);
+      setCanDelete(false);
+    });
+    return () => { cancelled = true; };
+  }, [active]);
 
   const load = useCallback(async () => {
     if (!active) return;
@@ -228,20 +230,14 @@ export default function FreeIpaUserBrowser() {
 
   useEffect(() => {
     if (!active) return;
-    const observer = new MutationObserver(() => {
-      const message = document.querySelector<HTMLElement>(".toast")?.textContent?.trim() ?? "";
-      if (!message) {
-        lastFreeIpaToast.current = "";
-        return;
-      }
-      if (message.includes("FreeIPA") && message !== lastFreeIpaToast.current) {
-        lastFreeIpaToast.current = message;
-        void load();
-      }
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-    return () => observer.disconnect();
+    const refresh = () => void load();
+    window.addEventListener(FREEIPA_DIRECTORY_CHANGED_EVENT, refresh);
+    return () => window.removeEventListener(FREEIPA_DIRECTORY_CHANGED_EVENT, refresh);
   }, [active, load]);
+
+  useEffect(() => {
+    if (selectedUid && payload && !payload.users.some((user) => user.uid === selectedUid)) setSelectedUid(null);
+  }, [payload, selectedUid]);
 
   useEffect(() => {
     const enhanced = active && payload?.mode !== "demo";
@@ -320,6 +316,7 @@ export default function FreeIpaUserBrowser() {
       setSelected((current) => new Set(Array.from(current).filter((uid) => !completed.has(uid))));
       setBulkAction(null);
       await load();
+      announceFreeIpaDirectoryChanged();
     } catch (cause) {
       setBulkError(cause instanceof Error ? cause.message : "Массовая операция FreeIPA не выполнена");
     } finally {
@@ -333,14 +330,16 @@ export default function FreeIpaUserBrowser() {
   const pagination = payload?.pagination ?? { page: query.page, pageSize: query.pageSize, total: 0, totalPages: 1, from: 0, to: 0 };
   const summary = payload?.summary ?? { total: 0, active: 0, disabled: 0, filtered: 0 };
   const groups = payload?.filters.availableGroups ?? [];
+  const selectedUser = selectedUid ? users.find((user) => user.uid === selectedUid) ?? null : null;
   const pageSelected = users.length > 0 && users.every((user) => selected.has(user.uid));
   const bulkSelectionValid = selected.size > 0 && selected.size <= maxBulkUsers;
 
   return createPortal(
+    <>
     <div className="freeipa-user-browser-shell">
       <div className="freeipa-user-browser-head">
         <div><span className="eyebrow">FREEIPA DIRECTORY</span><h2>Пользователи FreeIPA</h2><p>{summary.total} учётных записей · {summary.active} активны · {summary.disabled} отключены</p></div>
-        <div><button className="secondary" disabled={payload?.mode !== "live"} onClick={exportFiltered}>⇩ Экспорт CSV</button><button className="secondary" disabled={loading} onClick={() => void load()}>{loading ? "Обновление…" : "⟳ Обновить"}</button>{canWrite ? <button className="primary" disabled={payload?.mode !== "live"} onClick={clickLegacyCreate}>＋ Создать пользователя</button> : <span className="freeipa-user-readonly">Только просмотр</span>}</div>
+        <div><button className="secondary" disabled={payload?.mode !== "live"} onClick={exportFiltered}>⇩ Экспорт CSV</button><button className="secondary" disabled={loading} onClick={() => void load()}>{loading ? "Обновление…" : "⟳ Обновить"}</button>{canWrite ? <button className="primary" disabled={payload?.mode !== "live"} onClick={() => openFreeIpaAction({ operation: "user_add", title: "Новый пользователь", preset: {} })}>＋ Создать пользователя</button> : <span className="freeipa-user-readonly">Только просмотр</span>}</div>
       </div>
 
       <form className="freeipa-user-query" onSubmit={(event) => { event.preventDefault(); setFilter({ q: draft.trim() }); }}>
@@ -370,11 +369,13 @@ export default function FreeIpaUserBrowser() {
 
       {!error && payload?.mode === "live" && <>
         <div className="freeipa-user-result-summary"><span>Показано <b>{pagination.from}–{pagination.to}</b> из <b>{pagination.total}</b></span><span>{summary.filtered !== summary.total ? `Фильтр: ${summary.filtered} из ${summary.total}` : "Без фильтра"}</span></div>
-        <div className="freeipa-user-table-wrap"><table className="freeipa-user-table"><thead><tr>{canWrite && <th className="freeipa-user-select"><input type="checkbox" aria-label="Выбрать текущую страницу" checked={pageSelected} onChange={() => setSelected((current) => { const next = new Set(current); for (const user of users) { if (pageSelected) next.delete(user.uid); else next.add(user.uid); } return next; })} /></th>}<th>Пользователь</th><th>Логин</th><th>Группы</th><th>Статус</th><th>Действия</th></tr></thead><tbody>{users.map((user) => <tr key={user.uid} className={selected.has(user.uid) ? "selected" : ""}>{canWrite && <td className="freeipa-user-select"><input type="checkbox" aria-label={`Выбрать ${user.uid}`} checked={selected.has(user.uid)} onChange={() => toggleUser(user.uid)} /></td>}<td><span className="freeipa-user-person"><b>{initials(user)}</b><span><strong>{user.name || user.uid}</strong><small>{user.email || "Email не указан"}</small></span></span></td><td><code>{user.uid}</code></td><td><strong>{user.groups}</strong><small title={user.groupNames.join(", ")}>{user.groupNames.slice(0, 2).join(", ") || "—"}{user.groupNames.length > 2 ? ` +${user.groupNames.length - 2}` : ""}</small></td><td><span className={`freeipa-user-status ${user.active ? "active" : "disabled"}`}>{user.active ? "Активен" : "Отключён"}</span></td><td><div className="freeipa-user-actions"><button onClick={() => clickLegacyUser(user.uid, "Карточка")}>Карточка</button>{canWrite && <button onClick={() => clickLegacyUser(user.uid, "Редактировать")}>Редактировать</button>}</div></td></tr>)}</tbody></table></div>
+        <div className="freeipa-user-table-wrap"><table className="freeipa-user-table"><thead><tr>{canWrite && <th className="freeipa-user-select"><input type="checkbox" aria-label="Выбрать текущую страницу" checked={pageSelected} onChange={() => setSelected((current) => { const next = new Set(current); for (const user of users) { if (pageSelected) next.delete(user.uid); else next.add(user.uid); } return next; })} /></th>}<th>Пользователь</th><th>Логин</th><th>Группы</th><th>Статус</th><th>Действия</th></tr></thead><tbody>{users.map((user) => <tr key={user.uid} className={selected.has(user.uid) ? "selected" : ""}>{canWrite && <td className="freeipa-user-select"><input type="checkbox" aria-label={`Выбрать ${user.uid}`} checked={selected.has(user.uid)} onChange={() => toggleUser(user.uid)} /></td>}<td><span className="freeipa-user-person"><b>{initials(user)}</b><span><strong>{user.name || user.uid}</strong><small>{user.email || "Email не указан"}</small></span></span></td><td><code>{user.uid}</code></td><td><strong>{user.groups}</strong><small title={user.groupNames.join(", ")}>{user.groupNames.slice(0, 2).join(", ") || "—"}{user.groupNames.length > 2 ? ` +${user.groupNames.length - 2}` : ""}</small></td><td><span className={`freeipa-user-status ${user.active ? "active" : "disabled"}`}>{user.active ? "Активен" : "Отключён"}</span></td><td><div className="freeipa-user-actions"><button onClick={() => setSelectedUid(user.uid)}>Карточка</button>{canWrite && <button onClick={() => openFreeIpaAction({ operation: "user_mod", title: `Редактировать ${user.uid}`, preset: { username: user.uid, firstName: user.firstName, lastName: user.lastName, email: user.email } })}>Редактировать</button>}</div></td></tr>)}</tbody></table></div>
         {!users.length && <div className="freeipa-user-query-state"><strong>Пользователи не найдены</strong><span>Измените поисковую строку, состояние или выбранную группу.</span></div>}
         <div className="freeipa-user-pagination"><button className="secondary" disabled={pagination.page <= 1 || loading} onClick={() => setFilter({ page: pagination.page - 1 })}>← Назад</button><div>{pages.map((page, index) => <span key={page}>{index > 0 && page - pages[index - 1] > 1 && <i>…</i>}<button className={page === pagination.page ? "active" : ""} onClick={() => setFilter({ page })}>{page}</button></span>)}</div><button className="secondary" disabled={pagination.page >= pagination.totalPages || loading} onClick={() => setFilter({ page: pagination.page + 1 })}>Вперёд →</button></div>
       </>}
-    </div>,
+    </div>
+    {selectedUser && <FreeIpaUserDetails user={selectedUser} groups={groups} canWrite={canWrite} canDelete={canDelete} close={() => setSelectedUid(null)} />}
+    </>,
     mount,
   );
 }

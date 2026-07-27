@@ -9,6 +9,7 @@ import type {
   FreeIpaGroupMemberSort,
   FreeIpaGroupMemberStatus,
 } from "../freeipa-group-member-query";
+import { FREEIPA_DIRECTORY_CHANGED_EVENT, loadFreeIpaAccess, openFreeIpaAction } from "../freeipa-ui-events";
 
 type QueryState = {
   q: string;
@@ -102,16 +103,6 @@ function statusLabel(member: FreeIpaGroupMember): string {
   return member.active === true ? "Активен" : member.active === false ? "Отключён" : "Не определён";
 }
 
-function legacyRemove(target: GroupMount, memberUids: string[], uid: string): boolean {
-  const index = memberUids.indexOf(uid);
-  if (index < 0) return false;
-  const rows = Array.from(target.modal.querySelectorAll<HTMLElement>(".member-table > div"));
-  const button = rows[index]?.querySelector<HTMLButtonElement>("button.danger-link");
-  if (!button) return false;
-  button.click();
-  return true;
-}
-
 export default function FreeIpaGroupMemberBrowser() {
   const [pathname, setPathname] = useState(() => typeof window === "undefined" ? "" : window.location.pathname);
   const active = pathname === "/groups";
@@ -125,7 +116,6 @@ export default function FreeIpaGroupMemberBrowser() {
   const [error, setError] = useState("");
   const [canWrite, setCanWrite] = useState(false);
   const requestId = useRef(0);
-  const lastFreeIpaToast = useRef("");
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -137,14 +127,22 @@ export default function FreeIpaGroupMemberBrowser() {
 
   useEffect(() => {
     if (!modal || !groupName) return;
+    let cancelled = false;
     const timer = window.setTimeout(() => {
       setQuery(defaultQuery);
       setDraft("");
       setPayload(null);
       setError("");
-      setCanWrite(Boolean(modal.querySelector(".membership-head button.primary")));
     }, 0);
-    return () => window.clearTimeout(timer);
+    void loadFreeIpaAccess().then((access) => {
+      if (!cancelled) setCanWrite(access.canWrite);
+    }).catch(() => {
+      if (!cancelled) setCanWrite(false);
+    });
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, [groupName, modal]);
 
   const load = useCallback(async () => {
@@ -194,19 +192,9 @@ export default function FreeIpaGroupMemberBrowser() {
 
   useEffect(() => {
     if (!active || !modal) return;
-    const observer = new MutationObserver(() => {
-      const message = document.querySelector<HTMLElement>(".toast")?.textContent?.trim() ?? "";
-      if (!message) {
-        lastFreeIpaToast.current = "";
-        return;
-      }
-      if (message.includes("FreeIPA") && message !== lastFreeIpaToast.current) {
-        lastFreeIpaToast.current = message;
-        void load();
-      }
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-    return () => observer.disconnect();
+    const refresh = () => void load();
+    window.addEventListener(FREEIPA_DIRECTORY_CHANGED_EVENT, refresh);
+    return () => window.removeEventListener(FREEIPA_DIRECTORY_CHANGED_EVENT, refresh);
   }, [active, load, modal]);
 
   const setFilter = useCallback((change: Partial<QueryState>) => {
@@ -251,7 +239,7 @@ export default function FreeIpaGroupMemberBrowser() {
           <span className="person"><b>{initials(member)}</b><span><strong>{member.name}</strong><small>{member.email || member.uid}</small></span></span>
           <code>{member.uid}</code>
           <span className={`freeipa-group-member-status ${member.active === true ? "active" : member.active === false ? "disabled" : "unknown"}`}>{statusLabel(member)}</span>
-          {canWrite ? <button className="danger-link" onClick={() => { if (!payload || !legacyRemove(target, payload.group.memberUids, member.uid)) setError("Не удалось открыть существующее действие удаления участника"); }}>Удалить</button> : <span />}
+          {canWrite ? <button className="danger-link" data-portal-confirmation-control="1" onClick={() => openFreeIpaAction({ operation: "group_remove_member", title: `Удалить ${member.uid} из ${groupName}`, preset: { group: groupName, username: member.uid } })}>Удалить</button> : <span />}
         </div>)}
         {!members.length && <div className="freeipa-group-member-empty"><strong>Совпадений нет</strong><span>Измените поиск или фильтр статуса.</span></div>}
       </div>

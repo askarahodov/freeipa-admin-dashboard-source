@@ -25,17 +25,23 @@ async function confirmPortalAction(page) {
       return;
     }
 
-    const deletePhrase = dialog.getByRole("textbox", { name: /Контрольная фраза/ });
-    if (await deletePhrase.count()) {
-      await deletePhrase.waitFor({ state: "visible", timeout: 1_000 });
+    const deletePhrase = dialog.getByPlaceholder("УДАЛИТЬ");
+    try {
+      await deletePhrase.waitFor({ state: "visible", timeout: 700 });
       await deletePhrase.fill("УДАЛИТЬ");
       await expect(deletePhrase).toHaveValue("УДАЛИТЬ");
+      await deletePhrase.press("Tab");
+    } catch {
+      // This confirmation does not require the delete phrase.
     }
 
-    const reason = dialog.getByRole("textbox", { name: /Причина отклонения/ });
-    if (await reason.count()) {
-      await reason.waitFor({ state: "visible", timeout: 500 });
+    const reason = dialog.getByPlaceholder(/Опишите причину/);
+    try {
+      await reason.waitFor({ state: "visible", timeout: 300 });
       await reason.fill("E2E confirmation");
+      await reason.press("Tab");
+    } catch {
+      // This confirmation does not require a reason.
     }
 
     const confirmButton = dialog.locator(".portal-confirm-actions button:not(.secondary)");

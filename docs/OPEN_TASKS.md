@@ -18,12 +18,14 @@
 
 ### P1 — E2E
 
-- [ ] Playwright: вход, выход и неверный пароль.
+- [x] Playwright: вход, выход и неверный пароль (`npm run test:e2e:auth`).
 - [ ] Playwright: создание локального пользователя и назначение роли.
 - [ ] Playwright: ограничения ролей `viewer`, `operator` и `admin`.
 - [ ] Playwright: FreeIPA CRUD и управление membership.
 - [ ] Playwright: XYOps run, approval, cancel и result.
 - [ ] Playwright: сохранение состояния после перезапуска.
+
+Первый браузерный сценарий выполняется в отдельном Docker-контуре и подтверждён workflow `Auth E2E` с реальным Chromium.
 
 ### P1 — диагностика
 

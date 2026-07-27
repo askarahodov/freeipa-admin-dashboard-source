@@ -1,0 +1,40 @@
+services:
+  dashboard:
+    build:
+      context: .
+    image: freeipa-admin-dashboard:e2e
+    restart: unless-stopped
+    network_mode: host
+    env_file:
+      - .env.e2e
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      HOST: 0.0.0.0
+    volumes:
+      - dashboard-e2e-data:/app/.wrangler
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  playwright:
+    build:
+      context: .
+      dockerfile: e2e/Dockerfile
+    image: freeipa-admin-dashboard-playwright:e2e
+    network_mode: host
+    ipc: host
+    env_file:
+      - .env.e2e
+    environment:
+      E2E_BASE_URL: http://127.0.0.1:3001
+      E2E_ADMIN_USERNAME: ${PORTAL_BOOTSTRAP_ADMIN_USERNAME}
+      E2E_ADMIN_PASSWORD: ${PORTAL_BOOTSTRAP_ADMIN_PASSWORD}
+      CI: ${CI:-false}
+    volumes:
+      - ./artifacts/e2e/playwright-report:/work/playwright-report
+      - ./artifacts/e2e/test-results:/work/test-results
+
+volumes:
+  dashboard-e2e-data:

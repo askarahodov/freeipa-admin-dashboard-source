@@ -1,0 +1,46 @@
+name: Auth E2E
+
+on:
+  pull_request:
+    paths:
+      - "app/login/**"
+      - "app/LocalAuthToolbar.tsx"
+      - "worker/local-auth.ts"
+      - "worker/local-secure-entry.ts"
+      - "e2e/**"
+      - "scripts/run-auth-e2e.sh"
+      - "compose.e2e.yaml"
+      - ".env.e2e.example"
+      - ".github/workflows/e2e-auth.yml"
+      - "package.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  auth-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare isolated E2E environment
+        run: cp .env.e2e.example .env.e2e
+
+      - name: Run Chromium authentication scenarios
+        env:
+          CI: "true"
+        run: npm run test:e2e:auth
+
+      - name: Upload Playwright artifacts
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: auth-e2e-report
+          path: |
+            artifacts/e2e/playwright-report
+            artifacts/e2e/test-results
+            artifacts/e2e/compose.log
+          if-no-files-found: warn
+          retention-days: 14

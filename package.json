@@ -16,6 +16,7 @@
     "test:local": "bash scripts/run-local-integration.sh",
     "test:local-auth:acceptance": "node scripts/local-auth-acceptance.mjs",
     "test:p0:acceptance": "node scripts/p0-operational-acceptance.mjs",
+    "test:e2e:auth": "bash scripts/run-auth-e2e.sh",
     "validate:artifact": "bash scripts/validate-artifact.sh",
     "lint": "bash scripts/sites-env.sh -- eslint . --ignore-pattern dist --ignore-pattern .next",
     "inspect:xyops": "node scripts/xyops-inspect.mjs",

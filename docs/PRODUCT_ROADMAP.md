@@ -139,7 +139,7 @@ FreeIPA отвечает за доменные учётные записи, гр
 
 ### P1 — E2E
 
-- [ ] Playwright: login/logout и неверный пароль.
+- [x] Playwright: login/logout и неверный пароль.
 - [ ] Playwright: создание пользователя и назначение ролей.
 - [ ] Playwright: ограничения viewer/operator/admin.
 - [ ] Playwright: FreeIPA CRUD и membership.

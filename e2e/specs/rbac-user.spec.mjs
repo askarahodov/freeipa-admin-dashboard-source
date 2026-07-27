@@ -56,8 +56,12 @@ test("administrator creates a local user and assigns the operator role", async (
     await operatorContext.close();
   }
 
-  page.once("dialog", (dialog) => dialog.accept());
   await userCard.getByRole("button", { name: "Удалить" }).click();
+  const confirmation = page.getByRole("alertdialog", { name: "Безвозвратно удалить объект?" });
+  await expect(confirmation).toBeVisible();
+  await confirmation.getByRole("textbox", { name: /Контрольная фраза/ }).fill("УДАЛИТЬ");
+  await confirmation.getByRole("button", { name: "Удалить безвозвратно" }).click();
+
   await expect(page.getByText("Пользователь удалён")).toBeVisible();
   await expect(userCard).toHaveCount(0);
 });

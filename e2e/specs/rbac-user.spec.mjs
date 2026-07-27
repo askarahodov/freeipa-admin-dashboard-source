@@ -29,7 +29,7 @@ test("administrator creates a local user and assigns the operator role", async (
   await createForm.getByLabel("Отображаемое имя").fill(displayName);
   await createForm.locator('input[type="password"]').nth(0).fill(password);
   await createForm.locator('input[type="password"]').nth(1).fill(password);
-  await createForm.getByLabel("Роль").selectOption("viewer");
+  await createForm.locator("select").selectOption("viewer");
   await createForm.getByRole("button", { name: "Создать" }).click();
 
   await expect(page.getByText("Локальный пользователь создан")).toBeVisible();
@@ -37,12 +37,13 @@ test("administrator creates a local user and assigns the operator role", async (
   const search = page.getByLabel("Поиск локальных пользователей");
   await search.fill(username);
   const userCard = page.locator(".access-user-card").filter({ hasText: username });
+  const roleSelect = userCard.locator("select");
   await expect(userCard).toBeVisible();
-  await expect(userCard.getByLabel("Роль")).toHaveValue("viewer");
+  await expect(roleSelect).toHaveValue("viewer");
 
-  await userCard.getByLabel("Роль").selectOption("operator");
+  await roleSelect.selectOption("operator");
   await expect(page.getByText("Роль пользователя обновлена")).toBeVisible();
-  await expect(userCard.getByLabel("Роль")).toHaveValue("operator");
+  await expect(roleSelect).toHaveValue("operator");
 
   const operatorContext = await browser.newContext({ baseURL });
   const operatorPage = await operatorContext.newPage();

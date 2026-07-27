@@ -25,23 +25,19 @@ async function confirmPortalAction(page) {
       return;
     }
 
-    const deletePhrase = dialog.getByPlaceholder("УДАЛИТЬ");
-    try {
-      await deletePhrase.waitFor({ state: "visible", timeout: 700 });
-      await deletePhrase.fill("УДАЛИТЬ");
+    const deletePhrase = dialog.locator('input[placeholder="УДАЛИТЬ"]');
+    if (await deletePhrase.count()) {
+      await deletePhrase.waitFor({ state: "visible", timeout: 1_000 });
+      await deletePhrase.click();
+      await deletePhrase.pressSequentially("УДАЛИТЬ", { delay: 30 });
       await expect(deletePhrase).toHaveValue("УДАЛИТЬ");
-      await deletePhrase.press("Tab");
-    } catch {
-      // This confirmation does not require the delete phrase.
     }
 
-    const reason = dialog.getByPlaceholder(/Опишите причину/);
-    try {
-      await reason.waitFor({ state: "visible", timeout: 300 });
-      await reason.fill("E2E confirmation");
-      await reason.press("Tab");
-    } catch {
-      // This confirmation does not require a reason.
+    const reason = dialog.locator('textarea[placeholder*="Опишите причину"]');
+    if (await reason.count()) {
+      await reason.waitFor({ state: "visible", timeout: 500 });
+      await reason.click();
+      await reason.pressSequentially("E2E confirmation", { delay: 10 });
     }
 
     const confirmButton = dialog.locator(".portal-confirm-actions button:not(.secondary)");

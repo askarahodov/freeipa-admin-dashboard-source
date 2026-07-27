@@ -20,11 +20,18 @@ function markLegacyMemberRemovalConfirmed(uid: string): void {
   if (button) button.dataset.portalConfirmed = "1";
 }
 
-function markFreeIpaModalSubmitHandled(): void {
+function markFreeIpaConfirmationHandled(): void {
   for (const modal of document.querySelectorAll<HTMLElement>(".dynamic-modal")) {
     if (!modal.querySelector(".danger-confirm")) continue;
     const submit = modal.querySelector<HTMLButtonElement>(".modal-actions button.primary");
     if (submit) submit.dataset.portalConfirmationControl = "1";
+  }
+
+  for (const button of document.querySelectorAll<HTMLButtonElement>(".identity-modal button")) {
+    const text = normalizedText(button);
+    if (text === "Удалить" || text === "Удалить группу" || text === "Отключить") {
+      button.dataset.portalConfirmationControl = "1";
+    }
   }
 }
 
@@ -37,8 +44,8 @@ function retryLegacyAction(resolveButton: () => HTMLButtonElement | null, modalS
 
 export default function FreeIpaLegacyActionBridge() {
   useEffect(() => {
-    markFreeIpaModalSubmitHandled();
-    const observer = new MutationObserver(markFreeIpaModalSubmitHandled);
+    markFreeIpaConfirmationHandled();
+    const observer = new MutationObserver(markFreeIpaConfirmationHandled);
     observer.observe(document.body, { childList: true, subtree: true });
 
     const handleClick = (event: MouseEvent) => {

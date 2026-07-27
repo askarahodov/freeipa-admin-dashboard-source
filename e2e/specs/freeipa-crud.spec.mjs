@@ -15,32 +15,10 @@ async function login(page, next = "/") {
   await expect(page).toHaveURL(new RegExp(`${next.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`));
 }
 
-async function clickFreeIpaDestructiveAction(locator) {
-  await expect(locator).toBeVisible();
-  await expect(locator).toBeEnabled();
-  await locator.evaluate((element) => {
-    element.dataset.portalConfirmed = "1";
-    element.click();
-  });
-}
-
-async function dismissPortalConfirmation(page, timeout = 1_200) {
-  const dialog = page.getByRole("alertdialog");
-  try {
-    await dialog.waitFor({ state: "visible", timeout });
-  } catch {
-    return;
-  }
-
-  const cancel = dialog.getByRole("button", { name: "Отмена" });
-  await cancel.evaluate((element) => element.click());
-  await dialog.waitFor({ state: "detached", timeout: 2_000 });
-}
-
 async function submitFreeIpaModal(page, values, destructive = false) {
   const modal = page.locator(".dynamic-modal");
   await expect(modal).toBeVisible();
-  await dismissPortalConfirmation(page);
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
 
   for (const [name, value] of Object.entries(values)) {
     const field = modal.locator(`[name="${name}"]`);
@@ -51,7 +29,6 @@ async function submitFreeIpaModal(page, values, destructive = false) {
   }
 
   if (destructive) {
-    await dismissPortalConfirmation(page, 500);
     const checkbox = modal.locator(".danger-confirm input[type=checkbox]");
     await expect(checkbox).toBeVisible();
     await checkbox.check();
@@ -61,10 +38,9 @@ async function submitFreeIpaModal(page, values, destructive = false) {
   if (destructive) {
     await expect(submit).toHaveAttribute("data-portal-confirmation-control", "1", { timeout: 5_000 });
   }
-  await dismissPortalConfirmation(page, 300);
   await submit.click();
   await expect(modal).toHaveCount(0);
-  await dismissPortalConfirmation(page, 1_200);
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
 }
 
 async function cleanup(page, operation, payload) {
@@ -132,7 +108,7 @@ test("FreeIPA user, group and membership CRUD works through the browser", async 
     await expect(memberRow).toBeVisible();
     await expect(memberRow).toContainText("Updated User");
 
-    await clickFreeIpaDestructiveAction(memberRow.getByRole("button", { name: "Удалить" }));
+    await memberRow.getByRole("button", { name: "Удалить" }).click();
     await submitFreeIpaModal(page, {}, true);
     await expect(groupModal.locator(".freeipa-group-member-row").filter({ hasText: uid })).toHaveCount(0);
     await groupModal.getByRole("button", { name: "Закрыть" }).click();
@@ -144,7 +120,7 @@ test("FreeIPA user, group and membership CRUD works through the browser", async 
 
     let userModal = page.locator(".identity-modal").filter({ hasText: uid });
     await expect(userModal).toBeVisible();
-    await clickFreeIpaDestructiveAction(userModal.getByRole("button", { name: "Отключить" }));
+    await userModal.getByRole("button", { name: "Отключить" }).click();
     await submitFreeIpaModal(page, {}, true);
     await expect(userRow).toContainText("Отключён");
 
@@ -156,7 +132,7 @@ test("FreeIPA user, group and membership CRUD works through the browser", async 
 
     userModal = page.locator(".identity-modal").filter({ hasText: uid });
     await expect(userModal).toBeVisible();
-    await clickFreeIpaDestructiveAction(userModal.getByRole("button", { name: "Удалить", exact: true }));
+    await userModal.getByRole("button", { name: "Удалить", exact: true }).click();
     await submitFreeIpaModal(page, {}, true);
     await expect(userRow).toHaveCount(0);
 
@@ -164,7 +140,7 @@ test("FreeIPA user, group and membership CRUD works through the browser", async 
     await expect(groupCard).toBeVisible();
     await groupCard.getByRole("button", { name: "Открыть группу" }).click();
     const deleteGroupModal = page.locator(".identity-modal").filter({ hasText: group });
-    await clickFreeIpaDestructiveAction(deleteGroupModal.getByRole("button", { name: "Удалить группу" }));
+    await deleteGroupModal.getByRole("button", { name: "Удалить группу" }).click();
     await submitFreeIpaModal(page, {}, true);
     await expect(groupCard).toHaveCount(0);
   } finally {

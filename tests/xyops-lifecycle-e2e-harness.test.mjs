@@ -1,23 +1,27 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
+import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 
-function syntaxCheck(path) {
+function syntaxCheck(url) {
+  const path = fileURLToPath(url);
   const result = spawnSync(process.execPath, ["--check", path], { encoding: "utf8" });
   assert.equal(result.status, 0, `${path}: ${result.stderr || result.stdout}`);
 }
 
 test("XYOps lifecycle E2E harness is isolated and covers approval, cancellation and results", async () => {
+  const mockUrl = new URL("../e2e/xyops-mock.mjs", import.meta.url);
+  const specUrl = new URL("../e2e/specs/xyops-lifecycle.spec.mjs", import.meta.url);
   const [compose, env, mock, spec] = await Promise.all([
     readFile(new URL("../compose.e2e.yaml", import.meta.url), "utf8"),
     readFile(new URL("../.env.e2e.example", import.meta.url), "utf8"),
-    readFile(new URL("../e2e/xyops-mock.mjs", import.meta.url), "utf8"),
-    readFile(new URL("../e2e/specs/xyops-lifecycle.spec.mjs", import.meta.url), "utf8"),
+    readFile(mockUrl, "utf8"),
+    readFile(specUrl, "utf8"),
   ]);
 
-  syntaxCheck(new URL("../e2e/xyops-mock.mjs", import.meta.url));
-  syntaxCheck(new URL("../e2e/specs/xyops-lifecycle.spec.mjs", import.meta.url));
+  syntaxCheck(mockUrl);
+  syntaxCheck(specUrl);
 
   assert.match(compose, /xyops-mock:/);
   assert.match(compose, /http:\/\/127\.0\.0\.1:3902\/health/);

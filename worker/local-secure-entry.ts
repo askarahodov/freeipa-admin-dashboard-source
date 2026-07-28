@@ -1,6 +1,12 @@
 import secureRuntime from "./secure-entry";
 import { appendAuditEvent, createAuditContext } from "../audit-log";
 import {
+  isAdminIntegrationPath,
+  localAdminSessionToken,
+  sameOriginAdminMutation,
+  serviceAdminTokenAuthorized,
+} from "../admin-session-authorization";
+import {
   authenticateLocalUser,
   bootstrapLocalAdmin,
   clearLocalSessionCookie,
@@ -24,6 +30,7 @@ type RuntimeEnv = NonNullable<Parameters<typeof secureRuntime.fetch>[1]> & Local
   PORTAL_STATIC_NAME?: string;
   PORTAL_DEFAULT_ROLE?: string;
   PORTAL_RBAC_JSON?: string;
+  ADMIN_TOKEN?: string;
 };
 type RuntimeContext = Parameters<typeof secureRuntime.fetch>[2];
 type ScheduledController = Parameters<NonNullable<typeof secureRuntime.scheduled>>[0];
@@ -51,7 +58,7 @@ function publicSession(session: LocalSession) {
   };
 }
 
-function delegatedEnv(env: RuntimeEnv, session: LocalSession): RuntimeEnv {
+function delegatedEnv(env: RuntimeEnv, session: LocalSession, internalAdminToken?: string): RuntimeEnv {
   return {
     ...env,
     PORTAL_IDENTITY_MODE: "static",
@@ -59,6 +66,19 @@ function delegatedEnv(env: RuntimeEnv, session: LocalSession): RuntimeEnv {
     PORTAL_STATIC_NAME: session.displayName,
     PORTAL_DEFAULT_ROLE: session.role,
     PORTAL_RBAC_JSON: JSON.stringify({ [session.identity]: session.role }),
+    ADMIN_TOKEN: internalAdminToken ?? env.ADMIN_TOKEN,
+  };
+}
+
+function serviceAdminEnv(env: RuntimeEnv): RuntimeEnv {
+  const identity = "service-admin@portal.local";
+  return {
+    ...env,
+    PORTAL_IDENTITY_MODE: "static",
+    PORTAL_STATIC_IDENTITY: identity,
+    PORTAL_STATIC_NAME: "Service administrator",
+    PORTAL_DEFAULT_ROLE: "admin",
+    PORTAL_RBAC_JSON: JSON.stringify({ [identity]: "admin" }),
   };
 }
 
@@ -223,6 +243,9 @@ const worker = {
 
     const session = await resolveLocalSession(sourceEnv, request);
     if (!session) {
+      if (isAdminIntegrationPath(url.pathname) && await serviceAdminTokenAuthorized(request, sourceEnv.ADMIN_TOKEN)) {
+        return secureRuntime.fetch(request, serviceAdminEnv(sourceEnv), ctx);
+      }
       if (url.pathname.startsWith("/api/")) return json({ error: "Требуется вход в портал" }, 401);
       if (request.method === "GET" && request.headers.get("accept")?.includes("text/html") && url.pathname !== "/login") {
         const next = `${url.pathname}${url.search}`;
@@ -233,7 +256,18 @@ const worker = {
 
     if (url.pathname === "/login") return Response.redirect(new URL("/", request.url), 302);
     if (url.pathname === "/access" && session.role !== "admin") return new Response("Недостаточно прав", { status: 403, headers: { "content-type": "text/plain; charset=utf-8" } });
-    return secureRuntime.fetch(request, delegatedEnv(sourceEnv, session), ctx);
+
+    const headers = new Headers(request.headers);
+    headers.delete("x-admin-token");
+    let delegated = delegatedEnv(sourceEnv, session);
+    if (session.role === "admin" && isAdminIntegrationPath(url.pathname)) {
+      if (!sameOriginAdminMutation(request)) return json({ error: "Административный запрос заблокирован проверкой источника" }, 403);
+      const internalToken = localAdminSessionToken(session);
+      headers.set("x-admin-token", internalToken);
+      delegated = delegatedEnv(sourceEnv, session, internalToken);
+    }
+
+    return secureRuntime.fetch(new Request(request, { headers }), delegated, ctx);
   },
 
   async scheduled(controller: ScheduledController, env: RuntimeEnv | undefined, ctx: RuntimeContext): Promise<void> {

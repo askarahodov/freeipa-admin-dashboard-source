@@ -16,6 +16,19 @@ async function login(page, username, password, next = "/") {
   await expect(page).toHaveURL(new RegExp(`${next.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`));
 }
 
+async function loginContext(context, page, username, password, next = "/") {
+  const response = await context.request.post("/api/auth/login", {
+    data: { username, password },
+  });
+  expect(response.status()).toBe(200);
+  const payload = await response.json();
+  expect(payload.authenticated).toBe(true);
+  expect(payload.user?.username).toBe(username);
+  expect(payload.user?.role).toBe("operator");
+  await page.goto(next);
+  await expect(page).toHaveURL(new RegExp(`${next.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`));
+}
+
 async function confirmPortalAction(page, dialogTitle, buttonName) {
   const dialog = page.getByRole("alertdialog", { name: dialogTitle });
   await expect(dialog).toBeVisible();
@@ -27,7 +40,7 @@ async function createPortalUser(page, username, password) {
   const response = await page.request.post("/api/auth/users", {
     data: {
       username,
-      displayName: `E2E XYOps ${username}`,
+      displayName: "E2E XYOps Operator",
       password,
       role: "operator",
     },
@@ -35,6 +48,7 @@ async function createPortalUser(page, username, password) {
   expect(response.status()).toBe(201);
   const payload = await response.json();
   expect(payload.user?.id).toBeTruthy();
+  expect(payload.user?.username).toBe(username);
   return payload.user;
 }
 
@@ -113,7 +127,7 @@ test("XYOps dangerous workflows support approval, cancellation and result render
 
     try {
       const operatorPage = await operatorContext.newPage();
-      await login(operatorPage, operatorUsername, operatorPassword, "/automation");
+      await loginContext(operatorContext, operatorPage, operatorUsername, operatorPassword, "/automation");
       await expect(operatorPage.locator(".local-auth-toolbar")).toContainText("Оператор");
 
       await launchDangerousWorkflow(operatorPage, cancelTitle, cancelScenario);

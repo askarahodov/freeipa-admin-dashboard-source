@@ -27,7 +27,7 @@ async function createPortalUser(page, username, password) {
   const response = await page.request.post("/api/auth/users", {
     data: {
       username,
-      displayName: "E2E XYOps Operator",
+      displayName: `E2E XYOps ${username}`,
       password,
       role: "operator",
     },
@@ -85,8 +85,11 @@ async function executeAsRequester(operatorPage, title, scenario) {
   await expect(operatorPage).toHaveURL(/\/operations$/);
 }
 
-function operationRow(page, title, jobId) {
-  return page.locator(".tr.ops-detailed").filter({ hasText: title }).filter({ hasText: jobId });
+function operationRow(page, title, jobId, actor) {
+  return page.locator("button.operation-explorer-row")
+    .filter({ hasText: title })
+    .filter({ hasText: jobId })
+    .filter({ hasText: actor });
 }
 
 test("XYOps dangerous workflows support approval, cancellation and result rendering", async ({ page, browser }, testInfo) => {
@@ -119,13 +122,13 @@ test("XYOps dangerous workflows support approval, cancellation and result render
 
       let cancelJobId = "";
       await expect.poll(async () => {
-        const run = (await loadRuns(operatorContext)).find((item) => item.eventId === "e2e-lifecycle-cancel");
+        const run = (await loadRuns(operatorContext)).find((item) => item.eventId === "e2e-lifecycle-cancel" && item.actor.includes(operatorUsername));
         cancelJobId = String(run?.jobId || "");
         return Boolean(cancelJobId && ["queued", "running"].includes(run?.status));
       }, { timeout: 20_000, intervals: [250, 500, 1000] }).toBe(true);
 
       await operatorPage.goto("/operations");
-      const cancelRow = operationRow(operatorPage, cancelTitle, cancelJobId);
+      const cancelRow = operationRow(operatorPage, cancelTitle, cancelJobId, operatorUsername);
       await expect(cancelRow).toBeVisible();
       await cancelRow.click();
       const cancelModal = operatorPage.locator(".run-details-modal");
@@ -141,13 +144,13 @@ test("XYOps dangerous workflows support approval, cancellation and result render
 
       let resultJobId = "";
       await expect.poll(async () => {
-        const run = (await loadRuns(operatorContext)).find((item) => item.eventId === "e2e-lifecycle-result");
+        const run = (await loadRuns(operatorContext)).find((item) => item.eventId === "e2e-lifecycle-result" && item.actor.includes(operatorUsername));
         resultJobId = String(run?.jobId || "");
         return { status: run?.status ?? "missing", result: run?.result?.available === true };
       }, { timeout: 30_000, intervals: [250, 500, 1000] }).toEqual({ status: "success", result: true });
 
       await operatorPage.goto("/operations");
-      const resultRow = operationRow(operatorPage, resultTitle, resultJobId);
+      const resultRow = operationRow(operatorPage, resultTitle, resultJobId, operatorUsername);
       await expect(resultRow).toBeVisible();
       await expect(resultRow).toContainText("Успешно");
       await resultRow.click();

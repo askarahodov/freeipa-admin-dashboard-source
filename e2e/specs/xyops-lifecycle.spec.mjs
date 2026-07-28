@@ -38,6 +38,13 @@ async function createPortalUser(page, username, password) {
   return payload.user;
 }
 
+async function loadRuns(context) {
+  const response = await context.request.get("/api/integrations/runs?limit=100&sync=1");
+  if (!response.ok()) return [];
+  const payload = await response.json();
+  return Array.isArray(payload.runs) ? payload.runs : [];
+}
+
 async function launchDangerousWorkflow(page, title, scenario) {
   await page.goto("/automation");
   const card = page.locator(".process-card").filter({ hasText: title });
@@ -78,8 +85,8 @@ async function executeAsRequester(operatorPage, title, scenario) {
   await expect(operatorPage).toHaveURL(/\/operations$/);
 }
 
-function operationRow(page, title) {
-  return page.locator(".tr.ops-detailed").filter({ hasText: title });
+function operationRow(page, title, jobId) {
+  return page.locator(".tr.ops-detailed").filter({ hasText: title }).filter({ hasText: jobId });
 }
 
 test("XYOps dangerous workflows support approval, cancellation and result rendering", async ({ page, browser }, testInfo) => {
@@ -110,7 +117,15 @@ test("XYOps dangerous workflows support approval, cancellation and result render
       await approveAsAdmin(page, cancelTitle, cancelScenario);
       await executeAsRequester(operatorPage, cancelTitle, cancelScenario);
 
-      const cancelRow = operationRow(operatorPage, cancelTitle);
+      let cancelJobId = "";
+      await expect.poll(async () => {
+        const run = (await loadRuns(operatorContext)).find((item) => item.eventId === "e2e-lifecycle-cancel");
+        cancelJobId = String(run?.jobId || "");
+        return Boolean(cancelJobId && ["queued", "running"].includes(run?.status));
+      }, { timeout: 20_000, intervals: [250, 500, 1000] }).toBe(true);
+
+      await operatorPage.goto("/operations");
+      const cancelRow = operationRow(operatorPage, cancelTitle, cancelJobId);
       await expect(cancelRow).toBeVisible();
       await cancelRow.click();
       const cancelModal = operatorPage.locator(".run-details-modal");
@@ -124,16 +139,15 @@ test("XYOps dangerous workflows support approval, cancellation and result render
       await approveAsAdmin(page, resultTitle, resultScenario);
       await executeAsRequester(operatorPage, resultTitle, resultScenario);
 
+      let resultJobId = "";
       await expect.poll(async () => {
-        const response = await operatorContext.request.get("/api/integrations/runs?limit=100&sync=1");
-        if (!response.ok()) return { status: "http-error", result: false };
-        const payload = await response.json();
-        const run = payload.runs?.find((item) => item.eventId === "e2e-lifecycle-result");
+        const run = (await loadRuns(operatorContext)).find((item) => item.eventId === "e2e-lifecycle-result");
+        resultJobId = String(run?.jobId || "");
         return { status: run?.status ?? "missing", result: run?.result?.available === true };
       }, { timeout: 30_000, intervals: [250, 500, 1000] }).toEqual({ status: "success", result: true });
 
       await operatorPage.goto("/operations");
-      const resultRow = operationRow(operatorPage, resultTitle);
+      const resultRow = operationRow(operatorPage, resultTitle, resultJobId);
       await expect(resultRow).toBeVisible();
       await expect(resultRow).toContainText("Успешно");
       await resultRow.click();

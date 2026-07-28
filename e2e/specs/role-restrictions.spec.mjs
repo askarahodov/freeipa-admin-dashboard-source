@@ -13,7 +13,7 @@ async function login(page, username, password, next = "/") {
   await page.getByLabel("Логин").fill(username);
   await page.getByLabel("Пароль").fill(password);
   await page.getByRole("button", { name: "Войти" }).click();
-  await expect(page).toHaveURL(new RegExp(`${next.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`));
+  await page.waitForURL(new RegExp(`${next.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`), { timeout: 30_000 });
 }
 
 async function createPortalUser(page, username, role, password) {

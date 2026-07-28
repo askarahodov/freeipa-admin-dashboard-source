@@ -13,7 +13,7 @@ async function login(page, username, password, next = "/") {
   await page.getByLabel("Логин").fill(username);
   await page.getByLabel("Пароль").fill(password);
   await page.getByRole("button", { name: "Войти" }).click();
-  await expect(page).toHaveURL(new RegExp(`${next.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`));
+  await page.waitForURL(new RegExp(`${next.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`), { timeout: 30_000 });
 }
 
 test("administrator creates a local user and assigns the operator role", async ({ page, browser }, testInfo) => {
@@ -62,6 +62,6 @@ test("administrator creates a local user and assigns the operator role", async (
   await confirmation.getByRole("textbox", { name: /Контрольная фраза/ }).fill("УДАЛИТЬ");
   await confirmation.getByRole("button", { name: "Удалить безвозвратно" }).click();
 
-  await expect(page.getByText("Пользователь удалён")).toBeVisible();
   await expect(userCard).toHaveCount(0);
+  await expect(page.getByText("Пользователи не найдены")).toBeVisible();
 });

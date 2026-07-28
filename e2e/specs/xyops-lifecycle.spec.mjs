@@ -59,6 +59,13 @@ async function loadRuns(context) {
   return Array.isArray(payload.runs) ? payload.runs : [];
 }
 
+async function loadMockJobs(context) {
+  const response = await context.request.get("http://127.0.0.1:3902/__mock/state");
+  if (!response.ok()) return [];
+  const payload = await response.json();
+  return Array.isArray(payload.jobs) ? payload.jobs : [];
+}
+
 async function launchDangerousWorkflow(page, title, scenario) {
   await page.goto("/automation");
   const card = page.locator(".process-card").filter({ hasText: title });
@@ -99,11 +106,20 @@ async function executeAsRequester(operatorPage, title, scenario) {
   await expect(operatorPage).toHaveURL(/\/operations$/);
 }
 
-function operationRow(page, title, jobId, actor) {
+async function currentJobId(context, eventId, scenario) {
+  let jobId = "";
+  await expect.poll(async () => {
+    const job = (await loadMockJobs(context)).find((item) => item.eventId === eventId && item.scenario === scenario);
+    jobId = String(job?.id || "");
+    return Boolean(jobId);
+  }, { timeout: 20_000, intervals: [250, 500, 1000] }).toBe(true);
+  return jobId;
+}
+
+function operationRow(page, title, jobId) {
   return page.locator("button.operation-explorer-row")
     .filter({ hasText: title })
-    .filter({ hasText: jobId })
-    .filter({ hasText: actor });
+    .filter({ hasText: jobId });
 }
 
 test("XYOps dangerous workflows support approval, cancellation and result rendering", async ({ page, browser }, testInfo) => {
@@ -134,15 +150,14 @@ test("XYOps dangerous workflows support approval, cancellation and result render
       await approveAsAdmin(page, cancelTitle, cancelScenario);
       await executeAsRequester(operatorPage, cancelTitle, cancelScenario);
 
-      let cancelJobId = "";
+      const cancelJobId = await currentJobId(operatorContext, "e2e-lifecycle-cancel", cancelScenario);
       await expect.poll(async () => {
-        const run = (await loadRuns(operatorContext)).find((item) => item.eventId === "e2e-lifecycle-cancel" && item.actor.includes(operatorUsername));
-        cancelJobId = String(run?.jobId || "");
-        return Boolean(cancelJobId && ["queued", "running"].includes(run?.status));
-      }, { timeout: 20_000, intervals: [250, 500, 1000] }).toBe(true);
+        const run = (await loadRuns(operatorContext)).find((item) => item.jobId === cancelJobId);
+        return run?.status ?? "missing";
+      }, { timeout: 20_000, intervals: [250, 500, 1000] }).toMatch(/^(queued|running)$/);
 
       await operatorPage.goto("/operations");
-      const cancelRow = operationRow(operatorPage, cancelTitle, cancelJobId, operatorUsername);
+      const cancelRow = operationRow(operatorPage, cancelTitle, cancelJobId);
       await expect(cancelRow).toBeVisible();
       await cancelRow.click();
       const cancelModal = operatorPage.locator(".run-details-modal");
@@ -156,15 +171,14 @@ test("XYOps dangerous workflows support approval, cancellation and result render
       await approveAsAdmin(page, resultTitle, resultScenario);
       await executeAsRequester(operatorPage, resultTitle, resultScenario);
 
-      let resultJobId = "";
+      const resultJobId = await currentJobId(operatorContext, "e2e-lifecycle-result", resultScenario);
       await expect.poll(async () => {
-        const run = (await loadRuns(operatorContext)).find((item) => item.eventId === "e2e-lifecycle-result" && item.actor.includes(operatorUsername));
-        resultJobId = String(run?.jobId || "");
+        const run = (await loadRuns(operatorContext)).find((item) => item.jobId === resultJobId);
         return { status: run?.status ?? "missing", result: run?.result?.available === true };
       }, { timeout: 30_000, intervals: [250, 500, 1000] }).toEqual({ status: "success", result: true });
 
       await operatorPage.goto("/operations");
-      const resultRow = operationRow(operatorPage, resultTitle, resultJobId, operatorUsername);
+      const resultRow = operationRow(operatorPage, resultTitle, resultJobId);
       await expect(resultRow).toBeVisible();
       await expect(resultRow).toContainText("Успешно");
       await resultRow.click();

@@ -12,8 +12,10 @@ import "./freeipa-user-browser.css";
 import "./freeipa-user-bulk.css";
 import "./freeipa-group-member-browser.css";
 import "./operation-explorer.css";
+import "./local-admin-session.css";
 import LocalAuthToolbar from "./LocalAuthToolbar";
 import LocalAdministrationContext from "./LocalAdministrationContext";
+import LocalAdminSessionBridge from "./LocalAdminSessionBridge";
 import PortalInteractionLayer from "./PortalInteractionLayer";
 import FreeIpaUserBrowser from "./FreeIpaUserBrowser";
 import FreeIpaGroupMemberBrowser from "./FreeIpaGroupMemberBrowser";
@@ -41,6 +43,12 @@ export const metadata: Metadata = {
   },
 };
 
+const localAdminBootstrap = `try {
+  if (window.location.pathname === "/settings" && !window.sessionStorage.getItem("xyops-admin-token")) {
+    window.sessionStorage.setItem("xyops-admin-token", "__local_admin_session__");
+  }
+} catch {}`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -49,12 +57,14 @@ export default function RootLayout({
   return (
     <html lang="ru">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        <script id="local-admin-session-bootstrap" dangerouslySetInnerHTML={{ __html: localAdminBootstrap }} />
         <PortalInteractionLayer />
         {children}
         <FreeIpaUserBrowser />
         <FreeIpaGroupMemberBrowser />
         <OperationExplorer />
         <LocalAdministrationContext />
+        <LocalAdminSessionBridge />
         <LocalAuthToolbar />
       </body>
     </html>

@@ -38,7 +38,7 @@ test("settings UI uses a non-secret session marker and hides token fields for lo
   assert.equal(layout.includes("__local_admin_session__"), true);
   assert.equal(layout.includes("<LocalAdminSessionBridge />"), true);
   assert.equal(bridge.includes('fetch("/api/auth/session"'), true);
-  assert.equal(bridge.includes('data.portalAdminAuthorization = "session"'), true);
+  assert.equal(bridge.includes('dataset.portalAdminAuthorization = "session"'), true);
   assert.equal(bridge.includes("Повторный ADMIN_TOKEN не требуется"), true);
   assert.equal(styles.includes('html[data-portal-admin-authorization="session"] .settings-access'), true);
   assert.equal(styles.includes(".policy-toolbar > label"), true);

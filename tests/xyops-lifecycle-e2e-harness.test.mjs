@@ -24,7 +24,7 @@ test("XYOps lifecycle E2E harness is isolated and covers approval, cancellation 
   syntaxCheck(specUrl);
 
   assert.match(compose, /xyops-mock:/);
-  assert.match(compose, /http:\/\/127\.0\.0\.1:3902\/health/);
+  assert.match(compose, /\$\$\{XYOPS_URL\}\/health/);
   assert.match(compose, /xyops-mock:\s*\n\s*condition: service_healthy/);
   assert.match(env, /^XYOPS_URL=http:\/\/127\.0\.0\.1:3902$/m);
   assert.match(env, /^XYOPS_API_KEY=e2e-xyops-api-key$/m);
@@ -34,7 +34,15 @@ test("XYOps lifecycle E2E harness is isolated and covers approval, cancellation 
   }
   assert.match(mock, /Lifecycle completed through XYOps mock/);
   assert.match(mock, /status: "cancelled"/);
+  assert.match(mock, /maxBodyBytes = 64 \* 1024/);
+  assert.match(mock, /Request body is too large/);
+  assert.match(mock, /XYOPS_MOCK_API_KEY is required/);
 
+  assert.match(spec, /process\.env\.XYOPS_URL/);
+  assert.match(spec, /127\.0\.0\.1/);
+  assert.doesNotMatch(spec, /127\.0\.0\.1:3902/);
+  assert.match(spec, /Runs API failed/);
+  assert.match(spec, /XYOps mock reset failed/);
   assert.match(spec, /role: "operator"/);
   assert.match(spec, /Одобрить/);
   assert.match(spec, /Выполнить в XYOps/);

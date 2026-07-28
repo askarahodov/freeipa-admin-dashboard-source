@@ -163,8 +163,9 @@ const server = http.createServer(async (request, response) => {
       if (!event) return json(response, 404, { code: 404, error: "Event not found" });
 
       sequence += 1;
-      const id = `job_${eventId.endsWith("cancel") ? "cancel" : "result"}_${sequence}`;
       const now = Date.now();
+      const kind = eventId.endsWith("cancel") ? "cancel" : "result";
+      const id = `job_${kind}_${now.toString(36)}_${sequence}`;
       const job = {
         id,
         eventId,

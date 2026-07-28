@@ -18,37 +18,40 @@ export default function LocalAdminSessionBridge() {
 
   useEffect(() => {
     if (pathname !== "/settings") return;
-    const target = document.querySelector<HTMLElement>(".settings-page");
-    if (!target) return;
-
-    const node = document.createElement("div");
-    node.id = "local-admin-session-bridge";
-    target.prepend(node);
-    setMount(node);
-
     let active = true;
-    fetch("/api/auth/session", { cache: "no-store" })
-      .then(async (response) => ({ response, data: await response.json().catch(() => ({})) as SessionPayload }))
-      .then(({ response, data }) => {
-        if (!active) return;
-        if (response.ok && data.enabled === true && data.authenticated === true && data.user?.role === "admin") {
-          window.sessionStorage.setItem("xyops-admin-token", LOCAL_ADMIN_SESSION_MARKER);
-          document.documentElement.dataset.portalAdminAuthorization = "session";
-          setSession(data.user);
-          return;
-        }
-        if (window.sessionStorage.getItem("xyops-admin-token") === LOCAL_ADMIN_SESSION_MARKER) {
-          window.sessionStorage.removeItem("xyops-admin-token");
-        }
-      })
-      .catch(() => {});
+    const timer = window.setTimeout(() => {
+      if (!active) return;
+      document.getElementById("local-admin-session-bridge")?.remove();
+      const target = document.querySelector<HTMLElement>(".settings-page");
+      if (!target) return;
+
+      const node = document.createElement("div");
+      node.id = "local-admin-session-bridge";
+      target.prepend(node);
+      setMount(node);
+
+      fetch("/api/auth/session", { cache: "no-store" })
+        .then(async (response) => ({ response, data: await response.json().catch(() => ({})) as SessionPayload }))
+        .then(({ response, data }) => {
+          if (!active) return;
+          if (response.ok && data.enabled === true && data.authenticated === true && data.user?.role === "admin") {
+            window.sessionStorage.setItem("xyops-admin-token", LOCAL_ADMIN_SESSION_MARKER);
+            document.documentElement.dataset.portalAdminAuthorization = "session";
+            setSession(data.user);
+            return;
+          }
+          if (window.sessionStorage.getItem("xyops-admin-token") === LOCAL_ADMIN_SESSION_MARKER) {
+            window.sessionStorage.removeItem("xyops-admin-token");
+          }
+        })
+        .catch(() => {});
+    }, 0);
 
     return () => {
       active = false;
+      window.clearTimeout(timer);
       delete document.documentElement.dataset.portalAdminAuthorization;
-      node.remove();
-      setMount(null);
-      setSession(null);
+      document.getElementById("local-admin-session-bridge")?.remove();
     };
   }, [pathname]);
 

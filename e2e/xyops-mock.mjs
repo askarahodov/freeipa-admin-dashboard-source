@@ -1,7 +1,16 @@
 import http from "node:http";
 
 const port = Number(process.env.XYOPS_MOCK_PORT || 3902);
-const apiKey = String(process.env.XYOPS_MOCK_API_KEY || "e2e-xyops-api-key");
+const apiKey = String(process.env.XYOPS_MOCK_API_KEY || "").trim();
+const maxBodyBytes = 64 * 1024;
+
+if (!Number.isInteger(port) || port < 1 || port > 65_535) {
+  throw new Error("XYOPS_MOCK_PORT must be an integer between 1 and 65535");
+}
+if (!apiKey) {
+  throw new Error("XYOPS_MOCK_API_KEY is required");
+}
+
 const jobs = new Map();
 let sequence = 0;
 
@@ -58,11 +67,32 @@ function json(response, status, body) {
   response.end(payload);
 }
 
+function requestError(statusCode, message) {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
+}
+
 async function readJson(request) {
+  const declaredLength = Number(request.headers["content-length"] || 0);
+  if (Number.isFinite(declaredLength) && declaredLength > maxBodyBytes) {
+    throw requestError(413, "Request body is too large");
+  }
+
   const chunks = [];
-  for await (const chunk of request) chunks.push(chunk);
+  let received = 0;
+  for await (const chunk of request) {
+    received += chunk.length;
+    if (received > maxBodyBytes) throw requestError(413, "Request body is too large");
+    chunks.push(chunk);
+  }
   if (!chunks.length) return {};
-  return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  } catch {
+    throw requestError(400, "Request body must contain valid JSON");
+  }
 }
 
 function authorized(request) {
@@ -226,7 +256,11 @@ const server = http.createServer(async (request, response) => {
 
     return json(response, 404, { code: 404, error: "Not found" });
   } catch (error) {
-    return json(response, 500, { code: 500, error: error instanceof Error ? error.message : "XYOps mock failure" });
+    const statusCode = Number(error?.statusCode) || 500;
+    return json(response, statusCode, {
+      code: statusCode,
+      error: error instanceof Error ? error.message : "XYOps mock failure",
+    });
   }
 });
 

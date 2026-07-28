@@ -3,9 +3,27 @@ import { expect, test } from "@playwright/test";
 const baseURL = String(process.env.E2E_BASE_URL || "http://127.0.0.1:3001").replace(/\/+$/, "");
 const adminUsername = String(process.env.E2E_ADMIN_USERNAME || "").trim();
 const adminPassword = String(process.env.E2E_ADMIN_PASSWORD || "");
+const xyopsMockBaseURL = (() => {
+  const raw = String(process.env.XYOPS_URL || "").trim();
+  if (!raw) throw new Error("XYOPS_URL is required for the XYOps lifecycle E2E scenario");
+  const url = new URL(raw);
+  if (url.protocol !== "http:" || url.hostname !== "127.0.0.1" || url.username || url.password) {
+    throw new Error("XYOPS_URL must point to the isolated HTTP mock on 127.0.0.1");
+  }
+  return url.href.replace(/\/+$/, "");
+})();
 
 if (!adminUsername || !adminPassword) {
   throw new Error("E2E_ADMIN_USERNAME and E2E_ADMIN_PASSWORD are required");
+}
+
+function mockUrl(path) {
+  return `${xyopsMockBaseURL}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+async function responseFailure(response, label) {
+  const body = await response.text().catch(() => "");
+  return new Error(`${label}: HTTP ${response.status()}${body ? ` · ${body.slice(0, 500)}` : ""}`);
 }
 
 async function login(page, username, password, next = "/") {
@@ -20,7 +38,7 @@ async function loginContext(context, page, username, password, next = "/") {
   const response = await context.request.post("/api/auth/login", {
     data: { username, password },
   });
-  expect(response.status()).toBe(200);
+  if (!response.ok()) throw await responseFailure(response, "Operator login failed");
   const payload = await response.json();
   expect(payload.authenticated).toBe(true);
   expect(payload.user?.username).toBe(username);
@@ -45,8 +63,9 @@ async function createPortalUser(page, username, password) {
       role: "operator",
     },
   });
-  expect(response.status()).toBe(201);
+  if (!response.ok()) throw await responseFailure(response, "Operator creation failed");
   const payload = await response.json();
+  expect(response.status()).toBe(201);
   expect(payload.user?.id).toBeTruthy();
   expect(payload.user?.username).toBe(username);
   return payload.user;
@@ -54,16 +73,23 @@ async function createPortalUser(page, username, password) {
 
 async function loadRuns(context) {
   const response = await context.request.get("/api/integrations/runs?limit=100&sync=1");
-  if (!response.ok()) return [];
+  if (!response.ok()) throw await responseFailure(response, "Runs API failed");
   const payload = await response.json();
-  return Array.isArray(payload.runs) ? payload.runs : [];
+  if (!Array.isArray(payload.runs)) throw new Error("Runs API response does not contain a runs array");
+  return payload.runs;
 }
 
 async function loadMockJobs(context) {
-  const response = await context.request.get("http://127.0.0.1:3902/__mock/state");
-  if (!response.ok()) return [];
+  const response = await context.request.get(mockUrl("/__mock/state"));
+  if (!response.ok()) throw await responseFailure(response, "XYOps mock state request failed");
   const payload = await response.json();
-  return Array.isArray(payload.jobs) ? payload.jobs : [];
+  if (!Array.isArray(payload.jobs)) throw new Error("XYOps mock state does not contain a jobs array");
+  return payload.jobs;
+}
+
+async function resetMock(requestOwner) {
+  const response = await requestOwner.request.post(mockUrl("/__mock/reset"));
+  if (!response.ok()) throw await responseFailure(response, "XYOps mock reset failed");
 }
 
 async function launchDangerousWorkflow(page, title, scenario) {
@@ -135,7 +161,7 @@ test("XYOps dangerous workflows support approval, cancellation and result render
   let operatorUser = null;
 
   await login(page, adminUsername, adminPassword);
-  await page.request.post("http://127.0.0.1:3902/__mock/reset").catch(() => {});
+  await resetMock(page);
 
   try {
     operatorUser = await createPortalUser(page, operatorUsername, operatorPassword);
@@ -197,6 +223,6 @@ test("XYOps dangerous workflows support approval, cancellation and result render
     if (operatorUser?.id) {
       await page.request.delete(`/api/auth/users/${encodeURIComponent(operatorUser.id)}`).catch(() => {});
     }
-    await page.request.post("http://127.0.0.1:3902/__mock/reset").catch(() => {});
+    await resetMock(page).catch(() => {});
   }
 });

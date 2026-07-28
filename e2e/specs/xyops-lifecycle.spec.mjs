@@ -16,6 +16,13 @@ async function login(page, username, password, next = "/") {
   await expect(page).toHaveURL(new RegExp(`${next.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`));
 }
 
+async function confirmPortalAction(page, dialogTitle, buttonName) {
+  const dialog = page.getByRole("alertdialog", { name: dialogTitle });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: buttonName, exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+}
+
 async function createPortalUser(page, username, password) {
   const response = await page.request.post("/api/auth/users", {
     data: {
@@ -56,9 +63,8 @@ async function approveAsAdmin(adminPage, title, scenario) {
   await adminPage.goto("/approvals");
   const approval = adminPage.locator(".approval-card").filter({ hasText: title }).filter({ hasText: scenario });
   await expect(approval).toBeVisible();
-  await expect(approval.getByRole("button", { name: "Одобрить" })).toBeVisible();
-  adminPage.once("dialog", (dialog) => void dialog.accept());
-  await approval.getByRole("button", { name: "Одобрить" }).click();
+  await approval.getByRole("button", { name: "Одобрить", exact: true }).click();
+  await confirmPortalAction(adminPage, "Одобрить опасную операцию?", "Одобрить");
   await expect(approval).toContainText("Согласовано");
 }
 
@@ -67,8 +73,8 @@ async function executeAsRequester(operatorPage, title, scenario) {
   const approval = operatorPage.locator(".approval-card").filter({ hasText: title }).filter({ hasText: scenario });
   await expect(approval).toBeVisible();
   await expect(approval).toContainText("Согласовано");
-  operatorPage.once("dialog", (dialog) => void dialog.accept());
-  await approval.getByRole("button", { name: "Выполнить в XYOps" }).click();
+  await approval.getByRole("button", { name: "Выполнить в XYOps", exact: true }).click();
+  await confirmPortalAction(operatorPage, "Выполнить согласованную операцию?", "Выполнить в XYOps");
   await expect(operatorPage).toHaveURL(/\/operations$/);
 }
 
@@ -109,9 +115,8 @@ test("XYOps dangerous workflows support approval, cancellation and result render
       await cancelRow.click();
       const cancelModal = operatorPage.locator(".run-details-modal");
       await expect(cancelModal).toBeVisible();
-      await expect(cancelModal.getByRole("button", { name: "Остановить задание" })).toBeVisible();
-      operatorPage.once("dialog", (dialog) => void dialog.accept());
-      await cancelModal.getByRole("button", { name: "Остановить задание" }).click();
+      await cancelModal.getByRole("button", { name: "Остановить задание", exact: true }).click();
+      await confirmPortalAction(operatorPage, "Остановить активное задание?", "Остановить задание");
       await expect(cancelModal).toHaveCount(0);
       await expect(cancelRow).toContainText("Остановлено");
 

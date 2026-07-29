@@ -35,10 +35,10 @@ test("local session mutations require same-origin while service token access sta
   assert.equal(runtime.includes("service-admin@portal.local"), true);
   assert.equal(viteConfig.includes('main: "./worker/service-admin-root-entry.ts"'), true);
   assert.equal(serviceRoot.includes("serviceAdminTokenAuthorized(request, sourceEnv.ADMIN_TOKEN)"), true);
-  assert.equal(serviceRoot.indexOf("serviceAdminTokenAuthorized(request, sourceEnv.ADMIN_TOKEN)"), true ? serviceRoot.indexOf("serviceAdminTokenAuthorized(request, sourceEnv.ADMIN_TOKEN)") : -1);
   assert.equal(serviceRoot.includes('PORTAL_IDENTITY_MODE: "static"'), true);
   assert.equal(serviceRoot.includes('import rootRuntime from "./freeipa-group-member-entry"'), true);
   assert.equal(serviceRoot.includes("resolveLocalSession"), false);
+  assert.equal(serviceRoot.includes("env.DB"), false);
 });
 
 test("settings UI initializes only after the local admin session is verified", () => {

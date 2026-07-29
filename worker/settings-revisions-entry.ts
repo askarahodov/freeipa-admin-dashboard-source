@@ -16,6 +16,15 @@ type ActiveSnapshot = {
   revision: number;
 };
 
+type ApplyCommitRow = {
+  id: string;
+  draft_id: string;
+  revision: number;
+  config_json: string;
+  encrypted_secrets: string;
+  created_at: number;
+};
+
 type RevisionRow = {
   id: string;
   revision: number;
@@ -28,6 +37,8 @@ type RevisionRow = {
   created_at: number;
 };
 
+type ServiceName = "freeipa" | "xyops";
+
 const jsonHeaders = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
 const createRevisionsTable = `CREATE TABLE IF NOT EXISTS portal_settings_revisions (
   id TEXT PRIMARY KEY NOT NULL,
@@ -39,6 +50,14 @@ const createRevisionsTable = `CREATE TABLE IF NOT EXISTS portal_settings_revisio
   reason TEXT NOT NULL,
   status TEXT NOT NULL,
   health_json TEXT NOT NULL DEFAULT '[]',
+  created_at INTEGER NOT NULL
+)`;
+const createApplyCommitsTable = `CREATE TABLE IF NOT EXISTS portal_settings_apply_commits (
+  id TEXT PRIMARY KEY NOT NULL,
+  draft_id TEXT NOT NULL,
+  revision INTEGER NOT NULL,
+  config_json TEXT NOT NULL,
+  encrypted_secrets TEXT NOT NULL,
   created_at INTEGER NOT NULL
 )`;
 
@@ -69,26 +88,47 @@ async function secretsMatch(provided: string | null, expected: string | undefine
   return difference === 0;
 }
 
-async function adminIdentity(request: Request, env: RuntimeEnv): Promise<string | null> {
+async function delegatedStatus(request: Request, env: RuntimeEnv, ctx: RuntimeContext): Promise<{ identity: string; permissions: string[] } | null> {
+  const url = new URL(request.url);
+  url.pathname = "/api/integrations/status";
+  url.search = "";
+  const response = await localRuntime.fetch(new Request(url, { method: "GET", headers: request.headers }), env, ctx);
+  const payload = await response.json().catch(() => ({})) as { access?: { identity?: string; permissions?: unknown[] } };
+  if (!response.ok) return null;
+  return {
+    identity: String(payload.access?.identity ?? "portal-user").slice(0, 160),
+    permissions: Array.isArray(payload.access?.permissions) ? payload.access!.permissions.map(String) : [],
+  };
+}
+
+async function adminIdentity(request: Request, env: RuntimeEnv, ctx: RuntimeContext): Promise<string | null> {
+  const tokenAuthorized = await secretsMatch(request.headers.get("x-admin-token"), env.ADMIN_TOKEN);
   if (localMode(env)) {
     const session = await resolveLocalSession(env, request);
     if (session?.role === "admin") return session.identity;
-    if (await secretsMatch(request.headers.get("x-admin-token"), env.ADMIN_TOKEN)) return "service-admin@portal.local";
-    return null;
+    return tokenAuthorized ? "service-admin@portal.local" : null;
   }
-  return await secretsMatch(request.headers.get("x-admin-token"), env.ADMIN_TOKEN)
-    ? "service-admin@portal.local"
-    : null;
+  if (!tokenAuthorized) return null;
+  const access = await delegatedStatus(request, env, ctx);
+  return access?.permissions.includes("settings.manage") ? access.identity : null;
 }
 
 function audit(identity: string) {
   return createAuditContext({ identity, role: "admin", groups: [] });
 }
 
+function resultChanges(result: unknown): number {
+  if (!result || typeof result !== "object") return 0;
+  const value = result as { meta?: { changes?: number }; changes?: number };
+  return Number(value.meta?.changes ?? value.changes ?? 0);
+}
+
 async function ensureRevisionTable(env: RuntimeEnv): Promise<void> {
   if (!env.DB) throw new Error("Persistent database is unavailable");
   await env.DB.prepare(createRevisionsTable).run();
+  await env.DB.prepare(createApplyCommitsTable).run();
   await env.DB.prepare("CREATE INDEX IF NOT EXISTS portal_settings_revisions_created_idx ON portal_settings_revisions(created_at DESC)").run();
+  await env.DB.prepare("DELETE FROM portal_settings_apply_commits WHERE created_at < ?").bind(Date.now() - 60 * 60 * 1000).run();
 }
 
 async function activeSnapshot(env: RuntimeEnv): Promise<ActiveSnapshot | null> {
@@ -106,6 +146,15 @@ async function activeSnapshot(env: RuntimeEnv): Promise<ActiveSnapshot | null> {
   } catch {
     return null;
   }
+}
+
+async function consumeApplyCommit(env: RuntimeEnv, commitId: string, draftId: string, revision: number): Promise<ActiveSnapshot | null> {
+  await ensureRevisionTable(env);
+  const row = await env.DB!.prepare("SELECT id, draft_id, revision, config_json, encrypted_secrets, created_at FROM portal_settings_apply_commits WHERE id = ? AND draft_id = ? AND revision = ?")
+    .bind(commitId, draftId, revision).first<ApplyCommitRow>();
+  if (!row) return null;
+  await env.DB!.prepare("DELETE FROM portal_settings_apply_commits WHERE id = ?").bind(row.id).run();
+  return { configJson: row.config_json, encryptedSecrets: row.encrypted_secrets, revision: Number(row.revision) };
 }
 
 async function recordRevision(
@@ -164,9 +213,9 @@ function publicRevision(row: RevisionRow) {
   };
 }
 
-async function handleRevisionApi(request: Request, env: RuntimeEnv, url: URL): Promise<Response> {
+async function handleRevisionApi(request: Request, env: RuntimeEnv, ctx: RuntimeContext, url: URL): Promise<Response> {
   if (!env.DB) return json({ error: "Persistent database is unavailable" }, 503);
-  const identity = await adminIdentity(request, env);
+  const identity = await adminIdentity(request, env, ctx);
   if (!identity) return json({ error: "Administrator authorization required" }, 401);
   await ensureRevisionTable(env);
 
@@ -197,13 +246,61 @@ async function responsePayload(response: Response): Promise<Record<string, unkno
   return payload && typeof payload === "object" && !Array.isArray(payload) ? payload as Record<string, unknown> : {};
 }
 
-async function restoreSnapshot(env: RuntimeEnv, snapshot: ActiveSnapshot, nextRevision: number): Promise<ActiveSnapshot> {
-  await env.DB!.prepare(`INSERT INTO app_settings (id, config_json, encrypted_secrets, updated_at)
-    VALUES (?, ?, ?, ?)
-    ON CONFLICT(id) DO UPDATE SET config_json = excluded.config_json, encrypted_secrets = excluded.encrypted_secrets, updated_at = excluded.updated_at`)
-    .bind("main", snapshot.configJson, snapshot.encryptedSecrets, nextRevision)
+async function healthCheck(request: Request, env: RuntimeEnv, ctx: RuntimeContext, services: ServiceName[]): Promise<Array<{ service: string; ok: boolean; latencyMs?: number; error?: string }>> {
+  const health: Array<{ service: string; ok: boolean; latencyMs?: number; error?: string }> = [];
+  for (const service of services) {
+    const url = new URL(request.url);
+    url.pathname = "/api/integrations/settings/test";
+    url.search = "";
+    const headers = new Headers(request.headers);
+    headers.delete("content-length");
+    headers.set("content-type", "application/json");
+    const check = await localRuntime.fetch(new Request(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ service }),
+    }), env, ctx);
+    const payload = await check.json().catch(() => ({})) as { latencyMs?: number; error?: string };
+    health.push(check.ok
+      ? { service, ok: true, latencyMs: Number(payload.latencyMs ?? 0) }
+      : { service, ok: false, error: String(payload.error ?? `HTTP ${check.status}`).slice(0, 500) });
+  }
+  return health;
+}
+
+async function rollbackSnapshotCas(env: RuntimeEnv, before: ActiveSnapshot | null, appliedRevision: number): Promise<{ ok: boolean; revision: number; source: "database" | "environment" }> {
+  if (!env.DB) return { ok: false, revision: 0, source: "environment" };
+  if (!before) {
+    const deleted = await env.DB.prepare("DELETE FROM app_settings WHERE id = ? AND updated_at = ?").bind("main", appliedRevision).run();
+    return { ok: resultChanges(deleted) === 1, revision: 0, source: "environment" };
+  }
+  const rollbackRevision = Math.max(Date.now(), appliedRevision + 1);
+  const restored = await env.DB.prepare("UPDATE app_settings SET config_json = ?, encrypted_secrets = ?, updated_at = ? WHERE id = ? AND updated_at = ?")
+    .bind(before.configJson, before.encryptedSecrets, rollbackRevision, "main", appliedRevision).run();
+  return { ok: resultChanges(restored) === 1, revision: rollbackRevision, source: "database" };
+}
+
+async function rollbackConflict(env: RuntimeEnv, identity: string, draftId: string, attemptedRevision: number, health: unknown[]): Promise<Response> {
+  const current = await activeSnapshot(env);
+  await env.DB!.prepare("UPDATE portal_settings_drafts SET status = ?, updated_at = ? WHERE id = ?")
+    .bind("rollback_conflict", Date.now(), draftId)
     .run();
-  return { ...snapshot, revision: nextRevision };
+  await appendAuditEvent(env, audit(identity), {
+    action: "settings.draft.rollback_conflict",
+    resourceType: "portal_settings_draft",
+    resourceId: draftId,
+    outcome: "failure",
+    metadata: { attemptedRevision, currentRevision: current?.revision ?? 0 },
+  }).catch(() => {});
+  return json({
+    ok: false,
+    rolledBack: false,
+    code: "settings_rollback_conflict",
+    error: "Автоматический откат остановлен: активная конфигурация уже была изменена другой операцией",
+    attemptedRevision,
+    currentRevision: current?.revision ?? 0,
+    health,
+  }, 409);
 }
 
 async function applyWithRollback(request: Request, env: RuntimeEnv, ctx: RuntimeContext, draftId: string): Promise<Response> {
@@ -212,7 +309,7 @@ async function applyWithRollback(request: Request, env: RuntimeEnv, ctx: Runtime
   const before = await activeSnapshot(env);
   const response = await localRuntime.fetch(request, env, ctx);
   const payload = await responsePayload(response);
-  const identity = await adminIdentity(request, env) || "service-admin@portal.local";
+  const identity = await adminIdentity(request, env, ctx) || "service-admin@portal.local";
   if (!response.ok) {
     await appendAuditEvent(env, audit(identity), {
       action: "settings.draft.apply_failed",
@@ -224,19 +321,24 @@ async function applyWithRollback(request: Request, env: RuntimeEnv, ctx: Runtime
     return response;
   }
 
+  const revision = Number(payload.revision ?? 0);
+  const commitId = String(payload.applyCommitId ?? "");
+  const after = revision > 0 && commitId ? await consumeApplyCommit(env, commitId, draftId, revision) : null;
+  if (!after) return rollbackConflict(env, identity, draftId, revision, []);
+
   if (before) await recordRevision(env, before, { draftId, createdBy: identity, reason: "pre_apply", status: "superseded" });
-  const after = await activeSnapshot(env);
-  const health = Array.isArray(payload.health) ? payload.health as Array<Record<string, unknown>> : [];
+  const services = Array.isArray(payload.services)
+    ? payload.services.map(String).filter((item): item is ServiceName => item === "freeipa" || item === "xyops")
+    : [];
+  const health = await healthCheck(request, env, ctx, services);
   const failures = health.filter((item) => item.ok === false);
-  if (after) {
-    await recordRevision(env, after, {
-      draftId,
-      createdBy: identity,
-      reason: failures.length ? "apply_health_failed" : "apply",
-      status: failures.length ? "failed" : "active",
-      health,
-    });
-  }
+  await recordRevision(env, after, {
+    draftId,
+    createdBy: identity,
+    reason: failures.length ? "apply_health_failed" : "apply",
+    status: failures.length ? "failed" : "active",
+    health,
+  });
 
   if (!failures.length) {
     await appendAuditEvent(env, audit(identity), {
@@ -244,49 +346,21 @@ async function applyWithRollback(request: Request, env: RuntimeEnv, ctx: Runtime
       resourceType: "portal_settings_draft",
       resourceId: draftId,
       outcome: "success",
-      metadata: { revision: after?.revision ?? Number(payload.revision ?? 0), healthChecks: health.length },
+      metadata: { revision: after.revision, healthChecks: health.length },
     }).catch(() => {});
-    return response;
+    return json({ ok: true, settings: payload.settings ?? null, revision: after.revision, health });
   }
 
-  const currentAfterHealth = await activeSnapshot(env);
-  if (after && currentAfterHealth?.revision !== after.revision) {
-    await env.DB.prepare("UPDATE portal_settings_drafts SET status = ?, updated_at = ? WHERE id = ?")
-      .bind("rollback_conflict", Date.now(), draftId)
-      .run();
-    await appendAuditEvent(env, audit(identity), {
-      action: "settings.draft.rollback_conflict",
-      resourceType: "portal_settings_draft",
-      resourceId: draftId,
-      outcome: "failure",
-      metadata: { attemptedRevision: after.revision, currentRevision: currentAfterHealth?.revision ?? 0 },
-    }).catch(() => {});
-    return json({
-      ok: false,
-      rolledBack: false,
-      code: "settings_rollback_conflict",
-      error: "Автоматический откат остановлен: активная конфигурация уже была изменена другой операцией",
-      attemptedRevision: after.revision,
-      currentRevision: currentAfterHealth?.revision ?? 0,
-      health,
-    }, 409);
-  }
-
-  let rollbackRevision = 0;
-  let restoredSource: "database" | "environment" = "environment";
+  const restored = await rollbackSnapshotCas(env, before, after.revision);
+  if (!restored.ok) return rollbackConflict(env, identity, draftId, after.revision, health);
   if (before) {
-    rollbackRevision = Math.max(Date.now(), Number(after?.revision ?? 0) + 1);
-    const restored = await restoreSnapshot(env, before, rollbackRevision);
-    restoredSource = "database";
-    await recordRevision(env, restored, {
+    await recordRevision(env, { ...before, revision: restored.revision }, {
       draftId,
       createdBy: identity,
       reason: "automatic_rollback",
       status: "active",
       health,
     });
-  } else {
-    await env.DB.prepare("DELETE FROM app_settings WHERE id = ?").bind("main").run();
   }
   await env.DB.prepare("UPDATE portal_settings_drafts SET status = ?, updated_at = ? WHERE id = ?")
     .bind("rolled_back", Date.now(), draftId)
@@ -296,7 +370,7 @@ async function applyWithRollback(request: Request, env: RuntimeEnv, ctx: Runtime
     resourceType: "portal_settings_draft",
     resourceId: draftId,
     outcome: "failure",
-    metadata: { failedServices: failures.map((item) => String(item.service ?? "unknown")), rollbackRevision, restoredSource },
+    metadata: { failedServices: failures.map((item) => String(item.service ?? "unknown")), rollbackRevision: restored.revision, restoredSource: restored.source },
   }).catch(() => {});
 
   return json({
@@ -304,25 +378,28 @@ async function applyWithRollback(request: Request, env: RuntimeEnv, ctx: Runtime
     rolledBack: true,
     code: "settings_post_apply_health_failed",
     error: "Новая конфигурация не прошла post-apply проверку и была автоматически отменена",
-    attemptedRevision: after?.revision ?? Number(payload.revision ?? 0),
-    revision: rollbackRevision,
-    restoredSource,
+    attemptedRevision: after.revision,
+    revision: restored.revision,
+    restoredSource: restored.source,
     health,
   }, 502);
 }
 
-async function auditLifecyclePayload(request: Request, env: RuntimeEnv, payload: Record<string, unknown>, responseStatus: number, pathname: string): Promise<void> {
+async function auditLifecyclePayload(request: Request, env: RuntimeEnv, ctx: RuntimeContext, payload: Record<string, unknown>, responseStatus: number, pathname: string): Promise<void> {
   if (request.method !== "POST") return;
-  const identity = await adminIdentity(request, env);
+  const identity = await adminIdentity(request, env, ctx);
   if (!identity) return;
   const draft = payload.draft && typeof payload.draft === "object" ? payload.draft as Record<string, unknown> : {};
-  const draftId = String(draft.id ?? pathname.split("/").at(-2) ?? "unknown").slice(0, 100);
+  const segments = pathname.split("/");
+  const draftId = String(draft.id ?? segments.at(-2) ?? segments.at(-1) ?? "unknown").slice(0, 100);
   const ok = responseStatus >= 200 && responseStatus < 300;
   const action = pathname === "/api/integrations/settings/drafts"
     ? "settings.draft.created"
     : pathname.endsWith("/validate")
       ? ok ? "settings.draft.validated" : responseStatus === 409 ? "settings.draft.conflict" : "settings.draft.validation_failed"
-      : "settings.draft.updated";
+      : pathname.endsWith("/cancel")
+        ? ok ? "settings.draft.cancelled" : "settings.draft.cancel_failed"
+        : "settings.draft.updated";
   await appendAuditEvent(env, audit(identity), {
     action,
     resourceType: "portal_settings_draft",
@@ -336,7 +413,7 @@ const worker = {
   async fetch(request: Request, env: RuntimeEnv | undefined, ctx: RuntimeContext): Promise<Response> {
     const sourceEnv = env ?? (process.env as unknown as RuntimeEnv);
     const url = new URL(request.url);
-    if (isRevisionPath(url.pathname)) return handleRevisionApi(request, sourceEnv, url);
+    if (isRevisionPath(url.pathname)) return handleRevisionApi(request, sourceEnv, ctx, url);
 
     const applyMatch = url.pathname.match(/^\/api\/integrations\/settings\/drafts\/([A-Za-z0-9-]{1,80})\/apply$/);
     if (request.method === "POST" && applyMatch) return applyWithRollback(request, sourceEnv, ctx, applyMatch[1]);
@@ -344,7 +421,7 @@ const worker = {
     const response = await localRuntime.fetch(request, sourceEnv, ctx);
     if (url.pathname === "/api/integrations/settings/drafts" || url.pathname.includes("/api/integrations/settings/drafts/")) {
       const payload = await responsePayload(response);
-      ctx.waitUntil(auditLifecyclePayload(request, sourceEnv, payload, response.status, url.pathname));
+      ctx.waitUntil(auditLifecyclePayload(request, sourceEnv, ctx, payload, response.status, url.pathname));
     }
     return response;
   },

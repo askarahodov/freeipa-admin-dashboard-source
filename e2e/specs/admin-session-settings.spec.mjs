@@ -12,7 +12,7 @@ async function login(page) {
   await page.getByLabel("Логин").fill(adminUsername);
   await page.getByLabel("Пароль").fill(adminPassword);
   await page.getByRole("button", { name: "Войти" }).click();
-  await expect(page).toHaveURL(/\/settings(?:\?|$)/);
+  await expect.poll(() => new URL(page.url()).pathname).toBe("/settings");
 }
 
 test("local admin manages settings without a browser ADMIN_TOKEN", async ({ page }) => {

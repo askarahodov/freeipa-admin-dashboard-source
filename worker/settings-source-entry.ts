@@ -41,6 +41,11 @@ const createDraftResetTable = `CREATE TABLE IF NOT EXISTS portal_settings_draft_
   reset_fields_json TEXT NOT NULL,
   created_at INTEGER NOT NULL
 )`;
+const createSourceMutationLockTable = `CREATE TABLE IF NOT EXISTS portal_settings_source_lock (
+  id TEXT PRIMARY KEY NOT NULL,
+  owner TEXT NOT NULL,
+  acquired_at INTEGER NOT NULL
+)`;
 
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status, headers: jsonHeaders });
@@ -158,6 +163,32 @@ async function ensureTables(env: RuntimeEnv): Promise<void> {
   if (!env.DB) return;
   await env.DB.prepare(createSettingsTable).run();
   await env.DB.prepare(createDraftResetTable).run();
+  await env.DB.prepare(createSourceMutationLockTable).run();
+}
+
+async function acquireSourceMutationLock(env: RuntimeEnv): Promise<string | null> {
+  if (!env.DB) return "no-database";
+  await ensureTables(env);
+  const now = Date.now();
+  await env.DB.prepare("DELETE FROM portal_settings_source_lock WHERE id = ? AND acquired_at < ?")
+    .bind("main", now - 60_000).run();
+  const owner = crypto.randomUUID();
+  const inserted = await env.DB.prepare("INSERT OR IGNORE INTO portal_settings_source_lock (id, owner, acquired_at) VALUES (?, ?, ?)")
+    .bind("main", owner, now).run();
+  return resultChanges(inserted) === 1 ? owner : null;
+}
+
+async function releaseSourceMutationLock(env: RuntimeEnv, owner: string): Promise<void> {
+  if (!env.DB || owner === "no-database") return;
+  await env.DB.prepare("DELETE FROM portal_settings_source_lock WHERE id = ? AND owner = ?")
+    .bind("main", owner).run();
+}
+
+async function withSourceMutationLock(env: RuntimeEnv, operation: () => Promise<Response>): Promise<Response> {
+  const owner = await acquireSourceMutationLock(env);
+  if (!owner) return json({ error: "Другая операция уже изменяет источники настроек", code: "settings_source_busy" }, 409);
+  try { return await operation(); }
+  finally { await releaseSourceMutationLock(env, owner); }
 }
 
 async function activeRow(env: RuntimeEnv): Promise<ActiveRow | null> {
@@ -215,7 +246,7 @@ async function delegate(request: Request, env: RuntimeEnv, ctx: RuntimeContext, 
   return lifecycleRuntime.fetch(new Request(request.url, { method: request.method, headers, body: JSON.stringify(body) }), env, ctx);
 }
 
-async function synchronizeInheritedSettings(env: RuntimeEnv): Promise<void> {
+async function synchronizeInheritedSettingsUnlocked(env: RuntimeEnv): Promise<void> {
   if (!env.DB || !env.CONFIG_ENCRYPTION_KEY) return;
   await ensureTables(env);
   const row = await activeRow(env);
@@ -229,8 +260,8 @@ async function synchronizeInheritedSettings(env: RuntimeEnv): Promise<void> {
   for (const field of settingFields) {
     if (overrides.has(field)) continue;
     const value = environmentValue(field, env);
-    if (field === "ipaPassword") nextSecrets.ipaPassword = String(value ?? "");
-    else if (field === "xyopsApiKey") nextSecrets.xyopsApiKey = String(value ?? "");
+    if (field === "ipaPassword") nextSecrets.ipaPassword = configuredEnv(value) ? String(value) : "";
+    else if (field === "xyopsApiKey") nextSecrets.xyopsApiKey = configuredEnv(value) ? String(value) : "";
     else nextConfig[field] = value;
   }
 
@@ -241,6 +272,14 @@ async function synchronizeInheritedSettings(env: RuntimeEnv): Promise<void> {
   const revision = Math.max(Date.now(), row.revision + 1);
   await env.DB.prepare("UPDATE app_settings SET config_json = ?, encrypted_secrets = ?, updated_at = ? WHERE id = ? AND updated_at = ?")
     .bind(configJson, encryptedSecrets, revision, "main", row.revision).run();
+}
+
+async function trySynchronizeInheritedSettings(env: RuntimeEnv): Promise<void> {
+  if (!env.DB) return;
+  const owner = await acquireSourceMutationLock(env);
+  if (!owner) return;
+  try { await synchronizeInheritedSettingsUnlocked(env); }
+  finally { await releaseSourceMutationLock(env, owner); }
 }
 
 function parseResetFields(body: Record<string, unknown>): SettingField[] {
@@ -279,11 +318,11 @@ function transformedDraftBody(body: Record<string, unknown>, resetFields: Settin
     const value = environmentValue(field, env);
     if (field === "ipaPassword") {
       delete changes.clearIpaPassword;
-      if (value) changes.ipaPassword = value;
+      if (configuredEnv(value)) changes.ipaPassword = String(value);
       else { delete changes.ipaPassword; changes.clearIpaPassword = true; }
     } else if (field === "xyopsApiKey") {
       delete changes.clearXyopsApiKey;
-      if (value) changes.xyopsApiKey = value;
+      if (configuredEnv(value)) changes.xyopsApiKey = String(value);
       else { delete changes.xyopsApiKey; changes.clearXyopsApiKey = true; }
     } else {
       changes[field] = value;
@@ -435,15 +474,40 @@ async function attachOverridesToAppliedRevision(env: RuntimeEnv, revision: numbe
   return resultChanges(results[0]) === 1 && resultChanges(results[1]) === 1;
 }
 
-async function preserveRouteWriteOverrides(env: RuntimeEnv, before: ActiveRow | null): Promise<boolean> {
-  if (!env.DB) return true;
-  const after = await activeRow(env);
-  if (!after) return false;
-  const overrides = overrideSet(before?.config);
-  const configJson = JSON.stringify({ ...after.config, overrides: settingFields.filter((field) => overrides.has(field)) });
+async function attachOverridesToActiveRevision(env: RuntimeEnv, revision: number, overrides: Set<SettingField>): Promise<boolean> {
+  if (!env.DB) return false;
+  const row = await env.DB.prepare("SELECT config_json FROM app_settings WHERE id = ? AND updated_at = ?")
+    .bind("main", revision).first<{ config_json: string }>();
+  if (!row) return false;
+  const parsed = JSON.parse(row.config_json) as Record<string, unknown>;
+  const configJson = JSON.stringify({ ...parsed, overrides: settingFields.filter((field) => overrides.has(field)) });
   const update = await env.DB.prepare("UPDATE app_settings SET config_json = ? WHERE id = ? AND updated_at = ?")
-    .bind(configJson, "main", after.revision).run();
+    .bind(configJson, "main", revision).run();
   return resultChanges(update) === 1;
+}
+
+async function restoreActiveSnapshotCas(env: RuntimeEnv, before: ActiveRow | null, attemptedRevision: number): Promise<boolean> {
+  if (!env.DB) return false;
+  if (!before) {
+    const removed = await env.DB.prepare("DELETE FROM app_settings WHERE id = ? AND updated_at = ?")
+      .bind("main", attemptedRevision).run();
+    return resultChanges(removed) === 1;
+  }
+  const rollbackRevision = Math.max(Date.now(), attemptedRevision + 1);
+  const restored = await env.DB.prepare("UPDATE app_settings SET config_json = ?, encrypted_secrets = ?, updated_at = ? WHERE id = ? AND updated_at = ?")
+    .bind(before.configJson, before.encryptedSecrets, rollbackRevision, "main", attemptedRevision).run();
+  return resultChanges(restored) === 1;
+}
+
+function directSettingsOverrides(body: Record<string, unknown>, before: ActiveRow | null): Set<SettingField> {
+  const result = overrideSet(before?.config);
+  if (body.demoMode !== undefined) result.add("demoMode");
+  if (body.ipaUrl !== undefined) result.add("ipaUrl");
+  if (body.ipaUsername !== undefined) result.add("ipaUsername");
+  if (body.ipaPassword !== undefined || body.clearIpaPassword !== undefined) result.add("ipaPassword");
+  if (body.xyopsUrl !== undefined) result.add("xyopsUrl");
+  if (body.xyopsApiKey !== undefined || body.clearXyopsApiKey !== undefined) result.add("xyopsApiKey");
+  return result;
 }
 
 function audit(identity: string) {
@@ -459,6 +523,11 @@ function responseWithPayload(payload: Record<string, unknown>, response: Respons
   return json(payload, response.status);
 }
 
+function conflictPayload(payload: Record<string, unknown>): boolean {
+  const draft = payload.draft && typeof payload.draft === "object" && !Array.isArray(payload.draft) ? payload.draft as Record<string, unknown> : {};
+  return payload.code === "settings_revision_conflict" || draft.status === "conflict";
+}
+
 const worker = {
   async fetch(request: Request, env: RuntimeEnv | undefined, ctx: RuntimeContext): Promise<Response> {
     const sourceEnv = env ?? (process.env as unknown as RuntimeEnv);
@@ -466,7 +535,7 @@ const worker = {
     if (url.pathname === "/api/integrations/health") return lifecycleRuntime.fetch(request, sourceEnv, ctx);
     await ensureTables(sourceEnv);
     if (url.pathname.startsWith("/api/integrations/") && url.pathname !== "/api/integrations/settings/test") {
-      await synchronizeInheritedSettings(sourceEnv).catch(() => {});
+      await trySynchronizeInheritedSettings(sourceEnv).catch(() => {});
     }
 
     if (request.method === "GET" && url.pathname === "/api/integrations/settings/effective") {
@@ -476,14 +545,35 @@ const worker = {
       return responseWithPayload(patchEffectivePayload(payload, row, sourceEnv), response);
     }
 
+    if (request.method === "PUT" && url.pathname === "/api/integrations/settings") {
+      let body: Record<string, unknown>;
+      try { body = await request.clone().json() as Record<string, unknown>; }
+      catch { return delegate(request, sourceEnv, ctx); }
+      return withSourceMutationLock(sourceEnv, async () => {
+        const before = await activeRow(sourceEnv);
+        const response = await delegate(request, sourceEnv, ctx);
+        if (!response.ok) return response;
+        const payload = await responsePayload(response);
+        const revision = Number(payload.updatedAt ?? 0);
+        const attached = revision > 0 && await attachOverridesToActiveRevision(sourceEnv, revision, directSettingsOverrides(body, before));
+        if (attached) return response;
+        const rolledBack = revision > 0 && await restoreActiveSnapshotCas(sourceEnv, before, revision);
+        return json({ error: "Не удалось атомарно сохранить metadata источников", code: rolledBack ? "settings_source_commit_failed" : "settings_source_rollback_conflict", rolledBack }, rolledBack ? 500 : 409);
+      });
+    }
+
     if (request.method === "PUT" && url.pathname === "/api/integrations/routes") {
-      const before = await activeRow(sourceEnv);
-      const response = await lifecycleRuntime.fetch(request, sourceEnv, ctx);
-      if (!response.ok) return response;
-      if (!await preserveRouteWriteOverrides(sourceEnv, before)) {
-        return json({ error: "Settings source metadata changed while routes were saved", code: "settings_source_revision_conflict" }, 409);
-      }
-      return response;
+      return withSourceMutationLock(sourceEnv, async () => {
+        const before = await activeRow(sourceEnv);
+        const response = await lifecycleRuntime.fetch(request, sourceEnv, ctx);
+        if (!response.ok) return response;
+        const after = await activeRow(sourceEnv);
+        const revision = Number(after?.revision ?? 0);
+        const attached = revision > 0 && await attachOverridesToActiveRevision(sourceEnv, revision, overrideSet(before?.config));
+        if (attached) return response;
+        const rolledBack = revision > 0 && await restoreActiveSnapshotCas(sourceEnv, before, revision);
+        return json({ error: "Не удалось атомарно сохранить routes и metadata источников", code: rolledBack ? "settings_source_commit_failed" : "settings_source_rollback_conflict", rolledBack }, rolledBack ? 500 : 409);
+      });
     }
 
     if (request.method === "POST" && url.pathname === "/api/integrations/settings/drafts") {
@@ -526,26 +616,21 @@ const worker = {
       const resets = await readResetFields(sourceEnv, draftId);
 
       if (action === "apply" && request.method === "POST") {
-        const [before, row] = await Promise.all([activeRow(sourceEnv), readDraft(sourceEnv, draftId)]);
-        const overrides = row ? await desiredOverrides(sourceEnv, row, before, resets) : overrideSet(before?.config);
-        const response = await delegate(request, sourceEnv, ctx);
-        if (!response.ok) return response;
-        const payload = await responsePayload(response);
-        const revision = Number(payload.revision ?? 0);
-        const commitId = String(payload.applyCommitId ?? "");
-        const attached = revision > 0 && commitId && await attachOverridesToAppliedRevision(sourceEnv, revision, commitId, overrides);
-        if (!attached) return json({ error: "Active settings changed before source metadata was committed", code: "settings_source_revision_conflict", revision }, 409);
-        if (resets.length && row) {
-          await appendAuditEvent(sourceEnv, audit(row.created_by), {
-            action: "settings.override.reset_applied",
-            resourceType: "portal_settings",
-            resourceId: "main",
-            outcome: "success",
-            metadata: { draftId, revision, fields: resets },
-          }).catch(() => {});
-        }
-        await deleteResetFields(sourceEnv, draftId);
-        return responseWithPayload({ ...payload, resetFields: resets }, response);
+        return withSourceMutationLock(sourceEnv, async () => {
+          const [before, row] = await Promise.all([activeRow(sourceEnv), readDraft(sourceEnv, draftId)]);
+          const overrides = row ? await desiredOverrides(sourceEnv, row, before, resets) : overrideSet(before?.config);
+          const response = await delegate(request, sourceEnv, ctx);
+          const payload = await responsePayload(response);
+          if (!response.ok) {
+            if (conflictPayload(payload)) await deleteResetFields(sourceEnv, draftId);
+            return responseWithPayload(patchDraftPayload(payload, resets, sourceEnv), response);
+          }
+          const revision = Number(payload.revision ?? 0);
+          const commitId = String(payload.applyCommitId ?? "");
+          const attached = revision > 0 && commitId && await attachOverridesToAppliedRevision(sourceEnv, revision, commitId, overrides);
+          await deleteResetFields(sourceEnv, draftId);
+          return responseWithPayload({ ...payload, resetFields: resets, sourceMetadataConflict: !attached }, response);
+        });
       }
 
       const response = await delegate(request, sourceEnv, ctx);
@@ -556,7 +641,7 @@ const worker = {
         effectiveResponse = promoted.response;
         payload = promoted.payload;
       }
-      if (action === "cancel" && effectiveResponse.ok) await deleteResetFields(sourceEnv, draftId);
+      if ((action === "cancel" && effectiveResponse.ok) || conflictPayload(payload)) await deleteResetFields(sourceEnv, draftId);
       return responseWithPayload(patchDraftPayload(payload, resets, sourceEnv), effectiveResponse);
     }
 
@@ -565,7 +650,7 @@ const worker = {
 
   async scheduled(controller: ScheduledController, env: RuntimeEnv | undefined, ctx: RuntimeContext): Promise<void> {
     const sourceEnv = env ?? (process.env as unknown as RuntimeEnv);
-    await synchronizeInheritedSettings(sourceEnv).catch(() => {});
+    await trySynchronizeInheritedSettings(sourceEnv).catch(() => {});
     return lifecycleRuntime.scheduled?.(controller, sourceEnv, ctx);
   },
 };

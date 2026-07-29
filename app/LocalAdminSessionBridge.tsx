@@ -19,48 +19,57 @@ export default function LocalAdminSessionBridge() {
   useEffect(() => {
     if (pathname !== "/settings") return;
     let active = true;
-    let frame = 0;
-    let attempts = 0;
+    let observer: MutationObserver | null = null;
 
     const attach = () => {
-      if (!active) return;
+      if (!active) return false;
       const existing = document.getElementById("local-admin-session-bridge");
       if (existing) {
         setMount(existing);
-        return;
+        observer?.disconnect();
+        return true;
       }
       const target = document.querySelector<HTMLElement>(".settings-page");
-      if (target) {
-        const node = document.createElement("div");
-        node.id = "local-admin-session-bridge";
-        target.prepend(node);
-        setMount(node);
-        return;
-      }
-      attempts += 1;
-      if (attempts < 300) frame = window.requestAnimationFrame(attach);
+      if (!target) return false;
+      const node = document.createElement("div");
+      node.id = "local-admin-session-bridge";
+      target.prepend(node);
+      setMount(node);
+      observer?.disconnect();
+      return true;
     };
 
-    frame = window.requestAnimationFrame(attach);
+    if (!attach()) {
+      observer = new MutationObserver(() => void attach());
+      observer.observe(document.body, { childList: true, subtree: true });
+    }
+
     fetch("/api/auth/session", { cache: "no-store" })
       .then(async (response) => ({ response, data: await response.json().catch(() => ({})) as SessionPayload }))
       .then(({ response, data }) => {
         if (!active) return;
-        if (response.ok && data.enabled === true && data.authenticated === true && data.user?.role === "admin") {
-          window.sessionStorage.setItem("xyops-admin-token", LOCAL_ADMIN_SESSION_MARKER);
+        const storedMarker = window.sessionStorage.getItem("xyops-admin-token");
+        const localAdmin = response.ok && data.enabled === true && data.authenticated === true && data.user?.role === "admin";
+        if (localAdmin) {
+          if (storedMarker !== LOCAL_ADMIN_SESSION_MARKER) {
+            window.sessionStorage.setItem("xyops-admin-token", LOCAL_ADMIN_SESSION_MARKER);
+            window.location.reload();
+            return;
+          }
           document.documentElement.dataset.portalAdminAuthorization = "session";
           setSession(data.user);
           return;
         }
-        if (window.sessionStorage.getItem("xyops-admin-token") === LOCAL_ADMIN_SESSION_MARKER) {
+        if (storedMarker === LOCAL_ADMIN_SESSION_MARKER) {
           window.sessionStorage.removeItem("xyops-admin-token");
+          window.location.reload();
         }
       })
       .catch(() => {});
 
     return () => {
       active = false;
-      window.cancelAnimationFrame(frame);
+      observer?.disconnect();
       delete document.documentElement.dataset.portalAdminAuthorization;
       document.getElementById("local-admin-session-bridge")?.remove();
     };

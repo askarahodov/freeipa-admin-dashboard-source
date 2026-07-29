@@ -76,9 +76,9 @@ async function adminIdentity(request: Request, env: RuntimeEnv): Promise<string 
     if (await secretsMatch(request.headers.get("x-admin-token"), env.ADMIN_TOKEN)) return "service-admin@portal.local";
     return null;
   }
-  if (await secretsMatch(request.headers.get("x-admin-token"), env.ADMIN_TOKEN)) return "service-admin@portal.local";
-  const identity = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? "";
-  return identity || null;
+  return await secretsMatch(request.headers.get("x-admin-token"), env.ADMIN_TOKEN)
+    ? "service-admin@portal.local"
+    : null;
 }
 
 function audit(identity: string) {

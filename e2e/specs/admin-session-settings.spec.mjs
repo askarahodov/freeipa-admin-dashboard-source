@@ -17,7 +17,7 @@ async function login(page, next = "/") {
 
 test("local admin manages settings after in-app navigation without a browser ADMIN_TOKEN", async ({ page }) => {
   await login(page);
-  await page.getByRole("button", { name: "Настройки", exact: true }).click();
+  await page.getByRole("button", { name: /Настройки/ }).click();
   await expect.poll(() => new URL(page.url()).pathname).toBe("/settings");
 
   await expect(page.getByTestId("local-admin-session-settings")).toBeVisible();

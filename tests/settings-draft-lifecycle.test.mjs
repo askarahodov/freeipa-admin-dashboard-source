@@ -58,10 +58,12 @@ test("effective settings report per-field ENV or database source without secret 
   assert.equal(lifecycle.includes("apiKeyConfigured"), true);
 });
 
-test("revision history records safe configuration snapshots and automatically rolls back failed health checks", () => {
+test("revision history records safe snapshots and rolls back only the revision it applied", () => {
   assert.equal(revisions.includes("CREATE TABLE IF NOT EXISTS portal_settings_revisions"), true);
   assert.equal(revisions.includes('reason: "automatic_rollback"'), true);
   assert.equal(revisions.includes('code: "settings_post_apply_health_failed"'), true);
+  assert.equal(revisions.includes('code: "settings_rollback_conflict"'), true);
+  assert.equal(revisions.includes("currentAfterHealth?.revision !== after.revision"), true);
   assert.equal(revisions.includes('status = ?, updated_at = ? WHERE id = ?'), true);
   assert.equal(revisions.includes("encrypted_secrets TEXT NOT NULL"), true);
   assert.equal(revisions.includes("function publicConfig(configJson: string)"), true);

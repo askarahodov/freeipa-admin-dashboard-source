@@ -72,7 +72,9 @@ async function secretsMatch(provided: string | null, expected: string | undefine
 async function adminIdentity(request: Request, env: RuntimeEnv): Promise<string | null> {
   if (localMode(env)) {
     const session = await resolveLocalSession(env, request);
-    return session?.role === "admin" ? session.identity : null;
+    if (session?.role === "admin") return session.identity;
+    if (await secretsMatch(request.headers.get("x-admin-token"), env.ADMIN_TOKEN)) return "service-admin@portal.local";
+    return null;
   }
   if (await secretsMatch(request.headers.get("x-admin-token"), env.ADMIN_TOKEN)) return "service-admin@portal.local";
   const identity = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? "";
@@ -112,9 +114,13 @@ async function recordRevision(
   metadata: { draftId?: string; createdBy: string; reason: string; status: string; health?: unknown[] },
 ): Promise<void> {
   await ensureRevisionTable(env);
-  await env.DB!.prepare(`INSERT OR IGNORE INTO portal_settings_revisions
+  await env.DB!.prepare(`INSERT INTO portal_settings_revisions
     (id, revision, config_json, encrypted_secrets, source_draft_id, created_by, reason, status, health_json, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(revision) DO UPDATE SET
+      status = excluded.status,
+      source_draft_id = COALESCE(portal_settings_revisions.source_draft_id, excluded.source_draft_id),
+      health_json = CASE WHEN excluded.health_json <> '[]' THEN excluded.health_json ELSE portal_settings_revisions.health_json END`)
     .bind(
       crypto.randomUUID(),
       snapshot.revision,
@@ -282,24 +288,24 @@ async function applyWithRollback(request: Request, env: RuntimeEnv, ctx: Runtime
   }, 502);
 }
 
-async function auditLifecycleResponse(request: Request, env: RuntimeEnv, response: Response, pathname: string): Promise<void> {
+async function auditLifecyclePayload(request: Request, env: RuntimeEnv, payload: Record<string, unknown>, responseStatus: number, pathname: string): Promise<void> {
   if (request.method !== "POST") return;
   const identity = await adminIdentity(request, env);
   if (!identity) return;
-  const payload = await responsePayload(response);
   const draft = payload.draft && typeof payload.draft === "object" ? payload.draft as Record<string, unknown> : {};
   const draftId = String(draft.id ?? pathname.split("/").at(-2) ?? "unknown").slice(0, 100);
+  const ok = responseStatus >= 200 && responseStatus < 300;
   const action = pathname === "/api/integrations/settings/drafts"
     ? "settings.draft.created"
     : pathname.endsWith("/validate")
-      ? response.ok ? "settings.draft.validated" : response.status === 409 ? "settings.draft.conflict" : "settings.draft.validation_failed"
+      ? ok ? "settings.draft.validated" : responseStatus === 409 ? "settings.draft.conflict" : "settings.draft.validation_failed"
       : "settings.draft.updated";
   await appendAuditEvent(env, audit(identity), {
     action,
     resourceType: "portal_settings_draft",
     resourceId: draftId,
-    outcome: response.ok ? "success" : "failure",
-    metadata: { status: response.status, draftStatus: String(draft.status ?? "") },
+    outcome: ok ? "success" : "failure",
+    metadata: { status: responseStatus, draftStatus: String(draft.status ?? "") },
   }).catch(() => {});
 }
 
@@ -314,7 +320,8 @@ const worker = {
 
     const response = await localRuntime.fetch(request, sourceEnv, ctx);
     if (url.pathname === "/api/integrations/settings/drafts" || url.pathname.includes("/api/integrations/settings/drafts/")) {
-      ctx.waitUntil(auditLifecycleResponse(request, sourceEnv, response, url.pathname));
+      const payload = await responsePayload(response);
+      ctx.waitUntil(auditLifecyclePayload(request, sourceEnv, payload, response.status, url.pathname));
     }
     return response;
   },

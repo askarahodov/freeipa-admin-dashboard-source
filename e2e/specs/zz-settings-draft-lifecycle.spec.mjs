@@ -58,6 +58,12 @@ async function applyDraft(page, id) {
 
 test("admin validates and applies a revisioned settings draft without ADMIN_TOKEN", async ({ page }) => {
   await login(page);
+  await expect(page.getByTestId("settings-lifecycle-wizard")).toBeVisible();
+  await expect(page.getByTestId("settings-lifecycle-wizard")).toContainText("Черновик → проверка → применение");
+
+  const initialHistory = await api(page, "/api/integrations/settings/revisions?limit=8");
+  expect(initialHistory.status, JSON.stringify(initialHistory.data)).toBe(200);
+  expect(Array.isArray(initialHistory.data.revisions)).toBe(true);
 
   const initial = await api(page, "/api/integrations/settings/effective");
   expect(initial.status, JSON.stringify(initial.data)).toBe(200);
@@ -89,6 +95,12 @@ test("admin validates and applies a revisioned settings draft without ADMIN_TOKE
   expect(changed.data.revision).toBeGreaterThan(baseRevision);
   expect(changed.data.fields.demoMode).toEqual(expect.objectContaining({ source: "database", overridden: true }));
 
+  const historyAfterApply = await api(page, "/api/integrations/settings/revisions?limit=8");
+  expect(historyAfterApply.status, JSON.stringify(historyAfterApply.data)).toBe(200);
+  expect(historyAfterApply.data.revisions).toEqual(expect.arrayContaining([
+    expect.objectContaining({ revision: Number(changed.data.revision), reason: "apply", status: "active" }),
+  ]));
+
   const conflict = await validateDraft(page, staleDraftId);
   expect(conflict.status, JSON.stringify(conflict.data)).toBe(409);
   expect(conflict.data.code).toBe("settings_revision_conflict");
@@ -99,4 +111,8 @@ test("admin validates and applies a revisioned settings draft without ADMIN_TOKE
   const restored = await applyDraft(page, restoreId);
   expect(restored.status, JSON.stringify(restored.data)).toBe(200);
   expect(restored.data.settings.demoMode).toBe(originalMode);
+
+  const finalHistory = await api(page, "/api/integrations/settings/revisions?limit=8");
+  expect(finalHistory.status, JSON.stringify(finalHistory.data)).toBe(200);
+  expect(finalHistory.data.revisions.filter((revision) => revision.reason === "apply").length).toBeGreaterThanOrEqual(2);
 });

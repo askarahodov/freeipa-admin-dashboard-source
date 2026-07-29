@@ -22,13 +22,11 @@ test("local admin manages settings after in-app navigation without a browser ADM
 
   await expect(page.getByTestId("local-admin-session-settings")).toBeVisible();
   await expect(page.getByTestId("local-admin-session-settings")).toContainText("settings.manage");
-  await expect(page.locator(".settings-access")).toBeVisible();
-  await expect(page.locator(".settings-access > label")).toBeHidden();
+  await expect(page.getByTestId("settings-lifecycle-wizard")).toBeVisible();
+  await expect(page.getByTestId("settings-lifecycle-wizard")).toContainText("Черновик → проверка → применение");
+  await expect(page.locator(".settings-access")).toBeHidden();
   await expect(page.locator(".policy-toolbar > label").first()).toBeHidden();
   await expect(page.locator(".route-editor > label:last-of-type")).toBeHidden();
-
-  await page.getByRole("button", { name: "Открыть настройки", exact: true }).click();
-  await expect(page.locator(".settings-grid")).toBeVisible();
 
   const result = await page.evaluate(async () => {
     const settingsResponse = await fetch("/api/integrations/settings", { cache: "no-store" });

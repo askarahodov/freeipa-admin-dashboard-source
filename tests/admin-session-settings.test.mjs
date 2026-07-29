@@ -4,6 +4,8 @@ import test from "node:test";
 
 const authorization = fs.readFileSync(new URL("../admin-session-authorization.ts", import.meta.url), "utf8");
 const runtime = fs.readFileSync(new URL("../worker/local-secure-entry.ts", import.meta.url), "utf8");
+const serviceRoot = fs.readFileSync(new URL("../worker/service-admin-root-entry.ts", import.meta.url), "utf8");
+const viteConfig = fs.readFileSync(new URL("../vite.config.ts", import.meta.url), "utf8");
 const bridge = fs.readFileSync(new URL("../app/LocalAdminSessionBridge.tsx", import.meta.url), "utf8");
 const layout = fs.readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
 const styles = fs.readFileSync(new URL("../app/local-admin-session.css", import.meta.url), "utf8");
@@ -30,17 +32,26 @@ test("local session mutations require same-origin while service token access sta
   assert.equal(authorization.includes('request.headers.get("origin")'), true);
   assert.equal(authorization.includes("new URL(origin).origin === new URL(request.url).origin"), true);
   assert.equal(runtime.includes("sameOriginAdminMutation(request)"), true);
-  assert.equal(runtime.includes("serviceAdminTokenAuthorized(request, sourceEnv.ADMIN_TOKEN)"), true);
   assert.equal(runtime.includes("service-admin@portal.local"), true);
+  assert.equal(viteConfig.includes('main: "./worker/service-admin-root-entry.ts"'), true);
+  assert.equal(serviceRoot.includes("serviceAdminTokenAuthorized(request, sourceEnv.ADMIN_TOKEN)"), true);
+  assert.equal(serviceRoot.indexOf("serviceAdminTokenAuthorized(request, sourceEnv.ADMIN_TOKEN)"), true ? serviceRoot.indexOf("serviceAdminTokenAuthorized(request, sourceEnv.ADMIN_TOKEN)") : -1);
+  assert.equal(serviceRoot.includes('PORTAL_IDENTITY_MODE: "static"'), true);
+  assert.equal(serviceRoot.includes('import rootRuntime from "./freeipa-group-member-entry"'), true);
+  assert.equal(serviceRoot.includes("resolveLocalSession"), false);
 });
 
-test("settings UI uses a non-secret session marker and hides token fields for local admins", () => {
-  assert.equal(layout.includes("__local_admin_session__"), true);
+test("settings UI initializes only after the local admin session is verified", () => {
+  assert.equal(layout.includes("__local_admin_session__"), false);
+  assert.equal(layout.includes("local-admin-session-bootstrap"), false);
   assert.equal(layout.includes("<LocalAdminSessionBridge />"), true);
   assert.equal(bridge.includes('fetch("/api/auth/session"'), true);
+  assert.equal(bridge.includes("new MutationObserver"), true);
+  assert.equal(bridge.includes("window.location.reload()"), true);
   assert.equal(bridge.includes('dataset.portalAdminAuthorization = "session"'), true);
   assert.equal(bridge.includes("Повторный ADMIN_TOKEN не требуется"), true);
-  assert.equal(styles.includes('html[data-portal-admin-authorization="session"] .settings-access'), true);
+  assert.equal(styles.includes('.settings-access > label'), true);
+  assert.equal(styles.includes('.settings-access {\n  display: none'), false);
   assert.equal(styles.includes(".policy-toolbar > label"), true);
   assert.equal(styles.includes(".route-editor > label:last-of-type"), true);
 });

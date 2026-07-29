@@ -11,8 +11,25 @@ class MemoryD1 {
     const statement = {
       bind: (...args) => { values = args; return statement; },
       run: async () => {
-        if (sql.startsWith("INSERT INTO app_settings")) this.row = { config_json: values[1], encrypted_secrets: values[2], updated_at: values[3] };
-        return { success: true };
+        if (sql.startsWith("INSERT INTO app_settings")) {
+          this.row = { config_json: values[1], encrypted_secrets: values[2], updated_at: values[3] };
+          return { success: true, meta: { changes: 1 } };
+        }
+        if (sql.startsWith("UPDATE app_settings SET config_json = ? WHERE id = ? AND updated_at = ?")) {
+          if (this.row && Number(this.row.updated_at) === Number(values[2])) {
+            this.row.config_json = values[0];
+            return { success: true, meta: { changes: 1 } };
+          }
+          return { success: true, meta: { changes: 0 } };
+        }
+        if (sql.startsWith("UPDATE app_settings SET config_json = ?, encrypted_secrets = ?, updated_at = ? WHERE id = ? AND updated_at = ?")) {
+          if (this.row && Number(this.row.updated_at) === Number(values[4])) {
+            this.row = { config_json: values[0], encrypted_secrets: values[1], updated_at: values[2] };
+            return { success: true, meta: { changes: 1 } };
+          }
+          return { success: true, meta: { changes: 0 } };
+        }
+        return { success: true, meta: { changes: 0 } };
       },
       first: async () => sql.startsWith("SELECT config_json") ? this.row : null,
     };
@@ -149,7 +166,7 @@ test("integration status probes FreeIPA through the Docker Node Gateway", async 
   }
 });
 
-test("automation routes require admin auth and persist without secret defaults", async () => {
+test("automation routes preserve source metadata and omit secret defaults", async () => {
   const db = new MemoryD1();
   const env = adminEnv({ DB: db, ADMIN_TOKEN: "admin-token", CONFIG_ENCRYPTION_KEY: Buffer.alloc(32, 9).toString("base64") });
   const route = {
@@ -179,12 +196,15 @@ test("automation routes require admin auth and persist without secret defaults",
   assert.deepEqual(savedBody.routes[0].fields[0].visibleWhen, { field: "mode", operator: "equals", value: "manual" });
   assert.equal(savedBody.routes[0].fields[1].default, undefined);
   assert.doesNotMatch(db.row.config_json, /must-not-persist/);
+  assert.deepEqual(JSON.parse(db.row.config_json).overrides, []);
 
   const loaded = await worker.fetch(new Request("https://dashboard.test/api/integrations/routes"), env, {});
   assert.equal(loaded.status, 200);
   assert.deepEqual(await loaded.json().then((body) => body.routes.map((item) => item.key)), ["disable-user"]);
+  assert.deepEqual(JSON.parse(db.row.config_json).overrides, []);
 
   await worker.fetch(new Request("https://dashboard.test/api/integrations/routes", { method: "PUT", headers: { "content-type": "application/json", "x-admin-token": "admin-token" }, body: JSON.stringify({ routes: [] }) }), env, {});
+  assert.deepEqual(JSON.parse(db.row.config_json).overrides, []);
   const empty = await worker.fetch(new Request("https://dashboard.test/api/integrations/routes"), env, {});
   assert.deepEqual(await empty.json().then((body) => ({ mode: body.mode, routes: body.routes })), { mode: "unconfigured", routes: [] });
 });

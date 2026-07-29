@@ -5,6 +5,7 @@ const ADMIN_INTEGRATION_PATHS = new Set([
   "/api/integrations/settings/test",
   "/api/integrations/settings/effective",
   "/api/integrations/settings/drafts",
+  "/api/integrations/settings/revisions",
   "/api/integrations/catalog/presentation",
   "/api/integrations/catalog/policies",
   "/api/integrations/approval/policies",
@@ -14,7 +15,8 @@ const ADMIN_INTEGRATION_PATHS = new Set([
 
 export function isAdminIntegrationPath(pathname: string): boolean {
   return ADMIN_INTEGRATION_PATHS.has(pathname)
-    || pathname.startsWith("/api/integrations/settings/drafts/");
+    || pathname.startsWith("/api/integrations/settings/drafts/")
+    || pathname.startsWith("/api/integrations/settings/revisions/");
 }
 
 export function isReadOnlyMethod(method: string): boolean {

@@ -1,9 +1,6 @@
 name: Auth E2E
 
 on:
-  push:
-    branches:
-      - "agent/settings-draft-lifecycle"
   pull_request:
     paths:
       - "app/login/**"
@@ -22,7 +19,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   auth-e2e:
@@ -30,16 +27,6 @@ jobs:
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
-
-      - name: Record source tree for ancestry alignment
-        if: ${{ github.event_name == 'push' && !contains(github.event.head_commit.message, '[tree-record]') }}
-        run: |
-          git rev-parse 'HEAD^{tree}' > .ancestry-tree-sha
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add .ancestry-tree-sha
-          git commit -m '[tree-record] Record lifecycle tree'
-          git push origin HEAD:${GITHUB_REF_NAME}
 
       - name: Run settings lifecycle contract
         run: node --experimental-strip-types --test tests/settings-draft-lifecycle.test.mjs

@@ -1,12 +1,14 @@
-import lifecycleRuntime from "./settings-lifecycle-entry";
+import localRuntime from "./local-secure-entry";
 import { appendAuditEvent, createAuditContext } from "../audit-log";
+import { resolveLocalSession, type LocalAuthEnv } from "../local-auth";
 
-type RuntimeEnv = NonNullable<Parameters<typeof lifecycleRuntime.fetch>[1]> & {
+type RuntimeEnv = NonNullable<Parameters<typeof localRuntime.fetch>[1]> & LocalAuthEnv & {
   DB?: D1Database;
   ADMIN_TOKEN?: string;
+  PORTAL_IDENTITY_MODE?: string;
 };
-type RuntimeContext = Parameters<typeof lifecycleRuntime.fetch>[2];
-type ScheduledController = Parameters<NonNullable<typeof lifecycleRuntime.scheduled>>[0];
+type RuntimeContext = Parameters<typeof localRuntime.fetch>[2];
+type ScheduledController = Parameters<NonNullable<typeof localRuntime.scheduled>>[0];
 
 type ActiveSnapshot = {
   configJson: string;
@@ -49,6 +51,10 @@ function isRevisionPath(pathname: string): boolean {
     || pathname.startsWith("/api/integrations/settings/revisions/");
 }
 
+function localMode(env: RuntimeEnv): boolean {
+  return String(env.PORTAL_IDENTITY_MODE ?? "").trim().toLowerCase() === "local";
+}
+
 async function secretsMatch(provided: string | null, expected: string | undefined): Promise<boolean> {
   if (!provided || !expected) return false;
   const encoder = new TextEncoder();
@@ -63,16 +69,18 @@ async function secretsMatch(provided: string | null, expected: string | undefine
   return difference === 0;
 }
 
-async function adminAuthorized(request: Request, env: RuntimeEnv): Promise<boolean> {
-  return secretsMatch(request.headers.get("x-admin-token"), env.ADMIN_TOKEN);
+async function adminIdentity(request: Request, env: RuntimeEnv): Promise<string | null> {
+  if (localMode(env)) {
+    const session = await resolveLocalSession(env, request);
+    return session?.role === "admin" ? session.identity : null;
+  }
+  if (await secretsMatch(request.headers.get("x-admin-token"), env.ADMIN_TOKEN)) return "service-admin@portal.local";
+  const identity = request.headers.get("oai-authenticated-user-email")?.trim().toLowerCase() ?? "";
+  return identity || null;
 }
 
-function actor(request: Request): string {
-  return (request.headers.get("oai-authenticated-user-email") || "service-admin@portal.local").slice(0, 160);
-}
-
-function audit(request: Request) {
-  return createAuditContext({ identity: actor(request), role: "admin", groups: [] });
+function audit(identity: string) {
+  return createAuditContext({ identity, role: "admin", groups: [] });
 }
 
 async function ensureRevisionTable(env: RuntimeEnv): Promise<void> {
@@ -106,7 +114,7 @@ async function recordRevision(
   await ensureRevisionTable(env);
   await env.DB!.prepare(`INSERT OR IGNORE INTO portal_settings_revisions
     (id, revision, config_json, encrypted_secrets, source_draft_id, created_by, reason, status, health_json, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`) 
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .bind(
       crypto.randomUUID(),
       snapshot.revision,
@@ -152,7 +160,8 @@ function publicRevision(row: RevisionRow) {
 
 async function handleRevisionApi(request: Request, env: RuntimeEnv, url: URL): Promise<Response> {
   if (!env.DB) return json({ error: "Persistent database is unavailable" }, 503);
-  if (!await adminAuthorized(request, env)) return json({ error: "Administrator authorization required" }, 401);
+  const identity = await adminIdentity(request, env);
+  if (!identity) return json({ error: "Administrator authorization required" }, 401);
   await ensureRevisionTable(env);
 
   if (request.method === "GET" && url.pathname === "/api/integrations/settings/revisions") {
@@ -195,13 +204,11 @@ async function applyWithRollback(request: Request, env: RuntimeEnv, ctx: Runtime
   if (!env.DB) return json({ error: "Persistent database is unavailable" }, 503);
   await ensureRevisionTable(env);
   const before = await activeSnapshot(env);
-  const requestedBy = actor(request);
-  if (before) await recordRevision(env, before, { draftId, createdBy: requestedBy, reason: "pre_apply", status: "superseded" });
-
-  const response = await lifecycleRuntime.fetch(request, env, ctx);
+  const response = await localRuntime.fetch(request, env, ctx);
   const payload = await responsePayload(response);
+  const identity = await adminIdentity(request, env) || "service-admin@portal.local";
   if (!response.ok) {
-    await appendAuditEvent(env, audit(request), {
+    await appendAuditEvent(env, audit(identity), {
       action: "settings.draft.apply_failed",
       resourceType: "portal_settings_draft",
       resourceId: draftId,
@@ -211,13 +218,14 @@ async function applyWithRollback(request: Request, env: RuntimeEnv, ctx: Runtime
     return response;
   }
 
+  if (before) await recordRevision(env, before, { draftId, createdBy: identity, reason: "pre_apply", status: "superseded" });
   const after = await activeSnapshot(env);
   const health = Array.isArray(payload.health) ? payload.health as Array<Record<string, unknown>> : [];
   const failures = health.filter((item) => item.ok === false);
   if (after) {
     await recordRevision(env, after, {
       draftId,
-      createdBy: requestedBy,
+      createdBy: identity,
       reason: failures.length ? "apply_health_failed" : "apply",
       status: failures.length ? "failed" : "active",
       health,
@@ -225,7 +233,7 @@ async function applyWithRollback(request: Request, env: RuntimeEnv, ctx: Runtime
   }
 
   if (!failures.length) {
-    await appendAuditEvent(env, audit(request), {
+    await appendAuditEvent(env, audit(identity), {
       action: "settings.draft.applied",
       resourceType: "portal_settings_draft",
       resourceId: draftId,
@@ -243,7 +251,7 @@ async function applyWithRollback(request: Request, env: RuntimeEnv, ctx: Runtime
     restoredSource = "database";
     await recordRevision(env, restored, {
       draftId,
-      createdBy: requestedBy,
+      createdBy: identity,
       reason: "automatic_rollback",
       status: "active",
       health,
@@ -254,7 +262,7 @@ async function applyWithRollback(request: Request, env: RuntimeEnv, ctx: Runtime
   await env.DB.prepare("UPDATE portal_settings_drafts SET status = ?, updated_at = ? WHERE id = ?")
     .bind("rolled_back", Date.now(), draftId)
     .run();
-  await appendAuditEvent(env, audit(request), {
+  await appendAuditEvent(env, audit(identity), {
     action: "settings.draft.rolled_back",
     resourceType: "portal_settings_draft",
     resourceId: draftId,
@@ -276,6 +284,8 @@ async function applyWithRollback(request: Request, env: RuntimeEnv, ctx: Runtime
 
 async function auditLifecycleResponse(request: Request, env: RuntimeEnv, response: Response, pathname: string): Promise<void> {
   if (request.method !== "POST") return;
+  const identity = await adminIdentity(request, env);
+  if (!identity) return;
   const payload = await responsePayload(response);
   const draft = payload.draft && typeof payload.draft === "object" ? payload.draft as Record<string, unknown> : {};
   const draftId = String(draft.id ?? pathname.split("/").at(-2) ?? "unknown").slice(0, 100);
@@ -284,7 +294,7 @@ async function auditLifecycleResponse(request: Request, env: RuntimeEnv, respons
     : pathname.endsWith("/validate")
       ? response.ok ? "settings.draft.validated" : response.status === 409 ? "settings.draft.conflict" : "settings.draft.validation_failed"
       : "settings.draft.updated";
-  await appendAuditEvent(env, audit(request), {
+  await appendAuditEvent(env, audit(identity), {
     action,
     resourceType: "portal_settings_draft",
     resourceId: draftId,
@@ -302,7 +312,7 @@ const worker = {
     const applyMatch = url.pathname.match(/^\/api\/integrations\/settings\/drafts\/([A-Za-z0-9-]{1,80})\/apply$/);
     if (request.method === "POST" && applyMatch) return applyWithRollback(request, sourceEnv, ctx, applyMatch[1]);
 
-    const response = await lifecycleRuntime.fetch(request, sourceEnv, ctx);
+    const response = await localRuntime.fetch(request, sourceEnv, ctx);
     if (url.pathname === "/api/integrations/settings/drafts" || url.pathname.includes("/api/integrations/settings/drafts/")) {
       ctx.waitUntil(auditLifecycleResponse(request, sourceEnv, response, url.pathname));
     }
@@ -310,7 +320,7 @@ const worker = {
   },
 
   async scheduled(controller: ScheduledController, env: RuntimeEnv | undefined, ctx: RuntimeContext): Promise<void> {
-    return lifecycleRuntime.scheduled?.(controller, env, ctx);
+    return localRuntime.scheduled?.(controller, env, ctx);
   },
 };
 

@@ -120,8 +120,8 @@ test("visual wizard filters sources and stages override resets instead of direct
   assert.equal(wizard.includes("resetFields"), true);
   assert.equal(wizard.includes("D1 overrides"), true);
   assert.equal(wizard.includes("Конфликты"), true);
-  assert.equal(wizard.includes("Вернуть ENV"), true);
-  assert.equal(wizard.includes("Вернуть DEFAULT"), true);
+  assert.equal(wizard.includes('field.fallbackSource === "environment" ? "ENV" : "DEFAULT"'), true);
+  assert.equal(wizard.includes("settings-reset"), true);
   assert.equal(resetStyles.includes(".settings-source-toolbar"), true);
   assert.equal(resetStyles.includes(".settings-reset.selected"), true);
   assert.equal(styles.includes('html[data-settings-lifecycle-wizard="ready"] .settings-savebar'), true);

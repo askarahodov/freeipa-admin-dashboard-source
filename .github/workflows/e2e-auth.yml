@@ -7,6 +7,9 @@ on:
       - "app/LocalAuthToolbar.tsx"
       - "worker/local-auth.ts"
       - "worker/local-secure-entry.ts"
+      - "worker/settings-lifecycle-entry.ts"
+      - "admin-session-authorization.ts"
+      - "tests/settings-draft-lifecycle.test.mjs"
       - "e2e/**"
       - "scripts/run-auth-e2e.sh"
       - "compose.e2e.yaml"
@@ -24,6 +27,9 @@ jobs:
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
+
+      - name: Run settings lifecycle contract
+        run: node --experimental-strip-types --test tests/settings-draft-lifecycle.test.mjs
 
       - name: Prepare isolated E2E environment
         run: cp .env.e2e.example .env.e2e

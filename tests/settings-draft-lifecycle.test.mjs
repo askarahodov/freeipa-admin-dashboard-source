@@ -61,7 +61,7 @@ test("revision history records safe configuration snapshots and automatically ro
   assert.equal(revisions.includes('code: "settings_post_apply_health_failed"'), true);
   assert.equal(revisions.includes('status = ?, updated_at = ? WHERE id = ?'), true);
   assert.equal(revisions.includes("encrypted_secrets TEXT NOT NULL"), true);
-  assert.equal(revisions.includes("publicConfig(configJson)"), true);
+  assert.equal(revisions.includes("function publicConfig(configJson: string)"), true);
   assert.equal(revisions.includes("encryptedSecrets:"), true);
   assert.equal(revisions.includes("encrypted_secrets"), true);
   assert.equal(revisions.includes("publicRevision(row)"), true);

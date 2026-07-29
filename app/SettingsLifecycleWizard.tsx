@@ -4,6 +4,9 @@ import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 
+type SettingField = "demoMode" | "ipaUrl" | "ipaUsername" | "ipaPassword" | "xyopsUrl" | "xyopsApiKey";
+type SourceFilter = "all" | "database" | "conflict";
+
 type FieldSource = {
   value?: unknown;
   configured?: boolean;
@@ -11,6 +14,8 @@ type FieldSource = {
   envName: string;
   envConfigured: boolean;
   overridden: boolean;
+  resettable?: boolean;
+  fallbackSource?: "environment" | "default";
 };
 
 type EffectiveSettings = {
@@ -21,14 +26,16 @@ type EffectiveSettings = {
     xyops: { url: string; apiKeyConfigured: boolean };
   };
   revision: number;
-  fields: Record<string, FieldSource>;
+  overrideCount?: number;
+  conflictCount?: number;
+  fields: Record<SettingField, FieldSource>;
 };
 
 type Draft = {
   id: string;
   baseRevision: number;
   status: string;
-  diff: Array<{ field: string; before: unknown; after: unknown; secret: boolean }>;
+  diff: Array<{ field: string; before: unknown; after: unknown; secret: boolean; reset?: boolean; source?: string }>;
   validation?: { ok?: boolean; services?: Array<{ service: string; ok: boolean; latencyMs?: number; error?: string }> };
 };
 
@@ -78,7 +85,34 @@ async function api(path: string, init?: RequestInit) {
 function SourceBadge({ field }: { field?: FieldSource }) {
   if (!field) return null;
   const text = field.source === "database" ? "D1" : field.source === "environment" ? "ENV" : "DEFAULT";
-  return <span className={`settings-source ${field.source}`} title={field.overridden ? `${field.envName} переопределён в D1` : field.envName}>{text}{field.overridden ? " · override" : ""}</span>;
+  return <span className={`settings-source ${field.source}`} title={field.overridden ? `${field.envName} переопределён в D1` : field.envName}>{text}{field.overridden ? " · conflict" : ""}</span>;
+}
+
+function SourceControl({
+  name,
+  field,
+  selected,
+  disabled,
+  onToggle,
+}: {
+  name: SettingField;
+  field: FieldSource;
+  selected: boolean;
+  disabled: boolean;
+  onToggle: (field: SettingField) => void;
+}) {
+  return <div className="field-source-line">
+    <SourceBadge field={field} />
+    {field.resettable && <button
+      type="button"
+      className={`settings-reset ${selected ? "selected" : ""}`}
+      disabled={disabled}
+      onClick={() => onToggle(name)}
+      title={`Удалить D1 override и использовать ${field.fallbackSource === "environment" ? field.envName : "DEFAULT"}`}
+    >
+      {selected ? "Сброс выбран" : `Вернуть ${field.fallbackSource === "environment" ? "ENV" : "DEFAULT"}`}
+    </button>}
+  </div>;
 }
 
 function formFromEffective(effective: EffectiveSettings): FormState {
@@ -98,6 +132,8 @@ export default function SettingsLifecycleWizard() {
   const [effective, setEffective] = useState<EffectiveSettings | null>(null);
   const [revisions, setRevisions] = useState<Revision[]>([]);
   const [form, setForm] = useState<FormState>(emptyForm);
+  const [resetFields, setResetFields] = useState<SettingField[]>([]);
+  const [filter, setFilter] = useState<SourceFilter>("all");
   const [draft, setDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState<"load" | "draft" | "validate" | "apply" | "cancel" | null>(null);
   const [message, setMessage] = useState("");
@@ -114,6 +150,7 @@ export default function SettingsLifecycleWizard() {
       setEffective(active);
       setRevisions(Array.isArray(history.revisions) ? history.revisions : []);
       setForm(formFromEffective(active));
+      setResetFields([]);
       document.documentElement.dataset.settingsLifecycleWizard = "ready";
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Настройки недоступны");
@@ -162,20 +199,44 @@ export default function SettingsLifecycleWizard() {
     };
   }, [load, pathname]);
 
+  const resetSet = useMemo(() => new Set(resetFields), [resetFields]);
+
   const changes = useMemo(() => {
     if (!effective) return {} as Record<string, unknown>;
     const next: Record<string, unknown> = {};
-    if (form.demoMode !== effective.settings.demoMode) next.demoMode = form.demoMode;
-    if (form.ipaUrl.trim() !== effective.settings.freeipa.url) next.ipaUrl = form.ipaUrl.trim();
-    if (form.ipaUsername.trim() !== effective.settings.freeipa.username) next.ipaUsername = form.ipaUsername.trim();
-    if (form.ipaPassword) next.ipaPassword = form.ipaPassword;
-    if (form.xyopsUrl.trim() !== effective.settings.xyops.url) next.xyopsUrl = form.xyopsUrl.trim();
-    if (form.xyopsApiKey) next.xyopsApiKey = form.xyopsApiKey;
+    if (!resetSet.has("demoMode") && form.demoMode !== effective.settings.demoMode) next.demoMode = form.demoMode;
+    if (!resetSet.has("ipaUrl") && form.ipaUrl.trim() !== effective.settings.freeipa.url) next.ipaUrl = form.ipaUrl.trim();
+    if (!resetSet.has("ipaUsername") && form.ipaUsername.trim() !== effective.settings.freeipa.username) next.ipaUsername = form.ipaUsername.trim();
+    if (!resetSet.has("ipaPassword") && form.ipaPassword) next.ipaPassword = form.ipaPassword;
+    if (!resetSet.has("xyopsUrl") && form.xyopsUrl.trim() !== effective.settings.xyops.url) next.xyopsUrl = form.xyopsUrl.trim();
+    if (!resetSet.has("xyopsApiKey") && form.xyopsApiKey) next.xyopsApiKey = form.xyopsApiKey;
+    if (resetFields.length) next.resetFields = resetFields;
     return next;
-  }, [effective, form]);
+  }, [effective, form, resetFields, resetSet]);
+
+  const changeCount = useMemo(() => Object.keys(changes).filter((key) => key !== "resetFields").length + resetFields.length, [changes, resetFields.length]);
+
+  function toggleReset(field: SettingField) {
+    if (draft) return;
+    setResetFields((current) => current.includes(field) ? current.filter((item) => item !== field) : [...current, field]);
+    setError("");
+    setMessage("");
+  }
+
+  function updateField<K extends keyof FormState>(field: K, value: FormState[K]) {
+    setResetFields((current) => current.filter((item) => item !== field));
+    setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function fieldVisible(name: SettingField): boolean {
+    const field = effective?.fields[name];
+    if (!field || filter === "all") return true;
+    if (filter === "database") return field.source === "database";
+    return field.overridden;
+  }
 
   async function createDraft() {
-    if (!effective || !Object.keys(changes).length) { setError("Изменений для черновика нет"); return; }
+    if (!effective || !changeCount) { setError("Изменений для черновика нет"); return; }
     setBusy("draft"); setError(""); setMessage("");
     try {
       const data = await api("/api/integrations/settings/drafts", {
@@ -215,8 +276,9 @@ export default function SettingsLifecycleWizard() {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: "{}",
-      }) as { revision?: number };
-      setMessage(`Конфигурация применена${data.revision ? ` · revision ${data.revision}` : ""}.`);
+      }) as { revision?: number; resetFields?: SettingField[] };
+      const resetMessage = data.resetFields?.length ? ` · возвращено к ENV/default: ${data.resetFields.length}` : "";
+      setMessage(`Конфигурация применена${data.revision ? ` · revision ${data.revision}` : ""}${resetMessage}.`);
       setDraft(null);
       await load();
     } catch (cause) {
@@ -237,6 +299,7 @@ export default function SettingsLifecycleWizard() {
       });
       setDraft(null);
       if (effective) setForm(formFromEffective(effective));
+      setResetFields([]);
       setMessage("Черновик отменён, сохранённые в нём секреты удалены.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Не удалось отменить черновик");
@@ -244,10 +307,11 @@ export default function SettingsLifecycleWizard() {
   }
 
   if (!mount) return null;
+  const disabled = Boolean(draft);
   return createPortal(
     <section className="panel settings-lifecycle" data-testid="settings-lifecycle-wizard">
       <div className="settings-lifecycle-head">
-        <div><span className="eyebrow">SAFE CONFIGURATION</span><h2>Черновик → проверка → применение</h2><p>Активная конфигурация не изменяется до серверной проверки. При неуспешном post-apply health check портал автоматически возвращает рабочую версию.</p></div>
+        <div><span className="eyebrow">SAFE CONFIGURATION</span><h2>Черновик → проверка → применение</h2><p>Активная конфигурация не изменяется до серверной проверки. D1 override можно безопасно удалить и вернуть поле к текущему ENV или DEFAULT.</p></div>
         <div className="settings-revision"><small>Активная revision</small><strong>{effective?.revision || "ENV"}</strong><button className="secondary" disabled={Boolean(busy)} onClick={() => void load()}>Обновить</button></div>
       </div>
 
@@ -261,13 +325,41 @@ export default function SettingsLifecycleWizard() {
       </div>
 
       {!effective ? <div className="catalog-empty"><strong>{busy === "load" ? "Загрузка настроек…" : "Настройки не загружены"}</strong></div> : <>
-        <div className="settings-lifecycle-grid">
-          <section><div className="settings-lifecycle-title"><h3>Общие</h3><SourceBadge field={effective.fields.demoMode} /></div><label className="checkbox-field"><input type="checkbox" checked={form.demoMode} disabled={Boolean(draft)} onChange={(event) => setForm({ ...form, demoMode: event.target.checked })} /><span><strong>Демо-режим</strong><small>Не выполнять реальные вызовы FreeIPA и XYOps</small></span></label></section>
-          <section><div className="settings-lifecycle-title"><h3>FreeIPA</h3><SourceBadge field={effective.fields.ipaUrl} /></div><label>Адрес сервера<input value={form.ipaUrl} disabled={Boolean(draft)} onChange={(event) => setForm({ ...form, ipaUrl: event.target.value })} /></label><label>Service account<div className="field-source-line"><SourceBadge field={effective.fields.ipaUsername} /></div><input value={form.ipaUsername} disabled={Boolean(draft)} onChange={(event) => setForm({ ...form, ipaUsername: event.target.value })} /></label><label>Новый пароль<div className="field-source-line"><SourceBadge field={effective.fields.ipaPassword} /></div><input type="password" value={form.ipaPassword} disabled={Boolean(draft)} onChange={(event) => setForm({ ...form, ipaPassword: event.target.value })} placeholder={effective.settings.freeipa.passwordConfigured ? "Сохранён — заполните только для замены" : "Не настроен"} autoComplete="new-password" /></label></section>
-          <section><div className="settings-lifecycle-title"><h3>XYOps</h3><SourceBadge field={effective.fields.xyopsUrl} /></div><label>Адрес XYOps<input value={form.xyopsUrl} disabled={Boolean(draft)} onChange={(event) => setForm({ ...form, xyopsUrl: event.target.value })} /></label><label>Новый API key<div className="field-source-line"><SourceBadge field={effective.fields.xyopsApiKey} /></div><input type="password" value={form.xyopsApiKey} disabled={Boolean(draft)} onChange={(event) => setForm({ ...form, xyopsApiKey: event.target.value })} placeholder={effective.settings.xyops.apiKeyConfigured ? "Сохранён — заполните только для замены" : "Не настроен"} autoComplete="new-password" /></label></section>
+        <div className="settings-source-toolbar" data-testid="settings-source-filter">
+          <div><strong>Источники значений</strong><small>D1 overrides: {effective.overrideCount ?? 0} · конфликтов с ENV: {effective.conflictCount ?? 0}</small></div>
+          <div className="settings-source-filters">
+            <button type="button" className={filter === "all" ? "active" : ""} onClick={() => setFilter("all")}>Все</button>
+            <button type="button" className={filter === "database" ? "active" : ""} onClick={() => setFilter("database")}>D1 overrides</button>
+            <button type="button" className={filter === "conflict" ? "active" : ""} onClick={() => setFilter("conflict")}>Конфликты</button>
+          </div>
         </div>
 
-        {draft ? <div className="settings-draft-review"><div><h3>Безопасный diff</h3><code>{draft.id}</code></div><div className="settings-diff-list">{draft.diff.map((item) => <article key={item.field}><strong>{labels[item.field] || item.field}</strong><span>{String(item.before ?? "—")}</span><b>→</b><span>{item.secret ? "значение скрыто" : String(item.after ?? "—")}</span></article>)}</div>{draft.validation?.services?.length ? <div className="settings-validation-list">{draft.validation.services.map((check) => <span className={check.ok ? "ok" : "fail"} key={check.service}>{check.service}: {check.ok ? `${check.latencyMs || 0} мс` : check.error}</span>)}</div> : null}<div className="settings-lifecycle-actions"><button className="secondary" disabled={Boolean(busy)} onClick={() => void cancelDraft()}>{busy === "cancel" ? "Отмена…" : "Отменить черновик"}</button>{draft.status !== "validated" ? <button className="primary" disabled={Boolean(busy)} onClick={() => void validateDraft()}>{busy === "validate" ? "Проверка…" : "Проверить конфигурацию"}</button> : <button className="primary" disabled={Boolean(busy)} onClick={() => void applyDraft()}>{busy === "apply" ? "Применение…" : "Применить проверенную revision"}</button>}</div></div> : <div className="settings-lifecycle-actions"><span>{Object.keys(changes).length ? `Изменено параметров: ${Object.keys(changes).length}` : "Изменений нет"}</span><button className="primary" disabled={Boolean(busy) || !Object.keys(changes).length} onClick={() => void createDraft()}>{busy === "draft" ? "Создание…" : "Создать черновик"}</button></div>}
+        <div className="settings-lifecycle-grid">
+          {fieldVisible("demoMode") && <section>
+            <div className="settings-lifecycle-title"><h3>Общие</h3><SourceControl name="demoMode" field={effective.fields.demoMode} selected={resetSet.has("demoMode")} disabled={disabled} onToggle={toggleReset} /></div>
+            <label className={`checkbox-field ${resetSet.has("demoMode") ? "reset-pending" : ""}`}><input type="checkbox" checked={form.demoMode} disabled={disabled || resetSet.has("demoMode")} onChange={(event) => updateField("demoMode", event.target.checked)} /><span><strong>Демо-режим</strong><small>{resetSet.has("demoMode") ? `После применения: ${effective.fields.demoMode.fallbackSource === "environment" ? "ENV" : "DEFAULT"}` : "Не выполнять реальные вызовы FreeIPA и XYOps"}</small></span></label>
+          </section>}
+
+          {(["ipaUrl", "ipaUsername", "ipaPassword"] as SettingField[]).some(fieldVisible) && <section>
+            <div className="settings-lifecycle-title"><h3>FreeIPA</h3></div>
+            {fieldVisible("ipaUrl") && <label className={resetSet.has("ipaUrl") ? "reset-pending" : ""}>Адрес сервера<SourceControl name="ipaUrl" field={effective.fields.ipaUrl} selected={resetSet.has("ipaUrl")} disabled={disabled} onToggle={toggleReset} /><input value={form.ipaUrl} disabled={disabled || resetSet.has("ipaUrl")} onChange={(event) => updateField("ipaUrl", event.target.value)} /></label>}
+            {fieldVisible("ipaUsername") && <label className={resetSet.has("ipaUsername") ? "reset-pending" : ""}>Service account<SourceControl name="ipaUsername" field={effective.fields.ipaUsername} selected={resetSet.has("ipaUsername")} disabled={disabled} onToggle={toggleReset} /><input value={form.ipaUsername} disabled={disabled || resetSet.has("ipaUsername")} onChange={(event) => updateField("ipaUsername", event.target.value)} /></label>}
+            {fieldVisible("ipaPassword") && <label className={resetSet.has("ipaPassword") ? "reset-pending" : ""}>Новый пароль<SourceControl name="ipaPassword" field={effective.fields.ipaPassword} selected={resetSet.has("ipaPassword")} disabled={disabled} onToggle={toggleReset} /><input type="password" value={form.ipaPassword} disabled={disabled || resetSet.has("ipaPassword")} onChange={(event) => updateField("ipaPassword", event.target.value)} placeholder={effective.settings.freeipa.passwordConfigured ? "Сохранён — заполните только для замены" : "Не настроен"} autoComplete="new-password" /></label>}
+          </section>}
+
+          {(["xyopsUrl", "xyopsApiKey"] as SettingField[]).some(fieldVisible) && <section>
+            <div className="settings-lifecycle-title"><h3>XYOps</h3></div>
+            {fieldVisible("xyopsUrl") && <label className={resetSet.has("xyopsUrl") ? "reset-pending" : ""}>Адрес XYOps<SourceControl name="xyopsUrl" field={effective.fields.xyopsUrl} selected={resetSet.has("xyopsUrl")} disabled={disabled} onToggle={toggleReset} /><input value={form.xyopsUrl} disabled={disabled || resetSet.has("xyopsUrl")} onChange={(event) => updateField("xyopsUrl", event.target.value)} /></label>}
+            {fieldVisible("xyopsApiKey") && <label className={resetSet.has("xyopsApiKey") ? "reset-pending" : ""}>Новый API key<SourceControl name="xyopsApiKey" field={effective.fields.xyopsApiKey} selected={resetSet.has("xyopsApiKey")} disabled={disabled} onToggle={toggleReset} /><input type="password" value={form.xyopsApiKey} disabled={disabled || resetSet.has("xyopsApiKey")} onChange={(event) => updateField("xyopsApiKey", event.target.value)} placeholder={effective.settings.xyops.apiKeyConfigured ? "Сохранён — заполните только для замены" : "Не настроен"} autoComplete="new-password" /></label>}
+          </section>}
+        </div>
+
+        {draft ? <div className="settings-draft-review">
+          <div><h3>Безопасный diff</h3><code>{draft.id}</code></div>
+          <div className="settings-diff-list">{draft.diff.map((item) => <article key={item.field}><strong>{labels[item.field] || item.field}</strong><span>{String(item.before ?? "—")}</span><b>→</b><span>{item.reset ? `Вернуть ${String(item.source || "default").toUpperCase()}` : item.secret ? "значение скрыто" : String(item.after ?? "—")}</span></article>)}</div>
+          {draft.validation?.services?.length ? <div className="settings-validation-list">{draft.validation.services.map((check) => <span className={check.ok ? "ok" : "fail"} key={check.service}>{check.service}: {check.ok ? `${check.latencyMs || 0} мс` : check.error}</span>)}</div> : null}
+          <div className="settings-lifecycle-actions"><button className="secondary" disabled={Boolean(busy)} onClick={() => void cancelDraft()}>{busy === "cancel" ? "Отмена…" : "Отменить черновик"}</button>{draft.status !== "validated" ? <button className="primary" disabled={Boolean(busy)} onClick={() => void validateDraft()}>{busy === "validate" ? "Проверка…" : "Проверить конфигурацию"}</button> : <button className="primary" disabled={Boolean(busy)} onClick={() => void applyDraft()}>{busy === "apply" ? "Применение…" : "Применить проверенную revision"}</button>}</div>
+        </div> : <div className="settings-lifecycle-actions"><span>{changeCount ? `Изменено параметров: ${changeCount}` : "Изменений нет"}</span><button className="primary" disabled={Boolean(busy) || !changeCount} onClick={() => void createDraft()}>{busy === "draft" ? "Создание…" : "Создать черновик"}</button></div>}
 
         <details className="settings-revisions"><summary>История применённых revision ({revisions.length})</summary><div>{revisions.map((revision) => <article key={revision.id}><span className={`revision-status ${revision.status}`} /> <div><strong>Revision {revision.revision}</strong><small>{new Date(revision.createdAt).toLocaleString("ru-RU")} · {revision.createdBy}</small></div><code>{revision.reason}</code></article>)}{!revisions.length && <p>История появится после первого применения через новый lifecycle.</p>}</div></details>
       </>}

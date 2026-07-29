@@ -118,30 +118,41 @@ export default function SettingsLifecycleWizard() {
   useEffect(() => {
     if (pathname !== "/settings") return;
     let active = true;
-    let frame = 0;
-    let attempts = 0;
+    let observer: MutationObserver | null = null;
+
     const attach = () => {
-      if (!active) return;
+      if (!active) return false;
       const existing = document.getElementById("settings-lifecycle-wizard-root");
-      if (existing) { setMount(existing); return; }
-      const target = document.querySelector<HTMLElement>(".settings-page");
-      if (target) {
-        const node = document.createElement("div");
-        node.id = "settings-lifecycle-wizard-root";
-        const sessionBridge = document.getElementById("local-admin-session-bridge");
-        if (sessionBridge?.nextSibling) target.insertBefore(node, sessionBridge.nextSibling);
-        else target.prepend(node);
-        setMount(node);
-        return;
+      if (existing) {
+        setMount(existing);
+        observer?.disconnect();
+        return true;
       }
-      attempts += 1;
-      if (attempts < 300) frame = window.requestAnimationFrame(attach);
+      const target = document.querySelector<HTMLElement>(".settings-page");
+      if (!target) return false;
+      const node = document.createElement("div");
+      node.id = "settings-lifecycle-wizard-root";
+      const sessionBridge = document.getElementById("local-admin-session-bridge");
+      if (sessionBridge?.nextSibling) target.insertBefore(node, sessionBridge.nextSibling);
+      else target.prepend(node);
+      setMount(node);
+      observer?.disconnect();
+      return true;
     };
-    frame = window.requestAnimationFrame(attach);
-    void load();
+
+    const frame = window.requestAnimationFrame(() => {
+      if (!active) return;
+      if (!attach()) {
+        observer = new MutationObserver(() => void attach());
+        observer.observe(document.body, { childList: true, subtree: true });
+      }
+      void load();
+    });
+
     return () => {
       active = false;
       window.cancelAnimationFrame(frame);
+      observer?.disconnect();
       delete document.documentElement.dataset.settingsLifecycleWizard;
       document.getElementById("settings-lifecycle-wizard-root")?.remove();
     };

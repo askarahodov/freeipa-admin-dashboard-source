@@ -249,6 +249,29 @@ async function applyWithRollback(request: Request, env: RuntimeEnv, ctx: Runtime
     return response;
   }
 
+  const currentAfterHealth = await activeSnapshot(env);
+  if (after && currentAfterHealth?.revision !== after.revision) {
+    await env.DB.prepare("UPDATE portal_settings_drafts SET status = ?, updated_at = ? WHERE id = ?")
+      .bind("rollback_conflict", Date.now(), draftId)
+      .run();
+    await appendAuditEvent(env, audit(identity), {
+      action: "settings.draft.rollback_conflict",
+      resourceType: "portal_settings_draft",
+      resourceId: draftId,
+      outcome: "failure",
+      metadata: { attemptedRevision: after.revision, currentRevision: currentAfterHealth?.revision ?? 0 },
+    }).catch(() => {});
+    return json({
+      ok: false,
+      rolledBack: false,
+      code: "settings_rollback_conflict",
+      error: "Автоматический откат остановлен: активная конфигурация уже была изменена другой операцией",
+      attemptedRevision: after.revision,
+      currentRevision: currentAfterHealth?.revision ?? 0,
+      health,
+    }, 409);
+  }
+
   let rollbackRevision = 0;
   let restoredSource: "database" | "environment" = "environment";
   if (before) {

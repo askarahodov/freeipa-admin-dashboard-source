@@ -13,6 +13,7 @@ if (!apiKey) {
 
 const jobs = new Map();
 let sequence = 0;
+let catalogFailure = false;
 
 const events = [
   {
@@ -174,7 +175,7 @@ const server = http.createServer(async (request, response) => {
   const url = new URL(request.url || "/", `http://127.0.0.1:${port}`);
 
   if (request.method === "GET" && (url.pathname === "/" || url.pathname === "/health")) {
-    return json(response, 200, { ok: true, service: "xyops-mock", jobs: jobs.size });
+    return json(response, 200, { ok: true, service: "xyops-mock", jobs: jobs.size, catalogFailure });
   }
 
   if (url.pathname.startsWith("/api/app/") && !authorized(request)) {
@@ -183,6 +184,7 @@ const server = http.createServer(async (request, response) => {
 
   try {
     if (request.method === "GET" && url.pathname === "/api/app/get_events/v1") {
+      if (catalogFailure) return json(response, 503, { code: 503, error: "Injected XYOps catalog failure" });
       return json(response, 200, { code: 0, events });
     }
 
@@ -244,14 +246,21 @@ const server = http.createServer(async (request, response) => {
       return json(response, 200, { code: 0, ok: true, job_id: id, status: "cancelled" });
     }
 
+    if (request.method === "POST" && url.pathname === "/__mock/catalog-failure") {
+      const body = await readJson(request);
+      catalogFailure = body.enabled === true;
+      return json(response, 200, { ok: true, catalogFailure });
+    }
+
     if (request.method === "POST" && url.pathname === "/__mock/reset") {
       jobs.clear();
       sequence = 0;
+      catalogFailure = false;
       return json(response, 200, { ok: true });
     }
 
     if (request.method === "GET" && url.pathname === "/__mock/state") {
-      return json(response, 200, { jobs: Array.from(jobs.values()) });
+      return json(response, 200, { jobs: Array.from(jobs.values()), catalogFailure });
     }
 
     return json(response, 404, { code: 404, error: "Not found" });

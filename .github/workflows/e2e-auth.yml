@@ -5,9 +5,11 @@ on:
     paths:
       - "app/login/**"
       - "app/LocalAuthToolbar.tsx"
+      - "app/SettingsLifecycleWizard.tsx"
       - "worker/local-auth.ts"
       - "worker/local-secure-entry.ts"
       - "worker/settings-lifecycle-entry.ts"
+      - "worker/settings-revisions-entry.ts"
       - "admin-session-authorization.ts"
       - "tests/settings-draft-lifecycle.test.mjs"
       - "e2e/**"

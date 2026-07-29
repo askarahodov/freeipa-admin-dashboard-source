@@ -417,6 +417,7 @@ const worker = {
   async fetch(request: Request, env: RuntimeEnv | undefined, ctx: RuntimeContext): Promise<Response> {
     const sourceEnv = env ?? (process.env as unknown as RuntimeEnv);
     const url = new URL(request.url);
+    if (url.pathname === "/api/integrations/health") return lifecycleRuntime.fetch(request, sourceEnv, ctx);
     await ensureTables(sourceEnv);
     if (url.pathname.startsWith("/api/integrations/")) await synchronizeInheritedSettings(sourceEnv).catch(() => {});
 

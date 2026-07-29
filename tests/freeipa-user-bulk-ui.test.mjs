@@ -6,6 +6,7 @@ test("user browser exposes RBAC-aware bulk controls and filtered CSV export", ()
   const component = fs.readFileSync(new URL("../app/FreeIpaUserBrowser.tsx", import.meta.url), "utf8");
   const worker = fs.readFileSync(new URL("../worker/freeipa-user-bulk-entry.ts", import.meta.url), "utf8");
   const topWorker = fs.readFileSync(new URL("../worker/freeipa-group-member-entry.ts", import.meta.url), "utf8");
+  const serviceRoot = fs.readFileSync(new URL("../worker/service-admin-root-entry.ts", import.meta.url), "utf8");
   const vite = fs.readFileSync(new URL("../vite.config.ts", import.meta.url), "utf8");
   const layout = fs.readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
 
@@ -29,6 +30,7 @@ test("user browser exposes RBAC-aware bulk controls and filtered CSV export", ()
 
   assert.equal(topWorker.includes("./freeipa-user-bulk-entry"), true);
   assert.equal(topWorker.includes("return bulkRuntime.fetch"), true);
-  assert.equal(vite.includes("worker/freeipa-group-member-entry.ts"), true);
+  assert.equal(serviceRoot.includes('import rootRuntime from "./freeipa-group-member-entry"'), true);
+  assert.equal(vite.includes("worker/service-admin-root-entry.ts"), true);
   assert.equal(layout.includes("freeipa-user-bulk.css"), true);
 });

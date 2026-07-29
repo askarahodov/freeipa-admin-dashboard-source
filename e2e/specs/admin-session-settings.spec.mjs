@@ -7,22 +7,28 @@ if (!adminUsername || !adminPassword) {
   throw new Error("E2E_ADMIN_USERNAME and E2E_ADMIN_PASSWORD are required");
 }
 
-async function login(page) {
-  await page.goto("/login?next=/settings");
+async function login(page, next = "/") {
+  await page.goto(`/login?next=${encodeURIComponent(next)}`);
   await page.getByLabel("Логин").fill(adminUsername);
   await page.getByLabel("Пароль").fill(adminPassword);
   await page.getByRole("button", { name: "Войти" }).click();
-  await expect.poll(() => new URL(page.url()).pathname).toBe("/settings");
+  await expect.poll(() => new URL(page.url()).pathname).toBe(next);
 }
 
-test("local admin manages settings without a browser ADMIN_TOKEN", async ({ page }) => {
+test("local admin manages settings after in-app navigation without a browser ADMIN_TOKEN", async ({ page }) => {
   await login(page);
+  await page.getByRole("button", { name: /Настройки/ }).click();
+  await expect.poll(() => new URL(page.url()).pathname).toBe("/settings");
 
   await expect(page.getByTestId("local-admin-session-settings")).toBeVisible();
   await expect(page.getByTestId("local-admin-session-settings")).toContainText("settings.manage");
-  await expect(page.locator(".settings-access")).toBeHidden();
+  await expect(page.locator(".settings-access")).toBeVisible();
+  await expect(page.locator(".settings-access > label")).toBeHidden();
   await expect(page.locator(".policy-toolbar > label").first()).toBeHidden();
   await expect(page.locator(".route-editor > label:last-of-type")).toBeHidden();
+
+  await page.getByRole("button", { name: "Открыть настройки", exact: true }).click();
+  await expect(page.locator(".settings-grid")).toBeVisible();
 
   const result = await page.evaluate(async () => {
     const settingsResponse = await fetch("/api/integrations/settings", { cache: "no-store" });

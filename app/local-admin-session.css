@@ -44,10 +44,7 @@
   background: color-mix(in srgb, var(--teal, #19b8a5) 12%, transparent);
 }
 
-html[data-portal-admin-authorization="session"] .settings-access {
-  display: none;
-}
-
+html[data-portal-admin-authorization="session"] .settings-access > label,
 html[data-portal-admin-authorization="session"] .policy-toolbar > label,
 html[data-portal-admin-authorization="session"] .route-editor > label:last-of-type {
   display: none;

@@ -45,12 +45,6 @@ export const metadata: Metadata = {
   },
 };
 
-const localAdminBootstrap = `try {
-  if (window.location.pathname === "/settings" && !window.sessionStorage.getItem("xyops-admin-token")) {
-    window.sessionStorage.setItem("xyops-admin-token", "__local_admin_session__");
-  }
-} catch {}`;
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -59,7 +53,6 @@ export default function RootLayout({
   return (
     <html lang="ru">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <script id="local-admin-session-bootstrap" dangerouslySetInnerHTML={{ __html: localAdminBootstrap }} />
         <PortalInteractionLayer />
         {children}
         <FreeIpaUserBrowser />

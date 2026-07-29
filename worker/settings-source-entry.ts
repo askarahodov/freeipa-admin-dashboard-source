@@ -15,6 +15,7 @@ type RuntimeContext = Parameters<typeof lifecycleRuntime.fetch>[2];
 type ScheduledController = Parameters<NonNullable<typeof lifecycleRuntime.scheduled>>[0];
 
 type SettingField = "demoMode" | "ipaUrl" | "ipaUsername" | "ipaPassword" | "xyopsUrl" | "xyopsApiKey";
+type ServiceName = "freeipa" | "xyops";
 
 type ActiveRow = {
   config: Record<string, unknown>;
@@ -157,7 +158,6 @@ async function ensureTables(env: RuntimeEnv): Promise<void> {
   if (!env.DB) return;
   await env.DB.prepare(createSettingsTable).run();
   await env.DB.prepare(createDraftResetTable).run();
-  await env.DB.prepare("DELETE FROM portal_settings_draft_resets WHERE created_at < ?").bind(Date.now() - 30 * 24 * 60 * 60 * 1000).run();
 }
 
 async function activeRow(env: RuntimeEnv): Promise<ActiveRow | null> {
@@ -348,6 +348,43 @@ function patchDraftPayload(payload: Record<string, unknown>, resetFields: Settin
   return { ...payload, draft };
 }
 
+function disabledResetServices(resetFields: SettingField[], env: RuntimeEnv): Set<ServiceName> {
+  const result = new Set<ServiceName>();
+  if (resetFields.some((field) => ["ipaUrl", "ipaUsername", "ipaPassword"].includes(field) && !environmentConfigured(field, env))) result.add("freeipa");
+  if (resetFields.some((field) => ["xyopsUrl", "xyopsApiKey"].includes(field) && !environmentConfigured(field, env))) result.add("xyops");
+  return result;
+}
+
+async function promoteIntentionalDisableValidation(
+  env: RuntimeEnv,
+  draftId: string,
+  resetFields: SettingField[],
+  response: Response,
+  payload: Record<string, unknown>,
+): Promise<{ response: Response; payload: Record<string, unknown> }> {
+  if (response.status !== 422 || !env.DB) return { response, payload };
+  const disabled = disabledResetServices(resetFields, env);
+  if (!disabled.size || !payload.draft || typeof payload.draft !== "object" || Array.isArray(payload.draft)) return { response, payload };
+  const draft = { ...payload.draft as Record<string, unknown> };
+  const validation = draft.validation && typeof draft.validation === "object" && !Array.isArray(draft.validation)
+    ? { ...draft.validation as Record<string, unknown> }
+    : {};
+  const checks = Array.isArray(validation.services)
+    ? validation.services.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object" && !Array.isArray(item)))
+    : [];
+  const failures = checks.filter((check) => check.ok === false);
+  if (!failures.length || failures.some((check) => !disabled.has(String(check.service) as ServiceName))) return { response, payload };
+  const services = checks.filter((check) => !disabled.has(String(check.service) as ServiceName));
+  const now = Date.now();
+  const promotedValidation = { ...validation, ok: true, checkedAt: now, services, skippedServices: Array.from(disabled) };
+  const update = await env.DB.prepare("UPDATE portal_settings_drafts SET status = ?, validation_json = ?, validated_at = ?, updated_at = ? WHERE id = ? AND status = ?")
+    .bind("validated", JSON.stringify(promotedValidation), now, now, draftId, "invalid").run();
+  if (resultChanges(update) !== 1) return { response, payload };
+  draft.status = "validated";
+  draft.validation = promotedValidation;
+  return { response: json({ ...payload, draft }, 200), payload: { ...payload, draft } };
+}
+
 function draftChangedFields(row: DraftRow, resetFields: SettingField[]): SettingField[] {
   const resetSet = new Set(resetFields);
   const result: SettingField[] = [];
@@ -388,16 +425,25 @@ async function attachOverridesToAppliedRevision(env: RuntimeEnv, revision: numbe
     .bind("main", revision).first<{ config_json: string }>();
   const commit = await env.DB.prepare("SELECT config_json FROM portal_settings_apply_commits WHERE id = ? AND revision = ?")
     .bind(commitId, revision).first<{ config_json: string }>();
-  const source = row?.config_json ?? commit?.config_json;
-  if (!source || !commit) return false;
-  const parsed = JSON.parse(source) as Record<string, unknown>;
+  if (!row || !commit) return false;
+  const parsed = JSON.parse(row.config_json) as Record<string, unknown>;
   const configJson = JSON.stringify({ ...parsed, overrides: settingFields.filter((field) => overrides.has(field)) });
-  const statements = [
+  const results = await env.DB.batch([
+    env.DB.prepare("UPDATE app_settings SET config_json = ? WHERE id = ? AND updated_at = ?").bind(configJson, "main", revision),
     env.DB.prepare("UPDATE portal_settings_apply_commits SET config_json = ? WHERE id = ? AND revision = ?").bind(configJson, commitId, revision),
-  ];
-  if (row) statements.unshift(env.DB.prepare("UPDATE app_settings SET config_json = ? WHERE id = ? AND updated_at = ?").bind(configJson, "main", revision));
-  const results = await env.DB.batch(statements);
-  return resultChanges(results.at(-1)) === 1;
+  ]);
+  return resultChanges(results[0]) === 1 && resultChanges(results[1]) === 1;
+}
+
+async function preserveRouteWriteOverrides(env: RuntimeEnv, before: ActiveRow | null): Promise<boolean> {
+  if (!env.DB) return true;
+  const after = await activeRow(env);
+  if (!after) return false;
+  const overrides = overrideSet(before?.config);
+  const configJson = JSON.stringify({ ...after.config, overrides: settingFields.filter((field) => overrides.has(field)) });
+  const update = await env.DB.prepare("UPDATE app_settings SET config_json = ? WHERE id = ? AND updated_at = ?")
+    .bind(configJson, "main", after.revision).run();
+  return resultChanges(update) === 1;
 }
 
 function audit(identity: string) {
@@ -419,13 +465,25 @@ const worker = {
     const url = new URL(request.url);
     if (url.pathname === "/api/integrations/health") return lifecycleRuntime.fetch(request, sourceEnv, ctx);
     await ensureTables(sourceEnv);
-    if (url.pathname.startsWith("/api/integrations/")) await synchronizeInheritedSettings(sourceEnv).catch(() => {});
+    if (url.pathname.startsWith("/api/integrations/") && url.pathname !== "/api/integrations/settings/test") {
+      await synchronizeInheritedSettings(sourceEnv).catch(() => {});
+    }
 
     if (request.method === "GET" && url.pathname === "/api/integrations/settings/effective") {
       const response = await delegate(request, sourceEnv, ctx);
       if (!response.ok) return response;
       const [payload, row] = await Promise.all([responsePayload(response), activeRow(sourceEnv)]);
       return responseWithPayload(patchEffectivePayload(payload, row, sourceEnv), response);
+    }
+
+    if (request.method === "PUT" && url.pathname === "/api/integrations/routes") {
+      const before = await activeRow(sourceEnv);
+      const response = await lifecycleRuntime.fetch(request, sourceEnv, ctx);
+      if (!response.ok) return response;
+      if (!await preserveRouteWriteOverrides(sourceEnv, before)) {
+        return json({ error: "Settings source metadata changed while routes were saved", code: "settings_source_revision_conflict" }, 409);
+      }
+      return response;
     }
 
     if (request.method === "POST" && url.pathname === "/api/integrations/settings/drafts") {
@@ -476,7 +534,7 @@ const worker = {
         const revision = Number(payload.revision ?? 0);
         const commitId = String(payload.applyCommitId ?? "");
         const attached = revision > 0 && commitId && await attachOverridesToAppliedRevision(sourceEnv, revision, commitId, overrides);
-        if (!attached) return json({ error: "Applied settings source metadata could not be committed", code: "settings_source_commit_failed", revision }, 500);
+        if (!attached) return json({ error: "Active settings changed before source metadata was committed", code: "settings_source_revision_conflict", revision }, 409);
         if (resets.length && row) {
           await appendAuditEvent(sourceEnv, audit(row.created_by), {
             action: "settings.override.reset_applied",
@@ -491,9 +549,15 @@ const worker = {
       }
 
       const response = await delegate(request, sourceEnv, ctx);
-      const payload = await responsePayload(response);
-      if (action === "cancel" && response.ok) await deleteResetFields(sourceEnv, draftId);
-      return responseWithPayload(patchDraftPayload(payload, resets, sourceEnv), response);
+      let payload = await responsePayload(response);
+      let effectiveResponse = response;
+      if (action === "validate" && request.method === "POST" && resets.length) {
+        const promoted = await promoteIntentionalDisableValidation(sourceEnv, draftId, resets, response, payload);
+        effectiveResponse = promoted.response;
+        payload = promoted.payload;
+      }
+      if (action === "cancel" && effectiveResponse.ok) await deleteResetFields(sourceEnv, draftId);
+      return responseWithPayload(patchDraftPayload(payload, resets, sourceEnv), effectiveResponse);
     }
 
     return lifecycleRuntime.fetch(request, sourceEnv, ctx);

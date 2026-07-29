@@ -75,10 +75,21 @@ test("D1 overrides can return to dynamic ENV or default through the lifecycle", 
   assert.equal(source.includes('for (const field of resets) result.delete(field)'), true);
   assert.equal(source.includes('attachOverridesToAppliedRevision'), true);
   assert.equal(source.includes('transformedDraftBody'), true);
-  assert.equal(source.includes('synchronizeInheritedSettings'), true);
+  assert.equal(source.includes('trySynchronizeInheritedSettings'), true);
   assert.equal(source.includes('settings_field_not_overridden'), true);
   assert.equal(source.includes('settings.override.reset_requested'), true);
-  assert.equal(source.includes('settings.override.reset_applied'), true);
+  assert.equal(revisions.includes('settings.override.reset_applied'), true);
+});
+
+test("source mutations are serialized and rollback remains tracked", () => {
+  assert.equal(source.includes("CREATE TABLE IF NOT EXISTS portal_settings_source_lock"), true);
+  assert.equal(source.includes("INSERT OR IGNORE INTO portal_settings_source_lock"), true);
+  assert.equal(source.includes("withSourceMutationLock"), true);
+  assert.equal(source.includes('code: "settings_source_busy"'), true);
+  assert.equal(source.includes("restoreActiveSnapshotCas"), true);
+  assert.equal(source.includes("sourceMetadataConflict: !attached"), true);
+  assert.equal(revisions.includes('payload.sourceMetadataConflict === true'), true);
+  assert.equal(revisions.includes('service: "settings-source"'), true);
 });
 
 test("source metadata attachment requires the exact active revision and apply snapshot", () => {
@@ -86,12 +97,14 @@ test("source metadata attachment requires the exact active revision and apply sn
   assert.equal(source.includes('UPDATE app_settings SET config_json = ? WHERE id = ? AND updated_at = ?'), true);
   assert.equal(source.includes('UPDATE portal_settings_apply_commits SET config_json = ? WHERE id = ? AND revision = ?'), true);
   assert.equal(source.includes('resultChanges(results[0]) === 1 && resultChanges(results[1]) === 1'), true);
-  assert.equal(source.includes('code: "settings_source_revision_conflict"'), true);
+  assert.equal(revisions.includes("consumeApplyCommit"), true);
+  assert.equal(revisions.includes("rollbackSnapshotCas"), true);
 });
 
-test("reset metadata is retained until terminal draft handling", () => {
+test("reset metadata is retained until terminal or conflict handling", () => {
   assert.equal(source.includes('DELETE FROM portal_settings_draft_resets WHERE created_at <'), false);
   assert.equal(source.includes('await deleteResetFields(sourceEnv, draftId)'), true);
+  assert.equal(source.includes("conflictPayload(payload)"), true);
   assert.equal(source.includes('action === "cancel" && effectiveResponse.ok'), true);
 });
 
@@ -99,14 +112,19 @@ test("reset to an unconfigured default intentionally disables its integration", 
   assert.equal(source.includes('function disabledResetServices('), true);
   assert.equal(source.includes('function promoteIntentionalDisableValidation('), true);
   assert.equal(source.includes('skippedServices: Array.from(disabled)'), true);
-  assert.equal(source.includes('WHERE id = ? AND status = ?'), true);
+  assert.equal(source.includes('configuredEnv(value) ? String(value) : ""'), true);
+  assert.equal(source.includes('if (configuredEnv(value)) changes.ipaPassword = String(value)'), true);
+  assert.equal(source.includes('if (configuredEnv(value)) changes.xyopsApiKey = String(value)'), true);
   assert.equal(source.includes('url.pathname !== "/api/integrations/settings/test"'), true);
 });
 
-test("route persistence preserves per-field override metadata", () => {
+test("direct settings and route writes preserve source metadata", () => {
+  assert.equal(source.includes('url.pathname === "/api/integrations/settings"'), true);
   assert.equal(source.includes('url.pathname === "/api/integrations/routes"'), true);
-  assert.equal(source.includes('function preserveRouteWriteOverrides('), true);
-  assert.equal(source.includes('Settings source metadata changed while routes were saved'), true);
+  assert.equal(source.includes("directSettingsOverrides"), true);
+  assert.equal(source.includes("attachOverridesToActiveRevision"), true);
+  assert.equal(source.includes('Не удалось атомарно сохранить routes и metadata источников'), true);
+  assert.equal(source.includes('Не удалось атомарно сохранить metadata источников'), true);
 });
 
 test("effective settings report per-field source, conflicts and reset metadata without secret values", () => {
@@ -123,10 +141,12 @@ test("effective settings report per-field source, conflicts and reset metadata w
   assert.equal(source.includes("decryptObject"), true);
 });
 
-test("revision history consumes the exact applied snapshot and rolls back with CAS", () => {
+test("revision history finalizes reset audit and response after health checks", () => {
   assert.equal(revisions.includes("CREATE TABLE IF NOT EXISTS portal_settings_revisions"), true);
-  assert.equal(revisions.includes("consumeApplyCommit"), true);
-  assert.equal(revisions.includes('payload.applyCommitId'), true);
+  assert.equal(revisions.includes("resetFieldsFromPayload"), true);
+  assert.equal(revisions.includes('settings.override.reset_applied'), true);
+  assert.equal(revisions.includes('settings.override.reset_rolled_back'), true);
+  assert.equal(revisions.includes('resetFields, health'), true);
   assert.equal(revisions.includes('reason: "automatic_rollback"'), true);
   assert.equal(revisions.includes('code: "settings_post_apply_health_failed"'), true);
   assert.equal(revisions.includes('code: "settings_rollback_conflict"'), true);

@@ -81,6 +81,34 @@ test("D1 overrides can return to dynamic ENV or default through the lifecycle", 
   assert.equal(source.includes('settings.override.reset_applied'), true);
 });
 
+test("source metadata attachment requires the exact active revision and apply snapshot", () => {
+  assert.equal(source.includes('if (!row || !commit) return false'), true);
+  assert.equal(source.includes('UPDATE app_settings SET config_json = ? WHERE id = ? AND updated_at = ?'), true);
+  assert.equal(source.includes('UPDATE portal_settings_apply_commits SET config_json = ? WHERE id = ? AND revision = ?'), true);
+  assert.equal(source.includes('resultChanges(results[0]) === 1 && resultChanges(results[1]) === 1'), true);
+  assert.equal(source.includes('code: "settings_source_revision_conflict"'), true);
+});
+
+test("reset metadata is retained until terminal draft handling", () => {
+  assert.equal(source.includes('DELETE FROM portal_settings_draft_resets WHERE created_at <'), false);
+  assert.equal(source.includes('await deleteResetFields(sourceEnv, draftId)'), true);
+  assert.equal(source.includes('action === "cancel" && effectiveResponse.ok'), true);
+});
+
+test("reset to an unconfigured default intentionally disables its integration", () => {
+  assert.equal(source.includes('function disabledResetServices('), true);
+  assert.equal(source.includes('function promoteIntentionalDisableValidation('), true);
+  assert.equal(source.includes('skippedServices: Array.from(disabled)'), true);
+  assert.equal(source.includes('WHERE id = ? AND status = ?'), true);
+  assert.equal(source.includes('url.pathname !== "/api/integrations/settings/test"'), true);
+});
+
+test("route persistence preserves per-field override metadata", () => {
+  assert.equal(source.includes('url.pathname === "/api/integrations/routes"'), true);
+  assert.equal(source.includes('function preserveRouteWriteOverrides('), true);
+  assert.equal(source.includes('Settings source metadata changed while routes were saved'), true);
+});
+
 test("effective settings report per-field source, conflicts and reset metadata without secret values", () => {
   for (const envName of ["DEMO_MODE", "IPA_URL", "IPA_USERNAME", "IPA_PASSWORD", "XYOPS_URL", "XYOPS_API_KEY"]) {
     assert.equal(source.includes(`"${envName}"`), true, envName);

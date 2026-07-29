@@ -38,7 +38,10 @@ type RevisionRow = {
 };
 
 type ServiceName = "freeipa" | "xyops";
+type SettingField = "demoMode" | "ipaUrl" | "ipaUsername" | "ipaPassword" | "xyopsUrl" | "xyopsApiKey";
+type HealthResult = { service: string; ok: boolean; latencyMs?: number; error?: string };
 
+const settingFields: SettingField[] = ["demoMode", "ipaUrl", "ipaUsername", "ipaPassword", "xyopsUrl", "xyopsApiKey"];
 const jsonHeaders = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
 const createRevisionsTable = `CREATE TABLE IF NOT EXISTS portal_settings_revisions (
   id TEXT PRIMARY KEY NOT NULL,
@@ -72,6 +75,12 @@ function isRevisionPath(pathname: string): boolean {
 
 function localMode(env: RuntimeEnv): boolean {
   return String(env.PORTAL_IDENTITY_MODE ?? "").trim().toLowerCase() === "local";
+}
+
+function resetFieldsFromPayload(payload: Record<string, unknown>): SettingField[] {
+  return Array.isArray(payload.resetFields)
+    ? Array.from(new Set(payload.resetFields.map(String).filter((item): item is SettingField => settingFields.includes(item as SettingField))))
+    : [];
 }
 
 async function secretsMatch(provided: string | null, expected: string | undefined): Promise<boolean> {
@@ -246,8 +255,8 @@ async function responsePayload(response: Response): Promise<Record<string, unkno
   return payload && typeof payload === "object" && !Array.isArray(payload) ? payload as Record<string, unknown> : {};
 }
 
-async function healthCheck(request: Request, env: RuntimeEnv, ctx: RuntimeContext, services: ServiceName[]): Promise<Array<{ service: string; ok: boolean; latencyMs?: number; error?: string }>> {
-  const health: Array<{ service: string; ok: boolean; latencyMs?: number; error?: string }> = [];
+async function healthCheck(request: Request, env: RuntimeEnv, ctx: RuntimeContext, services: ServiceName[]): Promise<HealthResult[]> {
+  const health: HealthResult[] = [];
   for (const service of services) {
     const url = new URL(request.url);
     url.pathname = "/api/integrations/settings/test";
@@ -280,7 +289,14 @@ async function rollbackSnapshotCas(env: RuntimeEnv, before: ActiveSnapshot | nul
   return { ok: resultChanges(restored) === 1, revision: rollbackRevision, source: "database" };
 }
 
-async function rollbackConflict(env: RuntimeEnv, identity: string, draftId: string, attemptedRevision: number, health: unknown[]): Promise<Response> {
+async function rollbackConflict(
+  env: RuntimeEnv,
+  identity: string,
+  draftId: string,
+  attemptedRevision: number,
+  health: unknown[],
+  resetFields: SettingField[] = [],
+): Promise<Response> {
   const current = await activeSnapshot(env);
   await env.DB!.prepare("UPDATE portal_settings_drafts SET status = ?, updated_at = ? WHERE id = ?")
     .bind("rollback_conflict", Date.now(), draftId)
@@ -290,8 +306,17 @@ async function rollbackConflict(env: RuntimeEnv, identity: string, draftId: stri
     resourceType: "portal_settings_draft",
     resourceId: draftId,
     outcome: "failure",
-    metadata: { attemptedRevision, currentRevision: current?.revision ?? 0 },
+    metadata: { attemptedRevision, currentRevision: current?.revision ?? 0, resetFields },
   }).catch(() => {});
+  if (resetFields.length) {
+    await appendAuditEvent(env, audit(identity), {
+      action: "settings.override.reset_rollback_conflict",
+      resourceType: "portal_settings",
+      resourceId: "main",
+      outcome: "failure",
+      metadata: { draftId, attemptedRevision, currentRevision: current?.revision ?? 0, fields: resetFields },
+    }).catch(() => {});
+  }
   return json({
     ok: false,
     rolledBack: false,
@@ -299,6 +324,7 @@ async function rollbackConflict(env: RuntimeEnv, identity: string, draftId: stri
     error: "Автоматический откат остановлен: активная конфигурация уже была изменена другой операцией",
     attemptedRevision,
     currentRevision: current?.revision ?? 0,
+    resetFields,
     health,
   }, 409);
 }
@@ -321,16 +347,24 @@ async function applyWithRollback(request: Request, env: RuntimeEnv, ctx: Runtime
     return response;
   }
 
+  const resetFields = resetFieldsFromPayload(payload);
   const revision = Number(payload.revision ?? 0);
   const commitId = String(payload.applyCommitId ?? "");
   const after = revision > 0 && commitId ? await consumeApplyCommit(env, commitId, draftId, revision) : null;
-  if (!after) return rollbackConflict(env, identity, draftId, revision, []);
+  if (!after) return rollbackConflict(env, identity, draftId, revision, [], resetFields);
 
   if (before) await recordRevision(env, before, { draftId, createdBy: identity, reason: "pre_apply", status: "superseded" });
   const services = Array.isArray(payload.services)
     ? payload.services.map(String).filter((item): item is ServiceName => item === "freeipa" || item === "xyops")
     : [];
   const health = await healthCheck(request, env, ctx, services);
+  if (payload.sourceMetadataConflict === true) {
+    health.push({
+      service: "settings-source",
+      ok: false,
+      error: "Settings source metadata could not be attached atomically",
+    });
+  }
   const failures = health.filter((item) => item.ok === false);
   await recordRevision(env, after, {
     draftId,
@@ -346,13 +380,22 @@ async function applyWithRollback(request: Request, env: RuntimeEnv, ctx: Runtime
       resourceType: "portal_settings_draft",
       resourceId: draftId,
       outcome: "success",
-      metadata: { revision: after.revision, healthChecks: health.length },
+      metadata: { revision: after.revision, healthChecks: health.length, resetFields },
     }).catch(() => {});
-    return json({ ok: true, settings: payload.settings ?? null, revision: after.revision, health });
+    if (resetFields.length) {
+      await appendAuditEvent(env, audit(identity), {
+        action: "settings.override.reset_applied",
+        resourceType: "portal_settings",
+        resourceId: "main",
+        outcome: "success",
+        metadata: { draftId, revision: after.revision, fields: resetFields },
+      }).catch(() => {});
+    }
+    return json({ ok: true, settings: payload.settings ?? null, revision: after.revision, resetFields, health });
   }
 
   const restored = await rollbackSnapshotCas(env, before, after.revision);
-  if (!restored.ok) return rollbackConflict(env, identity, draftId, after.revision, health);
+  if (!restored.ok) return rollbackConflict(env, identity, draftId, after.revision, health, resetFields);
   if (before) {
     await recordRevision(env, { ...before, revision: restored.revision }, {
       draftId,
@@ -370,8 +413,17 @@ async function applyWithRollback(request: Request, env: RuntimeEnv, ctx: Runtime
     resourceType: "portal_settings_draft",
     resourceId: draftId,
     outcome: "failure",
-    metadata: { failedServices: failures.map((item) => String(item.service ?? "unknown")), rollbackRevision: restored.revision, restoredSource: restored.source },
+    metadata: { failedServices: failures.map((item) => String(item.service ?? "unknown")), rollbackRevision: restored.revision, restoredSource: restored.source, resetFields },
   }).catch(() => {});
+  if (resetFields.length) {
+    await appendAuditEvent(env, audit(identity), {
+      action: "settings.override.reset_rolled_back",
+      resourceType: "portal_settings",
+      resourceId: "main",
+      outcome: "failure",
+      metadata: { draftId, attemptedRevision: after.revision, rollbackRevision: restored.revision, fields: resetFields },
+    }).catch(() => {});
+  }
 
   return json({
     ok: false,
@@ -381,6 +433,7 @@ async function applyWithRollback(request: Request, env: RuntimeEnv, ctx: Runtime
     attemptedRevision: after.revision,
     revision: restored.revision,
     restoredSource: restored.source,
+    resetFields,
     health,
   }, 502);
 }

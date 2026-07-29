@@ -1,6 +1,9 @@
 name: Auth E2E
 
 on:
+  push:
+    branches:
+      - "agent/settings-draft-lifecycle"
   pull_request:
     paths:
       - "app/login/**"

@@ -3,6 +3,8 @@ export const LOCAL_ADMIN_SESSION_MARKER = "__local_admin_session__";
 const ADMIN_INTEGRATION_PATHS = new Set([
   "/api/integrations/settings",
   "/api/integrations/settings/test",
+  "/api/integrations/settings/effective",
+  "/api/integrations/settings/drafts",
   "/api/integrations/catalog/presentation",
   "/api/integrations/catalog/policies",
   "/api/integrations/approval/policies",
@@ -11,7 +13,8 @@ const ADMIN_INTEGRATION_PATHS = new Set([
 ]);
 
 export function isAdminIntegrationPath(pathname: string): boolean {
-  return ADMIN_INTEGRATION_PATHS.has(pathname);
+  return ADMIN_INTEGRATION_PATHS.has(pathname)
+    || pathname.startsWith("/api/integrations/settings/drafts/");
 }
 
 export function isReadOnlyMethod(method: string): boolean {

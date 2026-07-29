@@ -51,6 +51,9 @@ type FormState = {
   xyopsApiKey: string;
 };
 
+type ApiError = Error & { status?: number; payload?: { draft?: Draft; rolledBack?: boolean } };
+
+const emptyForm: FormState = { demoMode: false, ipaUrl: "", ipaUsername: "", ipaPassword: "", xyopsUrl: "", xyopsApiKey: "" };
 const labels: Record<string, string> = {
   demoMode: "Демо-режим",
   ipaUrl: "FreeIPA URL",
@@ -64,7 +67,7 @@ async function api(path: string, init?: RequestInit) {
   const response = await fetch(path, { cache: "no-store", ...init });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const error = new Error(String(data.error || `HTTP ${response.status}`)) as Error & { status?: number; payload?: Record<string, unknown> };
+    const error = new Error(String(data.error || `HTTP ${response.status}`)) as ApiError;
     error.status = response.status;
     error.payload = data;
     throw error;
@@ -78,14 +81,25 @@ function SourceBadge({ field }: { field?: FieldSource }) {
   return <span className={`settings-source ${field.source}`} title={field.overridden ? `${field.envName} переопределён в D1` : field.envName}>{text}{field.overridden ? " · override" : ""}</span>;
 }
 
+function formFromEffective(effective: EffectiveSettings): FormState {
+  return {
+    demoMode: effective.settings.demoMode === true,
+    ipaUrl: effective.settings.freeipa.url || "",
+    ipaUsername: effective.settings.freeipa.username || "",
+    ipaPassword: "",
+    xyopsUrl: effective.settings.xyops.url || "",
+    xyopsApiKey: "",
+  };
+}
+
 export default function SettingsLifecycleWizard() {
   const pathname = usePathname();
   const [mount, setMount] = useState<HTMLElement | null>(null);
   const [effective, setEffective] = useState<EffectiveSettings | null>(null);
   const [revisions, setRevisions] = useState<Revision[]>([]);
-  const [form, setForm] = useState<FormState>({ demoMode: false, ipaUrl: "", ipaUsername: "", ipaPassword: "", xyopsUrl: "", xyopsApiKey: "" });
+  const [form, setForm] = useState<FormState>(emptyForm);
   const [draft, setDraft] = useState<Draft | null>(null);
-  const [busy, setBusy] = useState<"load" | "draft" | "validate" | "apply" | null>(null);
+  const [busy, setBusy] = useState<"load" | "draft" | "validate" | "apply" | "cancel" | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -99,14 +113,7 @@ export default function SettingsLifecycleWizard() {
       ]);
       setEffective(active);
       setRevisions(Array.isArray(history.revisions) ? history.revisions : []);
-      setForm({
-        demoMode: active.settings.demoMode === true,
-        ipaUrl: active.settings.freeipa.url || "",
-        ipaUsername: active.settings.freeipa.username || "",
-        ipaPassword: "",
-        xyopsUrl: active.settings.xyops.url || "",
-        xyopsApiKey: "",
-      });
+      setForm(formFromEffective(active));
       document.documentElement.dataset.settingsLifecycleWizard = "ready";
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Настройки недоступны");
@@ -119,7 +126,6 @@ export default function SettingsLifecycleWizard() {
     if (pathname !== "/settings") return;
     let active = true;
     let observer: MutationObserver | null = null;
-
     const attach = () => {
       if (!active) return false;
       const existing = document.getElementById("settings-lifecycle-wizard-root");
@@ -139,7 +145,6 @@ export default function SettingsLifecycleWizard() {
       observer?.disconnect();
       return true;
     };
-
     const frame = window.requestAnimationFrame(() => {
       if (!active) return;
       if (!attach()) {
@@ -148,7 +153,6 @@ export default function SettingsLifecycleWizard() {
       }
       void load();
     });
-
     return () => {
       active = false;
       window.cancelAnimationFrame(frame);
@@ -196,8 +200,11 @@ export default function SettingsLifecycleWizard() {
       }) as { draft: Draft };
       setDraft(data.draft);
       setMessage("Черновик проверен. Можно применить конфигурацию.");
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Проверка черновика не пройдена"); }
-    finally { setBusy(null); }
+    } catch (cause) {
+      const detail = cause as ApiError;
+      if (detail.payload?.draft) setDraft(detail.payload.draft);
+      setError(detail.message || "Проверка черновика не пройдена");
+    } finally { setBusy(null); }
   }
 
   async function applyDraft() {
@@ -213,15 +220,27 @@ export default function SettingsLifecycleWizard() {
       setDraft(null);
       await load();
     } catch (cause) {
-      const detail = cause as Error & { payload?: { rolledBack?: boolean } };
+      const detail = cause as ApiError;
       setError(detail.payload?.rolledBack ? `${detail.message}. Рабочая конфигурация восстановлена автоматически.` : detail.message);
       await load();
     } finally { setBusy(null); }
   }
 
-  function resetDraft() {
-    setDraft(null); setError(""); setMessage("");
-    if (effective) setForm({ demoMode: effective.settings.demoMode, ipaUrl: effective.settings.freeipa.url, ipaUsername: effective.settings.freeipa.username, ipaPassword: "", xyopsUrl: effective.settings.xyops.url, xyopsApiKey: "" });
+  async function cancelDraft() {
+    if (!draft) return;
+    setBusy("cancel"); setError(""); setMessage("");
+    try {
+      await api(`/api/integrations/settings/drafts/${encodeURIComponent(draft.id)}/cancel`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{}",
+      });
+      setDraft(null);
+      if (effective) setForm(formFromEffective(effective));
+      setMessage("Черновик отменён, сохранённые в нём секреты удалены.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Не удалось отменить черновик");
+    } finally { setBusy(null); }
   }
 
   if (!mount) return null;
@@ -248,7 +267,7 @@ export default function SettingsLifecycleWizard() {
           <section><div className="settings-lifecycle-title"><h3>XYOps</h3><SourceBadge field={effective.fields.xyopsUrl} /></div><label>Адрес XYOps<input value={form.xyopsUrl} disabled={Boolean(draft)} onChange={(event) => setForm({ ...form, xyopsUrl: event.target.value })} /></label><label>Новый API key<div className="field-source-line"><SourceBadge field={effective.fields.xyopsApiKey} /></div><input type="password" value={form.xyopsApiKey} disabled={Boolean(draft)} onChange={(event) => setForm({ ...form, xyopsApiKey: event.target.value })} placeholder={effective.settings.xyops.apiKeyConfigured ? "Сохранён — заполните только для замены" : "Не настроен"} autoComplete="new-password" /></label></section>
         </div>
 
-        {draft ? <div className="settings-draft-review"><div><h3>Безопасный diff</h3><code>{draft.id}</code></div><div className="settings-diff-list">{draft.diff.map((item) => <article key={item.field}><strong>{labels[item.field] || item.field}</strong><span>{String(item.before ?? "—")}</span><b>→</b><span>{item.secret ? "значение скрыто" : String(item.after ?? "—")}</span></article>)}</div>{draft.validation?.services?.length ? <div className="settings-validation-list">{draft.validation.services.map((check) => <span className={check.ok ? "ok" : "fail"} key={check.service}>{check.service}: {check.ok ? `${check.latencyMs || 0} мс` : check.error}</span>)}</div> : null}<div className="settings-lifecycle-actions"><button className="secondary" disabled={Boolean(busy)} onClick={resetDraft}>Отменить черновик</button>{draft.status !== "validated" ? <button className="primary" disabled={Boolean(busy)} onClick={() => void validateDraft()}>{busy === "validate" ? "Проверка…" : "Проверить конфигурацию"}</button> : <button className="primary" disabled={Boolean(busy)} onClick={() => void applyDraft()}>{busy === "apply" ? "Применение…" : "Применить проверенную revision"}</button>}</div></div> : <div className="settings-lifecycle-actions"><span>{Object.keys(changes).length ? `Изменено параметров: ${Object.keys(changes).length}` : "Изменений нет"}</span><button className="primary" disabled={Boolean(busy) || !Object.keys(changes).length} onClick={() => void createDraft()}>{busy === "draft" ? "Создание…" : "Создать черновик"}</button></div>}
+        {draft ? <div className="settings-draft-review"><div><h3>Безопасный diff</h3><code>{draft.id}</code></div><div className="settings-diff-list">{draft.diff.map((item) => <article key={item.field}><strong>{labels[item.field] || item.field}</strong><span>{String(item.before ?? "—")}</span><b>→</b><span>{item.secret ? "значение скрыто" : String(item.after ?? "—")}</span></article>)}</div>{draft.validation?.services?.length ? <div className="settings-validation-list">{draft.validation.services.map((check) => <span className={check.ok ? "ok" : "fail"} key={check.service}>{check.service}: {check.ok ? `${check.latencyMs || 0} мс` : check.error}</span>)}</div> : null}<div className="settings-lifecycle-actions"><button className="secondary" disabled={Boolean(busy)} onClick={() => void cancelDraft()}>{busy === "cancel" ? "Отмена…" : "Отменить черновик"}</button>{draft.status !== "validated" ? <button className="primary" disabled={Boolean(busy)} onClick={() => void validateDraft()}>{busy === "validate" ? "Проверка…" : "Проверить конфигурацию"}</button> : <button className="primary" disabled={Boolean(busy)} onClick={() => void applyDraft()}>{busy === "apply" ? "Применение…" : "Применить проверенную revision"}</button>}</div></div> : <div className="settings-lifecycle-actions"><span>{Object.keys(changes).length ? `Изменено параметров: ${Object.keys(changes).length}` : "Изменений нет"}</span><button className="primary" disabled={Boolean(busy) || !Object.keys(changes).length} onClick={() => void createDraft()}>{busy === "draft" ? "Создание…" : "Создать черновик"}</button></div>}
 
         <details className="settings-revisions"><summary>История применённых revision ({revisions.length})</summary><div>{revisions.map((revision) => <article key={revision.id}><span className={`revision-status ${revision.status}`} /> <div><strong>Revision {revision.revision}</strong><small>{new Date(revision.createdAt).toLocaleString("ru-RU")} · {revision.createdBy}</small></div><code>{revision.reason}</code></article>)}{!revisions.length && <p>История появится после первого применения через новый lifecycle.</p>}</div></details>
       </>}

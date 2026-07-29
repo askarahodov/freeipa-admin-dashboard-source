@@ -52,8 +52,11 @@
 
 ### P1 — безопасный lifecycle конфигурации
 
-- [ ] #35 — черновик → проверка → diff → применение → post-apply health check с optimistic locking.
+- [x] #35 — черновик → проверка → diff → применение → post-apply health check с optimistic locking (PR #47).
 - [ ] #36 — показывать источник каждого значения: ENV, D1, default или secret provider.
+  - [x] effective metadata и D1/ENV/DEFAULT badges;
+  - [ ] удаление отдельного D1 override и возврат к ENV/default;
+  - [ ] фильтры D1 override/conflict и E2E динамического наследования ENV.
 - [ ] #37 — резервное копирование, безопасный export/import и восстановление портала.
 
 ### P1 — безопасность и права
@@ -74,7 +77,7 @@
 - [ ] #45 — общие настройки портала, timezone, environment badge и maintenance metadata.
 - [ ] #46 — централизованные feature flags с server-side enforcement.
 
-Первый implementation slice #35/#36 выполняется отдельным stacked PR поверх #26. Backup, RBAC, retention и интеграционные параметры должны использовать общий revision/diff/apply контракт, а не создавать собственные способы сохранения.
+Первый implementation slice #35 слит в PR #47. Завершающий slice #36 должен использовать тот же revision/diff/apply контракт. Backup, RBAC, retention и интеграционные параметры также не должны создавать собственные способы сохранения.
 
 ### P1 — диагностика
 

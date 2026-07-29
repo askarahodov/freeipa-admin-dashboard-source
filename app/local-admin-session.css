@@ -1,0 +1,62 @@
+.local-admin-session-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 18px;
+  border-color: color-mix(in srgb, var(--teal, #19b8a5) 44%, transparent);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--teal, #19b8a5) 13%, transparent), color-mix(in srgb, var(--panel, #121722) 96%, transparent));
+}
+
+.local-admin-session-panel h2 {
+  margin: 5px 0 8px;
+}
+
+.local-admin-session-panel p {
+  margin: 0;
+  max-width: 760px;
+  color: var(--muted, #98a2b3);
+}
+
+.local-admin-session-identity {
+  min-width: 220px;
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--teal, #19b8a5) 34%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--panel, #121722) 78%, transparent);
+}
+
+.local-admin-session-identity small,
+.local-admin-session-identity span {
+  color: var(--muted, #98a2b3);
+}
+
+.local-admin-session-identity span {
+  width: fit-content;
+  margin-top: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 12px;
+  color: var(--teal, #19b8a5);
+  background: color-mix(in srgb, var(--teal, #19b8a5) 12%, transparent);
+}
+
+html[data-portal-admin-authorization="session"] .settings-access > label,
+html[data-portal-admin-authorization="session"] .policy-toolbar > label,
+html[data-portal-admin-authorization="session"] .route-editor > label:last-of-type {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .local-admin-session-panel {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .local-admin-session-identity {
+    min-width: 0;
+  }
+}

@@ -12,8 +12,10 @@ import "./freeipa-user-browser.css";
 import "./freeipa-user-bulk.css";
 import "./freeipa-group-member-browser.css";
 import "./operation-explorer.css";
+import "./local-admin-session.css";
 import LocalAuthToolbar from "./LocalAuthToolbar";
 import LocalAdministrationContext from "./LocalAdministrationContext";
+import LocalAdminSessionBridge from "./LocalAdminSessionBridge";
 import PortalInteractionLayer from "./PortalInteractionLayer";
 import FreeIpaUserBrowser from "./FreeIpaUserBrowser";
 import FreeIpaGroupMemberBrowser from "./FreeIpaGroupMemberBrowser";
@@ -55,6 +57,7 @@ export default function RootLayout({
         <FreeIpaGroupMemberBrowser />
         <OperationExplorer />
         <LocalAdministrationContext />
+        <LocalAdminSessionBridge />
         <LocalAuthToolbar />
       </body>
     </html>

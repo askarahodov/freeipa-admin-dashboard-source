@@ -25,6 +25,9 @@ test("settings lifecycle runs behind the existing local admin security boundary"
   assert.equal(authorization.includes('pathname.startsWith("/api/integrations/settings/drafts/")'), true);
   assert.equal(localBoundary.includes("sameOriginAdminMutation(request)"), true);
   assert.equal(localBoundary.includes("headers.delete(\"x-admin-token\")"), true);
+  assert.equal(revisions.includes('session?.role === "admin"'), true);
+  assert.equal(revisions.includes('secretsMatch(request.headers.get("x-admin-token"), env.ADMIN_TOKEN)'), true);
+  assert.equal(revisions.includes('request.headers.get("oai-authenticated-user-email")'), false);
 });
 
 test("draft lifecycle persists encrypted secret changes and never exposes their values", () => {

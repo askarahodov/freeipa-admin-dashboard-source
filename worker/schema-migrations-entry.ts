@@ -3,10 +3,10 @@ import { serviceAdminTokenAuthorized } from "../admin-session-authorization.ts";
 import { ensurePortalSchema, type PortalSchemaStatus } from "../db/portal-migrations.ts";
 import {
   migrationCapableDatabase,
-  nodeTestRuntime,
   schemaAuthorizationResponse,
   schemaFailureResponse,
   schemaStatusResponse,
+  schemaTestBypassEnabled,
 } from "./schema-migrations-boundary.ts";
 
 type RuntimeEnv = NonNullable<Parameters<typeof rootRuntime.fetch>[1]> & {
@@ -31,7 +31,7 @@ const worker = {
     }
 
     if (!sourceEnv.DB) {
-      if (nodeTestRuntime()) return rootRuntime.fetch(request, sourceEnv, ctx);
+      if (schemaTestBypassEnabled(sourceEnv)) return rootRuntime.fetch(request, sourceEnv, ctx);
       return schemaFailureResponse(await portalSchema(sourceEnv));
     }
     if (!migrationCapableDatabase(sourceEnv.DB)) return rootRuntime.fetch(request, sourceEnv, ctx);
@@ -44,7 +44,7 @@ const worker = {
   async scheduled(controller: ScheduledController, env: RuntimeEnv | undefined, ctx: RuntimeContext): Promise<void> {
     const sourceEnv = env ?? (process.env as unknown as RuntimeEnv);
     if (!sourceEnv.DB) {
-      if (nodeTestRuntime()) return rootRuntime.scheduled?.(controller, sourceEnv, ctx);
+      if (schemaTestBypassEnabled(sourceEnv)) return rootRuntime.scheduled?.(controller, sourceEnv, ctx);
       return;
     }
     if (!migrationCapableDatabase(sourceEnv.DB)) return rootRuntime.scheduled?.(controller, sourceEnv, ctx);
@@ -54,5 +54,10 @@ const worker = {
   },
 };
 
-export { migrationCapableDatabase, nodeTestRuntime, schemaFailureResponse } from "./schema-migrations-boundary.ts";
+export {
+  markSchemaTestBypass,
+  migrationCapableDatabase,
+  schemaFailureResponse,
+  schemaTestBypassEnabled,
+} from "./schema-migrations-boundary.ts";
 export default worker;

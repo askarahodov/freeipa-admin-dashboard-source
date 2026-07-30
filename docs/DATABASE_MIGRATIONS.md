@@ -43,11 +43,13 @@ Canonical inventory перечисляет обязательные таблиц
 
 Нельзя вручную изменять, удалять или добавлять строки journal. Несовпадение checksum означает, что уже применённая версия была изменена после выпуска. Портал блокирует readiness с кодом `schema_checksum_mismatch`.
 
+Применённые версии обязаны образовывать точный ordered prefix migration registry. Например, journal `[2]` при registry `[1, 2]` считается повреждённым: портал возвращает `schema_journal_gap` и не пытается автоматически применить пропущенную v1 после v2.
+
 ## Startup flow
 
 1. Создаются только infrastructure-таблицы journal и lock.
 2. Worker получает migration lock `main`.
-3. Проверяются применённые версии, имена и checksum.
+3. Проверяются ordered prefix применённых версий, имена и checksum.
 4. Pending migrations выполняются строго по порядку registry.
 5. Для baseline idempotent table phase выполняется отдельно, затем проверяются обязательные столбцы и constraints.
 6. Secondary DDL baseline и запись journal выполняются одним transactional D1 `batch`.
@@ -79,6 +81,8 @@ Baseline использует две фазы, потому что перед с
 - недостающие таблицы, indexes и triggers создаются;
 - существующая таблица с отсутствующим или несовместимым столбцом не исправляется молча;
 - required `UNIQUE`, index columns/order/uniqueness и audit trigger definitions проверяются полностью;
+- дополнительные `CHECK`, `FOREIGN KEY` или column-level `REFERENCES`, отсутствующие в canonical definition, блокируют adoption;
+- дополнительный trigger на canonical table блокирует adoption, потому что может запрещать или изменять application writes;
 - journal version записывается только вместе с успешной изменяющей фазой.
 
 Такой процесс называется adoption. Он не является data migration и не расшифровывает настройки.
@@ -94,9 +98,12 @@ Baseline использует две фазы, потому что перед с
 - несовпадение типа, `NOT NULL` или primary-key semantics;
 - потерянный required `UNIQUE` constraint;
 - index с неправильной таблицей, columns, order, uniqueness или partial semantics;
-- trigger с неправильной таблицей, event или body;
+- required trigger с неправильной таблицей, event или body;
+- дополнительный trigger на canonical table;
+- дополнительный `CHECK`, `FOREIGN KEY` или `REFERENCES` constraint на canonical table;
 - дополнительный `NOT NULL` столбец без default, который ломает canonical inserts;
 - неизвестная более новая migration version;
+- gap или неправильный порядок migration journal;
 - несовпадение migration checksum.
 
 ### Совместимый drift
@@ -105,7 +112,8 @@ Baseline использует две фазы, потому что перед с
 
 - дополнительная application table;
 - nullable дополнительный столбец либо дополнительный столбец с default;
-- дополнительный index или trigger.
+- дополнительный index;
+- дополнительный trigger, прикреплённый только к дополнительной application table.
 
 Портал никогда автоматически не удаляет совместимые дополнительные объекты.
 
@@ -120,6 +128,7 @@ Baseline использует две фазы, потому что перед с
 | `failed` | `schema_migration_failed` | Migration или inspection завершились ошибкой |
 | `failed` | `schema_checksum_mismatch` | Изменено содержимое применённой migration |
 | `failed` | `schema_future_version` | База создана более новой версией приложения |
+| `failed` | `schema_journal_gap` | Applied versions не образуют ordered prefix registry |
 
 При state, отличном от `ready`, обычный HTTP API возвращает `503`, а scheduled-задачи не запускаются.
 
@@ -159,8 +168,9 @@ x-admin-token: <ADMIN_TOKEN>
 2. Не меняйте journal вручную.
 3. При `schema_future_version` используйте версию приложения, которая поддерживает указанную базу.
 4. При `schema_checksum_mismatch` восстановите неизменённый release artifact; не заменяйте checksum в базе.
-5. При incompatible drift сохраните копию Docker volume и сравните объект из `incompatibleDrift` с `db/portal-schema.ts`.
-6. Не запускайте ручной destructive SQL без отдельного tested migration и recovery point.
+5. При `schema_journal_gap` восстановите database volume из проверенной резервной копии или выполните отдельную audited recovery procedure; не запускайте пропущенные migrations вручную после более новых версий.
+6. При incompatible drift сохраните копию Docker volume и сравните объект из `incompatibleDrift` с `db/portal-schema.ts`.
+7. Не запускайте ручной destructive SQL без отдельного tested migration и recovery point.
 
 ## Rollback
 
@@ -183,11 +193,12 @@ x-admin-token: <ADMIN_TOKEN>
 - immutable v1 checksum при расширении registry;
 - upgrade через несколько pending versions;
 - repeated и concurrent startup;
-- checksum mismatch и future version;
-- missing/invalid columns, UNIQUE, indexes и triggers;
+- checksum mismatch, future version и journal gaps;
+- missing/invalid columns, UNIQUE, indexes и required triggers;
+- extra triggers на canonical tables и restrictive CHECK/foreign-key constraints;
 - compatible extra objects и required extra columns;
 - failed DDL без journal commit;
-- atomic DDL+journal rollback и retry;
+- atomic DDL/journal rollback и retry;
 - baseline recovery между idempotent и atomic phases;
 - active, stale и потерянный migration lock;
 - redaction public status;

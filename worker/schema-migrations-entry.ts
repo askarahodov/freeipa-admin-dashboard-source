@@ -3,6 +3,7 @@ import { serviceAdminTokenAuthorized } from "../admin-session-authorization.ts";
 import { ensurePortalSchema, type PortalSchemaStatus } from "../db/portal-migrations.ts";
 import {
   migrationCapableDatabase,
+  nodeTestRuntime,
   schemaAuthorizationResponse,
   schemaFailureResponse,
   schemaStatusResponse,
@@ -29,7 +30,10 @@ const worker = {
       return schemaStatusResponse(await portalSchema(sourceEnv));
     }
 
-    if (!sourceEnv.DB) return schemaFailureResponse(await portalSchema(sourceEnv));
+    if (!sourceEnv.DB) {
+      if (nodeTestRuntime()) return rootRuntime.fetch(request, sourceEnv, ctx);
+      return schemaFailureResponse(await portalSchema(sourceEnv));
+    }
     if (!migrationCapableDatabase(sourceEnv.DB)) return rootRuntime.fetch(request, sourceEnv, ctx);
 
     const schema = await portalSchema(sourceEnv);
@@ -39,7 +43,10 @@ const worker = {
 
   async scheduled(controller: ScheduledController, env: RuntimeEnv | undefined, ctx: RuntimeContext): Promise<void> {
     const sourceEnv = env ?? (process.env as unknown as RuntimeEnv);
-    if (!sourceEnv.DB) return;
+    if (!sourceEnv.DB) {
+      if (nodeTestRuntime()) return rootRuntime.scheduled?.(controller, sourceEnv, ctx);
+      return;
+    }
     if (!migrationCapableDatabase(sourceEnv.DB)) return rootRuntime.scheduled?.(controller, sourceEnv, ctx);
     const schema = await portalSchema(sourceEnv);
     if (schema.state !== "ready") return;
@@ -47,5 +54,5 @@ const worker = {
   },
 };
 
-export { migrationCapableDatabase, schemaFailureResponse } from "./schema-migrations-boundary.ts";
+export { migrationCapableDatabase, nodeTestRuntime, schemaFailureResponse } from "./schema-migrations-boundary.ts";
 export default worker;

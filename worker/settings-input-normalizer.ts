@@ -1,19 +1,13 @@
-function objectValue(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : null;
+function objectValue(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : null;
 }
 
-function normalizeSecretReplacement(body: Record<string, unknown>, valueKey: string, clearKey: string): void {
+function normalizeSecretReplacement(body, valueKey, clearKey) {
   if (typeof body[valueKey] === "string" && !String(body[valueKey]).trim()) delete body[valueKey];
   if (body[clearKey] !== true) delete body[clearKey];
 }
 
-export function normalizeSettingsRequestBody(
-  pathname: string,
-  method: string,
-  body: Record<string, unknown>,
-): Record<string, unknown> {
+export function normalizeSettingsRequestBody(pathname, method, body) {
   if (method === "PUT" && pathname === "/api/integrations/settings") {
     const normalized = { ...body };
     normalizeSecretReplacement(normalized, "ipaPassword", "clearIpaPassword");

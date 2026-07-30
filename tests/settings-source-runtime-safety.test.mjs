@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 
-const safeSource = fs.readFileSync(new URL("../worker/settings-source-safe-entry.ts", import.meta.url), "utf8");
+const safeSourceUrl = new URL("../worker/settings-source-safe-entry.ts", import.meta.url);
+const safeSource = fs.readFileSync(safeSourceUrl, "utf8");
 const normalizerUrl = new URL("../worker/settings-input-normalizer.ts", import.meta.url);
 const { normalizeSettingsRequestBody } = await import(normalizerUrl.href);
 
@@ -36,4 +39,9 @@ test("malformed secret replacements cannot become D1 overrides", () => {
     xyopsApiKey: "key",
     clearIpaPassword: true,
   }), { ipaPassword: " replacement ", xyopsApiKey: "key", clearIpaPassword: true });
+});
+
+test("dynamic source runtime parses under the repository Node baseline", () => {
+  const result = spawnSync(process.execPath, ["--experimental-strip-types", "--check", fileURLToPath(safeSourceUrl)], { encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
 });

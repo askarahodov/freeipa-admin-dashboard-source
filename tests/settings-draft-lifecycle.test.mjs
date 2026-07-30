@@ -209,6 +209,7 @@ test("rollback and source reset changes trigger Auth E2E", () => {
     "worker/settings-revisions-entry.ts",
     "worker/settings-input-normalizer-entry.ts",
     "worker/settings-input-normalizer.ts",
+    "tests/settings-source-runtime-safety.test.mjs",
     "app/SettingsLifecycleWizard.tsx",
     "app/settings-source-resets.css",
   ]) assert.equal(workflow.includes(`"${path}"`), true, path);

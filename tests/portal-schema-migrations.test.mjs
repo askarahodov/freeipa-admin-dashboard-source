@@ -1,10 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { portalSchemaIndexes, portalSchemaTables, portalSchemaTriggers } from "../db/portal-schema.ts";
+import {
+  portalBaselineStatements,
+  portalSchemaIndexes,
+  portalSchemaTables,
+  portalSchemaTriggers,
+} from "../db/portal-schema.ts";
+import { portalMigrationV1Statements } from "../db/portal-migration-v1.ts";
 import {
   clearPortalSchemaCacheForTests,
   ensurePortalSchema,
+  ensurePortalSchemaWithRegistry,
   inspectPortalSchema,
   portalMigrations,
   publicPortalSchemaStatus,
@@ -46,12 +53,15 @@ function cleanIdentifier(value) {
   return value.trim().replace(/^["`\[]|["`\]]$/g, "");
 }
 
-function uniqueConstraints(tableSql) {
+function tableBody(tableSql) {
   const start = tableSql.indexOf("(");
   const end = tableSql.lastIndexOf(")");
-  if (start < 0 || end <= start) return [];
+  return start >= 0 && end > start ? tableSql.slice(start + 1, end) : "";
+}
+
+function uniqueConstraints(tableSql) {
   const output = [];
-  for (const clause of splitSqlList(tableSql.slice(start + 1, end))) {
+  for (const clause of splitSqlList(tableBody(tableSql))) {
     const tableConstraint = clause.match(/^(?:CONSTRAINT\s+\S+\s+)?UNIQUE\s*\((.+)\)$/i);
     if (tableConstraint) {
       output.push(splitSqlList(tableConstraint[1]).map((column) => cleanIdentifier(column.split(/\s+/)[0])));
@@ -77,6 +87,40 @@ function parsedIndexColumns(sql) {
       return { name: cleanIdentifier(parts.join(" ")), desc };
     }),
   };
+}
+
+function parsedTableColumns(sql) {
+  const clauses = splitSqlList(tableBody(sql));
+  const tablePrimaryKeys = new Set();
+  for (const clause of clauses) {
+    const primary = clause.match(/^(?:CONSTRAINT\s+\S+\s+)?PRIMARY\s+KEY\s*\((.+)\)$/i);
+    if (primary) splitSqlList(primary[1]).forEach((column) => tablePrimaryKeys.add(cleanIdentifier(column.split(/\s+/)[0])));
+  }
+  return clauses.flatMap((clause, index) => {
+    const column = clause.match(/^["`\[]?([A-Za-z_][A-Za-z0-9_]*)["`\]]?\s+(TEXT|INTEGER)\b(.*)$/i);
+    if (!column) return [];
+    const name = column[1];
+    const tail = column[3];
+    const defaultMatch = tail.match(/\bDEFAULT\s+(.+?)(?:\s+(?:NOT|PRIMARY|UNIQUE|CHECK|REFERENCES)\b|$)/i);
+    return [{
+      cid: index,
+      name,
+      type: column[2].toUpperCase(),
+      notnull: /\bNOT\s+NULL\b/i.test(tail) ? 1 : 0,
+      dflt_value: defaultMatch?.[1] ?? null,
+      pk: /\bPRIMARY\s+KEY\b/i.test(tail) || tablePrimaryKeys.has(name) ? index + 1 : 0,
+    }];
+  });
+}
+
+async function migrationChecksum(version, name, statements) {
+  const material = JSON.stringify({ version, name, statements });
+  const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(material));
+  return Array.from(new Uint8Array(bytes), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function migration(version, name, statements) {
+  return { version, name, statements, checksum: () => migrationChecksum(version, name, statements) };
 }
 
 class MigrationMemoryD1 {
@@ -110,6 +154,14 @@ class MigrationMemoryD1 {
     });
   }
 
+  installSqlTable(name, sql) {
+    this.tables.set(name, parsedTableColumns(sql));
+    uniqueConstraints(sql).forEach((columns, index) => {
+      const indexName = `sqlite_autoindex_${name}_${index + 1}`;
+      this.indexes.set(indexName, { name: indexName, table: name, unique: 1, origin: "u", partial: 0, columns: columns.map((column) => ({ name: column, desc: false })), sql: null });
+    });
+  }
+
   installCanonicalObjects() {
     for (const table of portalSchemaTables) this.installTable(table);
     for (const index of portalSchemaIndexes) {
@@ -125,6 +177,26 @@ class MigrationMemoryD1 {
     }
   }
 
+  snapshot() {
+    return structuredClone({
+      tables: [...this.tables],
+      indexes: [...this.indexes],
+      triggers: [...this.triggers],
+      migrations: [...this.migrations],
+      lock: this.lock,
+      rows: [...this.rows],
+    });
+  }
+
+  restore(snapshot) {
+    this.tables = new Map(snapshot.tables);
+    this.indexes = new Map(snapshot.indexes);
+    this.triggers = new Map(snapshot.triggers);
+    this.migrations = new Map(snapshot.migrations);
+    this.lock = snapshot.lock;
+    this.rows = new Map(snapshot.rows);
+  }
+
   prepare(sql) {
     let values = [];
     const normalized = sql.replace(/\s+/g, " ").trim();
@@ -136,9 +208,11 @@ class MigrationMemoryD1 {
 
         const createTable = normalized.match(/^CREATE TABLE IF NOT EXISTS ([A-Za-z_][A-Za-z0-9_]*)/i);
         if (createTable) {
-          const table = portalSchemaTables.find((item) => item.name === createTable[1]);
-          if (!table) throw new Error(`unknown canonical table ${createTable[1]}`);
-          if (!this.tables.has(table.name)) this.installTable(table);
+          const canonical = portalSchemaTables.find((item) => item.name === createTable[1]);
+          if (!this.tables.has(createTable[1])) {
+            if (canonical) this.installTable(canonical);
+            else this.installSqlTable(createTable[1], normalized);
+          }
           return result(0);
         }
         const createIndex = normalized.match(/^CREATE INDEX IF NOT EXISTS ([A-Za-z_][A-Za-z0-9_]*) ON ([A-Za-z_][A-Za-z0-9_]*)/i);
@@ -153,6 +227,22 @@ class MigrationMemoryD1 {
         const createTrigger = normalized.match(/^CREATE TRIGGER IF NOT EXISTS ([A-Za-z_][A-Za-z0-9_]*) .* ON ([A-Za-z_][A-Za-z0-9_]*)/i);
         if (createTrigger) {
           if (!this.triggers.has(createTrigger[1])) this.triggers.set(createTrigger[1], { name: createTrigger[1], table: createTrigger[2], sql: normalized });
+          return result(0);
+        }
+        const alterAddColumn = normalized.match(/^ALTER TABLE ([A-Za-z_][A-Za-z0-9_]*) ADD COLUMN ([A-Za-z_][A-Za-z0-9_]*) (TEXT|INTEGER)(.*)$/i);
+        if (alterAddColumn) {
+          const columns = this.tables.get(alterAddColumn[1]);
+          if (!columns) throw new Error("no such table");
+          if (columns.some((column) => column.name === alterAddColumn[2])) throw new Error("duplicate column name");
+          const tail = alterAddColumn[4];
+          columns.push({
+            cid: columns.length,
+            name: alterAddColumn[2],
+            type: alterAddColumn[3].toUpperCase(),
+            notnull: /\bNOT\s+NULL\b/i.test(tail) ? 1 : 0,
+            dflt_value: tail.match(/\bDEFAULT\s+(.+)$/i)?.[1] ?? null,
+            pk: 0,
+          });
           return result(0);
         }
 
@@ -218,9 +308,15 @@ class MigrationMemoryD1 {
 
   async batch(statements) {
     this.batchCount += 1;
-    const output = [];
-    for (const statement of statements) output.push(await statement.run());
-    return output;
+    const before = this.snapshot();
+    try {
+      const output = [];
+      for (const statement of statements) output.push(await statement.run());
+      return output;
+    } catch (error) {
+      this.restore(before);
+      throw error;
+    }
   }
 }
 
@@ -248,6 +344,46 @@ test("creates the canonical baseline and journals an empty database", async () =
   assert.equal([...db.indexes.keys()].filter((name) => !name.startsWith("sqlite_")).length, portalSchemaIndexes.length);
   assert.equal(db.triggers.size, portalSchemaTriggers.length);
   assert.ok(db.lockRenewals >= 5);
+});
+
+test("keeps version one statements and checksum immutable when the registry grows", async () => {
+  assert.equal(portalMigrations[0].statements, portalMigrationV1Statements);
+  assert.notEqual(portalMigrations[0].statements, portalBaselineStatements);
+  const before = await portalMigrations[0].checksum();
+  const v2 = migration(2, "add-plugin-table", ["CREATE TABLE IF NOT EXISTS plugin_v2 (id TEXT PRIMARY KEY NOT NULL)"]);
+  const db = new MigrationMemoryD1();
+  const status = await ensurePortalSchemaWithRegistry(env(db), [portalMigrations[0], v2]);
+
+  assert.equal(status.state, "ready");
+  assert.equal(status.currentVersion, 2);
+  assert.deepEqual(status.appliedVersions, [1, 2]);
+  assert.equal(await portalMigrations[0].checksum(), before);
+  assert.equal(portalMigrations[0].statements.some((statement) => statement.includes("plugin_v2")), false);
+});
+
+test("validates the final schema only after every pending migration", async () => {
+  const first = migration(1, "journal-only-bootstrap", []);
+  const second = migration(2, "install-canonical-schema", portalMigrationV1Statements);
+  const db = new MigrationMemoryD1();
+  const status = await ensurePortalSchemaWithRegistry(env(db), [first, second]);
+
+  assert.equal(status.state, "ready");
+  assert.equal(status.currentVersion, 2);
+  assert.deepEqual(status.appliedVersions, [1, 2]);
+  assert.equal(db.tables.size, portalSchemaTables.length);
+});
+
+test("coalesces concurrent readiness verification for the same database", async () => {
+  const db = new MigrationMemoryD1();
+  const [first, second] = await Promise.all([
+    ensurePortalSchema(env(db), { cacheTtlMs: 0 }),
+    ensurePortalSchema(env(db), { cacheTtlMs: 0 }),
+  ]);
+
+  assert.equal(first.state, "ready");
+  assert.equal(second.state, "ready");
+  assert.equal(db.batchCount, 2, "one shared baseline run should execute two transactional phases");
+  assert.equal(db.migrations.size, 1);
 });
 
 test("adopts a compatible runtime-created database without mutating existing rows", async () => {
@@ -278,9 +414,9 @@ test("repeated startup is idempotent and does not rewrite the journal", async ()
 test("rejects a changed checksum and a database from a future application version", async () => {
   const checksumDb = new MigrationMemoryD1({ canonical: true });
   checksumDb.migrations.set(1, { version: 1, name: "canonical-runtime-baseline", checksum: "modified", applied_at: 1, execution_ms: 1 });
-  const checksum = await ensurePortalSchema(env(checksumDb));
-  assert.equal(checksum.state, "failed");
-  assert.equal(checksum.errorCode, "schema_checksum_mismatch");
+  const checksumStatus = await ensurePortalSchema(env(checksumDb));
+  assert.equal(checksumStatus.state, "failed");
+  assert.equal(checksumStatus.errorCode, "schema_checksum_mismatch");
 
   clearPortalSchemaCacheForTests();
   const futureDb = new MigrationMemoryD1({ canonical: true });
@@ -290,7 +426,7 @@ test("rejects a changed checksum and a database from a future application versio
   assert.equal(future.errorCode, "schema_future_version");
 });
 
-test("blocks missing canonical objects but reports additional objects as compatible drift", async () => {
+test("blocks missing canonical objects but reports safe additional objects as compatible drift", async () => {
   const missingDb = new MigrationMemoryD1({ canonical: true });
   missingDb.tables.get("portal_users").splice(1, 1);
   missingDb.indexes.delete("portal_sessions_user_idx");
@@ -314,6 +450,16 @@ test("blocks missing canonical objects but reports additional objects as compati
   assert.ok(extra.compatibleDrift.includes("table:plugin_data:extra"));
   assert.ok(extra.compatibleDrift.includes("column:portal_users.plugin_tag:extra"));
   assert.ok(extra.compatibleDrift.includes("index:plugin_data_idx:extra"));
+});
+
+test("rejects required extra columns without defaults", async () => {
+  const db = new MigrationMemoryD1({ canonical: true });
+  db.tables.get("portal_users").push({ cid: 99, name: "tenant_id", type: "TEXT", notnull: 1, dflt_value: null, pk: 0 });
+  db.migrations.set(1, { version: 1, name: portalMigrations[0].name, checksum: await portalMigrations[0].checksum(), applied_at: 1, execution_ms: 1 });
+
+  const status = await inspectPortalSchema(env(db));
+  assert.equal(status.state, "incompatible");
+  assert.ok(status.incompatibleDrift.includes("column:portal_users.tenant_id:required_extra"));
 });
 
 test("verifies required UNIQUE, index and trigger definitions", async () => {
@@ -359,9 +505,42 @@ test("does not journal a baseline when DDL or structural verification fails", as
   assert.equal(driftDb.migrations.size, 0);
 });
 
+test("commits future migration DDL and journal atomically", async () => {
+  const db = new MigrationMemoryD1({ canonical: true });
+  db.migrations.set(1, { version: 1, name: portalMigrations[0].name, checksum: await portalMigrations[0].checksum(), applied_at: 1, execution_ms: 1 });
+  const v2 = migration(2, "add-profile-note", ["ALTER TABLE portal_users ADD COLUMN profile_note TEXT"]);
+  db.failPattern = /INSERT INTO portal_schema_migrations/;
+
+  const failed = await ensurePortalSchemaWithRegistry(env(db), [portalMigrations[0], v2], { maxLockAttempts: 1 });
+  assert.equal(failed.state, "failed");
+  assert.equal(db.tables.get("portal_users").some((column) => column.name === "profile_note"), false);
+  assert.equal(db.migrations.has(2), false);
+
+  db.failPattern = null;
+  const recovered = await ensurePortalSchemaWithRegistry(env(db), [portalMigrations[0], v2], { maxLockAttempts: 1 });
+  assert.equal(recovered.state, "ready");
+  assert.equal(db.tables.get("portal_users").some((column) => column.name === "profile_note"), true);
+  assert.equal(db.migrations.has(2), true);
+});
+
+test("recovers when the idempotent baseline table phase committed before the atomic secondary phase", async () => {
+  const db = new MigrationMemoryD1();
+  db.failPattern = /INSERT INTO portal_schema_migrations/;
+  const failed = await ensurePortalSchema(env(db), { maxLockAttempts: 1 });
+  assert.equal(failed.state, "failed");
+  assert.equal(db.tables.size, portalSchemaTables.length);
+  assert.equal([...db.indexes.keys()].filter((name) => !name.startsWith("sqlite_")).length, 0);
+  assert.equal(db.migrations.size, 0);
+
+  db.failPattern = null;
+  const recovered = await ensurePortalSchema(env(db), { maxLockAttempts: 1 });
+  assert.equal(recovered.state, "ready");
+  assert.equal(db.migrations.size, 1);
+});
+
 test("renews and revalidates lock ownership before journaling", async () => {
   const db = new MigrationMemoryD1();
-  db.stealLockOnRenewal = 4;
+  db.stealLockOnRenewal = 3;
   const status = await ensurePortalSchema(env(db), { maxLockAttempts: 1 });
 
   assert.equal(status.state, "busy");

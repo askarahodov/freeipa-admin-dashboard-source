@@ -3,20 +3,26 @@ import fs from "node:fs";
 import test from "node:test";
 
 const boundary = fs.readFileSync(new URL("../worker/settings-input-normalizer-entry.ts", import.meta.url), "utf8");
+const safeSource = fs.readFileSync(new URL("../worker/settings-source-safe-entry.ts", import.meta.url), "utf8");
+const localBoundary = fs.readFileSync(new URL("../worker/local-secure-entry.ts", import.meta.url), "utf8");
 
-test("reset draft mutations authorize through the protected lifecycle first", () => {
+test("reset mutations run after local session and same-origin authorization", () => {
+  assert.equal(localBoundary.includes('import secureRuntime from "./settings-input-normalizer-entry"'), true);
+  assert.equal(localBoundary.includes("sameOriginAdminMutation(request)"), true);
+  assert.equal(localBoundary.includes('headers.set("x-admin-token", internalToken)'), true);
   assert.equal(boundary.includes("authorizeSettingsMutation"), true);
-  assert.equal(boundary.includes('url.pathname = "/api/integrations/settings/effective"'), true);
   assert.equal(boundary.includes("const denied = await authorizeSettingsMutation(prepared, sourceEnv, ctx)"), true);
-  assert.equal(boundary.includes("if (denied) return denied"), true);
+  assert.equal(safeSource.includes('request.headers.get("x-admin-token")'), true);
+  assert.equal(safeSource.includes('permissions.includes("settings.manage")'), true);
 });
 
-test("reset draft creation serializes override check and persistence", () => {
-  assert.equal(boundary.includes('url.pathname === "/api/integrations/settings/drafts"'), true);
-  assert.equal(boundary.includes("resetFieldsFromBody"), true);
-  assert.equal(boundary.includes("withSourceMutationLock(sourceEnv, () => runtime.fetch(prepared, sourceEnv, ctx))"), true);
-  assert.equal(boundary.includes("CREATE TABLE IF NOT EXISTS portal_settings_source_lock"), true);
-  assert.equal(boundary.includes("INSERT OR IGNORE INTO portal_settings_source_lock"), true);
+test("reset draft creation serializes override check and cleans partial persistence", () => {
+  assert.equal(safeSource.includes("createResetDraft"), true);
+  assert.equal(safeSource.includes("withSourceLock"), true);
+  assert.equal(safeSource.includes("activeOverrides"), true);
+  assert.equal(safeSource.includes("cleanupFailedResetDraft"), true);
+  assert.equal(safeSource.includes("settings_reset_metadata_failed"), true);
+  assert.equal(safeSource.includes("settings_reset_cleanup_conflict"), true);
 });
 
 test("reset fallbacks are refreshed before validation and checked again before apply", () => {
@@ -26,7 +32,8 @@ test("reset fallbacks are refreshed before validation and checked again before a
   assert.equal(boundary.includes("SET changes_json = ?, encrypted_secrets = ?, status = ?, validation_json = '{}', validated_at = NULL"), true);
   assert.equal(boundary.includes("WHERE id = ? AND updated_at = ? AND status = ?"), true);
   assert.equal(boundary.includes('code: "settings_reset_fallback_changed"'), true);
-  assert.equal(boundary.includes("Выполните проверку черновика повторно"), true);
+  assert.equal(boundary.includes("publicDraft(request, env, ctx, draftId)"), true);
+  assert.equal(boundary.includes("...(draft ? { draft } : {})"), true);
 });
 
 test("current ENV values replace stale draft fallbacks without exposing secrets", () => {

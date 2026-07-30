@@ -1,4 +1,4 @@
-import runtime from "./settings-revisions-entry";
+import runtime, { authorizeSettingsMutation } from "./settings-source-safe-entry";
 import { normalizeSettingsRequestBody } from "./settings-input-normalizer";
 
 type RuntimeEnv = NonNullable<Parameters<typeof runtime.fetch>[1]> & {
@@ -22,11 +22,6 @@ type DraftRow = {
 };
 
 const settingFields: SettingField[] = ["demoMode", "ipaUrl", "ipaUsername", "ipaPassword", "xyopsUrl", "xyopsApiKey"];
-const createSourceMutationLockTable = `CREATE TABLE IF NOT EXISTS portal_settings_source_lock (
-  id TEXT PRIMARY KEY NOT NULL,
-  owner TEXT NOT NULL,
-  acquired_at INTEGER NOT NULL
-)`;
 const jsonHeaders = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
 
 function json(data: unknown, status = 200): Response {
@@ -34,9 +29,7 @@ function json(data: unknown, status = 200): Response {
 }
 
 function objectValue(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : null;
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 }
 
 function resultChanges(result: unknown): number {
@@ -59,9 +52,7 @@ function environmentUrl(value: unknown): string {
     const parsed = new URL(value.trim());
     if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password) return "";
     return parsed.href.replace(/\/$/, "");
-  } catch {
-    return "";
-  }
+  } catch { return ""; }
 }
 
 function configuredEnv(value: unknown): boolean {
@@ -107,8 +98,7 @@ async function decryptJson(value: string, keyValue?: string): Promise<Record<str
   if (version !== "v1" || !ivValue || !encryptedValue) throw new Error("Unsupported encrypted settings format");
   const key = await encryptionKey(keyValue);
   const decrypted = await crypto.subtle.decrypt({ name: "AES-GCM", iv: base64ToBytes(ivValue) }, key, base64ToBytes(encryptedValue));
-  const parsed = JSON.parse(new TextDecoder().decode(decrypted)) as unknown;
-  return objectValue(parsed) ?? {};
+  return objectValue(JSON.parse(new TextDecoder().decode(decrypted))) ?? {};
 }
 
 async function encryptJson(value: Record<string, unknown>, keyValue?: string): Promise<string> {
@@ -119,13 +109,6 @@ async function encryptJson(value: Record<string, unknown>, keyValue?: string): P
   return `v1.${bytesToBase64(iv)}.${bytesToBase64(new Uint8Array(encrypted))}`;
 }
 
-function resetFieldsFromBody(body: Record<string, unknown>): SettingField[] {
-  const changes = objectValue(body.changes) ?? body;
-  return Array.isArray(changes.resetFields)
-    ? Array.from(new Set(changes.resetFields.filter(isSettingField)))
-    : [];
-}
-
 async function resetFieldsForDraft(env: RuntimeEnv, draftId: string): Promise<SettingField[]> {
   if (!env.DB) return [];
   try {
@@ -133,61 +116,17 @@ async function resetFieldsForDraft(env: RuntimeEnv, draftId: string): Promise<Se
       .bind(draftId).first<{ reset_fields_json: string }>();
     const parsed = row ? JSON.parse(row.reset_fields_json) as unknown : [];
     return Array.isArray(parsed) ? Array.from(new Set(parsed.filter(isSettingField))) : [];
-  } catch {
-    return [];
-  }
+  } catch { return []; }
 }
 
-async function acquireSourceMutationLock(env: RuntimeEnv): Promise<string | null> {
-  if (!env.DB) return "no-database";
-  await env.DB.prepare(createSourceMutationLockTable).run();
-  const now = Date.now();
-  await env.DB.prepare("DELETE FROM portal_settings_source_lock WHERE id = ? AND acquired_at < ?")
-    .bind("main", now - 60_000).run();
-  const owner = crypto.randomUUID();
-  const inserted = await env.DB.prepare("INSERT OR IGNORE INTO portal_settings_source_lock (id, owner, acquired_at) VALUES (?, ?, ?)")
-    .bind("main", owner, now).run();
-  return resultChanges(inserted) === 1 ? owner : null;
-}
-
-async function releaseSourceMutationLock(env: RuntimeEnv, owner: string): Promise<void> {
-  if (!env.DB || owner === "no-database") return;
-  await env.DB.prepare("DELETE FROM portal_settings_source_lock WHERE id = ? AND owner = ?")
-    .bind("main", owner).run();
-}
-
-async function withSourceMutationLock(env: RuntimeEnv, operation: () => Promise<Response>): Promise<Response> {
-  const owner = await acquireSourceMutationLock(env);
-  if (!owner) return json({ error: "Другая операция уже изменяет источники настроек", code: "settings_source_busy" }, 409);
-  try { return await operation(); }
-  finally { await releaseSourceMutationLock(env, owner); }
-}
-
-async function authorizeSettingsMutation(request: Request, env: RuntimeEnv, ctx: RuntimeContext): Promise<Response | null> {
-  const url = new URL(request.url);
-  url.pathname = "/api/integrations/settings/effective";
-  url.search = "";
-  const headers = new Headers(request.headers);
-  headers.delete("content-length");
-  const response = await runtime.fetch(new Request(url, { method: "GET", headers }), env, ctx);
-  return response.ok ? null : response;
-}
-
-function resolvedResetMaterial(
-  changesValue: string,
-  secretsValue: Record<string, unknown>,
-  resets: SettingField[],
-  env: RuntimeEnv,
-): { changes: Record<string, unknown>; secrets: Record<string, unknown>; changed: boolean } {
-  const parsedChanges = JSON.parse(changesValue || "{}") as unknown;
-  const changes = { ...(objectValue(parsedChanges) ?? {}) };
+function resolvedResetMaterial(changesValue: string, secretsValue: Record<string, unknown>, resets: SettingField[], env: RuntimeEnv) {
+  const changes = { ...(objectValue(JSON.parse(changesValue || "{}")) ?? {}) };
   const secrets = {
     ...(typeof secretsValue.ipaPassword === "string" ? { ipaPassword: secretsValue.ipaPassword } : {}),
     ...(typeof secretsValue.xyopsApiKey === "string" ? { xyopsApiKey: secretsValue.xyopsApiKey } : {}),
   } as Record<string, unknown>;
   const beforeChanges = JSON.stringify(changes);
   const beforeSecrets = JSON.stringify(secrets);
-
   for (const field of resets) {
     const value = environmentValue(field, env);
     if (field === "ipaPassword") {
@@ -200,23 +139,23 @@ function resolvedResetMaterial(
       delete secrets.xyopsApiKey;
       if (configuredEnv(value)) secrets.xyopsApiKey = String(value);
       else changes.clearXyopsApiKey = true;
-    } else {
-      changes[field] = value;
-    }
+    } else changes[field] = value;
   }
-
-  return {
-    changes,
-    secrets,
-    changed: beforeChanges !== JSON.stringify(changes) || beforeSecrets !== JSON.stringify(secrets),
-  };
+  return { changes, secrets, changed: beforeChanges !== JSON.stringify(changes) || beforeSecrets !== JSON.stringify(secrets) };
 }
 
-async function refreshResetFallbacks(
-  env: RuntimeEnv,
-  draftId: string,
-  action: "validate" | "apply",
-): Promise<Response | null> {
+async function publicDraft(request: Request, env: RuntimeEnv, ctx: RuntimeContext, draftId: string): Promise<Record<string, unknown> | null> {
+  const url = new URL(request.url);
+  url.pathname = `/api/integrations/settings/drafts/${encodeURIComponent(draftId)}`;
+  url.search = "";
+  const response = await runtime.fetch(new Request(url, { method: "GET", headers: request.headers }), env, ctx);
+  const payload = await response.json().catch(() => ({}));
+  return response.ok && objectValue(payload) && objectValue((payload as Record<string, unknown>).draft)
+    ? (payload as Record<string, unknown>).draft as Record<string, unknown>
+    : null;
+}
+
+async function refreshResetFallbacks(request: Request, env: RuntimeEnv, ctx: RuntimeContext, draftId: string, action: "validate" | "apply"): Promise<Response | null> {
   if (!env.DB) return null;
   const resets = await resetFieldsForDraft(env, draftId);
   if (!resets.length) return null;
@@ -226,26 +165,22 @@ async function refreshResetFallbacks(
   const secrets = await decryptJson(String(row.encrypted_secrets ?? ""), env.CONFIG_ENCRYPTION_KEY);
   const resolved = resolvedResetMaterial(String(row.changes_json ?? "{}"), secrets, resets, env);
   if (!resolved.changed) return null;
-
   const now = Date.now();
   const encryptedSecrets = await encryptJson(resolved.secrets, env.CONFIG_ENCRYPTION_KEY);
   const updated = await env.DB.prepare(`UPDATE portal_settings_drafts
     SET changes_json = ?, encrypted_secrets = ?, status = ?, validation_json = '{}', validated_at = NULL, updated_at = ?
     WHERE id = ? AND updated_at = ? AND status = ?`)
-    .bind(JSON.stringify(resolved.changes), encryptedSecrets, "draft", now, draftId, Number(row.updated_at), String(row.status))
-    .run();
-  if (resultChanges(updated) !== 1) {
-    return json({ error: "Черновик уже изменён другой операцией", code: "settings_draft_refresh_conflict" }, 409);
-  }
-  if (action === "apply") {
-    return json({
-      error: "ENV/default для reset-полей изменился после проверки. Выполните проверку черновика повторно.",
-      code: "settings_reset_fallback_changed",
-      draftId,
-      resetFields: resets,
-    }, 409);
-  }
-  return null;
+    .bind(JSON.stringify(resolved.changes), encryptedSecrets, "draft", now, draftId, Number(row.updated_at), String(row.status)).run();
+  if (resultChanges(updated) !== 1) return json({ error: "Черновик уже изменён другой операцией", code: "settings_draft_refresh_conflict" }, 409);
+  if (action !== "apply") return null;
+  const draft = await publicDraft(request, env, ctx, draftId);
+  return json({
+    error: "ENV/default для reset-полей изменился после проверки. Выполните проверку черновика повторно.",
+    code: "settings_reset_fallback_changed",
+    draftId,
+    resetFields: resets,
+    ...(draft ? { draft } : {}),
+  }, 409);
 }
 
 async function normalizedRequest(request: Request): Promise<Request> {
@@ -253,19 +188,13 @@ async function normalizedRequest(request: Request): Promise<Request> {
   const relevant = (request.method === "PUT" && url.pathname === "/api/integrations/settings")
     || (request.method === "POST" && url.pathname === "/api/integrations/settings/drafts");
   if (!relevant) return request;
-
-  const body = await request.clone().json().catch(() => null) as unknown;
-  const parsed = objectValue(body);
+  const parsed = objectValue(await request.clone().json().catch(() => null));
   if (!parsed) return request;
   const normalized = normalizeSettingsRequestBody(url.pathname, request.method, parsed);
   const headers = new Headers(request.headers);
   headers.delete("content-length");
   headers.set("content-type", "application/json");
-  return new Request(request.url, {
-    method: request.method,
-    headers,
-    body: JSON.stringify(normalized),
-  });
+  return new Request(request.url, { method: request.method, headers, body: JSON.stringify(normalized) });
 }
 
 const worker = {
@@ -274,25 +203,12 @@ const worker = {
     const prepared = await normalizedRequest(request);
     const url = new URL(prepared.url);
     const lifecycleMatch = url.pathname.match(/^\/api\/integrations\/settings\/drafts\/([A-Za-z0-9-]{1,80})\/(validate|apply)$/);
-    const createBody = prepared.method === "POST" && url.pathname === "/api/integrations/settings/drafts"
-      ? await prepared.clone().json().catch(() => null) as unknown
-      : null;
-    const createResets = objectValue(createBody) ? resetFieldsFromBody(createBody as Record<string, unknown>) : [];
-
-    if ((createResets.length || (prepared.method === "POST" && lifecycleMatch))) {
+    if (prepared.method === "POST" && lifecycleMatch) {
       const denied = await authorizeSettingsMutation(prepared, sourceEnv, ctx);
       if (denied) return denied;
-    }
-
-    if (createResets.length) {
-      return withSourceMutationLock(sourceEnv, () => runtime.fetch(prepared, sourceEnv, ctx));
-    }
-
-    if (prepared.method === "POST" && lifecycleMatch) {
-      const refreshed = await refreshResetFallbacks(sourceEnv, lifecycleMatch[1], lifecycleMatch[2] as "validate" | "apply");
+      const refreshed = await refreshResetFallbacks(prepared, sourceEnv, ctx, lifecycleMatch[1], lifecycleMatch[2] as "validate" | "apply");
       if (refreshed) return refreshed;
     }
-
     return runtime.fetch(prepared, sourceEnv, ctx);
   },
 

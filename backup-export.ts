@@ -1,13 +1,14 @@
 import { PORTAL_BACKUP_DOMAINS, type PortalBackupDomain } from "./backup-manifest";
 
 export class BackupExportError extends Error {
-  constructor(
-    public readonly code: string,
-    public readonly status: number,
-    message: string,
-  ) {
+  readonly code: string;
+  readonly status: number;
+
+  constructor(code: string, status: number, message: string) {
     super(message);
     this.name = "BackupExportError";
+    this.code = code;
+    this.status = status;
   }
 }
 

@@ -1,6 +1,6 @@
 # Открытые задачи
 
-Актуально на 29 июля 2026 года.
+Актуально на 30 июля 2026 года.
 
 ## Следующий приоритет
 
@@ -53,10 +53,11 @@
 ### P1 — безопасный lifecycle конфигурации
 
 - [x] #35 — черновик → проверка → diff → применение → post-apply health check с optimistic locking (PR #47).
-- [ ] #36 — показывать источник каждого значения: ENV, D1, default или secret provider.
+- [x] #36 — показывать источник каждого значения: ENV, D1, default или secret provider (PR #48).
   - [x] effective metadata и D1/ENV/DEFAULT badges;
-  - [ ] удаление отдельного D1 override и возврат к ENV/default;
-  - [ ] фильтры D1 override/conflict и E2E динамического наследования ENV.
+  - [x] удаление отдельного D1 override и возврат к ENV/default;
+  - [x] фильтры D1 override/conflict и E2E динамического наследования ENV;
+  - [x] rollback source metadata, mutation lock и нормализация legacy settings inputs.
 - [ ] #37 — резервное копирование, безопасный export/import и восстановление портала.
 
 ### P1 — безопасность и права
@@ -77,7 +78,7 @@
 - [ ] #45 — общие настройки портала, timezone, environment badge и maintenance metadata.
 - [ ] #46 — централизованные feature flags с server-side enforcement.
 
-Первый implementation slice #35 слит в PR #47. Завершающий slice #36 должен использовать тот же revision/diff/apply контракт. Backup, RBAC, retention и интеграционные параметры также не должны создавать собственные способы сохранения.
+Lifecycle #35 и source management #36 завершены. Следующий платформенный блок #37 должен использовать те же revision, encryption, audit, rollback и RBAC-контракты; backup/import не должен создавать обходной способ записи настроек.
 
 ### P1 — диагностика
 

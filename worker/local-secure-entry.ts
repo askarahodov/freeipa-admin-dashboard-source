@@ -1,4 +1,4 @@
-import secureRuntime from "./settings-source-entry";
+import secureRuntime from "./settings-input-normalizer-entry";
 import { appendAuditEvent, createAuditContext } from "../audit-log";
 import {
   isAdminIntegrationPath,

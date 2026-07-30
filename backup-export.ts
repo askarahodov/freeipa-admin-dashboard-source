@@ -1,4 +1,14 @@
-import { PORTAL_BACKUP_DOMAINS, type PortalBackupDomain } from "./backup-manifest.ts";
+import {
+  PORTAL_BACKUP_DOMAINS,
+  PORTAL_BACKUP_FORMAT,
+  PORTAL_BACKUP_VERSION,
+  assertSanitizedBackupPayload,
+  createBackupEntry,
+  validateBackupManifest,
+  type PortalBackupDomain,
+  type PortalBackupEntry,
+  type PortalBackupManifest,
+} from "./backup-manifest.ts";
 
 export class BackupExportError extends Error {
   readonly code: string;
@@ -14,6 +24,31 @@ export class BackupExportError extends Error {
 
 export type BackupExportRequest = {
   domains: PortalBackupDomain[];
+};
+
+export type BackupExportEnv = {
+  DB?: unknown;
+};
+
+export type PortalBackupDomainExporter = {
+  domain: PortalBackupDomain;
+  path: `domains/${string}.json`;
+  export(env: BackupExportEnv): Promise<{ payload: unknown; records: number }>;
+};
+
+export type SanitizedBackupDocument = {
+  manifest: PortalBackupManifest;
+  payloads: Record<string, unknown>;
+  summary: {
+    entries: number;
+    records: number;
+    bytes: number;
+  };
+};
+
+export type SanitizedBackupExportOptions = BackupExportRequest & {
+  schemaVersion: number;
+  createdAt?: string;
 };
 
 function plainObject(value: unknown): value is Record<string, unknown> {
@@ -52,5 +87,62 @@ export function parseBackupExportRequest(value: unknown): BackupExportRequest {
 
   return {
     domains: PORTAL_BACKUP_DOMAINS.filter((domain) => requested.includes(domain)),
+  };
+}
+
+export async function exportSanitizedBackup(
+  env: BackupExportEnv,
+  options: SanitizedBackupExportOptions,
+  registry: ReadonlyMap<PortalBackupDomain, PortalBackupDomainExporter>,
+): Promise<SanitizedBackupDocument> {
+  if (!env.DB) {
+    throw new BackupExportError("backup_database_unavailable", 503, "Backup database is unavailable");
+  }
+
+  if (!Number.isSafeInteger(options.schemaVersion) || options.schemaVersion < 1) {
+    throw new BackupExportError("backup_schema_incompatible", 409, "Backup schema version is unavailable");
+  }
+
+  const domains = PORTAL_BACKUP_DOMAINS.filter((domain) => options.domains.includes(domain));
+  const payloads: Record<string, unknown> = {};
+  const entries: PortalBackupEntry[] = [];
+
+  for (const domain of domains) {
+    const exporter = registry.get(domain);
+    if (!exporter || exporter.domain !== domain) {
+      throw new BackupExportError("backup_schema_incompatible", 409, `Backup domain is unavailable: ${domain}`);
+    }
+
+    const result = await exporter.export(env);
+    assertSanitizedBackupPayload(result.payload);
+    const entry = await createBackupEntry({
+      domain,
+      path: exporter.path,
+      payload: result.payload,
+      records: result.records,
+    });
+    entries.push(entry);
+    payloads[exporter.path] = result.payload;
+  }
+
+  const manifest = validateBackupManifest({
+    format: PORTAL_BACKUP_FORMAT,
+    version: PORTAL_BACKUP_VERSION,
+    createdAt: options.createdAt ?? new Date().toISOString(),
+    schemaVersion: options.schemaVersion,
+    mode: "sanitized",
+    domains,
+    entries,
+    encryption: null,
+  });
+
+  return {
+    manifest,
+    payloads,
+    summary: {
+      entries: entries.length,
+      records: entries.reduce((sum, entry) => sum + entry.records, 0),
+      bytes: entries.reduce((sum, entry) => sum + entry.bytes, 0),
+    },
   };
 }

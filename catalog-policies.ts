@@ -38,12 +38,6 @@ const defaultPolicy: CatalogPolicySet = {
   rules: [],
 };
 
-const createPolicyTable = `CREATE TABLE IF NOT EXISTS catalog_visibility_policies (
-  id TEXT PRIMARY KEY NOT NULL,
-  policy_json TEXT NOT NULL,
-  updated_at INTEGER NOT NULL
-)`;
-
 function cleanText(value: unknown, limit = 160): string {
   return String(value ?? "")
     .replace(/[\u0000-\u001f\u007f]/g, "")

@@ -43,27 +43,6 @@ type HealthResult = { service: string; ok: boolean; latencyMs?: number; error?: 
 
 const settingFields: SettingField[] = ["demoMode", "ipaUrl", "ipaUsername", "ipaPassword", "xyopsUrl", "xyopsApiKey"];
 const jsonHeaders = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
-const createRevisionsTable = `CREATE TABLE IF NOT EXISTS portal_settings_revisions (
-  id TEXT PRIMARY KEY NOT NULL,
-  revision INTEGER NOT NULL UNIQUE,
-  config_json TEXT NOT NULL,
-  encrypted_secrets TEXT NOT NULL,
-  source_draft_id TEXT,
-  created_by TEXT NOT NULL,
-  reason TEXT NOT NULL,
-  status TEXT NOT NULL,
-  health_json TEXT NOT NULL DEFAULT '[]',
-  created_at INTEGER NOT NULL
-)`;
-const createApplyCommitsTable = `CREATE TABLE IF NOT EXISTS portal_settings_apply_commits (
-  id TEXT PRIMARY KEY NOT NULL,
-  draft_id TEXT NOT NULL,
-  revision INTEGER NOT NULL,
-  config_json TEXT NOT NULL,
-  encrypted_secrets TEXT NOT NULL,
-  created_at INTEGER NOT NULL
-)`;
-
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status, headers: jsonHeaders });
 }
@@ -132,14 +111,6 @@ function resultChanges(result: unknown): number {
   return Number(value.meta?.changes ?? value.changes ?? 0);
 }
 
-async function ensureRevisionTable(env: RuntimeEnv): Promise<void> {
-  if (!env.DB) throw new Error("Persistent database is unavailable");
-  await env.DB.prepare(createRevisionsTable).run();
-  await env.DB.prepare(createApplyCommitsTable).run();
-  await env.DB.prepare("CREATE INDEX IF NOT EXISTS portal_settings_revisions_created_idx ON portal_settings_revisions(created_at DESC)").run();
-  await env.DB.prepare("DELETE FROM portal_settings_apply_commits WHERE created_at < ?").bind(Date.now() - 60 * 60 * 1000).run();
-}
-
 async function activeSnapshot(env: RuntimeEnv): Promise<ActiveSnapshot | null> {
   if (!env.DB) return null;
   try {
@@ -158,7 +129,6 @@ async function activeSnapshot(env: RuntimeEnv): Promise<ActiveSnapshot | null> {
 }
 
 async function consumeApplyCommit(env: RuntimeEnv, commitId: string, draftId: string, revision: number): Promise<ActiveSnapshot | null> {
-  await ensureRevisionTable(env);
   const row = await env.DB!.prepare("SELECT id, draft_id, revision, config_json, encrypted_secrets, created_at FROM portal_settings_apply_commits WHERE id = ? AND draft_id = ? AND revision = ?")
     .bind(commitId, draftId, revision).first<ApplyCommitRow>();
   if (!row) return null;
@@ -171,7 +141,6 @@ async function recordRevision(
   snapshot: ActiveSnapshot,
   metadata: { draftId?: string; createdBy: string; reason: string; status: string; health?: unknown[] },
 ): Promise<void> {
-  await ensureRevisionTable(env);
   await env.DB!.prepare(`INSERT INTO portal_settings_revisions
     (id, revision, config_json, encrypted_secrets, source_draft_id, created_by, reason, status, health_json, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -226,7 +195,6 @@ async function handleRevisionApi(request: Request, env: RuntimeEnv, ctx: Runtime
   if (!env.DB) return json({ error: "Persistent database is unavailable" }, 503);
   const identity = await adminIdentity(request, env, ctx);
   if (!identity) return json({ error: "Administrator authorization required" }, 401);
-  await ensureRevisionTable(env);
 
   if (request.method === "GET" && url.pathname === "/api/integrations/settings/revisions") {
     const limitValue = Number(url.searchParams.get("limit") ?? 20);
@@ -331,7 +299,6 @@ async function rollbackConflict(
 
 async function applyWithRollback(request: Request, env: RuntimeEnv, ctx: RuntimeContext, draftId: string): Promise<Response> {
   if (!env.DB) return json({ error: "Persistent database is unavailable" }, 503);
-  await ensureRevisionTable(env);
   const before = await activeSnapshot(env);
   const response = await localRuntime.fetch(request, env, ctx);
   const payload = await responsePayload(response);

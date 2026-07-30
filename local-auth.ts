@@ -38,32 +38,6 @@ const SESSION_COOKIE = "portal_session";
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCK_DURATION_MS = 15 * 60 * 1000;
 
-const createUsersTable = `CREATE TABLE IF NOT EXISTS portal_users (
-  id TEXT PRIMARY KEY NOT NULL,
-  username TEXT NOT NULL UNIQUE,
-  display_name TEXT NOT NULL,
-  password_hash TEXT NOT NULL,
-  password_salt TEXT NOT NULL,
-  password_iterations INTEGER NOT NULL,
-  role TEXT NOT NULL,
-  disabled INTEGER NOT NULL DEFAULT 0,
-  failed_attempts INTEGER NOT NULL DEFAULT 0,
-  locked_until INTEGER,
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
-  last_login_at INTEGER
-)`;
-
-const createSessionsTable = `CREATE TABLE IF NOT EXISTS portal_sessions (
-  id TEXT PRIMARY KEY NOT NULL,
-  user_id TEXT NOT NULL,
-  token_hash TEXT NOT NULL UNIQUE,
-  created_at INTEGER NOT NULL,
-  last_seen_at INTEGER NOT NULL,
-  expires_at INTEGER NOT NULL,
-  user_agent TEXT NOT NULL DEFAULT ''
-)`;
-
 function role(value: unknown): LocalPortalRole {
   return value === "admin" || value === "operator" ? value : "viewer";
 }
@@ -138,21 +112,12 @@ export function localIdentity(username: string): string {
   return `${username}@local.portal`;
 }
 
-export async function ensureLocalAuthTables(env: LocalAuthEnv): Promise<void> {
-  if (!env.DB) throw new Error("Локальная база данных недоступна");
-  await env.DB.prepare(createUsersTable).run();
-  await env.DB.prepare(createSessionsTable).run();
-  await env.DB.prepare("CREATE INDEX IF NOT EXISTS portal_sessions_user_idx ON portal_sessions(user_id)").run();
-  await env.DB.prepare("CREATE INDEX IF NOT EXISTS portal_sessions_expires_idx ON portal_sessions(expires_at)").run();
-}
-
 async function hashPassword(password: string): Promise<{ hash: string; salt: string; iterations: number }> {
   const salt = crypto.getRandomValues(new Uint8Array(24));
   return { hash: await derivePassword(password, salt), salt: bytesToBase64(salt), iterations: PASSWORD_ITERATIONS };
 }
 
 async function userCount(env: LocalAuthEnv): Promise<number> {
-  await ensureLocalAuthTables(env);
   const row = await env.DB!.prepare("SELECT COUNT(*) AS count FROM portal_users").first<{ count: number }>();
   return Number(row?.count ?? 0);
 }
@@ -199,7 +164,6 @@ export async function listLocalUsers(env: LocalAuthEnv): Promise<LocalPortalUser
 }
 
 export async function createLocalUser(env: LocalAuthEnv, input: { username: unknown; displayName?: unknown; password: unknown; role?: unknown }, bootstrap = false): Promise<LocalPortalUser> {
-  await ensureLocalAuthTables(env);
   const username = cleanUsername(input.username);
   const password = validatePassword(input.password);
   const selectedRole = bootstrap ? "admin" : role(input.role);
@@ -218,13 +182,11 @@ export async function createLocalUser(env: LocalAuthEnv, input: { username: unkn
 }
 
 async function activeAdminCount(env: LocalAuthEnv, excludingId = ""): Promise<number> {
-  await ensureLocalAuthTables(env);
   const row = await env.DB!.prepare("SELECT COUNT(*) AS count FROM portal_users WHERE role = 'admin' AND disabled = 0 AND id <> ?").bind(excludingId).first<{ count: number }>();
   return Number(row?.count ?? 0);
 }
 
 async function readUser(env: LocalAuthEnv, id: string): Promise<LocalPortalUser | null> {
-  await ensureLocalAuthTables(env);
   const row = await env.DB!.prepare("SELECT id, username, display_name, role, disabled, failed_attempts, locked_until, created_at, updated_at, last_login_at, 0 AS active_sessions FROM portal_users WHERE id = ?").bind(id).first<Record<string, unknown>>();
   return row ? publicUser(row) : null;
 }
@@ -328,14 +290,12 @@ export async function resolveLocalSession(env: LocalAuthEnv, request: Request): 
 
 export async function revokeLocalSession(env: LocalAuthEnv, request: Request): Promise<void> {
   if (!env.DB) return;
-  await ensureLocalAuthTables(env);
   const token = cookieValue(request, SESSION_COOKIE);
   if (token) await env.DB.prepare("DELETE FROM portal_sessions WHERE token_hash = ?").bind(await sha256(token)).run();
 }
 
 export async function revokeLocalUserSessions(env: LocalAuthEnv, userId: string): Promise<void> {
   if (!env.DB) return;
-  await ensureLocalAuthTables(env);
   await env.DB.prepare("DELETE FROM portal_sessions WHERE user_id = ?").bind(userId).run();
 }
 

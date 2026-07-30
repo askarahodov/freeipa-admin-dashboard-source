@@ -117,35 +117,6 @@ const worker = {
 
 const jsonHeaders = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
 
-const createOperationRunsTable = `CREATE TABLE IF NOT EXISTS operation_runs (
-  id TEXT PRIMARY KEY NOT NULL,
-  job_id TEXT NOT NULL,
-  event_id TEXT NOT NULL,
-  title TEXT NOT NULL,
-  kind TEXT NOT NULL,
-  mode TEXT NOT NULL,
-  status TEXT NOT NULL,
-  actor TEXT NOT NULL,
-  subject TEXT NOT NULL,
-  error TEXT,
-  stages_json TEXT NOT NULL DEFAULT '[]',
-  started_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
-  completed_at INTEGER
-)`;
-
-const createCatalogSnapshotTable = `CREATE TABLE IF NOT EXISTS xyops_catalog_snapshot (
-  id TEXT PRIMARY KEY NOT NULL,
-  catalog_json TEXT NOT NULL,
-  synced_at INTEGER NOT NULL
-)`;
-const createCatalogHistoryTable = `CREATE TABLE IF NOT EXISTS xyops_catalog_history (
-  id TEXT PRIMARY KEY NOT NULL,
-  synced_at INTEGER NOT NULL,
-  changes_json TEXT NOT NULL,
-  catalog_json TEXT NOT NULL
-)`;
-
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status, headers: jsonHeaders });
 }
@@ -253,16 +224,8 @@ function publicRun(run: OperationRun, replay: RunReplaySummary | undefined, resu
   };
 }
 
-async function ensureOperationRuns(env: Env): Promise<void> {
-  if (!env.DB) return;
-  await env.DB.prepare(createOperationRunsTable).run();
-  await env.DB.prepare("CREATE INDEX IF NOT EXISTS operation_runs_started_at_idx ON operation_runs(started_at DESC)").run();
-  await env.DB.prepare("CREATE INDEX IF NOT EXISTS operation_runs_job_id_idx ON operation_runs(job_id)").run();
-}
-
 async function saveOperationRun(env: Env, run: OperationRun): Promise<void> {
   if (!env.DB) return;
-  await ensureOperationRuns(env);
   await env.DB.prepare("INSERT INTO operation_runs (id, job_id, event_id, title, kind, mode, status, actor, subject, error, stages_json, started_at, updated_at, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET job_id = excluded.job_id, status = excluded.status, error = excluded.error, stages_json = excluded.stages_json, updated_at = excluded.updated_at, completed_at = excluded.completed_at")
     .bind(run.id, run.jobId, run.eventId, run.title, run.kind, run.mode, run.status, run.actor, run.subject, run.error || null, JSON.stringify(run.stages), run.startedAt, run.updatedAt, run.completedAt).run();
   await saveRunNotification(env, run).catch(() => {});
@@ -270,7 +233,6 @@ async function saveOperationRun(env: Env, run: OperationRun): Promise<void> {
 
 async function listOperationRuns(env: Env, limit = 100): Promise<OperationRun[]> {
   if (!env.DB) return [];
-  await ensureOperationRuns(env);
   const result = await env.DB.prepare("SELECT id, job_id, event_id, title, kind, mode, status, actor, subject, error, stages_json, started_at, updated_at, completed_at FROM operation_runs ORDER BY started_at DESC LIMIT ?").bind(Math.max(1, Math.min(limit, 200))).all<Record<string, unknown>>();
   return (result.results ?? []).map((row) => ({
     id: String(row.id ?? ""), jobId: String(row.job_id ?? ""), eventId: String(row.event_id ?? ""), title: String(row.title ?? ""),
@@ -469,8 +431,6 @@ type StoredSecrets = {
 };
 
 type StoredSettings = { config: StoredConfig; secrets: StoredSecrets; updatedAt: number };
-
-const createSettingsTable = `CREATE TABLE IF NOT EXISTS app_settings (id TEXT PRIMARY KEY NOT NULL, config_json TEXT NOT NULL, encrypted_secrets TEXT NOT NULL, updated_at INTEGER NOT NULL)`;
 
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = "";

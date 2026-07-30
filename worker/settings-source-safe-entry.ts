@@ -32,16 +32,6 @@ const rolePermissions: Record<PortalRole, string[]> = {
 };
 const settingsSelectSql = "SELECT config_json, encrypted_secrets, updated_at FROM app_settings WHERE id = ?";
 const releaseLockSql = "DELETE FROM portal_settings_source_lock WHERE id = ? AND owner = ?";
-const createDraftResetTable = `CREATE TABLE IF NOT EXISTS portal_settings_draft_resets (
-  draft_id TEXT PRIMARY KEY NOT NULL,
-  reset_fields_json TEXT NOT NULL,
-  created_at INTEGER NOT NULL
-)`;
-const createSourceMutationLockTable = `CREATE TABLE IF NOT EXISTS portal_settings_source_lock (
-  id TEXT PRIMARY KEY NOT NULL,
-  owner TEXT NOT NULL,
-  acquired_at INTEGER NOT NULL
-)`;
 const jsonHeaders = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
 
 function json(data: unknown, status = 200): Response {

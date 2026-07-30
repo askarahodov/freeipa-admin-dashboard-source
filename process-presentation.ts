@@ -31,12 +31,6 @@ type PresentationEnv = {
 };
 
 const emptyMetadata: ProcessPresentationSet = { version: 1, processes: {} };
-const createPresentationTable = `CREATE TABLE IF NOT EXISTS process_presentation_sets (
-  id TEXT PRIMARY KEY NOT NULL,
-  metadata_json TEXT NOT NULL,
-  updated_at INTEGER NOT NULL
-)`;
-
 function cleanText(value: unknown, limit: number): string {
   return String(value ?? "").replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, limit);
 }

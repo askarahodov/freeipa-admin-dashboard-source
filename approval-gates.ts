@@ -96,50 +96,6 @@ const defaultPolicy: ApprovalPolicySet = {
   rules: [],
 };
 
-const createPolicyTable = `CREATE TABLE IF NOT EXISTS approval_policy_sets (
-  id TEXT PRIMARY KEY NOT NULL,
-  policy_json TEXT NOT NULL,
-  updated_at INTEGER NOT NULL
-)`;
-
-const createApprovalsTable = `CREATE TABLE IF NOT EXISTS operation_approvals (
-  id TEXT PRIMARY KEY NOT NULL,
-  event_id TEXT NOT NULL,
-  title TEXT NOT NULL,
-  category TEXT NOT NULL,
-  schema_version TEXT NOT NULL,
-  requester_identity TEXT NOT NULL,
-  requester_role TEXT NOT NULL,
-  requester_groups_json TEXT NOT NULL,
-  status TEXT NOT NULL,
-  required_approvals INTEGER NOT NULL,
-  approver_roles_json TEXT NOT NULL,
-  approver_groups_json TEXT NOT NULL,
-  requester_cannot_approve INTEGER NOT NULL,
-  rule_id TEXT NOT NULL,
-  summary_json TEXT NOT NULL,
-  encrypted_spec TEXT NOT NULL,
-  request_fingerprint TEXT NOT NULL,
-  expires_at INTEGER NOT NULL,
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
-  approved_at INTEGER,
-  executed_at INTEGER,
-  run_id TEXT,
-  parent_run_id TEXT,
-  error TEXT
-)`;
-
-const createDecisionsTable = `CREATE TABLE IF NOT EXISTS operation_approval_decisions (
-  approval_id TEXT NOT NULL,
-  approver_identity TEXT NOT NULL,
-  approver_role TEXT NOT NULL,
-  decision TEXT NOT NULL,
-  comment TEXT,
-  decided_at INTEGER NOT NULL,
-  PRIMARY KEY (approval_id, approver_identity)
-)`;
-
 function cleanText(value: unknown, limit = 240): string {
   return String(value ?? "").replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, limit);
 }
@@ -256,19 +212,8 @@ export function approvalRequirement(policy: ApprovalPolicySet, subject: Approval
   return requirement;
 }
 
-async function ensureTables(env: ApprovalEnv): Promise<void> {
-  if (!env.DB) return;
-  await env.DB.prepare(createPolicyTable).run();
-  await env.DB.prepare(createApprovalsTable).run();
-  await env.DB.prepare(createDecisionsTable).run();
-  await env.DB.prepare("CREATE INDEX IF NOT EXISTS operation_approvals_status_idx ON operation_approvals(status, created_at DESC)").run();
-  await env.DB.prepare("CREATE INDEX IF NOT EXISTS operation_approvals_requester_idx ON operation_approvals(requester_identity, created_at DESC)").run();
-  await env.DB.prepare("CREATE INDEX IF NOT EXISTS operation_approval_decisions_approval_idx ON operation_approval_decisions(approval_id, decided_at)").run();
-}
-
 export async function readApprovalPolicySet(env: ApprovalEnv): Promise<{ policy: ApprovalPolicySet; source: "database" | "environment" | "default"; updatedAt: number | null }> {
   if (env.DB) {
-    await ensureTables(env);
     const row = await env.DB.prepare("SELECT policy_json, updated_at FROM approval_policy_sets WHERE id = ?").bind("current").first<Record<string, unknown>>();
     if (row) {
       try { return { policy: sanitizeApprovalPolicySet(JSON.parse(String(row.policy_json))), source: "database", updatedAt: Number(row.updated_at) }; }
@@ -286,7 +231,6 @@ export async function saveApprovalPolicySet(env: ApprovalEnv, value: unknown): P
   if (!env.DB) throw new Error("Persistent database is unavailable");
   const policy = sanitizeApprovalPolicySet(value);
   const updatedAt = Date.now();
-  await ensureTables(env);
   await env.DB.prepare("INSERT INTO approval_policy_sets (id, policy_json, updated_at) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET policy_json = excluded.policy_json, updated_at = excluded.updated_at")
     .bind("current", JSON.stringify(policy), updatedAt).run();
   return { policy, updatedAt };
@@ -470,14 +414,12 @@ async function expireApprovals(env: ApprovalEnv): Promise<void> {
 
 async function readRow(env: ApprovalEnv, id: string): Promise<ApprovalRow | null> {
   if (!env.DB) return null;
-  await ensureTables(env);
   await expireApprovals(env);
   return env.DB.prepare("SELECT * FROM operation_approvals WHERE id = ?").bind(id.slice(0, 160)).first<ApprovalRow>();
 }
 
 export async function createApprovalRequest(env: ApprovalEnv, event: CatalogEvent, subject: ApprovalSubject, values: Record<string, unknown>, targets: string[], requirement: ApprovalRequirement, parentRunId = ""): Promise<PublicApproval> {
   if (!env.DB || !env.CONFIG_ENCRYPTION_KEY) throw new Error("Approval gates require D1 and CONFIG_ENCRYPTION_KEY");
-  await ensureTables(env);
   const now = Date.now();
   const id = crypto.randomUUID();
   const prepared = approvalSpec(event, values, targets, parentRunId);
@@ -493,7 +435,6 @@ export async function createApprovalRequest(env: ApprovalEnv, event: CatalogEven
 
 export async function listApprovals(env: ApprovalEnv, subject: ApprovalSubject, limit = 100): Promise<{ approvals: PublicApproval[]; pendingForMe: number; minePending: number; persistenceAvailable: boolean }> {
   if (!env.DB) return { approvals: [], pendingForMe: 0, minePending: 0, persistenceAvailable: false };
-  await ensureTables(env);
   await expireApprovals(env);
   const rows = await env.DB.prepare("SELECT * FROM operation_approvals ORDER BY created_at DESC LIMIT ?").bind(Math.max(1, Math.min(limit, 200))).all<ApprovalRow>();
   const items = rows.results ?? [];

@@ -38,21 +38,6 @@ type CatalogSyncRun = {
 };
 
 const jsonHeaders = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
-const createCatalogSyncLockTable = `CREATE TABLE IF NOT EXISTS xyops_catalog_sync_lock (
-  id TEXT PRIMARY KEY NOT NULL,
-  acquired_at INTEGER NOT NULL
-)`;
-const createCatalogSyncRunsTable = `CREATE TABLE IF NOT EXISTS xyops_catalog_sync_runs (
-  id TEXT PRIMARY KEY NOT NULL,
-  trigger_name TEXT NOT NULL,
-  status TEXT NOT NULL,
-  started_at INTEGER NOT NULL,
-  completed_at INTEGER,
-  process_count INTEGER NOT NULL DEFAULT 0,
-  change_count INTEGER NOT NULL DEFAULT 0,
-  error TEXT
-)`;
-
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status, headers: jsonHeaders });
 }
@@ -223,16 +208,8 @@ function syncError(error: unknown): string {
     .replace(/[\u0000-\u001f\u007f]/g, " ").slice(0, 500);
 }
 
-async function ensureCatalogSyncTables(env: SecureEnv): Promise<void> {
-  if (!env.DB) return;
-  await env.DB.prepare(createCatalogSyncLockTable).run();
-  await env.DB.prepare(createCatalogSyncRunsTable).run();
-  await env.DB.prepare("CREATE INDEX IF NOT EXISTS xyops_catalog_sync_runs_started_at_idx ON xyops_catalog_sync_runs(started_at DESC)").run();
-}
-
 async function acquireCatalogSyncLock(env: SecureEnv, acquiredAt: number): Promise<boolean> {
   if (!env.DB) return false;
-  await ensureCatalogSyncTables(env);
   await env.DB.prepare("DELETE FROM xyops_catalog_sync_lock WHERE id = ? AND acquired_at < ?")
     .bind("catalog", acquiredAt - catalogSyncLockTtlMs(env)).run();
   const result = await env.DB.prepare("INSERT OR IGNORE INTO xyops_catalog_sync_lock (id, acquired_at) VALUES (?, ?)")
@@ -248,7 +225,6 @@ async function releaseCatalogSyncLock(env: SecureEnv, acquiredAt: number): Promi
 
 async function saveCatalogSyncRun(env: SecureEnv, run: CatalogSyncRun): Promise<void> {
   if (!env.DB) return;
-  await ensureCatalogSyncTables(env);
   await env.DB.prepare("INSERT INTO xyops_catalog_sync_runs (id, trigger_name, status, started_at, completed_at, process_count, change_count, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET status = excluded.status, completed_at = excluded.completed_at, process_count = excluded.process_count, change_count = excluded.change_count, error = excluded.error")
     .bind(run.id, run.trigger, run.status, run.startedAt, run.completedAt, run.processCount, run.changeCount, run.error || null).run();
   await env.DB.prepare("DELETE FROM xyops_catalog_sync_runs WHERE id NOT IN (SELECT id FROM xyops_catalog_sync_runs ORDER BY started_at DESC LIMIT 50)").run();
@@ -256,7 +232,6 @@ async function saveCatalogSyncRun(env: SecureEnv, run: CatalogSyncRun): Promise<
 
 async function listCatalogSyncRuns(env: SecureEnv, limit = 20): Promise<CatalogSyncRun[]> {
   if (!env.DB) return [];
-  await ensureCatalogSyncTables(env);
   const result = await env.DB.prepare("SELECT id, trigger_name, status, started_at, completed_at, process_count, change_count, error FROM xyops_catalog_sync_runs ORDER BY started_at DESC LIMIT ?")
     .bind(Math.max(1, Math.min(limit, 50))).all<Record<string, unknown>>();
   return (result.results ?? []).map((row) => ({

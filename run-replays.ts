@@ -23,17 +23,6 @@ type ReplayEnv = {
   CONFIG_ENCRYPTION_KEY?: string;
 };
 
-const createReplayTable = `CREATE TABLE IF NOT EXISTS operation_run_replays (
-  run_id TEXT PRIMARY KEY NOT NULL,
-  event_id TEXT NOT NULL,
-  schema_version TEXT NOT NULL,
-  encrypted_spec TEXT,
-  replayable INTEGER NOT NULL DEFAULT 0,
-  reason TEXT,
-  parent_run_id TEXT,
-  created_at INTEGER NOT NULL
-)`;
-
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
@@ -84,12 +73,6 @@ async function decryptSpec(value: string, keyValue?: string): Promise<RunReplayS
   };
 }
 
-async function ensureReplayTable(env: ReplayEnv): Promise<void> {
-  if (!env.DB) return;
-  await env.DB.prepare(createReplayTable).run();
-  await env.DB.prepare("CREATE INDEX IF NOT EXISTS operation_run_replays_event_idx ON operation_run_replays(event_id)").run();
-}
-
 function replayValues(event: CatalogEvent, values: Record<string, unknown>): { values: Record<string, unknown>; reason: string } {
   const safeValues: Record<string, unknown> = {};
   let reason = "";
@@ -107,7 +90,6 @@ function replayValues(event: CatalogEvent, values: Record<string, unknown>): { v
 
 export async function saveRunReplay(env: ReplayEnv, runId: string, event: CatalogEvent, values: Record<string, unknown>, targets: string[], parentRunId = ""): Promise<void> {
   if (!env.DB || !runId) return;
-  await ensureReplayTable(env);
   const filtered = replayValues(event, values);
   let replayable = !filtered.reason;
   let reason = filtered.reason;
@@ -148,7 +130,6 @@ function summaryFromRow(row: Record<string, unknown>): RunReplaySummary {
 export async function listRunReplaySummaries(env: ReplayEnv, runIds: string[]): Promise<Map<string, RunReplaySummary>> {
   const result = new Map<string, RunReplaySummary>();
   if (!env.DB || !runIds.length) return result;
-  await ensureReplayTable(env);
   const ids = runIds.filter(Boolean).slice(0, 200);
   if (!ids.length) return result;
   const placeholders = ids.map(() => "?").join(",");
@@ -162,7 +143,6 @@ export async function listRunReplaySummaries(env: ReplayEnv, runIds: string[]): 
 
 export async function readRunReplay(env: ReplayEnv, runId: string): Promise<{ summary: RunReplaySummary; spec: RunReplaySpec | null } | null> {
   if (!env.DB) return null;
-  await ensureReplayTable(env);
   const row = await env.DB.prepare("SELECT run_id, event_id, schema_version, encrypted_spec, replayable, reason, parent_run_id FROM operation_run_replays WHERE run_id = ?").bind(runId.slice(0, 160)).first<Record<string, unknown>>();
   if (!row) return null;
   const summary = summaryFromRow(row);

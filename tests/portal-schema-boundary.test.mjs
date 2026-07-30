@@ -21,10 +21,10 @@ test("normal fetch and scheduled dispatch require a ready production schema", as
   assert.equal(source.includes("return rootRuntime.scheduled?.(controller, sourceEnv, ctx)"), true);
   assert.equal(source.indexOf("await ensurePortalSchema(sourceEnv)"), source.lastIndexOf("await ensurePortalSchema(sourceEnv)"));
 
-  const module = await import(helpers.href);
-  assert.equal(module.migrationCapableDatabase(undefined), false);
-  assert.equal(module.migrationCapableDatabase({ prepare() {} }), false);
-  assert.equal(module.migrationCapableDatabase({ prepare() {}, batch() {} }), true);
+  const boundaryHelpers = await import(helpers.href);
+  assert.equal(boundaryHelpers.migrationCapableDatabase(undefined), false);
+  assert.equal(boundaryHelpers.migrationCapableDatabase({ prepare() {} }), false);
+  assert.equal(boundaryHelpers.migrationCapableDatabase({ prepare() {}, batch() {} }), true);
 });
 
 test("recovery status requires constant-time service token authorization and returns safe fields", async () => {
@@ -37,8 +37,8 @@ test("recovery status requires constant-time service token authorization and ret
   assert.equal(helperSource.includes("schema_authorization_required"), true);
   assert.equal(helperSource.includes('"cache-control": "no-store"'), true);
 
-  const module = await import(helpers.href);
-  const response = module.schemaFailureResponse({
+  const boundaryHelpers = await import(helpers.href);
+  const response = boundaryHelpers.schemaFailureResponse({
     state: "incompatible",
     currentVersion: 0,
     latestVersion: 1,

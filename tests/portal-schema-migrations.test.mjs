@@ -14,6 +14,71 @@ function result(changes = 0) {
   return { success: true, meta: { changes } };
 }
 
+function splitSqlList(value) {
+  const output = [];
+  let current = "";
+  let depth = 0;
+  let quote = "";
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index];
+    if (quote) {
+      current += character;
+      if (character === quote && value[index - 1] !== "\\") quote = "";
+      continue;
+    }
+    if (["'", '"', "`"].includes(character)) {
+      quote = character;
+      current += character;
+      continue;
+    }
+    if (character === "(") depth += 1;
+    if (character === ")") depth -= 1;
+    if (character === "," && depth === 0) {
+      output.push(current.trim());
+      current = "";
+    } else current += character;
+  }
+  if (current.trim()) output.push(current.trim());
+  return output;
+}
+
+function cleanIdentifier(value) {
+  return value.trim().replace(/^["`\[]|["`\]]$/g, "");
+}
+
+function uniqueConstraints(tableSql) {
+  const start = tableSql.indexOf("(");
+  const end = tableSql.lastIndexOf(")");
+  if (start < 0 || end <= start) return [];
+  const output = [];
+  for (const clause of splitSqlList(tableSql.slice(start + 1, end))) {
+    const tableConstraint = clause.match(/^(?:CONSTRAINT\s+\S+\s+)?UNIQUE\s*\((.+)\)$/i);
+    if (tableConstraint) {
+      output.push(splitSqlList(tableConstraint[1]).map((column) => cleanIdentifier(column.split(/\s+/)[0])));
+      continue;
+    }
+    if (!/\bUNIQUE\b/i.test(clause) || /\bPRIMARY\s+KEY\b/i.test(clause)) continue;
+    const column = clause.match(/^["`\[]?([A-Za-z_][A-Za-z0-9_]*)/i)?.[1];
+    if (column) output.push([column]);
+  }
+  return output;
+}
+
+function parsedIndexColumns(sql) {
+  const match = sql.match(/\bON\s+["`\[]?([A-Za-z_][A-Za-z0-9_]*)["`\]]?\s*\((.+)\)\s*$/i);
+  if (!match) return { table: "", columns: [] };
+  return {
+    table: match[1],
+    columns: splitSqlList(match[2]).map((value) => {
+      const parts = value.trim().split(/\s+/);
+      const direction = parts.at(-1)?.toUpperCase();
+      const desc = direction === "DESC";
+      if (direction === "ASC" || direction === "DESC") parts.pop();
+      return { name: cleanIdentifier(parts.join(" ")), desc };
+    }),
+  };
+}
+
 class MigrationMemoryD1 {
   tables = new Map();
   indexes = new Map();
@@ -22,13 +87,16 @@ class MigrationMemoryD1 {
   lock = null;
   rows = new Map();
   failPattern = null;
+  batchCount = 0;
+  lockRenewals = 0;
+  stealLockOnRenewal = 0;
 
   constructor({ canonical = false } = {}) {
     if (canonical) this.installCanonicalObjects();
   }
 
-  installCanonicalObjects() {
-    for (const table of portalSchemaTables) this.tables.set(table.name, table.columns.map((column, index) => ({
+  installTable(table) {
+    this.tables.set(table.name, table.columns.map((column, index) => ({
       cid: index,
       name: column.name,
       type: column.type,
@@ -36,8 +104,25 @@ class MigrationMemoryD1 {
       dflt_value: null,
       pk: column.primaryKey ? index + 1 : 0,
     })));
-    for (const index of portalSchemaIndexes) this.indexes.set(index.name, index.table);
-    for (const trigger of portalSchemaTriggers) this.triggers.set(trigger.name, trigger.table);
+    uniqueConstraints(table.sql).forEach((columns, index) => {
+      const name = `sqlite_autoindex_${table.name}_${index + 1}`;
+      this.indexes.set(name, { name, table: table.name, unique: 1, origin: "u", partial: 0, columns: columns.map((column) => ({ name: column, desc: false })), sql: null });
+    });
+  }
+
+  installCanonicalObjects() {
+    for (const table of portalSchemaTables) this.installTable(table);
+    for (const index of portalSchemaIndexes) {
+      const parsed = parsedIndexColumns(index.sql);
+      this.indexes.set(index.name, { name: index.name, table: index.table, unique: 0, origin: "c", partial: 0, columns: parsed.columns, sql: index.sql });
+    }
+    for (const trigger of portalSchemaTriggers) this.triggers.set(trigger.name, { name: trigger.name, table: trigger.table, sql: trigger.sql });
+  }
+
+  dropUnique(table, columns) {
+    for (const [name, index] of this.indexes) {
+      if (index.table === table && index.unique === 1 && index.columns.map((column) => column.name).join(",") === columns.join(",")) this.indexes.delete(name);
+    }
   }
 
   prepare(sql) {
@@ -53,16 +138,23 @@ class MigrationMemoryD1 {
         if (createTable) {
           const table = portalSchemaTables.find((item) => item.name === createTable[1]);
           if (!table) throw new Error(`unknown canonical table ${createTable[1]}`);
-          if (!this.tables.has(table.name)) this.tables.set(table.name, table.columns.map((column, index) => ({
-            cid: index, name: column.name, type: column.type, notnull: column.notNull ? 1 : 0,
-            dflt_value: null, pk: column.primaryKey ? index + 1 : 0,
-          })));
+          if (!this.tables.has(table.name)) this.installTable(table);
           return result(0);
         }
         const createIndex = normalized.match(/^CREATE INDEX IF NOT EXISTS ([A-Za-z_][A-Za-z0-9_]*) ON ([A-Za-z_][A-Za-z0-9_]*)/i);
-        if (createIndex) { this.indexes.set(createIndex[1], createIndex[2]); return result(0); }
+        if (createIndex) {
+          if (this.indexes.has(createIndex[1])) return result(0);
+          const parsed = parsedIndexColumns(normalized);
+          const available = new Set((this.tables.get(parsed.table) ?? []).map((column) => column.name));
+          if (parsed.columns.some((column) => !available.has(column.name))) throw new Error("no such column for index");
+          this.indexes.set(createIndex[1], { name: createIndex[1], table: createIndex[2], unique: 0, origin: "c", partial: 0, columns: parsed.columns, sql: normalized });
+          return result(0);
+        }
         const createTrigger = normalized.match(/^CREATE TRIGGER IF NOT EXISTS ([A-Za-z_][A-Za-z0-9_]*) .* ON ([A-Za-z_][A-Za-z0-9_]*)/i);
-        if (createTrigger) { this.triggers.set(createTrigger[1], createTrigger[2]); return result(0); }
+        if (createTrigger) {
+          if (!this.triggers.has(createTrigger[1])) this.triggers.set(createTrigger[1], { name: createTrigger[1], table: createTrigger[2], sql: normalized });
+          return result(0);
+        }
 
         if (normalized.startsWith("DELETE FROM portal_schema_lock WHERE id = ? AND acquired_at < ?")) {
           if (this.lock?.id === values[0] && this.lock.acquired_at < values[1]) this.lock = null;
@@ -72,6 +164,15 @@ class MigrationMemoryD1 {
           if (this.lock) return result(0);
           this.lock = { id: values[0], owner: values[1], acquired_at: values[2] };
           return result(1);
+        }
+        if (normalized.startsWith("UPDATE portal_schema_lock SET acquired_at = ? WHERE id = ? AND owner = ?")) {
+          this.lockRenewals += 1;
+          if (this.stealLockOnRenewal === this.lockRenewals && this.lock) this.lock.owner = "other";
+          if (this.lock?.id === values[1] && this.lock.owner === values[2]) {
+            this.lock.acquired_at = values[0];
+            return result(1);
+          }
+          return result(0);
         }
         if (normalized.startsWith("DELETE FROM portal_schema_lock WHERE id = ? AND owner = ?")) {
           if (this.lock?.id === values[0] && this.lock.owner === values[1]) { this.lock = null; return result(1); }
@@ -90,15 +191,24 @@ class MigrationMemoryD1 {
         if (normalized.startsWith("SELECT version, name, checksum, applied_at, execution_ms FROM portal_schema_migrations")) {
           return { results: [...this.migrations.values()].sort((left, right) => left.version - right.version) };
         }
-        if (normalized.startsWith("SELECT name, type, tbl_name FROM sqlite_master")) {
+        if (normalized.startsWith("SELECT name, type, tbl_name, sql FROM sqlite_master")) {
           const objects = [];
-          for (const name of this.tables.keys()) objects.push({ name, type: "table", tbl_name: name });
-          for (const [name, table] of this.indexes) objects.push({ name, type: "index", tbl_name: table });
-          for (const [name, table] of this.triggers) objects.push({ name, type: "trigger", tbl_name: table });
+          for (const name of this.tables.keys()) objects.push({ name, type: "table", tbl_name: name, sql: portalSchemaTables.find((table) => table.name === name)?.sql ?? null });
+          for (const [name, index] of this.indexes) if (!name.startsWith("sqlite_")) objects.push({ name, type: "index", tbl_name: index.table, sql: index.sql });
+          for (const [name, trigger] of this.triggers) objects.push({ name, type: "trigger", tbl_name: trigger.table, sql: trigger.sql });
           return { results: objects.sort((left, right) => left.name.localeCompare(right.name)) };
         }
-        const pragma = normalized.match(/^PRAGMA table_info\("([A-Za-z_][A-Za-z0-9_]*)"\)$/i);
-        if (pragma) return { results: (this.tables.get(pragma[1]) ?? []).map((column) => ({ ...column })) };
+        const tableInfo = normalized.match(/^PRAGMA table_info\("([A-Za-z_][A-Za-z0-9_]*)"\)$/i);
+        if (tableInfo) return { results: (this.tables.get(tableInfo[1]) ?? []).map((column) => ({ ...column })) };
+        const indexList = normalized.match(/^PRAGMA index_list\("([A-Za-z_][A-Za-z0-9_]*)"\)$/i);
+        if (indexList) {
+          return { results: [...this.indexes.values()].filter((index) => index.table === indexList[1]).map((index, seq) => ({ seq, name: index.name, unique: index.unique, origin: index.origin, partial: index.partial })) };
+        }
+        const indexXInfo = normalized.match(/^PRAGMA index_xinfo\("([^"\s]+)"\)$/i);
+        if (indexXInfo) {
+          const index = this.indexes.get(indexXInfo[1]);
+          return { results: (index?.columns ?? []).map((column, seqno) => ({ seqno, cid: seqno, name: column.name, desc: column.desc ? 1 : 0, key: 1 })) };
+        }
         throw new Error(`Unsupported all SQL: ${normalized}`);
       },
       first: async () => null,
@@ -107,6 +217,7 @@ class MigrationMemoryD1 {
   }
 
   async batch(statements) {
+    this.batchCount += 1;
     const output = [];
     for (const statement of statements) output.push(await statement.run());
     return output;
@@ -128,13 +239,15 @@ test("creates the canonical baseline and journals an empty database", async () =
   const status = await ensurePortalSchema(env(db), { now: () => 1_000 });
 
   assert.equal(status.state, "ready");
-  assert.equal(status.currentVersion, 1);
+  assert.equal(status.currentVersion, portalMigrations.at(-1).version);
+  assert.equal(status.latestVersion, portalMigrations.at(-1).version);
   assert.deepEqual(status.appliedVersions, [1]);
   assert.deepEqual(status.pendingVersions, []);
   assert.equal(db.migrations.size, 1);
   assert.equal(db.tables.size, portalSchemaTables.length);
-  assert.equal(db.indexes.size, portalSchemaIndexes.length);
+  assert.equal([...db.indexes.keys()].filter((name) => !name.startsWith("sqlite_")).length, portalSchemaIndexes.length);
   assert.equal(db.triggers.size, portalSchemaTriggers.length);
+  assert.ok(db.lockRenewals >= 5);
 });
 
 test("adopts a compatible runtime-created database without mutating existing rows", async () => {
@@ -194,13 +307,40 @@ test("blocks missing canonical objects but reports additional objects as compati
   const extraDb = new MigrationMemoryD1({ canonical: true });
   extraDb.tables.set("plugin_data", [{ cid: 0, name: "id", type: "TEXT", notnull: 1, dflt_value: null, pk: 1 }]);
   extraDb.tables.get("portal_users").push({ cid: 99, name: "plugin_tag", type: "TEXT", notnull: 0, dflt_value: null, pk: 0 });
-  extraDb.indexes.set("plugin_data_idx", "plugin_data");
+  extraDb.indexes.set("plugin_data_idx", { name: "plugin_data_idx", table: "plugin_data", unique: 0, origin: "c", partial: 0, columns: [{ name: "id", desc: false }], sql: "CREATE INDEX plugin_data_idx ON plugin_data(id)" });
   extraDb.migrations.set(1, { version: 1, name: portalMigrations[0].name, checksum: await portalMigrations[0].checksum(), applied_at: 1, execution_ms: 1 });
   const extra = await inspectPortalSchema(env(extraDb));
   assert.equal(extra.state, "ready");
   assert.ok(extra.compatibleDrift.includes("table:plugin_data:extra"));
   assert.ok(extra.compatibleDrift.includes("column:portal_users.plugin_tag:extra"));
   assert.ok(extra.compatibleDrift.includes("index:plugin_data_idx:extra"));
+});
+
+test("verifies required UNIQUE, index and trigger definitions", async () => {
+  const db = new MigrationMemoryD1({ canonical: true });
+  db.dropUnique("portal_users", ["username"]);
+  db.indexes.get("portal_sessions_user_idx").columns = [{ name: "expires_at", desc: false }];
+  db.triggers.get("portal_audit_events_no_delete").sql = "CREATE TRIGGER portal_audit_events_no_delete BEFORE INSERT ON portal_audit_events BEGIN SELECT 1; END";
+  db.migrations.set(1, { version: 1, name: portalMigrations[0].name, checksum: await portalMigrations[0].checksum(), applied_at: 1, execution_ms: 1 });
+
+  const status = await inspectPortalSchema(env(db));
+  assert.equal(status.state, "incompatible");
+  assert.ok(status.incompatibleDrift.includes("unique:portal_users.username:missing"));
+  assert.ok(status.incompatibleDrift.includes("index:portal_sessions_user_idx:definition"));
+  assert.ok(status.incompatibleDrift.includes("trigger:portal_audit_events_no_delete:definition"));
+});
+
+test("classifies missing indexed columns before secondary DDL", async () => {
+  const db = new MigrationMemoryD1({ canonical: true });
+  db.tables.set("portal_sessions", db.tables.get("portal_sessions").filter((column) => column.name !== "user_id"));
+  db.indexes.delete("portal_sessions_user_idx");
+  const status = await ensurePortalSchema(env(db), { maxLockAttempts: 1 });
+
+  assert.equal(status.state, "incompatible");
+  assert.equal(status.errorCode, "schema_incompatible_drift");
+  assert.ok(status.incompatibleDrift.includes("column:portal_sessions.user_id:missing"));
+  assert.equal(db.batchCount, 1, "secondary index/trigger batch must not run after table preflight drift");
+  assert.equal(db.migrations.size, 0);
 });
 
 test("does not journal a baseline when DDL or structural verification fails", async () => {
@@ -217,6 +357,17 @@ test("does not journal a baseline when DDL or structural verification fails", as
   const drift = await ensurePortalSchema(env(driftDb), { maxLockAttempts: 1 });
   assert.equal(drift.state, "incompatible");
   assert.equal(driftDb.migrations.size, 0);
+});
+
+test("renews and revalidates lock ownership before journaling", async () => {
+  const db = new MigrationMemoryD1();
+  db.stealLockOnRenewal = 4;
+  const status = await ensurePortalSchema(env(db), { maxLockAttempts: 1 });
+
+  assert.equal(status.state, "busy");
+  assert.equal(status.errorCode, "schema_migration_busy");
+  assert.equal(db.migrations.size, 0);
+  assert.equal(db.lock?.owner, "other");
 });
 
 test("returns busy for an active lock and replaces a stale lock", async () => {

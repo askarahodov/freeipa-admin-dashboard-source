@@ -48,6 +48,7 @@ type MigrationOptions = {
 type InspectOptions = {
   secondary?: boolean;
   extras?: boolean;
+  allowMissingSecondary?: boolean;
 };
 
 type PortalSchemaSnapshot = {
@@ -384,6 +385,7 @@ async function inspectStructure(
 ): Promise<{ compatible: string[]; incompatible: string[] }> {
   const checkSecondary = options.secondary ?? true;
   const includeExtras = options.extras ?? true;
+  const allowMissingSecondary = options.allowMissingSecondary ?? false;
   const compatible = new Set<string>();
   const incompatible = new Set<string>();
   const objects = await schemaObjects(db);
@@ -471,7 +473,7 @@ async function inspectStructure(
       const tableKey = normalizedIdentifier(index.table);
       const actual = indexes.get(indexKey);
       if (!actual) {
-        incompatible.add(`index:${index.name}:missing`);
+        if (!allowMissingSecondary) incompatible.add(`index:${index.name}:missing`);
         continue;
       }
       if (normalizedIdentifier(actual.tbl_name) !== tableKey) {
@@ -488,9 +490,11 @@ async function inspectStructure(
     for (const trigger of snapshot.triggers) {
       const triggerKey = normalizedIdentifier(trigger.name);
       const actual = triggers.get(triggerKey);
-      if (!actual) incompatible.add(`trigger:${trigger.name}:missing`);
-      else if (normalizedIdentifier(actual.tbl_name) !== normalizedIdentifier(trigger.table)) incompatible.add(`trigger:${trigger.name}:wrong_table`);
-      else if (normalizedSqlDefinition(actual.sql) !== normalizedSqlDefinition(trigger.sql)) {
+      if (!actual) {
+        if (!allowMissingSecondary) incompatible.add(`trigger:${trigger.name}:missing`);
+      } else if (normalizedIdentifier(actual.tbl_name) !== normalizedIdentifier(trigger.table)) {
+        incompatible.add(`trigger:${trigger.name}:wrong_table`);
+      } else if (normalizedSqlDefinition(actual.sql) !== normalizedSqlDefinition(trigger.sql)) {
         incompatible.add(`trigger:${trigger.name}:definition`);
       }
     }
@@ -658,16 +662,21 @@ async function applyMigration(
     if (preflight.incompatible.length) return driftStatus(await journalRows(db), preflight, registry, safeNow(options));
 
     if (!await renewLock(db, owner, options)) return lockLostStatus(registry, options);
-    await db.batch((migration.secondaryStatements ?? []).map((statement) => db.prepare(statement)));
-    if (!await renewLock(db, owner, options)) return lockLostStatus(registry, options);
-    const secondaryVerification = await inspectStructure(db, snapshot, { secondary: true, extras: false });
-    if (secondaryVerification.incompatible.length) {
-      return driftStatus(await journalRows(db), secondaryVerification, registry, safeNow(options));
+    const secondaryPreflight = await inspectStructure(db, snapshot, {
+      secondary: true,
+      extras: false,
+      allowMissingSecondary: true,
+    });
+    if (secondaryPreflight.incompatible.length) {
+      return driftStatus(await journalRows(db), secondaryPreflight, registry, safeNow(options));
     }
 
     if (!await renewLock(db, owner, options)) return lockLostStatus(registry, options);
     const journal = await journalStatement(db, migration, startedAt, options);
-    await journal.run();
+    await db.batch([
+      ...(migration.secondaryStatements ?? []).map((statement) => db.prepare(statement)),
+      journal,
+    ]);
     if (!await renewLock(db, owner, options)) return lockLostStatus(registry, options);
     return null;
   }

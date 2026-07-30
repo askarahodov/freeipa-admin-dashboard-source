@@ -67,6 +67,18 @@ test("recovery status requires constant-time service token authorization and ret
   assert.equal(JSON.stringify(payload).includes("checksum"), false);
 });
 
+test("built worker tests explicitly provide a database or mark a process-local bypass", () => {
+  const violations = [];
+  for (const name of fs.readdirSync(testsDirectory).filter((value) => value.endsWith(".test.mjs"))) {
+    const source = fs.readFileSync(path.join(testsDirectory, name), "utf8");
+    if (!source.includes('dist/server/index.js')) continue;
+    const hasMarker = source.includes("markSchemaTestBypass");
+    const hasDatabase = /\bDB\s*[:=]/.test(source) || /\bDB\s*,/.test(source);
+    if (!hasMarker && !hasDatabase) violations.push(name);
+  }
+  assert.deepEqual(violations, [], `built worker tests without DB or explicit bypass: ${violations.join(", ")}`);
+});
+
 test("no test still treats service-admin-root as the outer Vite entry", () => {
   const stale = [];
   for (const name of fs.readdirSync(testsDirectory).filter((value) => value.endsWith(".test.mjs"))) {

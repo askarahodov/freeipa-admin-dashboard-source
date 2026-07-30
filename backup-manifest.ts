@@ -40,30 +40,42 @@ export type PortalBackupManifest = {
 };
 
 const domainSet = new Set<string>(PORTAL_BACKUP_DOMAINS);
-const forbiddenNames = new Set([
-  "CONFIG_ENCRYPTION_KEY",
-  "backupPassword",
-  "backupKey",
-  "ipaPassword",
-  "xyopsApiKey",
-  "encryptedSecrets",
-  "sessionToken",
-  "passwordHash",
+const forbiddenNormalizedNames = new Set([
+  "configencryptionkey",
+  "backuppassword",
+  "backupkey",
+  "ipapassword",
+  "xyopsapikey",
+  "encryptedsecrets",
+  "sessiontoken",
+  "passwordhash",
 ]);
 
 function plainObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
-function canonical(value: unknown): string {
-  if (value === null || typeof value !== "object") return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
-  const object = value as Record<string, unknown>;
-  return `{${Object.keys(object).sort().map((key) => `${JSON.stringify(key)}:${canonical(object[key])}`).join(",")}}`;
+function normalizedFieldName(value: string): string {
+  return value.replace(/[^a-z0-9]/gi, "").toLowerCase();
+}
+
+function canonical(value: unknown, path: string): string {
+  if (value === null) return "null";
+  if (typeof value === "string" || typeof value === "boolean") return JSON.stringify(value);
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) throw new Error(`Backup payload contains non-finite number at ${path}`);
+    return JSON.stringify(value);
+  }
+  if (typeof value === "undefined" || typeof value === "bigint" || typeof value === "function" || typeof value === "symbol") {
+    throw new Error(`Backup payload contains unsupported value at ${path}`);
+  }
+  if (Array.isArray(value)) return `[${value.map((item, index) => canonical(item, `${path}[${index}]`)).join(",")}]`;
+  if (!plainObject(value)) throw new Error(`Backup payload contains unsupported object at ${path}`);
+  return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonical(value[key], `${path}.${key}`)}`).join(",")}}`;
 }
 
 export function canonicalBackupJson(value: unknown): string {
-  return canonical(value);
+  return canonical(value, "$backup");
 }
 
 export async function sha256Hex(value: string | Uint8Array): Promise<string> {
@@ -80,7 +92,7 @@ export function assertSanitizedBackupPayload(value: unknown): void {
     }
     if (!plainObject(current)) return;
     for (const [key, child] of Object.entries(current)) {
-      if (forbiddenNames.has(key)) throw new Error(`Sanitized backup contains forbidden field at ${path}.${key}`);
+      if (forbiddenNormalizedNames.has(normalizedFieldName(key))) throw new Error(`Sanitized backup contains forbidden field at ${path}.${key}`);
       visit(child, `${path}.${key}`);
     }
   };

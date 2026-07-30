@@ -1,10 +1,17 @@
 import {
-  portalBaselineStatements,
   portalSchemaIndexes,
   portalSchemaTables,
   portalSchemaTriggers,
   type PortalSchemaColumn,
+  type PortalSchemaIndex,
+  type PortalSchemaTable,
+  type PortalSchemaTrigger,
 } from "./portal-schema.ts";
+import {
+  portalMigrationV1SecondaryStatements,
+  portalMigrationV1Statements,
+  portalMigrationV1TableStatements,
+} from "./portal-migration-v1.ts";
 
 export type PortalSchemaState = "ready" | "busy" | "unavailable" | "incompatible" | "failed";
 
@@ -23,7 +30,7 @@ export type PortalSchemaStatus = {
 type MigrationEnv = { DB?: D1Database };
 type MigrationRow = { version: number; name: string; checksum: string; applied_at: number; execution_ms: number };
 type SchemaObjectRow = { name: string; type: string; tbl_name: string; sql: string | null };
-type TableInfoRow = { name: string; type: string; notnull: number; pk: number };
+type TableInfoRow = { name: string; type: string; notnull: number; dflt_value: unknown; pk: number };
 type IndexListRow = { seq: number; name: string; unique: number; origin: string; partial: number };
 type IndexXInfoRow = { seqno: number; cid: number; name: string | null; desc: number; key: number };
 type IndexColumn = { name: string; descending: boolean };
@@ -42,16 +49,31 @@ type InspectOptions = {
   extras?: boolean;
 };
 
+type PortalSchemaSnapshot = {
+  tables: readonly PortalSchemaTable[];
+  indexes: readonly PortalSchemaIndex[];
+  triggers: readonly PortalSchemaTrigger[];
+};
+
 export type PortalMigration = {
   version: number;
   name: string;
   statements: readonly string[];
+  tableStatements?: readonly string[];
+  secondaryStatements?: readonly string[];
+  snapshot?: PortalSchemaSnapshot;
   checksum: () => Promise<string>;
 };
 
+const canonicalSnapshot: PortalSchemaSnapshot = {
+  tables: portalSchemaTables,
+  indexes: portalSchemaIndexes,
+  triggers: portalSchemaTriggers,
+};
 const migrationTableSql = portalSchemaTables.find((table) => table.name === "portal_schema_migrations")!.sql;
 const migrationLockSql = portalSchemaTables.find((table) => table.name === "portal_schema_lock")!.sql;
-const successfulCache = new WeakMap<object, { expiresAt: number; status: PortalSchemaStatus }>();
+let successfulCache = new WeakMap<object, { expiresAt: number; status: PortalSchemaStatus }>();
+let inFlightEnsures = new WeakMap<object, Promise<PortalSchemaStatus>>();
 
 function safeNow(options?: MigrationOptions): number {
   const value = options?.now?.() ?? Date.now();
@@ -73,17 +95,17 @@ async function checksum(version: number, name: string, statements: readonly stri
   return hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(material)));
 }
 
-const baseline: PortalMigration = {
-  version: 1,
-  name: "canonical-runtime-baseline",
-  statements: portalBaselineStatements,
-  checksum: () => checksum(1, "canonical-runtime-baseline", portalBaselineStatements),
-};
+function latestVersion(registry: readonly PortalMigration[]): number {
+  return registry.reduce((latest, migration) => Math.max(latest, migration.version), 0);
+}
 
-export const portalMigrations = [baseline] as const satisfies readonly PortalMigration[];
-const latestVersion = portalMigrations.at(-1)?.version ?? 0;
+function pendingVersions(registry: readonly PortalMigration[], appliedVersions: readonly number[]): number[] {
+  const applied = new Set(appliedVersions);
+  return registry.map((migration) => migration.version).filter((version) => !applied.has(version));
+}
 
 function status(
+  registry: readonly PortalMigration[],
   state: PortalSchemaState,
   values: Partial<Omit<PortalSchemaStatus, "state" | "latestVersion" | "verifiedAt">> = {},
   verifiedAt = Date.now(),
@@ -91,9 +113,9 @@ function status(
   return {
     state,
     currentVersion: values.currentVersion ?? 0,
-    latestVersion,
+    latestVersion: latestVersion(registry),
     appliedVersions: [...(values.appliedVersions ?? [])],
-    pendingVersions: [...(values.pendingVersions ?? portalMigrations.map((migration) => migration.version))],
+    pendingVersions: [...(values.pendingVersions ?? registry.map((migration) => migration.version))],
     compatibleDrift: [...(values.compatibleDrift ?? [])].sort(),
     incompatibleDrift: [...(values.incompatibleDrift ?? [])].sort(),
     errorCode: values.errorCode ?? "",
@@ -152,12 +174,15 @@ function identifier(value: string): string {
   return value.trim().replace(/^["`\[]|["`\]]$/g, "");
 }
 
-function uniqueConstraints(tableSql: string): string[][] {
+function tableBody(tableSql: string): string {
   const start = tableSql.indexOf("(");
   const end = tableSql.lastIndexOf(")");
-  if (start < 0 || end <= start) return [];
+  return start >= 0 && end > start ? tableSql.slice(start + 1, end) : "";
+}
+
+function uniqueConstraints(tableSql: string): string[][] {
   const output: string[][] = [];
-  for (const clause of splitSqlList(tableSql.slice(start + 1, end))) {
+  for (const clause of splitSqlList(tableBody(tableSql))) {
     const tableConstraint = clause.match(/^(?:CONSTRAINT\s+\S+\s+)?UNIQUE\s*\((.+)\)$/i);
     if (tableConstraint) {
       output.push(splitSqlList(tableConstraint[1]).map((column) => identifier(column.split(/\s+/)[0])).filter(Boolean));
@@ -168,6 +193,31 @@ function uniqueConstraints(tableSql: string): string[][] {
     if (column) output.push([column]);
   }
   return output.filter((columns) => columns.length > 0);
+}
+
+function tableFromSql(statement: string): PortalSchemaTable | null {
+  const match = statement.trim().match(/^CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/i);
+  if (!match) return null;
+  const clauses = splitSqlList(tableBody(statement));
+  const tablePrimaryKeys = new Set<string>();
+  for (const clause of clauses) {
+    const primaryKey = clause.match(/^(?:CONSTRAINT\s+\S+\s+)?PRIMARY\s+KEY\s*\((.+)\)$/i);
+    if (primaryKey) splitSqlList(primaryKey[1]).forEach((column) => tablePrimaryKeys.add(identifier(column.split(/\s+/)[0])));
+  }
+  const columns: PortalSchemaColumn[] = [];
+  for (const clause of clauses) {
+    const column = clause.match(/^["`\[]?([A-Za-z_][A-Za-z0-9_]*)["`\]]?\s+(TEXT|INTEGER)\b(.*)$/i);
+    if (!column) continue;
+    const name = column[1];
+    const tail = column[3];
+    columns.push({
+      name,
+      type: column[2].toUpperCase() as PortalSchemaColumn["type"],
+      notNull: /\bNOT\s+NULL\b/i.test(tail),
+      primaryKey: /\bPRIMARY\s+KEY\b/i.test(tail) || tablePrimaryKeys.has(name),
+    });
+  }
+  return { name: match[1], columns, sql: statement };
 }
 
 function indexColumns(indexSql: string): IndexColumn[] {
@@ -182,6 +232,24 @@ function indexColumns(indexSql: string): IndexColumn[] {
   });
 }
 
+function indexFromSql(statement: string): PortalSchemaIndex | null {
+  const match = statement.trim().match(/^CREATE\s+INDEX\s+IF\s+NOT\s+EXISTS\s+([A-Za-z_][A-Za-z0-9_]*)\s+ON\s+([A-Za-z_][A-Za-z0-9_]*)/i);
+  return match ? { name: match[1], table: match[2], sql: statement } : null;
+}
+
+function triggerFromSql(statement: string): PortalSchemaTrigger | null {
+  const match = statement.trim().match(/^CREATE\s+TRIGGER\s+IF\s+NOT\s+EXISTS\s+([A-Za-z_][A-Za-z0-9_]*)[\s\S]*?\bON\s+([A-Za-z_][A-Za-z0-9_]*)/i);
+  return match ? { name: match[1], table: match[2], sql: statement } : null;
+}
+
+function snapshotFromStatements(statements: readonly string[]): PortalSchemaSnapshot {
+  return {
+    tables: statements.map(tableFromSql).filter((value): value is PortalSchemaTable => Boolean(value)),
+    indexes: statements.map(indexFromSql).filter((value): value is PortalSchemaIndex => Boolean(value)),
+    triggers: statements.map(triggerFromSql).filter((value): value is PortalSchemaTrigger => Boolean(value)),
+  };
+}
+
 function normalizedSqlDefinition(value: unknown): string {
   return String(value ?? "")
     .replace(/\bIF\s+NOT\s+EXISTS\b/gi, "")
@@ -190,6 +258,19 @@ function normalizedSqlDefinition(value: unknown): string {
     .trim()
     .toUpperCase();
 }
+
+const baselineSnapshot = snapshotFromStatements(portalMigrationV1Statements);
+const baseline: PortalMigration = {
+  version: 1,
+  name: "canonical-runtime-baseline",
+  statements: portalMigrationV1Statements,
+  tableStatements: portalMigrationV1TableStatements,
+  secondaryStatements: portalMigrationV1SecondaryStatements,
+  snapshot: baselineSnapshot,
+  checksum: () => checksum(1, "canonical-runtime-baseline", portalMigrationV1Statements),
+};
+
+export const portalMigrations = Object.freeze([baseline]) satisfies readonly PortalMigration[];
 
 async function journalRows(db: D1Database): Promise<MigrationRow[]> {
   const result = await db.prepare("SELECT version, name, checksum, applied_at, execution_ms FROM portal_schema_migrations ORDER BY version ASC")
@@ -239,7 +320,11 @@ function sameIndexColumns(left: readonly IndexColumn[], right: readonly IndexCol
   ));
 }
 
-async function inspectStructure(db: D1Database, options: InspectOptions = {}): Promise<{ compatible: string[]; incompatible: string[] }> {
+async function inspectStructure(
+  db: D1Database,
+  snapshot: PortalSchemaSnapshot = canonicalSnapshot,
+  options: InspectOptions = {},
+): Promise<{ compatible: string[]; incompatible: string[] }> {
   const checkSecondary = options.secondary ?? true;
   const includeExtras = options.extras ?? true;
   const compatible = new Set<string>();
@@ -248,12 +333,12 @@ async function inspectStructure(db: D1Database, options: InspectOptions = {}): P
   const tables = new Map(objects.filter((item) => item.type === "table").map((item) => [item.name, item]));
   const indexes = new Map(objects.filter((item) => item.type === "index").map((item) => [item.name, item]));
   const triggers = new Map(objects.filter((item) => item.type === "trigger").map((item) => [item.name, item]));
-  const requiredTableNames = new Set(portalSchemaTables.map((table) => table.name));
-  const requiredIndexNames = new Set(portalSchemaIndexes.map((index) => index.name));
-  const requiredTriggerNames = new Set(portalSchemaTriggers.map((trigger) => trigger.name));
+  const requiredTableNames = new Set(snapshot.tables.map((table) => table.name));
+  const requiredIndexNames = new Set(snapshot.indexes.map((index) => index.name));
+  const requiredTriggerNames = new Set(snapshot.triggers.map((trigger) => trigger.name));
   const indexLists = new Map<string, IndexListRow[]>();
 
-  for (const table of portalSchemaTables) {
+  for (const table of snapshot.tables) {
     if (!tables.has(table.name)) {
       incompatible.add(`table:${table.name}:missing`);
       continue;
@@ -270,8 +355,11 @@ async function inspectStructure(db: D1Database, options: InspectOptions = {}): P
       const mismatch = columnMismatch(required, actual);
       if (mismatch) incompatible.add(`column:${table.name}.${required.name}:${mismatch}`);
     }
-    for (const actual of actualColumns.keys()) {
-      if (!requiredColumns.has(actual)) compatible.add(`column:${table.name}.${actual}:extra`);
+    for (const [name, actual] of actualColumns) {
+      if (requiredColumns.has(name)) continue;
+      if (Number(actual.notnull) === 1 && actual.dflt_value == null && Number(actual.pk) === 0) {
+        incompatible.add(`column:${table.name}.${name}:required_extra`);
+      } else compatible.add(`column:${table.name}.${name}:extra`);
     }
 
     const list = await tableIndexList(db, table.name);
@@ -290,7 +378,7 @@ async function inspectStructure(db: D1Database, options: InspectOptions = {}): P
   }
 
   if (checkSecondary) {
-    for (const index of portalSchemaIndexes) {
+    for (const index of snapshot.indexes) {
       const actual = indexes.get(index.name);
       if (!actual) {
         incompatible.add(`index:${index.name}:missing`);
@@ -307,7 +395,7 @@ async function inspectStructure(db: D1Database, options: InspectOptions = {}): P
         incompatible.add(`index:${index.name}:definition`);
       }
     }
-    for (const trigger of portalSchemaTriggers) {
+    for (const trigger of snapshot.triggers) {
       const actual = triggers.get(trigger.name);
       if (!actual) incompatible.add(`trigger:${trigger.name}:missing`);
       else if (actual.tbl_name !== trigger.table) incompatible.add(`trigger:${trigger.name}:wrong_table`);
@@ -332,17 +420,21 @@ async function inspectStructure(db: D1Database, options: InspectOptions = {}): P
   return { compatible: [...compatible].sort(), incompatible: [...incompatible].sort() };
 }
 
-async function validateJournal(rows: MigrationRow[], verifiedAt: number): Promise<PortalSchemaStatus | null> {
+async function validateJournal(
+  rows: MigrationRow[],
+  registry: readonly PortalMigration[],
+  verifiedAt: number,
+): Promise<PortalSchemaStatus | null> {
   const appliedVersions = rows.map((row) => row.version).sort((left, right) => left - right);
   const currentVersion = appliedVersions.at(-1) ?? 0;
-  const pendingVersions = portalMigrations.map((migration) => migration.version).filter((version) => !appliedVersions.includes(version));
-  if (currentVersion > latestVersion || rows.some((row) => !portalMigrations.some((migration) => migration.version === row.version))) {
-    return status("failed", { currentVersion, appliedVersions, pendingVersions, errorCode: "schema_future_version" }, verifiedAt);
+  const pending = pendingVersions(registry, appliedVersions);
+  if (currentVersion > latestVersion(registry) || rows.some((row) => !registry.some((migration) => migration.version === row.version))) {
+    return status(registry, "failed", { currentVersion, appliedVersions, pendingVersions: pending, errorCode: "schema_future_version" }, verifiedAt);
   }
   for (const row of rows) {
-    const migration = portalMigrations.find((item) => item.version === row.version);
+    const migration = registry.find((item) => item.version === row.version);
     if (!migration || row.name !== migration.name || row.checksum !== await migration.checksum()) {
-      return status("failed", { currentVersion, appliedVersions, pendingVersions, errorCode: "schema_checksum_mismatch" }, verifiedAt);
+      return status(registry, "failed", { currentVersion, appliedVersions, pendingVersions: pending, errorCode: "schema_checksum_mismatch" }, verifiedAt);
     }
   }
   return null;
@@ -351,35 +443,48 @@ async function validateJournal(rows: MigrationRow[], verifiedAt: number): Promis
 function driftStatus(
   rows: MigrationRow[],
   drift: { compatible: string[]; incompatible: string[] },
+  registry: readonly PortalMigration[],
   verifiedAt: number,
 ): PortalSchemaStatus {
   const appliedVersions = rows.map((row) => row.version).sort((left, right) => left - right);
-  return status("incompatible", {
+  return status(registry, "incompatible", {
     currentVersion: appliedVersions.at(-1) ?? 0,
     appliedVersions,
-    pendingVersions: portalMigrations.map((migration) => migration.version).filter((version) => !appliedVersions.includes(version)),
+    pendingVersions: pendingVersions(registry, appliedVersions),
     compatibleDrift: drift.compatible,
     incompatibleDrift: drift.incompatible,
     errorCode: "schema_incompatible_drift",
   }, verifiedAt);
 }
 
-export async function inspectPortalSchema(env: MigrationEnv, options: MigrationOptions = {}): Promise<PortalSchemaStatus> {
+export async function inspectPortalSchemaWithRegistry(
+  env: MigrationEnv,
+  registry: readonly PortalMigration[],
+  options: MigrationOptions = {},
+): Promise<PortalSchemaStatus> {
   const verifiedAt = safeNow(options);
-  if (!env.DB) return status("unavailable", { errorCode: "schema_database_unavailable" }, verifiedAt);
+  if (!env.DB) return status(registry, "unavailable", { errorCode: "schema_database_unavailable" }, verifiedAt);
   try {
     const rows = await journalRows(env.DB);
-    const invalidJournal = await validateJournal(rows, verifiedAt);
+    const invalidJournal = await validateJournal(rows, registry, verifiedAt);
     if (invalidJournal) return invalidJournal;
     const appliedVersions = rows.map((row) => row.version).sort((left, right) => left - right);
     const currentVersion = appliedVersions.at(-1) ?? 0;
-    const pendingVersions = portalMigrations.map((migration) => migration.version).filter((version) => !appliedVersions.includes(version));
     const drift = await inspectStructure(env.DB);
-    if (drift.incompatible.length) return driftStatus(rows, drift, verifiedAt);
-    return status("ready", { currentVersion, appliedVersions, pendingVersions, compatibleDrift: drift.compatible }, verifiedAt);
+    if (drift.incompatible.length) return driftStatus(rows, drift, registry, verifiedAt);
+    return status(registry, "ready", {
+      currentVersion,
+      appliedVersions,
+      pendingVersions: pendingVersions(registry, appliedVersions),
+      compatibleDrift: drift.compatible,
+    }, verifiedAt);
   } catch {
-    return status("failed", { errorCode: "schema_migration_failed" }, verifiedAt);
+    return status(registry, "failed", { errorCode: "schema_migration_failed" }, verifiedAt);
   }
+}
+
+export async function inspectPortalSchema(env: MigrationEnv, options: MigrationOptions = {}): Promise<PortalSchemaStatus> {
+  return inspectPortalSchemaWithRegistry(env, portalMigrations, options);
 }
 
 async function ensureInfrastructure(db: D1Database): Promise<void> {
@@ -413,82 +518,122 @@ async function releaseLock(db: D1Database, owner: string): Promise<void> {
   await db.prepare("DELETE FROM portal_schema_lock WHERE id = ? AND owner = ?").bind("main", owner).run();
 }
 
-function lockLostStatus(options: MigrationOptions): PortalSchemaStatus {
-  return status("busy", { errorCode: "schema_migration_busy" }, safeNow(options));
+function lockLostStatus(registry: readonly PortalMigration[], options: MigrationOptions): PortalSchemaStatus {
+  return status(registry, "busy", { errorCode: "schema_migration_busy" }, safeNow(options));
+}
+
+async function journalStatement(
+  db: D1Database,
+  migration: PortalMigration,
+  startedAt: number,
+  options: MigrationOptions,
+): Promise<D1PreparedStatement> {
+  const completedAt = safeNow(options);
+  return db.prepare("INSERT INTO portal_schema_migrations (version, name, checksum, applied_at, execution_ms) VALUES (?, ?, ?, ?, ?)")
+    .bind(migration.version, migration.name, await migration.checksum(), completedAt, Math.max(0, completedAt - startedAt));
 }
 
 async function applyMigration(
   db: D1Database,
   migration: PortalMigration,
   owner: string,
+  registry: readonly PortalMigration[],
   options: MigrationOptions,
 ): Promise<PortalSchemaStatus | null> {
   const startedAt = safeNow(options);
-  const phases = migration.version === baseline.version
-    ? [
-        portalSchemaTables.map((table) => table.sql),
-        [...portalSchemaIndexes.map((index) => index.sql), ...portalSchemaTriggers.map((trigger) => trigger.sql)],
-      ]
-    : [migration.statements];
 
-  for (let index = 0; index < phases.length; index += 1) {
-    if (!await renewLock(db, owner, options)) return lockLostStatus(options);
-    await db.batch(phases[index].map((statement) => db.prepare(statement)));
-    if (!await renewLock(db, owner, options)) return lockLostStatus(options);
-    if (index === 0 && phases.length > 1) {
-      const preflight = await inspectStructure(db, { secondary: false, extras: false });
-      if (preflight.incompatible.length) return driftStatus(await journalRows(db), preflight, safeNow(options));
-    }
+  if (migration.tableStatements?.length) {
+    if (!await renewLock(db, owner, options)) return lockLostStatus(registry, options);
+    await db.batch(migration.tableStatements.map((statement) => db.prepare(statement)));
+    if (!await renewLock(db, owner, options)) return lockLostStatus(registry, options);
+    const preflight = await inspectStructure(db, migration.snapshot ?? snapshotFromStatements(migration.statements), {
+      secondary: false,
+      extras: false,
+    });
+    if (preflight.incompatible.length) return driftStatus(await journalRows(db), preflight, registry, safeNow(options));
+    if (!await renewLock(db, owner, options)) return lockLostStatus(registry, options);
+    const journal = await journalStatement(db, migration, startedAt, options);
+    await db.batch([
+      ...(migration.secondaryStatements ?? []).map((statement) => db.prepare(statement)),
+      journal,
+    ]);
+    if (!await renewLock(db, owner, options)) return lockLostStatus(registry, options);
+    return null;
   }
 
-  if (!await renewLock(db, owner, options)) return lockLostStatus(options);
-  const drift = await inspectStructure(db);
-  const rows = await journalRows(db);
-  if (drift.incompatible.length) return driftStatus(rows, drift, safeNow(options));
-  if (!await renewLock(db, owner, options)) return lockLostStatus(options);
-
-  const completedAt = safeNow(options);
-  await db.prepare("INSERT INTO portal_schema_migrations (version, name, checksum, applied_at, execution_ms) VALUES (?, ?, ?, ?, ?)")
-    .bind(migration.version, migration.name, await migration.checksum(), completedAt, Math.max(0, completedAt - startedAt)).run();
+  if (!await renewLock(db, owner, options)) return lockLostStatus(registry, options);
+  const journal = await journalStatement(db, migration, startedAt, options);
+  await db.batch([...migration.statements.map((statement) => db.prepare(statement)), journal]);
+  if (!await renewLock(db, owner, options)) return lockLostStatus(registry, options);
   return null;
 }
 
-export async function ensurePortalSchema(env: MigrationEnv, options: MigrationOptions = {}): Promise<PortalSchemaStatus> {
-  const verifiedAt = safeNow(options);
-  if (!env.DB) return status("unavailable", { errorCode: "schema_database_unavailable" }, verifiedAt);
-  const dbObject = env.DB as unknown as object;
-  const cached = successfulCache.get(dbObject);
-  if (cached && cached.expiresAt > verifiedAt) return { ...cached.status, verifiedAt };
-
+async function runPortalSchemaEnsure(
+  env: MigrationEnv & { DB: D1Database },
+  registry: readonly PortalMigration[],
+  options: MigrationOptions,
+): Promise<PortalSchemaStatus> {
   const owner = crypto.randomUUID();
   let acquired = false;
   try {
     await ensureInfrastructure(env.DB);
     acquired = await acquireLock(env.DB, owner, options);
-    if (!acquired) return status("busy", { errorCode: "schema_migration_busy" }, safeNow(options));
+    if (!acquired) return status(registry, "busy", { errorCode: "schema_migration_busy" }, safeNow(options));
 
     const rows = await journalRows(env.DB);
-    const invalidJournal = await validateJournal(rows, safeNow(options));
+    const invalidJournal = await validateJournal(rows, registry, safeNow(options));
     if (invalidJournal) return invalidJournal;
     const applied = new Set(rows.map((row) => row.version));
-    for (const migration of portalMigrations) {
+    for (const migration of registry) {
       if (applied.has(migration.version)) continue;
-      const failure = await applyMigration(env.DB, migration, owner, options);
+      const failure = await applyMigration(env.DB, migration, owner, registry, options);
       if (failure) return failure;
+      applied.add(migration.version);
     }
 
-    if (!await renewLock(env.DB, owner, options)) return lockLostStatus(options);
-    const finalStatus = await inspectPortalSchema(env, options);
-    if (finalStatus.state === "ready") {
+    if (!await renewLock(env.DB, owner, options)) return lockLostStatus(registry, options);
+    return await inspectPortalSchemaWithRegistry(env, registry, options);
+  } catch {
+    return status(registry, "failed", { errorCode: "schema_migration_failed" }, safeNow(options));
+  } finally {
+    if (acquired) await releaseLock(env.DB, owner).catch(() => {});
+  }
+}
+
+export function ensurePortalSchemaWithRegistry(
+  env: MigrationEnv,
+  registry: readonly PortalMigration[],
+  options: MigrationOptions = {},
+): Promise<PortalSchemaStatus> {
+  const verifiedAt = safeNow(options);
+  if (!env.DB) return Promise.resolve(status(registry, "unavailable", { errorCode: "schema_database_unavailable" }, verifiedAt));
+  const dbObject = env.DB as unknown as object;
+  const useProductionCache = registry === portalMigrations;
+  if (useProductionCache) {
+    const cached = successfulCache.get(dbObject);
+    if (cached && cached.expiresAt > verifiedAt) return Promise.resolve({ ...cached.status, verifiedAt });
+    const inFlight = inFlightEnsures.get(dbObject);
+    if (inFlight) return inFlight;
+  }
+
+  const promise = runPortalSchemaEnsure(env as MigrationEnv & { DB: D1Database }, registry, options).then((finalStatus) => {
+    if (useProductionCache && finalStatus.state === "ready") {
       const ttl = Math.max(0, Math.min(Math.trunc(options.cacheTtlMs ?? 5_000), 60_000));
       successfulCache.set(dbObject, { expiresAt: safeNow(options) + ttl, status: finalStatus });
     }
     return finalStatus;
-  } catch {
-    return status("failed", { errorCode: "schema_migration_failed" }, safeNow(options));
-  } finally {
-    if (acquired) await releaseLock(env.DB, owner).catch(() => {});
+  });
+  if (useProductionCache) {
+    inFlightEnsures.set(dbObject, promise);
+    void promise.finally(() => {
+      if (inFlightEnsures.get(dbObject) === promise) inFlightEnsures.delete(dbObject);
+    });
   }
+  return promise;
+}
+
+export function ensurePortalSchema(env: MigrationEnv, options: MigrationOptions = {}): Promise<PortalSchemaStatus> {
+  return ensurePortalSchemaWithRegistry(env, portalMigrations, options);
 }
 
 export function publicPortalSchemaStatus(value: PortalSchemaStatus) {
@@ -506,5 +651,6 @@ export function publicPortalSchemaStatus(value: PortalSchemaStatus) {
 }
 
 export function clearPortalSchemaCacheForTests(): void {
-  // WeakMap cannot be cleared; replacing entries is unnecessary because tests use a fresh DB object.
+  successfulCache = new WeakMap();
+  inFlightEnsures = new WeakMap();
 }

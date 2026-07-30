@@ -1,0 +1,51 @@
+name: Fix Orphan DDL References
+
+on:
+  push:
+    branches:
+      - agent/remove-runtime-schema-ddl
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/remove-runtime-schema-ddl
+      - name: Remove orphan schema constant calls
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          roots = [Path('.'), Path('worker')]
+          files = set(Path('.').glob('*.ts')) | set(Path('worker').rglob('*.ts'))
+          pattern = re.compile(r'^\s*await\s+[^\n;]*\.prepare\(create[A-Za-z0-9_]+\)\.run\(\);\s*\n', re.M)
+          changed = []
+          for path in sorted(files):
+              text = path.read_text()
+              next_text = pattern.sub('', text)
+              if next_text != text:
+                  path.write_text(next_text)
+                  changed.append(str(path))
+          print('\n'.join(changed))
+          PY
+          if grep -RInE 'prepare\(create[A-Za-z0-9_]+\)' --include='*.ts' . --exclude-dir=db --exclude-dir=node_modules --exclude-dir=.next --exclude-dir=dist; then
+            echo 'orphan schema references remain' >&2
+            exit 1
+          fi
+      - name: Commit fix
+        run: |
+          if git diff --quiet; then
+            echo 'No orphan references found'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- '*.ts'
+          git commit -m 'fix: remove orphan runtime schema references'
+          git push origin HEAD:agent/remove-runtime-schema-ddl

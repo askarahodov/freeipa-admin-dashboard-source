@@ -23,6 +23,62 @@ function countMatches(value: string, pattern: RegExp): number {
   return [...value.matchAll(pattern)].length;
 }
 
+function splitSqlList(value: string): string[] {
+  const output: string[] = [];
+  let current = "";
+  let depth = 0;
+  let quote = "";
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index];
+    if (quote) {
+      current += character;
+      if (character === quote && value[index - 1] !== "\\") quote = "";
+      continue;
+    }
+    if (character === "'" || character === '"' || character === "`") {
+      quote = character;
+      current += character;
+      continue;
+    }
+    if (character === "(") depth += 1;
+    if (character === ")") depth -= 1;
+    if (character === "," && depth === 0) {
+      output.push(current.trim());
+      current = "";
+    } else current += character;
+  }
+  if (current.trim()) output.push(current.trim());
+  return output;
+}
+
+function tableBody(sql: string): string {
+  const start = sql.indexOf("(");
+  const end = sql.lastIndexOf(")");
+  return start >= 0 && end > start ? sql.slice(start + 1, end) : "";
+}
+
+function normalizeIdentifier(value: string): string {
+  return value.trim().replace(/^["`\[]|["`\]]$/g, "").toLowerCase();
+}
+
+function uniqueConstraintSignatures(sql: string): string[] {
+  const signatures: string[] = [];
+  for (const clause of splitSqlList(tableBody(sql))) {
+    const tableConstraint = clause.match(/^(?:CONSTRAINT\s+\S+\s+)?UNIQUE\s*\(([^)]*)\)/i);
+    if (tableConstraint) {
+      const columns = splitSqlList(tableConstraint[1])
+        .map((column) => normalizeIdentifier(column.split(/\s+/)[0]))
+        .filter(Boolean);
+      if (columns.length) signatures.push(columns.join(","));
+      continue;
+    }
+    if (!/\bUNIQUE\b/i.test(clause) || /\bPRIMARY\s+KEY\b/i.test(clause)) continue;
+    const column = clause.match(/^["`\[]?([A-Za-z_][A-Za-z0-9_]*)/i)?.[1];
+    if (column) signatures.push(normalizeIdentifier(column));
+  }
+  return signatures.sort();
+}
+
 function restrictiveConstraintDrift(actualSql: string, expectedSql: string): string[] {
   const output: string[] = [];
   const actualChecks = countMatches(actualSql, /\bCHECK\s*\(/gi);
@@ -32,24 +88,30 @@ function restrictiveConstraintDrift(actualSql: string, expectedSql: string): str
   const actualForeignKeys = countMatches(actualSql, /\bFOREIGN\s+KEY\b|\bREFERENCES\b/gi);
   const expectedForeignKeys = countMatches(expectedSql, /\bFOREIGN\s+KEY\b|\bREFERENCES\b/gi);
   if (actualForeignKeys > expectedForeignKeys) output.push("foreign_key_constraint");
+
+  const expectedUnique = new Set(uniqueConstraintSignatures(expectedSql));
+  const unexpectedUnique = uniqueConstraintSignatures(actualSql).some((signature) => !expectedUnique.has(signature));
+  if (unexpectedUnique) output.push("unexpected_unique_constraint");
   return output;
 }
 
 export function classifyAdditionalCanonicalSchemaDrift(objects: readonly SchemaObjectRow[]): string[] {
   const incompatible = new Set<string>();
-  const canonicalTables = new Map(portalSchemaTables.map((table) => [table.name, table]));
-  const canonicalTriggers = new Set(portalSchemaTriggers.map((trigger) => trigger.name));
+  const canonicalTables = new Map(portalSchemaTables.map((table) => [table.name.toLowerCase(), table]));
+  const canonicalTriggers = new Set(portalSchemaTriggers.map((trigger) => trigger.name.toLowerCase()));
 
   for (const object of objects) {
+    const objectName = object.name.toLowerCase();
+    const tableName = object.tbl_name.toLowerCase();
     if (object.type === "table") {
-      const expected = canonicalTables.get(object.name);
+      const expected = canonicalTables.get(objectName);
       if (!expected || !object.sql) continue;
       for (const kind of restrictiveConstraintDrift(object.sql, expected.sql)) {
         incompatible.add(`table:${object.name}:${kind}`);
       }
       continue;
     }
-    if (object.type === "trigger" && canonicalTables.has(object.tbl_name) && !canonicalTriggers.has(object.name)) {
+    if (object.type === "trigger" && canonicalTables.has(tableName) && !canonicalTriggers.has(objectName)) {
       incompatible.add(`trigger:${object.name}:unexpected_on_canonical`);
     }
   }

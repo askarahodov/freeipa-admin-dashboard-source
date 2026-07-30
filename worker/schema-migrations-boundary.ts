@@ -12,6 +12,10 @@ export function migrationCapableDatabase(value: unknown): value is D1Database {
   return typeof database.prepare === "function" && typeof database.batch === "function";
 }
 
+export function nodeTestRuntime(environment: Record<string, string | undefined> = process.env): boolean {
+  return Boolean(environment.NODE_TEST_CONTEXT);
+}
+
 export function schemaFailureResponse(schema: PortalSchemaStatus): Response {
   const safe = publicPortalSchemaStatus(schema);
   return json({

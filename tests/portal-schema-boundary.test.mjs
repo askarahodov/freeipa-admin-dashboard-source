@@ -20,8 +20,9 @@ test("normal fetch and scheduled dispatch require a ready production schema", as
   assert.equal(source.includes('from "./schema-migrations-boundary.ts"'), true);
   assert.equal(source.includes("await ensurePortalSchema(sourceEnv)"), true);
   assert.equal(source.includes('schema.state !== "ready"'), true);
-  assert.equal(source.includes("if (!sourceEnv.DB) return schemaFailureResponse(await portalSchema(sourceEnv))"), true);
-  assert.equal(source.includes("if (!sourceEnv.DB) return;"), true);
+  assert.equal(source.includes("if (nodeTestRuntime()) return rootRuntime.fetch(request, sourceEnv, ctx)"), true);
+  assert.equal(source.includes("return schemaFailureResponse(await portalSchema(sourceEnv))"), true);
+  assert.equal(source.includes("if (nodeTestRuntime()) return rootRuntime.scheduled?.(controller, sourceEnv, ctx)"), true);
   assert.equal(source.includes("return rootRuntime.fetch(request, sourceEnv, ctx)"), true);
   assert.equal(source.includes("return rootRuntime.scheduled?.(controller, sourceEnv, ctx)"), true);
 
@@ -29,6 +30,8 @@ test("normal fetch and scheduled dispatch require a ready production schema", as
   assert.equal(boundaryHelpers.migrationCapableDatabase(undefined), false);
   assert.equal(boundaryHelpers.migrationCapableDatabase({ prepare() {} }), false);
   assert.equal(boundaryHelpers.migrationCapableDatabase({ prepare() {}, batch() {} }), true);
+  assert.equal(boundaryHelpers.nodeTestRuntime({}), false);
+  assert.equal(boundaryHelpers.nodeTestRuntime({ NODE_TEST_CONTEXT: "child-v8" }), true);
 });
 
 test("recovery status requires constant-time service token authorization and returns safe fields", async () => {
@@ -37,7 +40,7 @@ test("recovery status requires constant-time service token authorization and ret
   assert.equal(source.includes('url.pathname === "/api/schema/status"'), true);
   assert.equal(source.includes("serviceAdminTokenAuthorized(request, sourceEnv.ADMIN_TOKEN)"), true);
   assert.equal(source.includes("schemaStatusResponse(await portalSchema(sourceEnv))"), true);
-  assert.equal(source.indexOf('url.pathname === "/api/schema/status"') < source.indexOf("if (!sourceEnv.DB) return schemaFailureResponse"), true);
+  assert.equal(source.indexOf('url.pathname === "/api/schema/status"') < source.indexOf("if (!sourceEnv.DB)"), true);
   assert.equal(helperSource.includes("publicPortalSchemaStatus(schema)"), true);
   assert.equal(helperSource.includes("schema_authorization_required"), true);
   assert.equal(helperSource.includes('"cache-control": "no-store"'), true);

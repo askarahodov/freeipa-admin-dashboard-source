@@ -43,32 +43,6 @@ permissions:
   contents: read
 
 jobs:
-  all-tests-diagnostic:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22.13.0
-          cache: npm
-
-      - name: Install and build
-        run: |
-          npm ci
-          npm run build
-
-      - name: Run every server test sequentially
-        shell: bash
-        run: |
-          set -euo pipefail
-          while IFS= read -r test_file; do
-            echo "::group::$test_file"
-            node --experimental-strip-types --test "$test_file"
-            echo "::endgroup::"
-          done < <(find tests -maxdepth 1 -name '*.test.mjs' -print | sort)
-
   auth-e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 35

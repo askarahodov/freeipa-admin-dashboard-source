@@ -45,6 +45,12 @@ test("reset fallbacks are refreshed before validation and checked again before a
   assert.equal(boundary.includes("...(draft ? { draft } : {})"), true);
 });
 
+test("terminal drafts cannot be returned to a mutable state by fallback refresh", () => {
+  assert.equal(boundary.includes('const refreshableDraftStatuses = new Set(["draft", "invalid", "validated"])'), true);
+  assert.equal(boundary.includes('if (!row || !refreshableDraftStatuses.has(String(row.status))) return null'), true);
+  assert.equal(boundary.includes('"applied"'), false);
+});
+
 test("current ENV values replace stale draft fallbacks without exposing secrets", () => {
   assert.equal(boundary.includes('environmentValue(field, env)'), true);
   assert.equal(boundary.includes('configuredEnv(value)'), true);

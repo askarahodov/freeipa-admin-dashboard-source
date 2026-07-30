@@ -1,7 +1,7 @@
 import { publicPortalSchemaStatus, type PortalSchemaStatus } from "../db/portal-migrations.ts";
 
 const jsonHeaders = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
-const schemaTestBypassMarker = Symbol("portal-schema-test-bypass");
+const schemaTestBypassMarker = Symbol.for("freeipa-admin-dashboard.schema-test-bypass.v1");
 
 type SchemaTestEnv = Record<PropertyKey, unknown>;
 

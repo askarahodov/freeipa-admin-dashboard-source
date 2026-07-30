@@ -1,10 +1,10 @@
-import rootRuntime from "./service-admin-root-entry";
-import { serviceAdminTokenAuthorized } from "../admin-session-authorization";
+import rootRuntime from "./service-admin-root-entry.ts";
+import { serviceAdminTokenAuthorized } from "../admin-session-authorization.ts";
 import {
   ensurePortalSchema,
   publicPortalSchemaStatus,
   type PortalSchemaStatus,
-} from "../db/portal-migrations";
+} from "../db/portal-migrations.ts";
 
 type RuntimeEnv = NonNullable<Parameters<typeof rootRuntime.fetch>[1]> & {
   DB?: D1Database;

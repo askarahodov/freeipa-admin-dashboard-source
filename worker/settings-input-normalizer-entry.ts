@@ -163,6 +163,16 @@ async function withSourceMutationLock(env: RuntimeEnv, operation: () => Promise<
   finally { await releaseSourceMutationLock(env, owner); }
 }
 
+async function authorizeSettingsMutation(request: Request, env: RuntimeEnv, ctx: RuntimeContext): Promise<Response | null> {
+  const url = new URL(request.url);
+  url.pathname = "/api/integrations/settings/effective";
+  url.search = "";
+  const headers = new Headers(request.headers);
+  headers.delete("content-length");
+  const response = await runtime.fetch(new Request(url, { method: "GET", headers }), env, ctx);
+  return response.ok ? null : response;
+}
+
 function resolvedResetMaterial(
   changesValue: string,
   secretsValue: Record<string, unknown>,
@@ -263,14 +273,21 @@ const worker = {
     const sourceEnv = env ?? (process.env as unknown as RuntimeEnv);
     const prepared = await normalizedRequest(request);
     const url = new URL(prepared.url);
+    const lifecycleMatch = url.pathname.match(/^\/api\/integrations\/settings\/drafts\/([A-Za-z0-9-]{1,80})\/(validate|apply)$/);
+    const createBody = prepared.method === "POST" && url.pathname === "/api/integrations/settings/drafts"
+      ? await prepared.clone().json().catch(() => null) as unknown
+      : null;
+    const createResets = objectValue(createBody) ? resetFieldsFromBody(createBody as Record<string, unknown>) : [];
 
-    if (prepared.method === "POST" && url.pathname === "/api/integrations/settings/drafts") {
-      const body = await prepared.clone().json().catch(() => null) as unknown;
-      const resets = objectValue(body) ? resetFieldsFromBody(body as Record<string, unknown>) : [];
-      if (resets.length) return withSourceMutationLock(sourceEnv, () => runtime.fetch(prepared, sourceEnv, ctx));
+    if ((createResets.length || (prepared.method === "POST" && lifecycleMatch))) {
+      const denied = await authorizeSettingsMutation(prepared, sourceEnv, ctx);
+      if (denied) return denied;
     }
 
-    const lifecycleMatch = url.pathname.match(/^\/api\/integrations\/settings\/drafts\/([A-Za-z0-9-]{1,80})\/(validate|apply)$/);
+    if (createResets.length) {
+      return withSourceMutationLock(sourceEnv, () => runtime.fetch(prepared, sourceEnv, ctx));
+    }
+
     if (prepared.method === "POST" && lifecycleMatch) {
       const refreshed = await refreshResetFallbacks(sourceEnv, lifecycleMatch[1], lifecycleMatch[2] as "validate" | "apply");
       if (refreshed) return refreshed;

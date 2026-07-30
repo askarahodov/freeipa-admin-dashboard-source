@@ -58,7 +58,7 @@ type FormState = {
   xyopsApiKey: string;
 };
 
-type ApiError = Error & { status?: number; payload?: { draft?: Draft; rolledBack?: boolean } };
+type ApiError = Error & { status?: number; payload?: { draft?: Draft; rolledBack?: boolean; code?: string } };
 
 const emptyForm: FormState = { demoMode: false, ipaUrl: "", ipaUsername: "", ipaPassword: "", xyopsUrl: "", xyopsApiKey: "" };
 const labels: Record<string, string> = {
@@ -88,13 +88,7 @@ function SourceBadge({ field }: { field?: FieldSource }) {
   return <span className={`settings-source ${field.source}`} title={field.overridden ? `${field.envName} переопределён в D1` : field.envName}>{text}{field.overridden ? " · conflict" : ""}</span>;
 }
 
-function SourceControl({
-  name,
-  field,
-  selected,
-  disabled,
-  onToggle,
-}: {
+function SourceControl({ name, field, selected, disabled, onToggle }: {
   name: SettingField;
   field: FieldSource;
   selected: boolean;
@@ -154,9 +148,7 @@ export default function SettingsLifecycleWizard() {
       document.documentElement.dataset.settingsLifecycleWizard = "ready";
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Настройки недоступны");
-    } finally {
-      setBusy(null);
-    }
+    } finally { setBusy(null); }
   }, []);
 
   useEffect(() => {
@@ -166,11 +158,7 @@ export default function SettingsLifecycleWizard() {
     const attach = () => {
       if (!active) return false;
       const existing = document.getElementById("settings-lifecycle-wizard-root");
-      if (existing) {
-        setMount(existing);
-        observer?.disconnect();
-        return true;
-      }
+      if (existing) { setMount(existing); observer?.disconnect(); return true; }
       const target = document.querySelector<HTMLElement>(".settings-page");
       if (!target) return false;
       const node = document.createElement("div");
@@ -200,7 +188,6 @@ export default function SettingsLifecycleWizard() {
   }, [load, pathname]);
 
   const resetSet = useMemo(() => new Set(resetFields), [resetFields]);
-
   const changes = useMemo(() => {
     if (!effective) return {} as Record<string, unknown>;
     const next: Record<string, unknown> = {};
@@ -213,14 +200,12 @@ export default function SettingsLifecycleWizard() {
     if (resetFields.length) next.resetFields = resetFields;
     return next;
   }, [effective, form, resetFields, resetSet]);
-
   const changeCount = useMemo(() => Object.keys(changes).filter((key) => key !== "resetFields").length + resetFields.length, [changes, resetFields.length]);
 
   function toggleReset(field: SettingField) {
     if (draft) return;
     setResetFields((current) => current.includes(field) ? current.filter((item) => item !== field) : [...current, field]);
-    setError("");
-    setMessage("");
+    setError(""); setMessage("");
   }
 
   function updateField<K extends keyof FormState>(field: K, value: FormState[K]) {
@@ -240,9 +225,7 @@ export default function SettingsLifecycleWizard() {
     setBusy("draft"); setError(""); setMessage("");
     try {
       const data = await api("/api/integrations/settings/drafts", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ baseRevision: effective.revision, changes }),
+        method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ baseRevision: effective.revision, changes }),
       }) as { draft: Draft };
       setDraft(data.draft);
       setMessage("Черновик создан. Проверьте diff и выполните серверную проверку.");
@@ -255,9 +238,7 @@ export default function SettingsLifecycleWizard() {
     setBusy("validate"); setError(""); setMessage("");
     try {
       const data = await api(`/api/integrations/settings/drafts/${encodeURIComponent(draft.id)}/validate`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: "{}",
+        method: "POST", headers: { "content-type": "application/json" }, body: "{}",
       }) as { draft: Draft };
       setDraft(data.draft);
       setMessage("Черновик проверен. Можно применить конфигурацию.");
@@ -273,9 +254,7 @@ export default function SettingsLifecycleWizard() {
     setBusy("apply"); setError(""); setMessage("");
     try {
       const data = await api(`/api/integrations/settings/drafts/${encodeURIComponent(draft.id)}/apply`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: "{}",
+        method: "POST", headers: { "content-type": "application/json" }, body: "{}",
       }) as { revision?: number; resetFields?: SettingField[] };
       const resetMessage = data.resetFields?.length ? ` · возвращено к ENV/default: ${data.resetFields.length}` : "";
       setMessage(`Конфигурация применена${data.revision ? ` · revision ${data.revision}` : ""}${resetMessage}.`);
@@ -283,6 +262,7 @@ export default function SettingsLifecycleWizard() {
       await load();
     } catch (cause) {
       const detail = cause as ApiError;
+      if (detail.payload?.draft) setDraft(detail.payload.draft);
       setError(detail.payload?.rolledBack ? `${detail.message}. Рабочая конфигурация восстановлена автоматически.` : detail.message);
       await load();
     } finally { setBusy(null); }
@@ -293,17 +273,14 @@ export default function SettingsLifecycleWizard() {
     setBusy("cancel"); setError(""); setMessage("");
     try {
       await api(`/api/integrations/settings/drafts/${encodeURIComponent(draft.id)}/cancel`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: "{}",
+        method: "POST", headers: { "content-type": "application/json" }, body: "{}",
       });
       setDraft(null);
       if (effective) setForm(formFromEffective(effective));
       setResetFields([]);
       setMessage("Черновик отменён, сохранённые в нём секреты удалены.");
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Не удалось отменить черновик");
-    } finally { setBusy(null); }
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Не удалось отменить черновик"); }
+    finally { setBusy(null); }
   }
 
   if (!mount) return null;
@@ -314,16 +291,13 @@ export default function SettingsLifecycleWizard() {
         <div><span className="eyebrow">SAFE CONFIGURATION</span><h2>Черновик → проверка → применение</h2><p>Активная конфигурация не изменяется до серверной проверки. D1 override можно безопасно удалить и вернуть поле к текущему ENV или DEFAULT.</p></div>
         <div className="settings-revision"><small>Активная revision</small><strong>{effective?.revision || "ENV"}</strong><button className="secondary" disabled={Boolean(busy)} onClick={() => void load()}>Обновить</button></div>
       </div>
-
       {error && <div className="settings-lifecycle-alert error"><strong>Ошибка</strong><span>{error}</span></div>}
       {message && <div className="settings-lifecycle-alert success"><strong>Готово</strong><span>{message}</span></div>}
-
       <div className="settings-lifecycle-steps">
         <span className={!draft ? "active" : "done"}><b>1</b>Черновик</span>
         <span className={draft?.status === "validated" ? "done" : draft ? "active" : ""}><b>2</b>Проверка</span>
         <span className={draft?.status === "validated" ? "active" : ""}><b>3</b>Применение</span>
       </div>
-
       {!effective ? <div className="catalog-empty"><strong>{busy === "load" ? "Загрузка настроек…" : "Настройки не загружены"}</strong></div> : <>
         <div className="settings-source-toolbar" data-testid="settings-source-filter">
           <div><strong>Источники значений</strong><small>D1 overrides: {effective.overrideCount ?? 0} · конфликтов с ENV: {effective.conflictCount ?? 0}</small></div>
@@ -333,37 +307,28 @@ export default function SettingsLifecycleWizard() {
             <button type="button" className={filter === "conflict" ? "active" : ""} onClick={() => setFilter("conflict")}>Конфликты</button>
           </div>
         </div>
-
         <div className="settings-lifecycle-grid">
-          {fieldVisible("demoMode") && <section>
-            <div className="settings-lifecycle-title"><h3>Общие</h3><SourceControl name="demoMode" field={effective.fields.demoMode} selected={resetSet.has("demoMode")} disabled={disabled} onToggle={toggleReset} /></div>
-            <label className={`checkbox-field ${resetSet.has("demoMode") ? "reset-pending" : ""}`}><input type="checkbox" checked={form.demoMode} disabled={disabled || resetSet.has("demoMode")} onChange={(event) => updateField("demoMode", event.target.checked)} /><span><strong>Демо-режим</strong><small>{resetSet.has("demoMode") ? `После применения: ${effective.fields.demoMode.fallbackSource === "environment" ? "ENV" : "DEFAULT"}` : "Не выполнять реальные вызовы FreeIPA и XYOps"}</small></span></label>
-          </section>}
-
+          {fieldVisible("demoMode") && <section><div className="settings-lifecycle-title"><h3>Общие</h3><SourceControl name="demoMode" field={effective.fields.demoMode} selected={resetSet.has("demoMode")} disabled={disabled} onToggle={toggleReset} /></div><label className={`checkbox-field ${resetSet.has("demoMode") ? "reset-pending" : ""}`}><input type="checkbox" checked={form.demoMode} disabled={disabled || resetSet.has("demoMode")} onChange={(event) => updateField("demoMode", event.target.checked)} /><span><strong>Демо-режим</strong><small>{resetSet.has("demoMode") ? `После применения: ${effective.fields.demoMode.fallbackSource === "environment" ? "ENV" : "DEFAULT"}` : "Не выполнять реальные вызовы FreeIPA и XYOps"}</small></span></label></section>}
           {(["ipaUrl", "ipaUsername", "ipaPassword"] as SettingField[]).some(fieldVisible) && <section>
             <div className="settings-lifecycle-title"><h3>FreeIPA</h3></div>
             {fieldVisible("ipaUrl") && <label className={resetSet.has("ipaUrl") ? "reset-pending" : ""}>Адрес сервера<SourceControl name="ipaUrl" field={effective.fields.ipaUrl} selected={resetSet.has("ipaUrl")} disabled={disabled} onToggle={toggleReset} /><input value={form.ipaUrl} disabled={disabled || resetSet.has("ipaUrl")} onChange={(event) => updateField("ipaUrl", event.target.value)} /></label>}
             {fieldVisible("ipaUsername") && <label className={resetSet.has("ipaUsername") ? "reset-pending" : ""}>Service account<SourceControl name="ipaUsername" field={effective.fields.ipaUsername} selected={resetSet.has("ipaUsername")} disabled={disabled} onToggle={toggleReset} /><input value={form.ipaUsername} disabled={disabled || resetSet.has("ipaUsername")} onChange={(event) => updateField("ipaUsername", event.target.value)} /></label>}
             {fieldVisible("ipaPassword") && <label className={resetSet.has("ipaPassword") ? "reset-pending" : ""}>Новый пароль<SourceControl name="ipaPassword" field={effective.fields.ipaPassword} selected={resetSet.has("ipaPassword")} disabled={disabled} onToggle={toggleReset} /><input type="password" value={form.ipaPassword} disabled={disabled || resetSet.has("ipaPassword")} onChange={(event) => updateField("ipaPassword", event.target.value)} placeholder={effective.settings.freeipa.passwordConfigured ? "Сохранён — заполните только для замены" : "Не настроен"} autoComplete="new-password" /></label>}
           </section>}
-
           {(["xyopsUrl", "xyopsApiKey"] as SettingField[]).some(fieldVisible) && <section>
             <div className="settings-lifecycle-title"><h3>XYOps</h3></div>
             {fieldVisible("xyopsUrl") && <label className={resetSet.has("xyopsUrl") ? "reset-pending" : ""}>Адрес XYOps<SourceControl name="xyopsUrl" field={effective.fields.xyopsUrl} selected={resetSet.has("xyopsUrl")} disabled={disabled} onToggle={toggleReset} /><input value={form.xyopsUrl} disabled={disabled || resetSet.has("xyopsUrl")} onChange={(event) => updateField("xyopsUrl", event.target.value)} /></label>}
             {fieldVisible("xyopsApiKey") && <label className={resetSet.has("xyopsApiKey") ? "reset-pending" : ""}>Новый API key<SourceControl name="xyopsApiKey" field={effective.fields.xyopsApiKey} selected={resetSet.has("xyopsApiKey")} disabled={disabled} onToggle={toggleReset} /><input type="password" value={form.xyopsApiKey} disabled={disabled || resetSet.has("xyopsApiKey")} onChange={(event) => updateField("xyopsApiKey", event.target.value)} placeholder={effective.settings.xyops.apiKeyConfigured ? "Сохранён — заполните только для замены" : "Не настроен"} autoComplete="new-password" /></label>}
           </section>}
         </div>
-
         {draft ? <div className="settings-draft-review">
           <div><h3>Безопасный diff</h3><code>{draft.id}</code></div>
           <div className="settings-diff-list">{draft.diff.map((item) => <article key={item.field}><strong>{labels[item.field] || item.field}</strong><span>{String(item.before ?? "—")}</span><b>→</b><span>{item.reset ? `Вернуть ${String(item.source || "default").toUpperCase()}` : item.secret ? "значение скрыто" : String(item.after ?? "—")}</span></article>)}</div>
           {draft.validation?.services?.length ? <div className="settings-validation-list">{draft.validation.services.map((check) => <span className={check.ok ? "ok" : "fail"} key={check.service}>{check.service}: {check.ok ? `${check.latencyMs || 0} мс` : check.error}</span>)}</div> : null}
           <div className="settings-lifecycle-actions"><button className="secondary" disabled={Boolean(busy)} onClick={() => void cancelDraft()}>{busy === "cancel" ? "Отмена…" : "Отменить черновик"}</button>{draft.status !== "validated" ? <button className="primary" disabled={Boolean(busy)} onClick={() => void validateDraft()}>{busy === "validate" ? "Проверка…" : "Проверить конфигурацию"}</button> : <button className="primary" disabled={Boolean(busy)} onClick={() => void applyDraft()}>{busy === "apply" ? "Применение…" : "Применить проверенную revision"}</button>}</div>
         </div> : <div className="settings-lifecycle-actions"><span>{changeCount ? `Изменено параметров: ${changeCount}` : "Изменений нет"}</span><button className="primary" disabled={Boolean(busy) || !changeCount} onClick={() => void createDraft()}>{busy === "draft" ? "Создание…" : "Создать черновик"}</button></div>}
-
         <details className="settings-revisions"><summary>История применённых revision ({revisions.length})</summary><div>{revisions.map((revision) => <article key={revision.id}><span className={`revision-status ${revision.status}`} /> <div><strong>Revision {revision.revision}</strong><small>{new Date(revision.createdAt).toLocaleString("ru-RU")} · {revision.createdBy}</small></div><code>{revision.reason}</code></article>)}{!revisions.length && <p>История появится после первого применения через новый lifecycle.</p>}</div></details>
       </>}
-    </section>,
-    mount,
+    </section>, mount,
   );
 }

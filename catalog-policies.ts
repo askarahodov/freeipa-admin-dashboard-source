@@ -132,14 +132,8 @@ export function catalogEventAllowed(policy: CatalogPolicySet, subject: CatalogPo
   return policy.defaultEffect === "allow";
 }
 
-async function ensurePolicyTable(env: PolicyEnv): Promise<void> {
-  if (!env.DB) return;
-  await env.DB.prepare(createPolicyTable).run();
-}
-
 export async function readCatalogPolicySet(env: PolicyEnv): Promise<{ policy: CatalogPolicySet; source: "database" | "environment" | "default"; updatedAt: number | null }> {
   if (env.DB) {
-    await ensurePolicyTable(env);
     const row = await env.DB.prepare("SELECT policy_json, updated_at FROM catalog_visibility_policies WHERE id = ?")
       .bind("current").first<{ policy_json: string; updated_at: number }>();
     if (row) {
@@ -164,7 +158,6 @@ export async function saveCatalogPolicySet(env: PolicyEnv, value: unknown): Prom
   if (!env.DB) throw new Error("Persistent database is unavailable");
   const policy = sanitizeCatalogPolicySet(value);
   const updatedAt = Date.now();
-  await ensurePolicyTable(env);
   await env.DB.prepare("INSERT INTO catalog_visibility_policies (id, policy_json, updated_at) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET policy_json = excluded.policy_json, updated_at = excluded.updated_at")
     .bind("current", JSON.stringify(policy), updatedAt).run();
   return { policy, updatedAt };

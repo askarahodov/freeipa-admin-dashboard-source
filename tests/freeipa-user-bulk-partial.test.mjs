@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import worker from "../dist/server/index.js";
+import { markSchemaTestBypass } from "../worker/schema-migrations-boundary.ts";
 
-const env = {
+const env = markSchemaTestBypass({
   PORTAL_IDENTITY_MODE: "static",
   PORTAL_STATIC_IDENTITY: "operator@example.test",
   PORTAL_DEFAULT_ROLE: "viewer",
@@ -11,7 +12,7 @@ const env = {
   IPA_URL: "https://ipa.example.test",
   IPA_USERNAME: "administrator",
   IPA_PASSWORD: "secret",
-};
+});
 
 test("returns per-user partial results for bulk group membership", async () => {
   const originalFetch = globalThis.fetch;

@@ -1,4 +1,4 @@
-import { PORTAL_BACKUP_DOMAINS, type PortalBackupDomain } from "./backup-manifest";
+import { PORTAL_BACKUP_DOMAINS, type PortalBackupDomain } from "./backup-manifest.ts";
 
 export class BackupExportError extends Error {
   readonly code: string;

@@ -6,12 +6,18 @@
 
 Текущая реализация — первый этап задачи #57. Она создаёт migration foundation и принимает существующую runtime-схему. Удаление дублирующего DDL из доменных request handlers выполняется следующим отдельным PR задачи #57.
 
-## Источник истины
+## Источники истины
 
-Canonical inventory находится в:
+Текущее итоговое состояние схемы описано в:
 
 ```text
 db/portal-schema.ts
+```
+
+Неизменяемые SQL statements первой migration находятся отдельно:
+
+```text
+db/portal-migration-v1.ts
 ```
 
 Migration lifecycle находится в:
@@ -21,7 +27,9 @@ db/portal-migrations.ts
 worker/schema-migrations-entry.ts
 ```
 
-В inventory перечислены обязательные таблицы, столбцы, named indexes и append-only audit triggers. Автоматическая baseline migration содержит только `CREATE ... IF NOT EXISTS`. В ней запрещены `DROP`, destructive `ALTER`, `DELETE`, `UPDATE` и data `INSERT`.
+Canonical inventory перечисляет обязательные таблицы, столбцы, named indexes и append-only audit triggers. Каждая выпущенная migration хранит собственный immutable snapshot SQL. Добавление новой таблицы в итоговый inventory не меняет statements или checksum уже применённой версии.
+
+Автоматические migrations не содержат `DROP`, destructive `ALTER`, `DELETE`, `UPDATE` или data-rewriting `INSERT`.
 
 ## Migration journal
 
@@ -29,7 +37,7 @@ worker/schema-migrations-entry.ts
 
 - номер версии;
 - стабильное имя migration;
-- SHA-256 checksum migration definition;
+- SHA-256 checksum immutable migration definition;
 - время применения;
 - длительность выполнения.
 
@@ -39,14 +47,29 @@ worker/schema-migrations-entry.ts
 
 1. Создаются только infrastructure-таблицы journal и lock.
 2. Worker получает migration lock `main`.
-3. Проверяются применённые версии и checksum.
-4. Pending additive migration выполняется D1 batch.
-5. Проверяются обязательные таблицы, столбцы, indexes и triggers.
-6. Journal обновляется только после успешной structural verification.
-7. Выполняется финальная проверка readiness.
-8. Lock освобождается best-effort с проверкой owner.
+3. Проверяются применённые версии, имена и checksum.
+4. Pending migrations выполняются строго по порядку registry.
+5. Для baseline idempotent table phase выполняется отдельно, затем проверяются обязательные столбцы и constraints.
+6. Secondary DDL baseline и запись journal выполняются одним transactional D1 `batch`.
+7. Для обычной будущей migration весь DDL и запись journal выполняются одним transactional D1 `batch`.
+8. Только после применения всех pending versions выполняется полная проверка итогового canonical inventory.
+9. Lock lease обновляется и ownership проверяется перед каждой изменяющей фазой.
+10. Lock освобождается best-effort с проверкой owner.
+
+Параллельные запросы одного Worker instance используют общий in-flight promise. Они ждут один результат проверки вместо получения кратковременного `schema_migration_busy`.
 
 Обычный API не вызывается, пока schema state не станет `ready`.
+
+## Crash recovery
+
+DDL и journal одной обычной migration коммитятся атомарно. Завершение процесса между этими действиями не может оставить применённую migration без journal record.
+
+Baseline использует две фазы, потому что перед созданием indexes необходимо диагностировать несовместимые существующие столбцы:
+
+- первая фаза содержит только idempotent `CREATE TABLE IF NOT EXISTS`;
+- вторая фаза атомарно применяет indexes/triggers и записывает journal.
+
+Если процесс остановится между фазами baseline, следующий startup безопасно повторит первую idempotent фазу и продолжит вторую.
 
 ## Принятие существующей базы
 
@@ -55,7 +78,8 @@ worker/schema-migrations-entry.ts
 - существующие строки не обновляются и не удаляются;
 - недостающие таблицы, indexes и triggers создаются;
 - существующая таблица с отсутствующим или несовместимым столбцом не исправляется молча;
-- journal version записывается только после полной проверки.
+- required `UNIQUE`, index columns/order/uniqueness и audit trigger definitions проверяются полностью;
+- journal version записывается только вместе с успешной изменяющей фазой.
 
 Такой процесс называется adoption. Он не является data migration и не расшифровывает настройки.
 
@@ -68,7 +92,10 @@ worker/schema-migrations-entry.ts
 - отсутствующая обязательная таблица;
 - отсутствующий обязательный столбец;
 - несовпадение типа, `NOT NULL` или primary-key semantics;
-- отсутствующий либо привязанный не к той таблице index/trigger;
+- потерянный required `UNIQUE` constraint;
+- index с неправильной таблицей, columns, order, uniqueness или partial semantics;
+- trigger с неправильной таблицей, event или body;
+- дополнительный `NOT NULL` столбец без default, который ломает canonical inserts;
 - неизвестная более новая migration version;
 - несовпадение migration checksum.
 
@@ -77,7 +104,7 @@ worker/schema-migrations-entry.ts
 Не блокирует запуск, но отображается в diagnostics:
 
 - дополнительная application table;
-- дополнительный столбец;
+- nullable дополнительный столбец либо дополнительный столбец с default;
 - дополнительный index или trigger.
 
 Портал никогда автоматически не удаляет совместимые дополнительные объекты.
@@ -87,7 +114,7 @@ worker/schema-migrations-entry.ts
 | State | Code | Значение |
 |---|---|---|
 | `ready` | пусто | Все применённые migrations и canonical objects корректны |
-| `busy` | `schema_migration_busy` | Migration lock занят другим экземпляром |
+| `busy` | `schema_migration_busy` | Migration lock занят другим экземпляром либо ownership потерян |
 | `unavailable` | `schema_database_unavailable` | D1 binding отсутствует |
 | `incompatible` | `schema_incompatible_drift` | Обнаружен несовместимый structural drift |
 | `failed` | `schema_migration_failed` | Migration или inspection завершились ошибкой |
@@ -95,6 +122,12 @@ worker/schema-migrations-entry.ts
 | `failed` | `schema_future_version` | База создана более новой версией приложения |
 
 При state, отличном от `ready`, обычный HTTP API возвращает `503`, а scheduled-задачи не запускаются.
+
+## Test-only boundary
+
+Production readiness нельзя отключить environment variable. Unit/API tests, которые намеренно запускают собранный Worker без D1, должны явно пометить in-process env через `markSchemaTestBypass()`.
+
+Маркер хранится в non-enumerable process-local `Symbol` property. Его невозможно передать через `.env`, Docker environment, JSON или HTTP request.
 
 ## Recovery status
 
@@ -146,16 +179,20 @@ x-admin-token: <ADMIN_TOKEN>
 
 Автоматические tests покрывают:
 
-- empty database;
-- adoption существующей compatible runtime database;
-- repeated startup;
-- checksum mismatch;
-- future version;
-- missing column/index/trigger;
-- compatible extra objects;
+- empty database и adoption существующей compatible runtime database;
+- immutable v1 checksum при расширении registry;
+- upgrade через несколько pending versions;
+- repeated и concurrent startup;
+- checksum mismatch и future version;
+- missing/invalid columns, UNIQUE, indexes и triggers;
+- compatible extra objects и required extra columns;
 - failed DDL без journal commit;
-- active и stale migration lock;
+- atomic DDL+journal rollback и retry;
+- baseline recovery между idempotent и atomic phases;
+- active, stale и потерянный migration lock;
 - redaction public status;
-- соответствие runtime table inventory canonical schema.
+- соответствие runtime table inventory canonical schema;
+- production missing-DB block и explicit in-process test bypass;
+- Chromium bootstrap на реальной локальной D1.
 
 Следующий PR #57 удалит schema-changing DDL из request handlers и усилит test так, чтобы schema changes были разрешены только canonical migration modules.

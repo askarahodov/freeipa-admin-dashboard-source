@@ -5,20 +5,32 @@ import { appendAuditEvent, createAuditContext } from "../audit-log";
 type RuntimeEnv = NonNullable<Parameters<typeof lifecycleRuntime.fetch>[1]> & {
   DB?: D1Database;
   ADMIN_TOKEN?: string;
+  CONFIG_ENCRYPTION_KEY?: string;
   DEMO_MODE?: string;
   IPA_URL?: string;
   IPA_USERNAME?: string;
   IPA_PASSWORD?: string;
   XYOPS_URL?: string;
   XYOPS_API_KEY?: string;
+  PORTAL_STATIC_IDENTITY?: string;
+  PORTAL_DEFAULT_ROLE?: string;
+  PORTAL_RBAC_JSON?: string;
 };
 type RuntimeContext = Parameters<typeof lifecycleRuntime.fetch>[2];
 type ScheduledController = Parameters<NonNullable<typeof sourceRuntime.scheduled>>[0];
 type SettingField = "demoMode" | "ipaUrl" | "ipaUsername" | "ipaPassword" | "xyopsUrl" | "xyopsApiKey";
-
+type PortalRole = "viewer" | "operator" | "admin";
 type SourceAccess = { identity: string; permissions: string[] };
+type StoredSecrets = { ipaPassword: string; xyopsApiKey: string };
+type SettingsRow = { config_json: string; encrypted_secrets: string; updated_at: number };
 
 const settingFields: SettingField[] = ["demoMode", "ipaUrl", "ipaUsername", "ipaPassword", "xyopsUrl", "xyopsApiKey"];
+const rolePermissions: Record<PortalRole, string[]> = {
+  viewer: ["directory.read"],
+  operator: ["directory.read", "freeipa.write", "xyops.run"],
+  admin: ["directory.read", "freeipa.write", "freeipa.delete", "xyops.run", "xyops.approve", "settings.manage"],
+};
+const settingsSelectSql = "SELECT config_json, encrypted_secrets, updated_at FROM app_settings WHERE id = ?";
 const releaseLockSql = "DELETE FROM portal_settings_source_lock WHERE id = ? AND owner = ?";
 const createDraftResetTable = `CREATE TABLE IF NOT EXISTS portal_settings_draft_resets (
   draft_id TEXT PRIMARY KEY NOT NULL,
@@ -56,22 +68,34 @@ async function secretsMatch(provided: string | null, expected: string | undefine
   return difference === 0;
 }
 
-async function sourceAccess(request: Request, env: RuntimeEnv, ctx: RuntimeContext): Promise<SourceAccess | null> {
-  if (!await secretsMatch(request.headers.get("x-admin-token"), env.ADMIN_TOKEN)) return null;
-  const url = new URL(request.url);
-  url.pathname = "/api/integrations/status";
-  url.search = "";
-  const response = await lifecycleRuntime.fetch(new Request(url, { method: "GET", headers: request.headers }), env, ctx);
-  const payload = await response.json().catch(() => ({})) as { access?: { identity?: string; permissions?: unknown[] } };
-  const permissions = Array.isArray(payload.access?.permissions) ? payload.access!.permissions.map(String) : [];
-  if (!response.ok || !permissions.includes("settings.manage")) return null;
-  return { identity: String(payload.access?.identity ?? "service-admin@portal.local").slice(0, 160), permissions };
+function portalRole(value: unknown): PortalRole | null {
+  return value === "viewer" || value === "operator" || value === "admin" ? value : null;
 }
 
-export async function authorizeSettingsMutation(request: Request, env: RuntimeEnv, ctx: RuntimeContext): Promise<Response | null> {
-  return await sourceAccess(request, env, ctx)
-    ? null
-    : json({ error: "Administrator authorization required" }, 401);
+function resolvedAccess(request: Request, env: RuntimeEnv): SourceAccess {
+  const identity = String(env.PORTAL_STATIC_IDENTITY || request.headers.get("oai-authenticated-user-email") || "service-admin@portal.local")
+    .trim().toLowerCase().slice(0, 160);
+  let role = portalRole(String(env.PORTAL_DEFAULT_ROLE || "admin").trim().toLowerCase()) ?? "admin";
+  if (env.PORTAL_RBAC_JSON) {
+    try {
+      const parsed = JSON.parse(env.PORTAL_RBAC_JSON) as unknown;
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        const assignments = Object.fromEntries(Object.entries(parsed as Record<string, unknown>).map(([key, value]) => [key.trim().toLowerCase(), value]));
+        role = portalRole(assignments[identity]) ?? portalRole(assignments["*"]) ?? role;
+      }
+    } catch {}
+  }
+  return { identity, permissions: rolePermissions[role] };
+}
+
+async function sourceAccess(request: Request, env: RuntimeEnv): Promise<SourceAccess | null> {
+  if (!await secretsMatch(request.headers.get("x-admin-token"), env.ADMIN_TOKEN)) return null;
+  const access = resolvedAccess(request, env);
+  return access.permissions.includes("settings.manage") ? access : null;
+}
+
+export async function authorizeSettingsMutation(request: Request, env: RuntimeEnv, _ctx: RuntimeContext): Promise<Response | null> {
+  return await sourceAccess(request, env) ? null : json({ error: "Administrator authorization required" }, 401);
 }
 
 function isSettingField(value: unknown): value is SettingField {
@@ -84,8 +108,7 @@ function uniqueFields(values: SettingField[]): SettingField[] {
 
 function parseResetFields(body: Record<string, unknown>): SettingField[] {
   const changes = body.changes && typeof body.changes === "object" && !Array.isArray(body.changes)
-    ? body.changes as Record<string, unknown>
-    : body;
+    ? body.changes as Record<string, unknown> : body;
   if (changes.resetFields === undefined) return [];
   if (!Array.isArray(changes.resetFields)) throw new Error("resetFields must be an array");
   return uniqueFields(changes.resetFields.map((value) => {
@@ -96,8 +119,7 @@ function parseResetFields(body: Record<string, unknown>): SettingField[] {
 
 function resetConflicts(body: Record<string, unknown>, resets: SettingField[]): SettingField[] {
   const changes = body.changes && typeof body.changes === "object" && !Array.isArray(body.changes)
-    ? body.changes as Record<string, unknown>
-    : body;
+    ? body.changes as Record<string, unknown> : body;
   const resetSet = new Set(resets);
   const conflicts: SettingField[] = [];
   if (changes.demoMode !== undefined && resetSet.has("demoMode")) conflicts.push("demoMode");
@@ -168,6 +190,89 @@ async function activeOverrides(env: RuntimeEnv): Promise<Set<SettingField>> {
     const parsed = JSON.parse(String(row.config_json ?? "{}")) as unknown;
     return overrideSet(parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {});
   } catch { return new Set(); }
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+
+function base64ToBytes(value: string): Uint8Array {
+  const binary = atob(value);
+  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+}
+
+async function encryptionKey(value?: string): Promise<CryptoKey> {
+  const normalized = value?.trim();
+  if (!normalized) throw new Error("CONFIG_ENCRYPTION_KEY is not configured");
+  let bytes: Uint8Array;
+  if (/^[0-9a-f]{64}$/i.test(normalized)) bytes = Uint8Array.from(normalized.match(/.{2}/g) ?? [], (pair) => Number.parseInt(pair, 16));
+  else bytes = base64ToBytes(normalized);
+  if (bytes.byteLength !== 32) throw new Error("CONFIG_ENCRYPTION_KEY must decode to exactly 32 bytes");
+  return crypto.subtle.importKey("raw", bytes, "AES-GCM", false, ["encrypt", "decrypt"]);
+}
+
+async function decryptSecrets(value: string, keyValue?: string): Promise<StoredSecrets> {
+  const [version, ivValue, encryptedValue] = value.split(".");
+  if (version !== "v1" || !ivValue || !encryptedValue) return { ipaPassword: "", xyopsApiKey: "" };
+  const key = await encryptionKey(keyValue);
+  const decrypted = await crypto.subtle.decrypt({ name: "AES-GCM", iv: base64ToBytes(ivValue) }, key, base64ToBytes(encryptedValue));
+  const parsed = JSON.parse(new TextDecoder().decode(decrypted)) as Partial<StoredSecrets>;
+  return { ipaPassword: String(parsed.ipaPassword ?? ""), xyopsApiKey: String(parsed.xyopsApiKey ?? "") };
+}
+
+async function encryptSecrets(secrets: StoredSecrets, keyValue?: string): Promise<string> {
+  const key = await encryptionKey(keyValue);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const encrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(JSON.stringify(secrets)));
+  return `v1.${bytesToBase64(iv)}.${bytesToBase64(new Uint8Array(encrypted))}`;
+}
+
+function virtualPrepared(statement: D1PreparedStatement, virtualRow: SettingsRow, intercept: boolean): D1PreparedStatement {
+  return new Proxy(statement as object, {
+    get(target, property, receiver) {
+      if (property === "bind") return (...args: unknown[]) => virtualPrepared((target as D1PreparedStatement).bind(...args), virtualRow, intercept);
+      if (property === "first" && intercept) return async () => ({ ...virtualRow });
+      const value = Reflect.get(target, property, receiver);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  }) as D1PreparedStatement;
+}
+
+async function dynamicInheritedEnv(env: RuntimeEnv): Promise<RuntimeEnv> {
+  if (!env.DB || !env.CONFIG_ENCRYPTION_KEY) return env;
+  try {
+    const row = await env.DB.prepare(settingsSelectSql).bind("main").first<SettingsRow>();
+    if (!row) return env;
+    const parsed = JSON.parse(String(row.config_json ?? "{}")) as unknown;
+    const config = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
+    const overrides = overrideSet(config);
+    if (overrides.size === settingFields.length) return env;
+    const secrets = await decryptSecrets(String(row.encrypted_secrets ?? ""), env.CONFIG_ENCRYPTION_KEY);
+    const nextConfig = { ...config };
+    const nextSecrets = { ...secrets };
+    for (const field of settingFields) {
+      if (overrides.has(field)) continue;
+      const value = environmentValue(field, env);
+      if (field === "ipaPassword") nextSecrets.ipaPassword = configuredEnv(value) ? String(value) : "";
+      else if (field === "xyopsApiKey") nextSecrets.xyopsApiKey = configuredEnv(value) ? String(value) : "";
+      else nextConfig[field] = value;
+    }
+    const virtualRow: SettingsRow = {
+      config_json: JSON.stringify(nextConfig),
+      encrypted_secrets: await encryptSecrets(nextSecrets, env.CONFIG_ENCRYPTION_KEY),
+      updated_at: Number(row.updated_at ?? 0),
+    };
+    const database = new Proxy(env.DB as object, {
+      get(target, property, receiver) {
+        if (property === "prepare") return (sql: string) => virtualPrepared((target as D1Database).prepare(sql), virtualRow, sql.trim() === settingsSelectSql);
+        const value = Reflect.get(target, property, receiver);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    }) as D1Database;
+    return { ...env, DB: database };
+  } catch { return env; }
 }
 
 async function acquireSourceLock(env: RuntimeEnv): Promise<string | null> {
@@ -259,41 +364,30 @@ async function createResetDraft(request: Request, env: RuntimeEnv, ctx: RuntimeC
     headers.delete("content-length");
     headers.set("content-type", "application/json");
     const response = await lifecycleRuntime.fetch(new Request(request.url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(transformedDraftBody(body, resets, env)),
+      method: "POST", headers, body: JSON.stringify(transformedDraftBody(body, resets, env)),
     }), env, ctx);
     if (!response.ok) return response;
     const payload = await responsePayload(response);
     const draft = payload.draft && typeof payload.draft === "object" && !Array.isArray(payload.draft) ? payload.draft as Record<string, unknown> : {};
     const draftId = String(draft.id ?? "");
     if (!draftId) return json({ error: "Draft creation did not return an identifier" }, 500);
-
     try {
       await env.DB!.prepare(createDraftResetTable).run();
       const inserted = await env.DB!.prepare("INSERT INTO portal_settings_draft_resets (draft_id, reset_fields_json, created_at) VALUES (?, ?, ?)")
         .bind(draftId, JSON.stringify(resets), Date.now()).run();
       if (resultChanges(inserted) !== 1) throw new Error("Reset metadata was not persisted");
-    } catch (error) {
+    } catch {
       const cleaned = await cleanupFailedResetDraft(env, draftId);
       await appendAuditEvent(env, audit(access.identity), {
-        action: "settings.override.reset_request_failed",
-        resourceType: "portal_settings_draft",
-        resourceId: draftId,
-        outcome: "failure",
-        metadata: { fields: resets, cleaned },
+        action: "settings.override.reset_request_failed", resourceType: "portal_settings_draft", resourceId: draftId,
+        outcome: "failure", metadata: { fields: resets, cleaned },
       }).catch(() => {});
       return json({ error: "Не удалось атомарно сохранить reset metadata", code: cleaned ? "settings_reset_metadata_failed" : "settings_reset_cleanup_conflict", cleaned }, cleaned ? 500 : 409);
     }
-
     await appendAuditEvent(env, audit(access.identity), {
-      action: "settings.override.reset_requested",
-      resourceType: "portal_settings_draft",
-      resourceId: draftId,
-      outcome: "pending",
-      metadata: { fields: resets, baseRevision: Number(draft.baseRevision ?? 0) },
+      action: "settings.override.reset_requested", resourceType: "portal_settings_draft", resourceId: draftId,
+      outcome: "pending", metadata: { fields: resets, baseRevision: Number(draft.baseRevision ?? 0) },
     }).catch(() => {});
-
     const readUrl = new URL(request.url);
     readUrl.pathname = `/api/integrations/settings/drafts/${encodeURIComponent(draftId)}`;
     const refreshed = await sourceRuntime.fetch(new Request(readUrl, { method: "GET", headers: request.headers }), bestEffortReleaseEnv(env), ctx);
@@ -301,18 +395,16 @@ async function createResetDraft(request: Request, env: RuntimeEnv, ctx: RuntimeC
   });
 }
 
-async function auditCompensation(request: Request, env: RuntimeEnv, ctx: RuntimeContext, response: Response): Promise<void> {
+async function auditCompensation(request: Request, env: RuntimeEnv, response: Response): Promise<void> {
   if (response.ok) return;
   const payload = await responsePayload(response);
-  if (!['settings_source_commit_failed', 'settings_source_rollback_conflict'].includes(String(payload.code ?? ""))) return;
-  const access = await sourceAccess(request, env, ctx);
+  if (!["settings_source_commit_failed", "settings_source_rollback_conflict"].includes(String(payload.code ?? ""))) return;
+  const access = await sourceAccess(request, env);
   if (!access) return;
-  const pathname = new URL(request.url).pathname;
-  const routes = pathname === "/api/integrations/routes";
+  const routes = new URL(request.url).pathname === "/api/integrations/routes";
   await appendAuditEvent(env, audit(access.identity), {
     action: routes ? "routes.updated.compensated_rollback" : "settings.updated.compensated_rollback",
-    resourceType: routes ? "automation_routes" : "portal_settings",
-    resourceId: "current",
+    resourceType: routes ? "automation_routes" : "portal_settings", resourceId: "current",
     outcome: payload.rolledBack === true ? "failure" : "unknown",
     metadata: { rolledBack: payload.rolledBack === true, code: String(payload.code ?? "") },
   }).catch(() => {});
@@ -325,23 +417,28 @@ function requiresSourceRuntime(request: Request): boolean {
   return url.pathname === "/api/integrations/settings/drafts" || url.pathname.startsWith("/api/integrations/settings/drafts/");
 }
 
+function isOperationalIntegrationRequest(request: Request): boolean {
+  const pathname = new URL(request.url).pathname;
+  return pathname.startsWith("/api/integrations/") && pathname !== "/api/integrations/health";
+}
+
 const worker = {
   async fetch(request: Request, env: RuntimeEnv | undefined, ctx: RuntimeContext): Promise<Response> {
     const sourceEnv = env ?? (process.env as unknown as RuntimeEnv);
-    if (!requiresSourceRuntime(request)) return lifecycleRuntime.fetch(request, sourceEnv, ctx);
-    const access = await sourceAccess(request, sourceEnv, ctx);
+    if (!requiresSourceRuntime(request)) {
+      const operationalEnv = isOperationalIntegrationRequest(request) ? await dynamicInheritedEnv(sourceEnv) : sourceEnv;
+      return lifecycleRuntime.fetch(request, operationalEnv, ctx);
+    }
+    const access = await sourceAccess(request, sourceEnv);
     if (!access) return json({ error: "Administrator authorization required" }, 401);
     const url = new URL(request.url);
-    if (request.method === "POST" && url.pathname === "/api/integrations/settings/drafts") {
-      return createResetDraft(request, sourceEnv, ctx, access);
-    }
+    if (request.method === "POST" && url.pathname === "/api/integrations/settings/drafts") return createResetDraft(request, sourceEnv, ctx, access);
     const response = await sourceRuntime.fetch(request, bestEffortReleaseEnv(sourceEnv), ctx);
     if (request.method === "PUT" && (url.pathname === "/api/integrations/settings" || url.pathname === "/api/integrations/routes")) {
-      ctx.waitUntil(auditCompensation(request, sourceEnv, ctx, response));
+      ctx.waitUntil(auditCompensation(request, sourceEnv, response));
     }
     return response;
   },
-
   async scheduled(controller: ScheduledController, env: RuntimeEnv | undefined, ctx: RuntimeContext): Promise<void> {
     return sourceRuntime.scheduled?.(controller, bestEffortReleaseEnv(env ?? (process.env as unknown as RuntimeEnv)), ctx);
   },

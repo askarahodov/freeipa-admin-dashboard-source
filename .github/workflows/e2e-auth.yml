@@ -13,6 +13,7 @@ on:
       - "worker/settings-lifecycle-entry.ts"
       - "worker/settings-source-entry.ts"
       - "worker/settings-source-safe-entry.ts"
+      - "worker/settings-source-context-entry.ts"
       - "worker/settings-revisions-entry.ts"
       - "worker/settings-input-normalizer-entry.ts"
       - "worker/settings-input-normalizer.ts"

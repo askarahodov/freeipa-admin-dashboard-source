@@ -9,6 +9,7 @@ on:
       - "app/settings-source-resets.css"
       - "app/layout.tsx"
       - "db/portal-schema.ts"
+      - "db/portal-migration-v1.ts"
       - "db/portal-migrations.ts"
       - "worker/schema-migrations-entry.ts"
       - "worker/schema-migrations-boundary.ts"

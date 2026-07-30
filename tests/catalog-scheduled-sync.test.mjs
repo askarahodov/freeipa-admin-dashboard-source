@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import worker from "../dist/server/index.js";
+import { markSchemaTestBypass } from "../worker/schema-migrations-boundary.ts";
 
 class SyncD1 {
   snapshot = null;
@@ -63,7 +64,7 @@ class SyncD1 {
 }
 
 function adminEnv(db, values = {}) {
-  return {
+  return markSchemaTestBypass({
     DB: db,
     XYOPS_URL: "https://xyops.example.test",
     XYOPS_API_KEY: "secret",
@@ -73,7 +74,7 @@ function adminEnv(db, values = {}) {
     PORTAL_DEFAULT_ROLE: "viewer",
     PORTAL_RBAC_JSON: JSON.stringify({ "admin@example.test": "admin" }),
     ...values,
-  };
+  });
 }
 
 function context(capture) {

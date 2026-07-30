@@ -32,16 +32,6 @@ const rolePermissions: Record<PortalRole, string[]> = {
 };
 const settingsSelectSql = "SELECT config_json, encrypted_secrets, updated_at FROM app_settings WHERE id = ?";
 const releaseLockSql = "DELETE FROM portal_settings_source_lock WHERE id = ? AND owner = ?";
-const createDraftResetTable = `CREATE TABLE IF NOT EXISTS portal_settings_draft_resets (
-  draft_id TEXT PRIMARY KEY NOT NULL,
-  reset_fields_json TEXT NOT NULL,
-  created_at INTEGER NOT NULL
-)`;
-const createSourceMutationLockTable = `CREATE TABLE IF NOT EXISTS portal_settings_source_lock (
-  id TEXT PRIMARY KEY NOT NULL,
-  owner TEXT NOT NULL,
-  acquired_at INTEGER NOT NULL
-)`;
 const jsonHeaders = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
 
 function json(data: unknown, status = 200): Response {
@@ -277,7 +267,6 @@ async function dynamicInheritedEnv(env: RuntimeEnv): Promise<RuntimeEnv> {
 
 async function acquireSourceLock(env: RuntimeEnv): Promise<string | null> {
   if (!env.DB) return "no-database";
-  await env.DB.prepare(createSourceMutationLockTable).run();
   const now = Date.now();
   await env.DB.prepare("DELETE FROM portal_settings_source_lock WHERE id = ? AND acquired_at < ?").bind("main", now - 60_000).run();
   const owner = crypto.randomUUID();
@@ -372,7 +361,6 @@ async function createResetDraft(request: Request, env: RuntimeEnv, ctx: RuntimeC
     const draftId = String(draft.id ?? "");
     if (!draftId) return json({ error: "Draft creation did not return an identifier" }, 500);
     try {
-      await env.DB!.prepare(createDraftResetTable).run();
       const inserted = await env.DB!.prepare("INSERT INTO portal_settings_draft_resets (draft_id, reset_fields_json, created_at) VALUES (?, ?, ?)")
         .bind(draftId, JSON.stringify(resets), Date.now()).run();
       if (resultChanges(inserted) !== 1) throw new Error("Reset metadata was not persisted");

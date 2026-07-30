@@ -60,29 +60,6 @@ type AdminContext = { identity: string; permissions: string[] };
 type ServiceName = "freeipa" | "xyops";
 
 const jsonHeaders = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
-const createDraftsTable = `CREATE TABLE IF NOT EXISTS portal_settings_drafts (
-  id TEXT PRIMARY KEY NOT NULL,
-  base_revision INTEGER NOT NULL,
-  changes_json TEXT NOT NULL,
-  encrypted_secrets TEXT NOT NULL DEFAULT '',
-  status TEXT NOT NULL,
-  validation_json TEXT NOT NULL DEFAULT '{}',
-  created_by TEXT NOT NULL,
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
-  validated_at INTEGER,
-  applied_at INTEGER
-)`;
-const createSettingsTable = "CREATE TABLE IF NOT EXISTS app_settings (id TEXT PRIMARY KEY NOT NULL, config_json TEXT NOT NULL, encrypted_secrets TEXT NOT NULL, updated_at INTEGER NOT NULL)";
-const createApplyCommitsTable = `CREATE TABLE IF NOT EXISTS portal_settings_apply_commits (
-  id TEXT PRIMARY KEY NOT NULL,
-  draft_id TEXT NOT NULL,
-  revision INTEGER NOT NULL,
-  config_json TEXT NOT NULL,
-  encrypted_secrets TEXT NOT NULL,
-  created_at INTEGER NOT NULL
-)`;
-
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status, headers: jsonHeaders });
 }
@@ -227,18 +204,6 @@ function resultChanges(result: unknown): number {
   return Number(value.meta?.changes ?? value.changes ?? 0);
 }
 
-async function ensureTables(env: RuntimeEnv): Promise<void> {
-  if (!env.DB) throw new Error("Persistent database is unavailable");
-  await env.DB.prepare(createDraftsTable).run();
-  await env.DB.prepare(createSettingsTable).run();
-  await env.DB.prepare(createApplyCommitsTable).run();
-  await env.DB.prepare("CREATE INDEX IF NOT EXISTS portal_settings_drafts_updated_idx ON portal_settings_drafts(updated_at DESC)").run();
-  await env.DB.prepare("CREATE INDEX IF NOT EXISTS portal_settings_apply_commits_created_idx ON portal_settings_apply_commits(created_at DESC)").run();
-  const now = Date.now();
-  await env.DB.prepare("DELETE FROM portal_settings_apply_commits WHERE created_at < ?").bind(now - 60 * 60 * 1000).run();
-  await env.DB.prepare("DELETE FROM portal_settings_drafts WHERE status IN ('cancelled','applied','rolled_back','rollback_conflict','conflict') AND updated_at < ?").bind(now - 30 * 24 * 60 * 60 * 1000).run();
-}
-
 async function activeRow(env: RuntimeEnv): Promise<ActiveRow | null> {
   if (!env.DB) return null;
   const row = await env.DB.prepare("SELECT config_json, encrypted_secrets, updated_at FROM app_settings WHERE id = ?")
@@ -362,7 +327,6 @@ function publicDraft(row: DraftRow, active: PublicSettings, secrets: DraftSecret
 }
 
 async function readDraft(env: RuntimeEnv, id: string): Promise<DraftRow | null> {
-  await ensureTables(env);
   return env.DB!.prepare("SELECT id, base_revision, changes_json, encrypted_secrets, status, validation_json, created_by, created_at, updated_at, validated_at, applied_at FROM portal_settings_drafts WHERE id = ?")
     .bind(id).first<DraftRow>();
 }
@@ -526,7 +490,6 @@ async function handleLifecycle(request: Request, env: RuntimeEnv, ctx: RuntimeCo
   if (!env.DB) return json({ error: "Persistent database is unavailable" }, 503);
   const access = await adminContext(request, env, ctx);
   if (access instanceof Response) return access;
-  await ensureTables(env);
 
   if (request.method === "GET" && url.pathname === "/api/integrations/settings/effective") {
     try {

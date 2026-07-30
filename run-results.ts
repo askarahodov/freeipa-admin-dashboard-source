@@ -39,18 +39,6 @@ export type PublicRunResult = {
 type StoredRunResultFile = Omit<RunResultFile, "downloadUrl"> & { path: string };
 type ResultEnv = { DB?: D1Database };
 
-const createResultTable = `CREATE TABLE IF NOT EXISTS operation_run_results (
-  run_id TEXT PRIMARY KEY NOT NULL,
-  job_id TEXT NOT NULL,
-  summary TEXT,
-  values_json TEXT NOT NULL DEFAULT '[]',
-  links_json TEXT NOT NULL DEFAULT '[]',
-  files_json TEXT NOT NULL DEFAULT '[]',
-  table_json TEXT,
-  truncated INTEGER NOT NULL DEFAULT 0,
-  captured_at INTEGER NOT NULL
-)`;
-
 const sensitiveKey = /(?:pass(?:word)?|secret|token|api[_-]?key|authorization|cookie|credential|private[_-]?key|session|bearer|signature|signed)/i;
 const ansiPattern = /\u001b\[[0-?]*[ -/]*[@-~]/g;
 
@@ -214,12 +202,6 @@ function normalizeResult(job: Record<string, unknown>): { summary: string; value
   };
 }
 
-async function ensureResultTable(env: ResultEnv): Promise<void> {
-  if (!env.DB) return;
-  await env.DB.prepare(createResultTable).run();
-  await env.DB.prepare("CREATE INDEX IF NOT EXISTS operation_run_results_job_idx ON operation_run_results(job_id)").run();
-}
-
 function parseJsonArray<T>(value: unknown): T[] {
   try { const parsed = JSON.parse(String(value ?? "[]")); return Array.isArray(parsed) ? parsed as T[] : []; }
   catch { return []; }
@@ -238,7 +220,6 @@ function publicFromRow(row: Record<string, unknown>): PublicRunResult {
 
 export async function saveRunResult(env: ResultEnv, runId: string, jobId: string, job: Record<string, unknown>): Promise<void> {
   if (!env.DB || !runId || !jobId) return;
-  await ensureResultTable(env);
   const result = normalizeResult(job);
   if (!result.summary && !result.values.length && !result.links.length && !result.files.length && !result.table) return;
   await env.DB.prepare("INSERT INTO operation_run_results (run_id, job_id, summary, values_json, links_json, files_json, table_json, truncated, captured_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(run_id) DO UPDATE SET job_id = excluded.job_id, summary = excluded.summary, values_json = excluded.values_json, links_json = excluded.links_json, files_json = excluded.files_json, table_json = excluded.table_json, truncated = excluded.truncated, captured_at = excluded.captured_at")
@@ -248,7 +229,6 @@ export async function saveRunResult(env: ResultEnv, runId: string, jobId: string
 export async function listRunResults(env: ResultEnv, runIds: string[]): Promise<Map<string, PublicRunResult>> {
   const result = new Map<string, PublicRunResult>();
   if (!env.DB || !runIds.length) return result;
-  await ensureResultTable(env);
   const ids = runIds.filter(Boolean).slice(0, 200);
   if (!ids.length) return result;
   const placeholders = ids.map(() => "?").join(",");
@@ -262,7 +242,6 @@ export async function listRunResults(env: ResultEnv, runIds: string[]): Promise<
 
 export async function readRunResultFile(env: ResultEnv, runId: string, fileId: string): Promise<StoredRunResultFile | null> {
   if (!env.DB) return null;
-  await ensureResultTable(env);
   const row = await env.DB.prepare("SELECT files_json FROM operation_run_results WHERE run_id = ?").bind(runId.slice(0, 160)).first<Record<string, unknown>>();
   if (!row) return null;
   return parseJsonArray<StoredRunResultFile>(row.files_json).find((file) => file.id === fileId) ?? null;

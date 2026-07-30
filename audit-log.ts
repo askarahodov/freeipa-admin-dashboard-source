@@ -48,33 +48,6 @@ export type PublicAuditEvent = {
 type AuditEnv = { DB?: D1Database };
 type AuditRow = Record<string, unknown>;
 
-const createAuditTable = `CREATE TABLE IF NOT EXISTS portal_audit_events (
-  id TEXT PRIMARY KEY NOT NULL,
-  created_at INTEGER NOT NULL,
-  correlation_id TEXT NOT NULL,
-  actor_identity TEXT NOT NULL,
-  actor_role TEXT NOT NULL,
-  actor_groups_json TEXT NOT NULL,
-  action TEXT NOT NULL,
-  resource_type TEXT NOT NULL,
-  resource_id TEXT,
-  event_id TEXT,
-  schema_version TEXT,
-  approval_id TEXT,
-  run_id TEXT,
-  job_id TEXT,
-  outcome TEXT NOT NULL,
-  error_code TEXT,
-  metadata_json TEXT NOT NULL
-)`;
-
-const denyAuditUpdate = `CREATE TRIGGER IF NOT EXISTS portal_audit_events_no_update
-BEFORE UPDATE ON portal_audit_events
-BEGIN SELECT RAISE(ABORT, 'portal_audit_events is append-only'); END`;
-const denyAuditDelete = `CREATE TRIGGER IF NOT EXISTS portal_audit_events_no_delete
-BEFORE DELETE ON portal_audit_events
-BEGIN SELECT RAISE(ABORT, 'portal_audit_events is append-only'); END`;
-
 function cleanText(value: unknown, limit = 240): string {
   return String(value ?? "").replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, limit);
 }
@@ -134,17 +107,6 @@ export function withAuditCorrelation(context: AuditContext, correlationId: strin
   return createAuditContext(context.actor, cleanCorrelation(correlationId) || context.correlationId);
 }
 
-async function ensureAuditTable(env: AuditEnv): Promise<void> {
-  if (!env.DB) return;
-  await env.DB.prepare(createAuditTable).run();
-  await env.DB.prepare("CREATE INDEX IF NOT EXISTS portal_audit_events_created_idx ON portal_audit_events(created_at DESC)").run();
-  await env.DB.prepare("CREATE INDEX IF NOT EXISTS portal_audit_events_correlation_idx ON portal_audit_events(correlation_id, created_at)").run();
-  await env.DB.prepare("CREATE INDEX IF NOT EXISTS portal_audit_events_approval_idx ON portal_audit_events(approval_id, created_at)").run();
-  await env.DB.prepare("CREATE INDEX IF NOT EXISTS portal_audit_events_run_idx ON portal_audit_events(run_id, created_at)").run();
-  await env.DB.prepare(denyAuditUpdate).run();
-  await env.DB.prepare(denyAuditDelete).run();
-}
-
 function outcomeValue(value: unknown): AuditOutcome {
   return value === "success" || value === "failure" || value === "pending" || value === "denied" || value === "unknown" || value === "info" ? value : "unknown";
 }
@@ -177,7 +139,6 @@ function rowToPublic(row: AuditRow): PublicAuditEvent {
 
 export async function appendAuditEvent(env: AuditEnv, context: AuditContext, input: AuditEventInput): Promise<PublicAuditEvent | null> {
   if (!env.DB) return null;
-  await ensureAuditTable(env);
   const createdAt = Date.now();
   const id = crypto.randomUUID();
   const metadata = sanitizeAuditMetadata(input.metadata);
@@ -215,7 +176,6 @@ export async function appendAuditEvent(env: AuditEnv, context: AuditContext, inp
 
 export async function auditCorrelationFor(env: AuditEnv, link: { approvalId?: string; runId?: string }): Promise<string | null> {
   if (!env.DB) return null;
-  await ensureAuditTable(env);
   if (link.approvalId) {
     const row = await env.DB.prepare("SELECT correlation_id FROM portal_audit_events WHERE approval_id = ? ORDER BY created_at ASC LIMIT 1").bind(cleanText(link.approvalId, 160)).first<{ correlation_id: string }>();
     if (row?.correlation_id) return cleanCorrelation(row.correlation_id) || null;
@@ -240,7 +200,6 @@ export async function listAuditEvents(env: AuditEnv, filters: {
   dateTo?: number;
 }): Promise<{ events: PublicAuditEvent[]; persistenceAvailable: boolean }> {
   if (!env.DB) return { events: [], persistenceAvailable: false };
-  await ensureAuditTable(env);
   const clauses: string[] = [];
   const values: unknown[] = [];
   const add = (sql: string, value: unknown) => { clauses.push(sql); values.push(value); };

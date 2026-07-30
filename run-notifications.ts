@@ -21,22 +21,6 @@ type NotificationRun = {
   completedAt: number | null;
 };
 
-const createNotificationsTable = `CREATE TABLE IF NOT EXISTS operation_notifications (
-  id TEXT PRIMARY KEY NOT NULL,
-  run_id TEXT NOT NULL UNIQUE,
-  status TEXT NOT NULL,
-  title TEXT NOT NULL,
-  message TEXT NOT NULL,
-  created_at INTEGER NOT NULL
-)`;
-
-const createNotificationReadsTable = `CREATE TABLE IF NOT EXISTS operation_notification_reads (
-  notification_id TEXT NOT NULL,
-  identity TEXT NOT NULL,
-  read_at INTEGER NOT NULL,
-  PRIMARY KEY (notification_id, identity)
-)`;
-
 function cleanText(value: unknown, limit: number): string {
   return String(value ?? "")
     .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "")
@@ -46,14 +30,6 @@ function cleanText(value: unknown, limit: number): string {
 
 function notificationStatus(value: unknown): NotificationStatus | null {
   return value === "success" || value === "failed" || value === "cancelled" ? value : null;
-}
-
-async function ensureNotificationTables(env: NotificationEnv): Promise<void> {
-  if (!env.DB) return;
-  await env.DB.prepare(createNotificationsTable).run();
-  await env.DB.prepare(createNotificationReadsTable).run();
-  await env.DB.prepare("CREATE INDEX IF NOT EXISTS operation_notifications_created_idx ON operation_notifications(created_at DESC)").run();
-  await env.DB.prepare("CREATE INDEX IF NOT EXISTS operation_notification_reads_identity_idx ON operation_notification_reads(identity, read_at DESC)").run();
 }
 
 function notificationMessage(run: NotificationRun, status: NotificationStatus): string {
@@ -69,7 +45,6 @@ export async function saveRunNotification(env: NotificationEnv, run: Notificatio
   if (!env.DB || !run.id || run.eventId.startsWith("freeipa:")) return;
   const status = notificationStatus(run.status);
   if (!status) return;
-  await ensureNotificationTables(env);
   const createdAt = typeof run.completedAt === "number" && Number.isFinite(run.completedAt) && run.completedAt > 0 ? run.completedAt : Date.now();
   const title = status === "success" ? "Задание XYOps завершено" : status === "cancelled" ? "Задание XYOps остановлено" : "Ошибка задания XYOps";
   await env.DB.prepare("INSERT OR IGNORE INTO operation_notifications (id, run_id, status, title, message, created_at) VALUES (?, ?, ?, ?, ?, ?)")
@@ -95,7 +70,6 @@ function publicNotification(row: Record<string, unknown>): PublicRunNotification
 
 export async function listRunNotifications(env: NotificationEnv, identityValue: string, limit = 50): Promise<{ notifications: PublicRunNotification[]; unread: number }> {
   if (!env.DB) return { notifications: [], unread: 0 };
-  await ensureNotificationTables(env);
   const identity = cleanText(identityValue.toLowerCase(), 160) || "portal-user";
   const boundedLimit = Math.max(1, Math.min(Number.isFinite(limit) ? Math.floor(limit) : 50, 100));
   const rows = await env.DB.prepare("SELECT n.id, n.run_id, n.status, n.title, n.message, n.created_at, r.read_at FROM operation_notifications n LEFT JOIN operation_notification_reads r ON r.notification_id = n.id AND r.identity = ? ORDER BY n.created_at DESC LIMIT ?")
@@ -110,7 +84,6 @@ export async function listRunNotifications(env: NotificationEnv, identityValue: 
 
 export async function markRunNotificationsRead(env: NotificationEnv, identityValue: string, idsValue: string[] | null): Promise<number> {
   if (!env.DB) return 0;
-  await ensureNotificationTables(env);
   const identity = cleanText(identityValue.toLowerCase(), 160) || "portal-user";
   let ids = Array.isArray(idsValue) ? Array.from(new Set(idsValue.map((value) => cleanText(value, 160)).filter(Boolean))).slice(0, 100) : [];
   if (!idsValue) {

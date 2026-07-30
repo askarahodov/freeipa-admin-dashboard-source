@@ -35,18 +35,6 @@ type StoredSecrets = { ipaPassword: string; xyopsApiKey: string };
 
 const settingFields: SettingField[] = ["demoMode", "ipaUrl", "ipaUsername", "ipaPassword", "xyopsUrl", "xyopsApiKey"];
 const jsonHeaders = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
-const createSettingsTable = "CREATE TABLE IF NOT EXISTS app_settings (id TEXT PRIMARY KEY NOT NULL, config_json TEXT NOT NULL, encrypted_secrets TEXT NOT NULL, updated_at INTEGER NOT NULL)";
-const createDraftResetTable = `CREATE TABLE IF NOT EXISTS portal_settings_draft_resets (
-  draft_id TEXT PRIMARY KEY NOT NULL,
-  reset_fields_json TEXT NOT NULL,
-  created_at INTEGER NOT NULL
-)`;
-const createSourceMutationLockTable = `CREATE TABLE IF NOT EXISTS portal_settings_source_lock (
-  id TEXT PRIMARY KEY NOT NULL,
-  owner TEXT NOT NULL,
-  acquired_at INTEGER NOT NULL
-)`;
-
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status, headers: jsonHeaders });
 }
@@ -159,16 +147,8 @@ async function storedSecrets(env: RuntimeEnv, row: ActiveRow): Promise<StoredSec
   return { ipaPassword: String(parsed.ipaPassword ?? ""), xyopsApiKey: String(parsed.xyopsApiKey ?? "") };
 }
 
-async function ensureTables(env: RuntimeEnv): Promise<void> {
-  if (!env.DB) return;
-  await env.DB.prepare(createSettingsTable).run();
-  await env.DB.prepare(createDraftResetTable).run();
-  await env.DB.prepare(createSourceMutationLockTable).run();
-}
-
 async function acquireSourceMutationLock(env: RuntimeEnv): Promise<string | null> {
   if (!env.DB) return "no-database";
-  await ensureTables(env);
   const now = Date.now();
   await env.DB.prepare("DELETE FROM portal_settings_source_lock WHERE id = ? AND acquired_at < ?")
     .bind("main", now - 60_000).run();
@@ -193,7 +173,6 @@ async function withSourceMutationLock(env: RuntimeEnv, operation: () => Promise<
 
 async function activeRow(env: RuntimeEnv): Promise<ActiveRow | null> {
   if (!env.DB) return null;
-  await env.DB.prepare(createSettingsTable).run();
   const row = await env.DB.prepare("SELECT config_json, encrypted_secrets, updated_at FROM app_settings WHERE id = ?")
     .bind("main").first<{ config_json: string; encrypted_secrets: string; updated_at: number }>();
   if (!row) return null;
@@ -214,7 +193,6 @@ async function readDraft(env: RuntimeEnv, id: string): Promise<DraftRow | null> 
 
 async function readResetFields(env: RuntimeEnv, draftId: string): Promise<SettingField[]> {
   if (!env.DB) return [];
-  await ensureTables(env);
   const row = await env.DB.prepare("SELECT reset_fields_json FROM portal_settings_draft_resets WHERE draft_id = ?")
     .bind(draftId).first<{ reset_fields_json: string }>();
   if (!row) return [];
@@ -228,7 +206,6 @@ async function readResetFields(env: RuntimeEnv, draftId: string): Promise<Settin
 
 async function saveResetFields(env: RuntimeEnv, draftId: string, fields: SettingField[]): Promise<void> {
   if (!env.DB || !fields.length) return;
-  await ensureTables(env);
   await env.DB.prepare("INSERT INTO portal_settings_draft_resets (draft_id, reset_fields_json, created_at) VALUES (?, ?, ?) ON CONFLICT(draft_id) DO UPDATE SET reset_fields_json = excluded.reset_fields_json, created_at = excluded.created_at")
     .bind(draftId, JSON.stringify(fields), Date.now()).run();
 }
@@ -248,7 +225,6 @@ async function delegate(request: Request, env: RuntimeEnv, ctx: RuntimeContext, 
 
 async function synchronizeInheritedSettingsUnlocked(env: RuntimeEnv): Promise<void> {
   if (!env.DB || !env.CONFIG_ENCRYPTION_KEY) return;
-  await ensureTables(env);
   const row = await activeRow(env);
   if (!row) return;
   const overrides = overrideSet(row.config);
@@ -533,7 +509,6 @@ const worker = {
     const sourceEnv = env ?? (process.env as unknown as RuntimeEnv);
     const url = new URL(request.url);
     if (url.pathname === "/api/integrations/health") return lifecycleRuntime.fetch(request, sourceEnv, ctx);
-    await ensureTables(sourceEnv);
     if (url.pathname.startsWith("/api/integrations/") && url.pathname !== "/api/integrations/settings/test") {
       await trySynchronizeInheritedSettings(sourceEnv).catch(() => {});
     }

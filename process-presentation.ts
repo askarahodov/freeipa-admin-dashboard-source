@@ -31,12 +31,6 @@ type PresentationEnv = {
 };
 
 const emptyMetadata: ProcessPresentationSet = { version: 1, processes: {} };
-const createPresentationTable = `CREATE TABLE IF NOT EXISTS process_presentation_sets (
-  id TEXT PRIMARY KEY NOT NULL,
-  metadata_json TEXT NOT NULL,
-  updated_at INTEGER NOT NULL
-)`;
-
 function cleanText(value: unknown, limit: number): string {
   return String(value ?? "").replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, limit);
 }
@@ -131,14 +125,8 @@ function envMetadata(value: string | undefined): ProcessPresentationSet | null {
   catch { return null; }
 }
 
-async function ensureTable(env: PresentationEnv): Promise<void> {
-  if (!env.DB) return;
-  await env.DB.prepare(createPresentationTable).run();
-}
-
 export async function readProcessPresentationSet(env: PresentationEnv): Promise<ProcessPresentationState> {
   if (env.DB) {
-    await ensureTable(env);
     const row = await env.DB.prepare("SELECT metadata_json, updated_at FROM process_presentation_sets WHERE id = ?").bind("current").first<{ metadata_json: string; updated_at: number }>();
     if (row) {
       try { return { metadata: sanitizeProcessPresentationSet(JSON.parse(row.metadata_json)), source: "database", updatedAt: Number(row.updated_at) }; }
@@ -155,7 +143,6 @@ export async function saveProcessPresentationSet(env: PresentationEnv, value: un
   if (!env.DB) throw new Error("Persistent database is unavailable");
   const metadata = sanitizeProcessPresentationSet(value);
   const updatedAt = Date.now();
-  await ensureTable(env);
   await env.DB.prepare("INSERT INTO process_presentation_sets (id, metadata_json, updated_at) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET metadata_json = excluded.metadata_json, updated_at = excluded.updated_at")
     .bind("current", JSON.stringify(metadata), updatedAt).run();
   return { metadata, source: "database", updatedAt };

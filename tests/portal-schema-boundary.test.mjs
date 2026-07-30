@@ -20,18 +20,21 @@ test("normal fetch and scheduled dispatch require a ready production schema", as
   assert.equal(source.includes('from "./schema-migrations-boundary.ts"'), true);
   assert.equal(source.includes("await ensurePortalSchema(sourceEnv)"), true);
   assert.equal(source.includes('schema.state !== "ready"'), true);
-  assert.equal(source.includes("if (nodeTestRuntime()) return rootRuntime.fetch(request, sourceEnv, ctx)"), true);
+  assert.equal(source.includes("schemaTestBypassEnabled(sourceEnv)"), true);
   assert.equal(source.includes("return schemaFailureResponse(await portalSchema(sourceEnv))"), true);
-  assert.equal(source.includes("if (nodeTestRuntime()) return rootRuntime.scheduled?.(controller, sourceEnv, ctx)"), true);
   assert.equal(source.includes("return rootRuntime.fetch(request, sourceEnv, ctx)"), true);
   assert.equal(source.includes("return rootRuntime.scheduled?.(controller, sourceEnv, ctx)"), true);
+  assert.equal(source.includes("NODE_TEST_CONTEXT"), false);
 
   const boundaryHelpers = await import(helpers.href);
   assert.equal(boundaryHelpers.migrationCapableDatabase(undefined), false);
   assert.equal(boundaryHelpers.migrationCapableDatabase({ prepare() {} }), false);
   assert.equal(boundaryHelpers.migrationCapableDatabase({ prepare() {}, batch() {} }), true);
-  assert.equal(boundaryHelpers.nodeTestRuntime({}), false);
-  assert.equal(boundaryHelpers.nodeTestRuntime({ NODE_TEST_CONTEXT: "child-v8" }), true);
+  assert.equal(boundaryHelpers.schemaTestBypassEnabled({}), false);
+  assert.equal(boundaryHelpers.schemaTestBypassEnabled({ NODE_TEST_CONTEXT: "child-v8" }), false);
+  const marked = boundaryHelpers.markSchemaTestBypass({});
+  assert.equal(boundaryHelpers.schemaTestBypassEnabled(marked), true);
+  assert.deepEqual(Object.keys(marked), []);
 });
 
 test("recovery status requires constant-time service token authorization and returns safe fields", async () => {

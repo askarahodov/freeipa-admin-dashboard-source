@@ -8,6 +8,7 @@ const lifecycleUrl = new URL("../worker/settings-lifecycle-entry.ts", import.met
 const revisionsUrl = new URL("../worker/settings-revisions-entry.ts", import.meta.url);
 const sourceUrl = new URL("../worker/settings-source-entry.ts", import.meta.url);
 const safeSourceUrl = new URL("../worker/settings-source-safe-entry.ts", import.meta.url);
+const sourceContextUrl = new URL("../worker/settings-source-context-entry.ts", import.meta.url);
 const normalizerEntryUrl = new URL("../worker/settings-input-normalizer-entry.ts", import.meta.url);
 const normalizerUrl = new URL("../worker/settings-input-normalizer.ts", import.meta.url);
 const workflowUrl = new URL("../.github/workflows/e2e-auth.yml", import.meta.url);
@@ -15,6 +16,7 @@ const lifecycle = fs.readFileSync(lifecycleUrl, "utf8");
 const revisions = fs.readFileSync(revisionsUrl, "utf8");
 const source = fs.readFileSync(sourceUrl, "utf8");
 const safeSource = fs.readFileSync(safeSourceUrl, "utf8");
+const sourceContext = fs.readFileSync(sourceContextUrl, "utf8");
 const normalizerEntry = fs.readFileSync(normalizerEntryUrl, "utf8");
 const diagnostics = fs.readFileSync(new URL("../worker/diagnostics-entry.ts", import.meta.url), "utf8");
 const localBoundary = fs.readFileSync(new URL("../worker/local-secure-entry.ts", import.meta.url), "utf8");
@@ -30,7 +32,8 @@ test("settings lifecycle runs behind revision, local auth, origin, normalizer an
   assert.equal(diagnostics.includes('import localRuntime from "./settings-revisions-entry"'), true);
   assert.equal(revisions.includes('import localRuntime from "./local-secure-entry"'), true);
   assert.equal(localBoundary.includes('import secureRuntime from "./settings-input-normalizer-entry"'), true);
-  assert.equal(normalizerEntry.includes('import runtime, { authorizeSettingsMutation } from "./settings-source-safe-entry"'), true);
+  assert.equal(normalizerEntry.includes('import runtime, { authorizeSettingsMutation } from "./settings-source-context-entry"'), true);
+  assert.equal(sourceContext.includes('import runtime, { authorizeSettingsMutation } from "./settings-source-safe-entry"'), true);
   assert.equal(safeSource.includes('import sourceRuntime from "./settings-source-entry"'), true);
   assert.equal(safeSource.includes('import lifecycleRuntime from "./settings-lifecycle-entry"'), true);
   assert.equal(source.includes('import lifecycleRuntime from "./settings-lifecycle-entry"'), true);
@@ -40,6 +43,7 @@ test("settings lifecycle runs behind revision, local auth, origin, normalizer an
   assert.equal(localBoundary.includes('headers.set("x-admin-token", internalToken)'), true);
   assert.equal(safeSource.includes('permissions.includes("settings.manage")'), true);
   assert.equal(safeSource.includes('if (!requiresSourceRuntime(request)) return lifecycleRuntime.fetch'), true);
+  assert.equal(sourceContext.includes('typeof ctx?.waitUntil === "function"'), true);
   assert.equal(lifecycle.includes('request.headers.get("oai-authenticated-user-email")'), false);
 });
 
@@ -197,6 +201,7 @@ test("rollback and source reset changes trigger Auth E2E", () => {
     "worker/settings-lifecycle-entry.ts",
     "worker/settings-source-entry.ts",
     "worker/settings-source-safe-entry.ts",
+    "worker/settings-source-context-entry.ts",
     "worker/settings-revisions-entry.ts",
     "worker/settings-input-normalizer-entry.ts",
     "worker/settings-input-normalizer.ts",
@@ -206,7 +211,7 @@ test("rollback and source reset changes trigger Auth E2E", () => {
 });
 
 test("settings lifecycle TypeScript parses under the repository Node baseline", () => {
-  for (const url of [lifecycleUrl, sourceUrl, safeSourceUrl, revisionsUrl, normalizerEntryUrl, normalizerUrl]) {
+  for (const url of [lifecycleUrl, sourceUrl, safeSourceUrl, sourceContextUrl, revisionsUrl, normalizerEntryUrl, normalizerUrl]) {
     const result = spawnSync(process.execPath, ["--experimental-strip-types", "--check", fileURLToPath(url)], { encoding: "utf8" });
     assert.equal(result.status, 0, result.stderr || result.stdout);
   }

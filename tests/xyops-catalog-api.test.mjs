@@ -2,15 +2,16 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import worker from "../dist/server/index.js";
+import { markSchemaTestBypass } from "../worker/schema-migrations-boundary.ts";
 
 function operatorEnv(values = {}) {
-  return {
+  return markSchemaTestBypass({
     PORTAL_IDENTITY_MODE: "static",
     PORTAL_STATIC_IDENTITY: "operator@example.test",
     PORTAL_DEFAULT_ROLE: "viewer",
     PORTAL_RBAC_JSON: JSON.stringify({ "operator@example.test": "operator" }),
     ...values,
-  };
+  });
 }
 
 test("discovers, validates and launches a schema-driven XYOps workflow", async () => {
@@ -163,7 +164,7 @@ test("rejects an XYOps catalog response with a non-zero application code", async
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () => Response.json({ code: 1, description: "API error" });
   try {
-    const response = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog"), { XYOPS_URL: "http://xyops.example.test", XYOPS_API_KEY: "api-secret" }, {});
+    const response = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog"), markSchemaTestBypass({ XYOPS_URL: "http://xyops.example.test", XYOPS_API_KEY: "api-secret" }), {});
     assert.equal(response.status, 502);
     assert.equal((await response.json()).error, "XYOps get_events вернул код API 1");
   } finally {
@@ -175,7 +176,7 @@ test("returns an actionable catalog error when the portal runtime cannot reach X
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () => { throw new TypeError("fetch failed"); };
   try {
-    const response = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog"), { XYOPS_URL: "http://xyops.example.test", XYOPS_API_KEY: "api-secret" }, {});
+    const response = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog"), markSchemaTestBypass({ XYOPS_URL: "http://xyops.example.test", XYOPS_API_KEY: "api-secret" }), {});
     assert.equal(response.status, 502);
     assert.equal((await response.json()).error, "XYOps недоступен из среды портала: проверьте адрес, DNS и маршрут Docker");
   } finally {

@@ -1,4 +1,4 @@
-import localRuntime from "./settings-revisions-entry";
+import localRuntime from "./settings-input-normalizer-entry";
 import { listLocalUsers, resolveLocalSession, type LocalAuthEnv } from "../local-auth";
 
 type RuntimeEnv = NonNullable<Parameters<typeof localRuntime.fetch>[1]> & LocalAuthEnv & {

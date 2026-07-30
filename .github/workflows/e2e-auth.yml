@@ -14,6 +14,7 @@ on:
       - "worker/settings-source-entry.ts"
       - "worker/settings-revisions-entry.ts"
       - "worker/settings-input-normalizer-entry.ts"
+      - "worker/settings-input-normalizer.ts"
       - "admin-session-authorization.ts"
       - "tests/settings-draft-lifecycle.test.mjs"
       - "e2e/**"

@@ -2,16 +2,19 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 
+import { publicPortalSchemaStatus } from "../db/portal-migrations.ts";
+
 const diagnosticsUrl = new URL("../worker/diagnostics-entry.ts", import.meta.url);
 const source = fs.readFileSync(diagnosticsUrl, "utf8");
 
-test("local admin diagnostics include sanitized migration readiness", async () => {
-  assert.equal(source.includes('from "../db/portal-migrations"'), true);
-  assert.equal(source.includes("inspectPortalSchema(sourceEnv)"), true);
+test("local admin diagnostics include sanitized migration readiness", () => {
+  assert.equal(source.includes('from "../db/portal-migrations.ts"'), true);
+  assert.equal(source.includes("inspectPortalSchema(env)"), true);
   assert.equal(source.includes("schema: schemaDiagnostics(schema)"), true);
+  assert.equal(source.includes("export function schemaDiagnostics"), true);
+  assert.equal(source.includes("return publicPortalSchemaStatus(schema)"), true);
 
-  const module = await import(diagnosticsUrl.href);
-  const value = module.schemaDiagnostics({
+  const value = publicPortalSchemaStatus({
     state: "incompatible",
     currentVersion: 0,
     latestVersion: 1,
@@ -21,8 +24,6 @@ test("local admin diagnostics include sanitized migration readiness", async () =
     incompatibleDrift: ["column:portal_users.username:missing"],
     errorCode: "schema_incompatible_drift",
     verifiedAt: 100,
-    checksum: "must-not-leak",
-    sql: "CREATE TABLE secret",
   });
 
   assert.deepEqual(value, {

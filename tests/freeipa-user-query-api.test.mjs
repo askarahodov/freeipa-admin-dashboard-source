@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import worker from "../dist/server/index.js";
+import { markSchemaTestBypass } from "../worker/schema-migrations-boundary.ts";
 
 test("extends the users API with one normalized user_find call", async () => {
   const originalFetch = globalThis.fetch;
@@ -18,7 +19,7 @@ test("extends the users API with one normalized user_find call", async () => {
     ] }, error: null });
   };
 
-  const env = { IPA_URL: "https://ipa.example.test", IPA_USERNAME: "reader", IPA_PASSWORD: "secret" };
+  const env = markSchemaTestBypass({ IPA_URL: "https://ipa.example.test", IPA_USERNAME: "reader", IPA_PASSWORD: "secret" });
   try {
     const response = await worker.fetch(new Request("https://dashboard.test/api/integrations/users?q=devops&status=active&group=devops&sort=name&direction=asc&page=1&pageSize=10"), env, {});
     assert.equal(response.status, 200);

@@ -4,6 +4,7 @@ import test from "node:test";
 
 const boundary = fs.readFileSync(new URL("../worker/settings-input-normalizer-entry.ts", import.meta.url), "utf8");
 const safeSource = fs.readFileSync(new URL("../worker/settings-source-safe-entry.ts", import.meta.url), "utf8");
+const sourceContext = fs.readFileSync(new URL("../worker/settings-source-context-entry.ts", import.meta.url), "utf8");
 const localBoundary = fs.readFileSync(new URL("../worker/local-secure-entry.ts", import.meta.url), "utf8");
 
 test("reset mutations run after local session and same-origin authorization", () => {
@@ -14,6 +15,14 @@ test("reset mutations run after local session and same-origin authorization", ()
   assert.equal(boundary.includes("const denied = await authorizeSettingsMutation(prepared, sourceEnv, ctx)"), true);
   assert.equal(safeSource.includes('request.headers.get("x-admin-token")'), true);
   assert.equal(safeSource.includes('permissions.includes("settings.manage")'), true);
+});
+
+test("source execution context cannot hide a committed operation", () => {
+  assert.equal(boundary.includes('from "./settings-source-context-entry"'), true);
+  assert.equal(sourceContext.includes('from "./settings-source-safe-entry"'), true);
+  assert.equal(sourceContext.includes('typeof ctx?.waitUntil === "function"'), true);
+  assert.equal(sourceContext.includes('void Promise.resolve(promise).catch(() => {})'), true);
+  assert.equal(safeSource.includes('releaseSourceLock(env, owner).catch(() => {})'), true);
 });
 
 test("reset draft creation serializes override check and cleans partial persistence", () => {

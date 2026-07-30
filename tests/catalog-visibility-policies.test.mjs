@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import worker from "../dist/server/index.js";
+import { markSchemaTestBypass } from "../worker/schema-migrations-boundary.ts";
 
 class PolicyD1 {
   policy = null;
@@ -38,7 +39,7 @@ const policy = {
 };
 
 function envFor(identity, groups = "", role = "operator", db) {
-  return {
+  return markSchemaTestBypass({
     DB: db,
     XYOPS_URL: "https://xyops.example.test",
     XYOPS_API_KEY: "xyops-secret",
@@ -49,7 +50,7 @@ function envFor(identity, groups = "", role = "operator", db) {
     PORTAL_DEFAULT_ROLE: "viewer",
     PORTAL_RBAC_JSON: JSON.stringify({ [identity]: role }),
     PORTAL_CATALOG_POLICIES_JSON: JSON.stringify(policy),
-  };
+  });
 }
 
 async function getCatalog(env, headers = {}) {

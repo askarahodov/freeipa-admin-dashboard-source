@@ -34,6 +34,7 @@ type TableInfoRow = { name: string; type: string; notnull: number; dflt_value: u
 type IndexListRow = { seq: number; name: string; unique: number; origin: string; partial: number };
 type IndexXInfoRow = { seqno: number; cid: number; name: string | null; desc: number; key: number };
 type IndexColumn = { name: string; descending: boolean };
+type UniqueConstraintDefinition = { columns: string[]; conflictPolicy: string };
 
 type MigrationOptions = {
   now?: () => number;
@@ -174,25 +175,67 @@ function identifier(value: string): string {
   return value.trim().replace(/^["`\[]|["`\]]$/g, "");
 }
 
+function normalizedIdentifier(value: unknown): string {
+  return identifier(String(value ?? "")).toLowerCase();
+}
+
 function tableBody(tableSql: string): string {
   const start = tableSql.indexOf("(");
   const end = tableSql.lastIndexOf(")");
   return start >= 0 && end > start ? tableSql.slice(start + 1, end) : "";
 }
 
-function uniqueConstraints(tableSql: string): string[][] {
-  const output: string[][] = [];
+function conflictPolicy(value: unknown): string {
+  return String(value ?? "ABORT").trim().toUpperCase() || "ABORT";
+}
+
+function uniqueConstraintDefinitions(tableSql: string): UniqueConstraintDefinition[] {
+  const output: UniqueConstraintDefinition[] = [];
   for (const clause of splitSqlList(tableBody(tableSql))) {
-    const tableConstraint = clause.match(/^(?:CONSTRAINT\s+\S+\s+)?UNIQUE\s*\((.+)\)$/i);
+    const tableConstraint = clause.match(/^(?:CONSTRAINT\s+\S+\s+)?UNIQUE\s*\(([^)]*)\)(?:\s+ON\s+CONFLICT\s+(ROLLBACK|ABORT|FAIL|IGNORE|REPLACE))?/i);
     if (tableConstraint) {
-      output.push(splitSqlList(tableConstraint[1]).map((column) => identifier(column.split(/\s+/)[0])).filter(Boolean));
+      const columns = splitSqlList(tableConstraint[1])
+        .map((column) => identifier(column.split(/\s+/)[0]))
+        .filter(Boolean);
+      if (columns.length) output.push({ columns, conflictPolicy: conflictPolicy(tableConstraint[2]) });
       continue;
     }
     if (!/\bUNIQUE\b/i.test(clause) || /\bPRIMARY\s+KEY\b/i.test(clause)) continue;
     const column = clause.match(/^["`\[]?([A-Za-z_][A-Za-z0-9_]*)/i)?.[1];
-    if (column) output.push([column]);
+    const inlineUnique = clause.match(/\bUNIQUE\b(?:\s+ON\s+CONFLICT\s+(ROLLBACK|ABORT|FAIL|IGNORE|REPLACE))?/i);
+    if (column && inlineUnique) output.push({ columns: [column], conflictPolicy: conflictPolicy(inlineUnique[1]) });
   }
-  return output.filter((columns) => columns.length > 0);
+  return output;
+}
+
+function uniqueConstraints(tableSql: string): string[][] {
+  return uniqueConstraintDefinitions(tableSql).map((definition) => definition.columns);
+}
+
+function primaryKeyColumns(tableSql: string): string[] {
+  const clauses = splitSqlList(tableBody(tableSql));
+  for (const clause of clauses) {
+    const tablePrimaryKey = clause.match(/^(?:CONSTRAINT\s+\S+\s+)?PRIMARY\s+KEY\s*\(([^)]*)\)/i);
+    if (tablePrimaryKey) {
+      return splitSqlList(tablePrimaryKey[1])
+        .map((column) => identifier(column.split(/\s+/)[0]))
+        .filter(Boolean);
+    }
+  }
+  return clauses.flatMap((clause) => {
+    if (!/\bPRIMARY\s+KEY\b/i.test(clause)) return [];
+    const column = clause.match(/^["`\[]?([A-Za-z_][A-Za-z0-9_]*)/i)?.[1];
+    return column ? [column] : [];
+  });
+}
+
+function sqlDefaultIsNull(value: unknown): boolean {
+  if (value == null) return true;
+  let normalized = String(value).trim();
+  while (normalized.startsWith("(") && normalized.endsWith(")")) {
+    normalized = normalized.slice(1, -1).trim();
+  }
+  return /^NULL$/i.test(normalized);
 }
 
 function normalizedSqlDefinition(value: unknown): string {
@@ -215,15 +258,17 @@ function sameStrings(left: readonly string[], right: readonly string[]): boolean
   return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
+function sameIdentifiers(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((value, index) => (
+    normalizedIdentifier(value) === normalizedIdentifier(right[index])
+  ));
+}
+
 function tableFromSql(statement: string): PortalSchemaTable | null {
   const match = statement.trim().match(/^CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/i);
   if (!match) return null;
   const clauses = splitSqlList(tableBody(statement));
-  const tablePrimaryKeys = new Set<string>();
-  for (const clause of clauses) {
-    const primaryKey = clause.match(/^(?:CONSTRAINT\s+\S+\s+)?PRIMARY\s+KEY\s*\((.+)\)$/i);
-    if (primaryKey) splitSqlList(primaryKey[1]).forEach((column) => tablePrimaryKeys.add(identifier(column.split(/\s+/)[0])));
-  }
+  const tablePrimaryKeys = new Set(primaryKeyColumns(statement).map(normalizedIdentifier));
   const columns: PortalSchemaColumn[] = [];
   for (const clause of clauses) {
     const column = clause.match(/^["`\[]?([A-Za-z_][A-Za-z0-9_]*)["`\]]?\s+(TEXT|INTEGER)\b(.*)$/i);
@@ -234,7 +279,7 @@ function tableFromSql(statement: string): PortalSchemaTable | null {
       name,
       type: column[2].toUpperCase() as PortalSchemaColumn["type"],
       notNull: /\bNOT\s+NULL\b/i.test(tail),
-      primaryKey: /\bPRIMARY\s+KEY\b/i.test(tail) || tablePrimaryKeys.has(name),
+      primaryKey: /\bPRIMARY\s+KEY\b/i.test(tail) || tablePrimaryKeys.has(normalizedIdentifier(name)),
     });
   }
   return { name: match[1], columns, sql: statement };
@@ -327,7 +372,8 @@ async function actualIndexColumns(db: D1Database, name: string): Promise<IndexCo
 
 function sameIndexColumns(left: readonly IndexColumn[], right: readonly IndexColumn[]): boolean {
   return left.length === right.length && left.every((column, index) => (
-    column.name === right[index]?.name && column.descending === right[index]?.descending
+    normalizedIdentifier(column.name) === normalizedIdentifier(right[index]?.name)
+    && column.descending === right[index]?.descending
   ));
 }
 
@@ -341,16 +387,18 @@ async function inspectStructure(
   const compatible = new Set<string>();
   const incompatible = new Set<string>();
   const objects = await schemaObjects(db);
-  const tables = new Map(objects.filter((item) => item.type === "table").map((item) => [item.name, item]));
-  const indexes = new Map(objects.filter((item) => item.type === "index").map((item) => [item.name, item]));
-  const triggers = new Map(objects.filter((item) => item.type === "trigger").map((item) => [item.name, item]));
-  const requiredTableNames = new Set(snapshot.tables.map((table) => table.name));
-  const requiredIndexNames = new Set(snapshot.indexes.map((index) => index.name));
-  const requiredTriggerNames = new Set(snapshot.triggers.map((trigger) => trigger.name));
+  const tables = new Map(objects.filter((item) => item.type === "table").map((item) => [normalizedIdentifier(item.name), item]));
+  const indexes = new Map(objects.filter((item) => item.type === "index").map((item) => [normalizedIdentifier(item.name), item]));
+  const triggers = new Map(objects.filter((item) => item.type === "trigger").map((item) => [normalizedIdentifier(item.name), item]));
+  const requiredTableNames = new Set(snapshot.tables.map((table) => normalizedIdentifier(table.name)));
+  const requiredIndexNames = new Set(snapshot.indexes.map((index) => normalizedIdentifier(index.name)));
+  const requiredTriggerNames = new Set(snapshot.triggers.map((trigger) => normalizedIdentifier(trigger.name)));
+  const canonicalTableByName = new Map(snapshot.tables.map((table) => [normalizedIdentifier(table.name), table]));
   const indexLists = new Map<string, IndexListRow[]>();
 
   for (const table of snapshot.tables) {
-    const actualTable = tables.get(table.name);
+    const tableKey = normalizedIdentifier(table.name);
+    const actualTable = tables.get(tableKey);
     if (!actualTable) {
       incompatible.add(`table:${table.name}:missing`);
       continue;
@@ -361,10 +409,19 @@ async function inspectStructure(
       incompatible.add(`table:${table.name}:restrictive_constraints`);
     }
     const info = await db.prepare(`PRAGMA table_info(${quoteIdentifier(table.name)})`).all<TableInfoRow>();
-    const actualColumns = new Map((info.results ?? []).map((column) => [String(column.name), column]));
-    const requiredColumns = new Set(table.columns.map((column) => column.name));
+    const infoRows = info.results ?? [];
+    const actualColumns = new Map(infoRows.map((column) => [normalizedIdentifier(column.name), column]));
+    const requiredColumns = new Set(table.columns.map((column) => normalizedIdentifier(column.name)));
+    const expectedPrimaryKey = primaryKeyColumns(table.sql);
+    const actualPrimaryKey = infoRows
+      .filter((column) => Number(column.pk) > 0)
+      .sort((left, right) => Number(left.pk) - Number(right.pk))
+      .map((column) => String(column.name));
+    if (!sameIdentifiers(actualPrimaryKey, expectedPrimaryKey)) {
+      incompatible.add(`primary_key:${table.name}:definition`);
+    }
     for (const required of table.columns) {
-      const actual = actualColumns.get(required.name);
+      const actual = actualColumns.get(normalizedIdentifier(required.name));
       if (!actual) {
         incompatible.add(`column:${table.name}.${required.name}:missing`);
         continue;
@@ -372,40 +429,56 @@ async function inspectStructure(
       const mismatch = columnMismatch(required, actual);
       if (mismatch) incompatible.add(`column:${table.name}.${required.name}:${mismatch}`);
     }
-    for (const [name, actual] of actualColumns) {
-      if (requiredColumns.has(name)) continue;
-      if (Number(actual.notnull) === 1 && actual.dflt_value == null && Number(actual.pk) === 0) {
+    for (const [nameKey, actual] of actualColumns) {
+      if (requiredColumns.has(nameKey)) continue;
+      const name = String(actual.name);
+      if (Number(actual.notnull) === 1 && sqlDefaultIsNull(actual.dflt_value) && Number(actual.pk) === 0) {
         incompatible.add(`column:${table.name}.${name}:required_extra`);
       } else compatible.add(`column:${table.name}.${name}:extra`);
     }
 
     const list = await tableIndexList(db, table.name);
-    indexLists.set(table.name, list);
-    for (const columns of uniqueConstraints(table.sql)) {
-      let found = false;
-      for (const candidate of list.filter((row) => row.unique === 1 && row.partial === 0)) {
-        const actualColumnsForIndex = await actualIndexColumns(db, candidate.name);
-        if (sameIndexColumns(actualColumnsForIndex, columns.map((name) => ({ name, descending: false })))) {
-          found = true;
+    indexLists.set(tableKey, list);
+    const actualUniqueDefinitions = uniqueConstraintDefinitions(String(actualTable.sql ?? ""));
+    for (const requiredUnique of uniqueConstraintDefinitions(table.sql)) {
+      let candidate: IndexListRow | undefined;
+      for (const possible of list.filter((row) => row.unique === 1 && row.partial === 0)) {
+        const actualColumnsForIndex = await actualIndexColumns(db, possible.name);
+        if (sameIndexColumns(actualColumnsForIndex, requiredUnique.columns.map((name) => ({ name, descending: false })))) {
+          candidate = possible;
           break;
         }
       }
-      if (!found) incompatible.add(`unique:${table.name}.${columns.join(",")}:missing`);
+      const driftPrefix = `unique:${table.name}.${requiredUnique.columns.join(",")}`;
+      if (!candidate) {
+        incompatible.add(`${driftPrefix}:missing`);
+        continue;
+      }
+      const matchingDefinitions = actualUniqueDefinitions.filter((definition) => (
+        sameIdentifiers(definition.columns, requiredUnique.columns)
+      ));
+      const conflictingPolicy = matchingDefinitions.some((definition) => (
+        definition.conflictPolicy !== requiredUnique.conflictPolicy
+      ));
+      const unknownConstraintPolicy = matchingDefinitions.length === 0 && candidate.origin.toLowerCase() !== "c";
+      if (conflictingPolicy || unknownConstraintPolicy) incompatible.add(`${driftPrefix}:conflict_policy`);
     }
   }
 
   if (checkSecondary) {
     for (const index of snapshot.indexes) {
-      const actual = indexes.get(index.name);
+      const indexKey = normalizedIdentifier(index.name);
+      const tableKey = normalizedIdentifier(index.table);
+      const actual = indexes.get(indexKey);
       if (!actual) {
         incompatible.add(`index:${index.name}:missing`);
         continue;
       }
-      if (actual.tbl_name !== index.table) {
+      if (normalizedIdentifier(actual.tbl_name) !== tableKey) {
         incompatible.add(`index:${index.name}:wrong_table`);
         continue;
       }
-      const listed = (indexLists.get(index.table) ?? []).find((row) => row.name === index.name);
+      const listed = (indexLists.get(tableKey) ?? []).find((row) => normalizedIdentifier(row.name) === indexKey);
       const expectedColumns = indexColumns(index.sql);
       const actualColumnsForIndex = listed ? await actualIndexColumns(db, listed.name) : [];
       if (!listed || listed.unique !== 0 || listed.partial !== 0 || !sameIndexColumns(actualColumnsForIndex, expectedColumns)) {
@@ -413,9 +486,10 @@ async function inspectStructure(
       }
     }
     for (const trigger of snapshot.triggers) {
-      const actual = triggers.get(trigger.name);
+      const triggerKey = normalizedIdentifier(trigger.name);
+      const actual = triggers.get(triggerKey);
       if (!actual) incompatible.add(`trigger:${trigger.name}:missing`);
-      else if (actual.tbl_name !== trigger.table) incompatible.add(`trigger:${trigger.name}:wrong_table`);
+      else if (normalizedIdentifier(actual.tbl_name) !== normalizedIdentifier(trigger.table)) incompatible.add(`trigger:${trigger.name}:wrong_table`);
       else if (normalizedSqlDefinition(actual.sql) !== normalizedSqlDefinition(trigger.sql)) {
         incompatible.add(`trigger:${trigger.name}:definition`);
       }
@@ -423,16 +497,26 @@ async function inspectStructure(
   }
 
   if (includeExtras) {
-    for (const table of tables.keys()) {
-      if (!requiredTableNames.has(table) && !ignoredObject(table)) compatible.add(`table:${table}:extra`);
+    for (const [nameKey, table] of tables) {
+      if (!requiredTableNames.has(nameKey) && !ignoredObject(table.name)) compatible.add(`table:${table.name}:extra`);
     }
-    for (const index of indexes.keys()) {
-      if (!requiredIndexNames.has(index) && !ignoredObject(index)) compatible.add(`index:${index}:extra`);
+    for (const [nameKey, index] of indexes) {
+      if (requiredIndexNames.has(nameKey) || ignoredObject(index.name)) continue;
+      const tableKey = normalizedIdentifier(index.tbl_name);
+      const canonicalTable = canonicalTableByName.get(tableKey);
+      if (!canonicalTable) {
+        compatible.add(`index:${index.name}:extra`);
+        continue;
+      }
+      const listed = (indexLists.get(tableKey) ?? []).find((row) => normalizedIdentifier(row.name) === nameKey);
+      if (listed?.unique === 1) incompatible.add(`index:${index.name}:unexpected_unique_on_canonical_table`);
+      else compatible.add(`index:${index.name}:extra`);
     }
-    for (const [name, trigger] of triggers) {
-      if (requiredTriggerNames.has(name) || ignoredObject(name)) continue;
-      if (requiredTableNames.has(trigger.tbl_name)) incompatible.add(`trigger:${name}:unexpected_on_canonical_table`);
-      else compatible.add(`trigger:${name}:extra`);
+    for (const [nameKey, trigger] of triggers) {
+      if (requiredTriggerNames.has(nameKey) || ignoredObject(trigger.name)) continue;
+      if (requiredTableNames.has(normalizedIdentifier(trigger.tbl_name))) {
+        incompatible.add(`trigger:${trigger.name}:unexpected_on_canonical_table`);
+      } else compatible.add(`trigger:${trigger.name}:extra`);
     }
   }
 
@@ -566,20 +650,24 @@ async function applyMigration(
   const startedAt = safeNow(options);
 
   if (migration.tableStatements?.length) {
+    const snapshot = migration.snapshot ?? snapshotFromStatements(migration.statements);
     if (!await renewLock(db, owner, options)) return lockLostStatus(registry, options);
     await db.batch(migration.tableStatements.map((statement) => db.prepare(statement)));
     if (!await renewLock(db, owner, options)) return lockLostStatus(registry, options);
-    const preflight = await inspectStructure(db, migration.snapshot ?? snapshotFromStatements(migration.statements), {
-      secondary: false,
-      extras: false,
-    });
+    const preflight = await inspectStructure(db, snapshot, { secondary: false, extras: false });
     if (preflight.incompatible.length) return driftStatus(await journalRows(db), preflight, registry, safeNow(options));
+
+    if (!await renewLock(db, owner, options)) return lockLostStatus(registry, options);
+    await db.batch((migration.secondaryStatements ?? []).map((statement) => db.prepare(statement)));
+    if (!await renewLock(db, owner, options)) return lockLostStatus(registry, options);
+    const secondaryVerification = await inspectStructure(db, snapshot, { secondary: true, extras: false });
+    if (secondaryVerification.incompatible.length) {
+      return driftStatus(await journalRows(db), secondaryVerification, registry, safeNow(options));
+    }
+
     if (!await renewLock(db, owner, options)) return lockLostStatus(registry, options);
     const journal = await journalStatement(db, migration, startedAt, options);
-    await db.batch([
-      ...(migration.secondaryStatements ?? []).map((statement) => db.prepare(statement)),
-      journal,
-    ]);
+    await journal.run();
     if (!await renewLock(db, owner, options)) return lockLostStatus(registry, options);
     return null;
   }

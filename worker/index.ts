@@ -337,7 +337,6 @@ async function syncOperationRuns(env: Env, xyopsUrl: string | null, runs: Operat
 
 async function readCatalogSnapshot(env: Env): Promise<CatalogSnapshot | null> {
   if (!env.DB) return null;
-  await env.DB.prepare(createCatalogSnapshotTable).run();
   const row = await env.DB.prepare("SELECT catalog_json, synced_at FROM xyops_catalog_snapshot WHERE id = ?").bind("current").first<{ catalog_json: string; synced_at: number }>();
   if (!row) return null;
   try {
@@ -348,14 +347,12 @@ async function readCatalogSnapshot(env: Env): Promise<CatalogSnapshot | null> {
 
 async function saveCatalogSnapshot(env: Env, events: CatalogEvent[], syncedAt: number): Promise<void> {
   if (!env.DB) return;
-  await env.DB.prepare(createCatalogSnapshotTable).run();
   await env.DB.prepare("INSERT INTO xyops_catalog_snapshot (id, catalog_json, synced_at) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET catalog_json = excluded.catalog_json, synced_at = excluded.synced_at")
     .bind("current", JSON.stringify(events), syncedAt).run();
 }
 
 async function saveCatalogHistory(env: Env, events: CatalogEvent[], changes: CatalogChange[], syncedAt: number): Promise<void> {
   if (!env.DB || !changes.length) return;
-  await env.DB.prepare(createCatalogHistoryTable).run();
   await env.DB.prepare("INSERT INTO xyops_catalog_history (id, synced_at, changes_json, catalog_json) VALUES (?, ?, ?, ?)")
     .bind(crypto.randomUUID(), syncedAt, JSON.stringify(changes), JSON.stringify(events)).run();
   await env.DB.prepare("DELETE FROM xyops_catalog_history WHERE id NOT IN (SELECT id FROM xyops_catalog_history ORDER BY synced_at DESC LIMIT 30)").run();
@@ -363,7 +360,6 @@ async function saveCatalogHistory(env: Env, events: CatalogEvent[], changes: Cat
 
 async function listCatalogHistory(env: Env, limit = 20): Promise<CatalogHistoryEntry[]> {
   if (!env.DB) return [];
-  await env.DB.prepare(createCatalogHistoryTable).run();
   const result = await env.DB.prepare("SELECT id, synced_at, changes_json, catalog_json FROM xyops_catalog_history ORDER BY synced_at DESC LIMIT ?").bind(Math.max(1, Math.min(limit, 30))).all<Record<string, unknown>>();
   return (result.results ?? []).map((row) => {
     let changes: CatalogChange[] = []; let processCount = 0;

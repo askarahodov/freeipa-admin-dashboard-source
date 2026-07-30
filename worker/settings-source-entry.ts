@@ -173,7 +173,6 @@ async function withSourceMutationLock(env: RuntimeEnv, operation: () => Promise<
 
 async function activeRow(env: RuntimeEnv): Promise<ActiveRow | null> {
   if (!env.DB) return null;
-  await env.DB.prepare(createSettingsTable).run();
   const row = await env.DB.prepare("SELECT config_json, encrypted_secrets, updated_at FROM app_settings WHERE id = ?")
     .bind("main").first<{ config_json: string; encrypted_secrets: string; updated_at: number }>();
   if (!row) return null;

@@ -267,7 +267,6 @@ async function dynamicInheritedEnv(env: RuntimeEnv): Promise<RuntimeEnv> {
 
 async function acquireSourceLock(env: RuntimeEnv): Promise<string | null> {
   if (!env.DB) return "no-database";
-  await env.DB.prepare(createSourceMutationLockTable).run();
   const now = Date.now();
   await env.DB.prepare("DELETE FROM portal_settings_source_lock WHERE id = ? AND acquired_at < ?").bind("main", now - 60_000).run();
   const owner = crypto.randomUUID();
@@ -362,7 +361,6 @@ async function createResetDraft(request: Request, env: RuntimeEnv, ctx: RuntimeC
     const draftId = String(draft.id ?? "");
     if (!draftId) return json({ error: "Draft creation did not return an identifier" }, 500);
     try {
-      await env.DB!.prepare(createDraftResetTable).run();
       const inserted = await env.DB!.prepare("INSERT INTO portal_settings_draft_resets (draft_id, reset_fields_json, created_at) VALUES (?, ?, ?)")
         .bind(draftId, JSON.stringify(resets), Date.now()).run();
       if (resultChanges(inserted) !== 1) throw new Error("Reset metadata was not persisted");

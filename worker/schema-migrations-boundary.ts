@@ -1,6 +1,9 @@
 import { publicPortalSchemaStatus, type PortalSchemaStatus } from "../db/portal-migrations.ts";
 
 const jsonHeaders = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
+const schemaTestBypassMarker = Symbol("portal-schema-test-bypass");
+
+type SchemaTestEnv = Record<PropertyKey, unknown>;
 
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status, headers: jsonHeaders });
@@ -12,8 +15,18 @@ export function migrationCapableDatabase(value: unknown): value is D1Database {
   return typeof database.prepare === "function" && typeof database.batch === "function";
 }
 
-export function nodeTestRuntime(environment: Record<string, string | undefined> = process.env): boolean {
-  return Boolean(environment.NODE_TEST_CONTEXT);
+export function markSchemaTestBypass<T extends object>(environment: T): T {
+  Object.defineProperty(environment, schemaTestBypassMarker, {
+    value: true,
+    configurable: false,
+    enumerable: false,
+    writable: false,
+  });
+  return environment;
+}
+
+export function schemaTestBypassEnabled(environment: unknown): boolean {
+  return Boolean(environment && typeof environment === "object" && (environment as SchemaTestEnv)[schemaTestBypassMarker] === true);
 }
 
 export function schemaFailureResponse(schema: PortalSchemaStatus): Response {

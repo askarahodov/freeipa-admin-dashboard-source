@@ -13,6 +13,7 @@ on:
       - "worker/settings-lifecycle-entry.ts"
       - "worker/settings-source-entry.ts"
       - "worker/settings-revisions-entry.ts"
+      - "worker/settings-input-normalizer-entry.ts"
       - "admin-session-authorization.ts"
       - "tests/settings-draft-lifecycle.test.mjs"
       - "e2e/**"

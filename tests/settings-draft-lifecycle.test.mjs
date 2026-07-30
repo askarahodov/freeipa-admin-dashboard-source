@@ -7,12 +7,13 @@ import test from "node:test";
 const lifecycleUrl = new URL("../worker/settings-lifecycle-entry.ts", import.meta.url);
 const revisionsUrl = new URL("../worker/settings-revisions-entry.ts", import.meta.url);
 const sourceUrl = new URL("../worker/settings-source-entry.ts", import.meta.url);
-const normalizerUrl = new URL("../worker/settings-input-normalizer-entry.ts", import.meta.url);
+const normalizerEntryUrl = new URL("../worker/settings-input-normalizer-entry.ts", import.meta.url);
+const normalizerUrl = new URL("../worker/settings-input-normalizer.ts", import.meta.url);
 const workflowUrl = new URL("../.github/workflows/e2e-auth.yml", import.meta.url);
 const lifecycle = fs.readFileSync(lifecycleUrl, "utf8");
 const revisions = fs.readFileSync(revisionsUrl, "utf8");
 const source = fs.readFileSync(sourceUrl, "utf8");
-const normalizer = fs.readFileSync(normalizerUrl, "utf8");
+const normalizerEntry = fs.readFileSync(normalizerEntryUrl, "utf8");
 const diagnostics = fs.readFileSync(new URL("../worker/diagnostics-entry.ts", import.meta.url), "utf8");
 const localBoundary = fs.readFileSync(new URL("../worker/local-secure-entry.ts", import.meta.url), "utf8");
 const authorization = fs.readFileSync(new URL("../admin-session-authorization.ts", import.meta.url), "utf8");
@@ -25,7 +26,8 @@ const { normalizeSettingsRequestBody } = await import(normalizerUrl.href);
 
 test("settings lifecycle runs behind input, token and portal RBAC boundaries", () => {
   assert.equal(diagnostics.includes('import localRuntime from "./settings-input-normalizer-entry"'), true);
-  assert.equal(normalizer.includes('import runtime from "./settings-revisions-entry"'), true);
+  assert.equal(normalizerEntry.includes('import runtime from "./settings-revisions-entry"'), true);
+  assert.equal(normalizerEntry.includes('import { normalizeSettingsRequestBody } from "./settings-input-normalizer"'), true);
   assert.equal(revisions.includes('import localRuntime from "./local-secure-entry"'), true);
   assert.equal(localBoundary.includes('import secureRuntime from "./settings-source-entry"'), true);
   assert.equal(source.includes('import lifecycleRuntime from "./settings-lifecycle-entry"'), true);
@@ -43,49 +45,24 @@ test("settings lifecycle runs behind input, token and portal RBAC boundaries", (
 });
 
 test("legacy settings inputs do not create accidental secret overrides", () => {
-  assert.deepEqual(
-    normalizeSettingsRequestBody("/api/integrations/settings", "PUT", {
-      demoMode: false,
-      ipaPassword: "   ",
-      xyopsApiKey: "",
-      clearIpaPassword: false,
-      clearXyopsApiKey: false,
-    }),
-    { demoMode: false },
-  );
-  assert.deepEqual(
-    normalizeSettingsRequestBody("/api/integrations/settings", "PUT", {
-      ipaPassword: "",
-      clearIpaPassword: true,
-      xyopsApiKey: "replacement",
-    }),
-    { clearIpaPassword: true, xyopsApiKey: "replacement" },
-  );
+  assert.deepEqual(normalizeSettingsRequestBody("/api/integrations/settings", "PUT", {
+    demoMode: false, ipaPassword: "   ", xyopsApiKey: "", clearIpaPassword: false, clearXyopsApiKey: false,
+  }), { demoMode: false });
+  assert.deepEqual(normalizeSettingsRequestBody("/api/integrations/settings", "PUT", {
+    ipaPassword: "", clearIpaPassword: true, xyopsApiKey: "replacement",
+  }), { clearIpaPassword: true, xyopsApiKey: "replacement" });
 });
 
 test("empty reset arrays are stripped before lifecycle validation", () => {
-  assert.deepEqual(
-    normalizeSettingsRequestBody("/api/integrations/settings/drafts", "POST", {
-      baseRevision: 10,
-      changes: { demoMode: true, resetFields: [] },
-    }),
-    { baseRevision: 10, changes: { demoMode: true } },
-  );
-  assert.deepEqual(
-    normalizeSettingsRequestBody("/api/integrations/settings/drafts", "POST", {
-      baseRevision: 10,
-      demoMode: true,
-      resetFields: [],
-    }),
-    { baseRevision: 10, demoMode: true },
-  );
-  assert.deepEqual(
-    normalizeSettingsRequestBody("/api/integrations/settings/drafts", "POST", {
-      baseRevision: 10,
-      changes: { resetFields: ["ipaUrl"] },
-    }),
-    { baseRevision: 10, changes: { resetFields: ["ipaUrl"] } },
-  );
+  assert.deepEqual(normalizeSettingsRequestBody("/api/integrations/settings/drafts", "POST", {
+    baseRevision: 10, changes: { demoMode: true, resetFields: [] },
+  }), { baseRevision: 10, changes: { demoMode: true } });
+  assert.deepEqual(normalizeSettingsRequestBody("/api/integrations/settings/drafts", "POST", {
+    baseRevision: 10, demoMode: true, resetFields: [],
+  }), { baseRevision: 10, demoMode: true });
+  assert.deepEqual(normalizeSettingsRequestBody("/api/integrations/settings/drafts", "POST", {
+    baseRevision: 10, changes: { resetFields: ["ipaUrl"] },
+  }), { baseRevision: 10, changes: { resetFields: ["ipaUrl"] } });
 });
 
 test("draft lifecycle persists encrypted secret changes and cancellation clears them", () => {
@@ -178,9 +155,7 @@ test("direct settings and route writes preserve source metadata", () => {
 });
 
 test("effective settings report per-field source, conflicts and reset metadata without secret values", () => {
-  for (const envName of ["DEMO_MODE", "IPA_URL", "IPA_USERNAME", "IPA_PASSWORD", "XYOPS_URL", "XYOPS_API_KEY"]) {
-    assert.equal(source.includes(`"${envName}"`), true, envName);
-  }
+  for (const envName of ["DEMO_MODE", "IPA_URL", "IPA_USERNAME", "IPA_PASSWORD", "XYOPS_URL", "XYOPS_API_KEY"]) assert.equal(source.includes(`"${envName}"`), true, envName);
   assert.equal(source.includes("envConfigured"), true);
   assert.equal(source.includes("overridden"), true);
   assert.equal(source.includes("resettable"), true);
@@ -227,16 +202,11 @@ test("visual wizard filters sources and stages override resets instead of direct
 });
 
 test("rollback and source reset changes trigger Auth E2E", () => {
-  assert.equal(workflow.includes('"worker/settings-lifecycle-entry.ts"'), true);
-  assert.equal(workflow.includes('"worker/settings-source-entry.ts"'), true);
-  assert.equal(workflow.includes('"worker/settings-revisions-entry.ts"'), true);
-  assert.equal(workflow.includes('"worker/settings-input-normalizer-entry.ts"'), true);
-  assert.equal(workflow.includes('"app/SettingsLifecycleWizard.tsx"'), true);
-  assert.equal(workflow.includes('"app/settings-source-resets.css"'), true);
+  for (const path of ["worker/settings-lifecycle-entry.ts", "worker/settings-source-entry.ts", "worker/settings-revisions-entry.ts", "worker/settings-input-normalizer-entry.ts", "worker/settings-input-normalizer.ts", "app/SettingsLifecycleWizard.tsx", "app/settings-source-resets.css"]) assert.equal(workflow.includes(`"${path}"`), true, path);
 });
 
 test("settings lifecycle TypeScript parses under the repository Node baseline", () => {
-  for (const url of [lifecycleUrl, sourceUrl, revisionsUrl, normalizerUrl]) {
+  for (const url of [lifecycleUrl, sourceUrl, revisionsUrl, normalizerEntryUrl, normalizerUrl]) {
     const result = spawnSync(process.execPath, ["--experimental-strip-types", "--check", fileURLToPath(url)], { encoding: "utf8" });
     assert.equal(result.status, 0, result.stderr || result.stdout);
   }

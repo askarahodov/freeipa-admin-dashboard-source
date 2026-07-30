@@ -12,6 +12,7 @@ const sourceContextUrl = new URL("../worker/settings-source-context-entry.ts", i
 const normalizerEntryUrl = new URL("../worker/settings-input-normalizer-entry.ts", import.meta.url);
 const normalizerUrl = new URL("../worker/settings-input-normalizer.ts", import.meta.url);
 const workflowUrl = new URL("../.github/workflows/e2e-auth.yml", import.meta.url);
+const portalSchemaUrl = new URL("../db/portal-schema.ts", import.meta.url);
 const lifecycle = fs.readFileSync(lifecycleUrl, "utf8");
 const revisions = fs.readFileSync(revisionsUrl, "utf8");
 const source = fs.readFileSync(sourceUrl, "utf8");
@@ -26,6 +27,7 @@ const layout = fs.readFileSync(new URL("../app/layout.tsx", import.meta.url), "u
 const styles = fs.readFileSync(new URL("../app/settings-lifecycle.css", import.meta.url), "utf8");
 const resetStyles = fs.readFileSync(new URL("../app/settings-source-resets.css", import.meta.url), "utf8");
 const workflow = fs.readFileSync(workflowUrl, "utf8");
+const portalSchema = fs.readFileSync(portalSchemaUrl, "utf8");
 const { normalizeSettingsRequestBody } = await import(normalizerUrl.href);
 
 test("settings lifecycle runs behind revision, local auth, origin, normalizer and source authorization", () => {
@@ -71,7 +73,7 @@ test("empty reset arrays are stripped before lifecycle validation", () => {
 });
 
 test("draft lifecycle persists encrypted secret changes and cancellation clears them", () => {
-  assert.equal(lifecycle.includes("CREATE TABLE IF NOT EXISTS portal_settings_drafts"), true);
+  assert.equal(portalSchema.includes("CREATE TABLE IF NOT EXISTS portal_settings_drafts"), true);
   assert.equal(lifecycle.includes("encryptDraftSecrets(secrets, env.CONFIG_ENCRYPTION_KEY)"), true);
   assert.equal(lifecycle.includes('ipaPasswordChanged: Boolean(secrets.ipaPassword)'), true);
   assert.equal(lifecycle.includes('xyopsApiKeyChanged: Boolean(secrets.xyopsApiKey)'), true);
@@ -82,14 +84,14 @@ test("draft lifecycle persists encrypted secret changes and cancellation clears 
 });
 
 test("validation and apply use an atomic revision CAS and a single applying claim", () => {
-  assert.equal(lifecycle.includes("base_revision INTEGER NOT NULL"), true);
+  assert.equal(portalSchema.includes("base_revision INTEGER NOT NULL"), true);
   assert.equal(lifecycle.includes('code: "settings_revision_conflict"'), true);
   assert.equal(lifecycle.includes('row.status !== "validated"'), true);
   assert.equal(lifecycle.includes('status = ?, updated_at = ? WHERE id = ? AND status = ?'), true);
   assert.equal(lifecycle.includes('"applying"'), true);
   assert.equal(lifecycle.includes('WHERE id = ? AND updated_at = ?'), true);
   assert.equal(lifecycle.includes('INSERT OR IGNORE INTO app_settings'), true);
-  assert.equal(lifecycle.includes('CREATE TABLE IF NOT EXISTS portal_settings_apply_commits'), true);
+  assert.equal(portalSchema.includes('CREATE TABLE IF NOT EXISTS portal_settings_apply_commits'), true);
   assert.equal(lifecycle.includes('applyCommitId: committed.commitId'), true);
 });
 
@@ -112,7 +114,7 @@ test("D1 overrides can return to dynamic ENV or default through the lifecycle", 
 });
 
 test("source mutations are serialized, cleanup-safe and rollback remains tracked", () => {
-  assert.equal(source.includes("CREATE TABLE IF NOT EXISTS portal_settings_source_lock"), true);
+  assert.equal(portalSchema.includes("CREATE TABLE IF NOT EXISTS portal_settings_source_lock"), true);
   assert.equal(source.includes("sourceMetadataConflict: !attached"), true);
   assert.equal(revisions.includes('payload.sourceMetadataConflict === true'), true);
   assert.equal(safeSource.includes("withSourceLock"), true);
@@ -176,7 +178,7 @@ test("effective settings report per-field source, conflicts and reset metadata w
 });
 
 test("revision history finalizes reset audit and response after health checks", () => {
-  assert.equal(revisions.includes("CREATE TABLE IF NOT EXISTS portal_settings_revisions"), true);
+  assert.equal(portalSchema.includes("CREATE TABLE IF NOT EXISTS portal_settings_revisions"), true);
   assert.equal(revisions.includes("resetFieldsFromPayload"), true);
   assert.equal(revisions.includes('settings.override.reset_applied'), true);
   assert.equal(revisions.includes('settings.override.reset_rolled_back'), true);

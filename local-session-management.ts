@@ -1,4 +1,4 @@
-import { ensureLocalAuthTables, type LocalAuthEnv, type LocalPortalRole } from "./local-auth.ts";
+import { type LocalAuthEnv, type LocalPortalRole } from "./local-auth.ts";
 
 export type LocalPortalSessionRecord = {
   id: string;
@@ -29,7 +29,6 @@ function publicSession(row: Record<string, unknown>): LocalPortalSessionRecord {
 }
 
 export async function listLocalPortalSessions(env: LocalAuthEnv, limit = 200): Promise<LocalPortalSessionRecord[]> {
-  await ensureLocalAuthTables(env);
   const now = Date.now();
   await env.DB!.prepare("DELETE FROM portal_sessions WHERE expires_at <= ?").bind(now).run();
   const safeLimit = Math.max(1, Math.min(Number.isFinite(limit) ? Math.trunc(limit) : 200, 500));
@@ -44,7 +43,6 @@ export async function listLocalPortalSessions(env: LocalAuthEnv, limit = 200): P
 }
 
 export async function readLocalPortalSession(env: LocalAuthEnv, id: string): Promise<LocalPortalSessionRecord | null> {
-  await ensureLocalAuthTables(env);
   const row = await env.DB!.prepare(`SELECT s.id, s.user_id, s.created_at, s.last_seen_at, s.expires_at, s.user_agent,
     u.username, u.display_name, u.role
     FROM portal_sessions s

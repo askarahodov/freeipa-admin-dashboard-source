@@ -1,6 +1,6 @@
-import localRuntime from "./settings-revisions-entry";
-import { listLocalUsers, resolveLocalSession, type LocalAuthEnv } from "../local-auth";
-import { inspectPortalSchema, publicPortalSchemaStatus, type PortalSchemaStatus } from "../db/portal-migrations";
+import localRuntime from "./settings-revisions-entry.ts";
+import { listLocalUsers, resolveLocalSession, type LocalAuthEnv } from "../local-auth.ts";
+import { inspectPortalSchema, publicPortalSchemaStatus, type PortalSchemaStatus } from "../db/portal-migrations.ts";
 
 type RuntimeEnv = NonNullable<Parameters<typeof localRuntime.fetch>[1]> & LocalAuthEnv & {
   PORTAL_IDENTITY_MODE?: string;

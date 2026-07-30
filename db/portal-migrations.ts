@@ -195,6 +195,26 @@ function uniqueConstraints(tableSql: string): string[][] {
   return output.filter((columns) => columns.length > 0);
 }
 
+function normalizedSqlDefinition(value: unknown): string {
+  return String(value ?? "")
+    .replace(/\bIF\s+NOT\s+EXISTS\b/gi, "")
+    .replace(/\s+/g, " ")
+    .replace(/;\s*$/, "")
+    .trim()
+    .toUpperCase();
+}
+
+function restrictiveConstraintSignatures(tableSql: unknown): string[] {
+  return splitSqlList(tableBody(String(tableSql ?? "")))
+    .filter((clause) => /\bCHECK\s*\(|\bFOREIGN\s+KEY\b|\bREFERENCES\b/i.test(clause))
+    .map((clause) => normalizedSqlDefinition(clause))
+    .sort();
+}
+
+function sameStrings(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
 function tableFromSql(statement: string): PortalSchemaTable | null {
   const match = statement.trim().match(/^CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/i);
   if (!match) return null;
@@ -248,15 +268,6 @@ function snapshotFromStatements(statements: readonly string[]): PortalSchemaSnap
     indexes: statements.map(indexFromSql).filter((value): value is PortalSchemaIndex => Boolean(value)),
     triggers: statements.map(triggerFromSql).filter((value): value is PortalSchemaTrigger => Boolean(value)),
   };
-}
-
-function normalizedSqlDefinition(value: unknown): string {
-  return String(value ?? "")
-    .replace(/\bIF\s+NOT\s+EXISTS\b/gi, "")
-    .replace(/\s+/g, " ")
-    .replace(/;\s*$/, "")
-    .trim()
-    .toUpperCase();
 }
 
 const baselineSnapshot = snapshotFromStatements(portalMigrationV1Statements);
@@ -339,9 +350,15 @@ async function inspectStructure(
   const indexLists = new Map<string, IndexListRow[]>();
 
   for (const table of snapshot.tables) {
-    if (!tables.has(table.name)) {
+    const actualTable = tables.get(table.name);
+    if (!actualTable) {
       incompatible.add(`table:${table.name}:missing`);
       continue;
+    }
+    const expectedRestrictions = restrictiveConstraintSignatures(table.sql);
+    const actualRestrictions = restrictiveConstraintSignatures(actualTable.sql);
+    if (!sameStrings(actualRestrictions, expectedRestrictions)) {
+      incompatible.add(`table:${table.name}:restrictive_constraints`);
     }
     const info = await db.prepare(`PRAGMA table_info(${quoteIdentifier(table.name)})`).all<TableInfoRow>();
     const actualColumns = new Map((info.results ?? []).map((column) => [String(column.name), column]));
@@ -412,8 +429,10 @@ async function inspectStructure(
     for (const index of indexes.keys()) {
       if (!requiredIndexNames.has(index) && !ignoredObject(index)) compatible.add(`index:${index}:extra`);
     }
-    for (const trigger of triggers.keys()) {
-      if (!requiredTriggerNames.has(trigger) && !ignoredObject(trigger)) compatible.add(`trigger:${trigger}:extra`);
+    for (const [name, trigger] of triggers) {
+      if (requiredTriggerNames.has(name) || ignoredObject(name)) continue;
+      if (requiredTableNames.has(trigger.tbl_name)) incompatible.add(`trigger:${name}:unexpected_on_canonical_table`);
+      else compatible.add(`trigger:${name}:extra`);
     }
   }
 
@@ -430,6 +449,10 @@ async function validateJournal(
   const pending = pendingVersions(registry, appliedVersions);
   if (currentVersion > latestVersion(registry) || rows.some((row) => !registry.some((migration) => migration.version === row.version))) {
     return status(registry, "failed", { currentVersion, appliedVersions, pendingVersions: pending, errorCode: "schema_future_version" }, verifiedAt);
+  }
+  const expectedPrefix = registry.slice(0, appliedVersions.length).map((migration) => migration.version);
+  if (!sameStrings(appliedVersions.map(String), expectedPrefix.map(String))) {
+    return status(registry, "failed", { currentVersion, appliedVersions, pendingVersions: pending, errorCode: "schema_journal_gap" }, verifiedAt);
   }
   for (const row of rows) {
     const migration = registry.find((item) => item.version === row.version);

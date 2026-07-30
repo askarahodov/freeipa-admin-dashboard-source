@@ -3,7 +3,7 @@ function objectValue(value) {
 }
 
 function normalizeSecretReplacement(body, valueKey, clearKey) {
-  if (typeof body[valueKey] === "string" && !String(body[valueKey]).trim()) delete body[valueKey];
+  if (typeof body[valueKey] !== "string" || !body[valueKey].trim()) delete body[valueKey];
   if (body[clearKey] !== true) delete body[clearKey];
 }
 

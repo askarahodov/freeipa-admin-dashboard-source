@@ -17,6 +17,7 @@ type SettingField = "demoMode" | "ipaUrl" | "ipaUsername" | "ipaPassword" | "xyo
 type DraftRow = { changes_json: string; encrypted_secrets: string; status: string; updated_at: number };
 
 const settingFields: SettingField[] = ["demoMode", "ipaUrl", "ipaUsername", "ipaPassword", "xyopsUrl", "xyopsApiKey"];
+const refreshableDraftStatuses = new Set(["draft", "invalid", "validated"]);
 const jsonHeaders = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
 
 function json(data: unknown, status = 200): Response {
@@ -156,7 +157,7 @@ async function refreshResetFallbacks(request: Request, env: RuntimeEnv, ctx: Run
   if (!resets.length) return null;
   const row = await env.DB.prepare("SELECT changes_json, encrypted_secrets, status, updated_at FROM portal_settings_drafts WHERE id = ?")
     .bind(draftId).first<DraftRow>();
-  if (!row) return null;
+  if (!row || !refreshableDraftStatuses.has(String(row.status))) return null;
   const secrets = await decryptJson(String(row.encrypted_secrets ?? ""), env.CONFIG_ENCRYPTION_KEY);
   const resolved = resolvedResetMaterial(String(row.changes_json ?? "{}"), secrets, resets, env);
   if (!resolved.changed) return null;

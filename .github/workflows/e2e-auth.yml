@@ -6,12 +6,21 @@ on:
       - "app/login/**"
       - "app/LocalAuthToolbar.tsx"
       - "app/SettingsLifecycleWizard.tsx"
+      - "app/settings-source-resets.css"
+      - "app/layout.tsx"
       - "worker/local-auth.ts"
       - "worker/local-secure-entry.ts"
       - "worker/settings-lifecycle-entry.ts"
+      - "worker/settings-source-entry.ts"
+      - "worker/settings-source-safe-entry.ts"
+      - "worker/settings-source-context-entry.ts"
       - "worker/settings-revisions-entry.ts"
+      - "worker/settings-input-normalizer-entry.ts"
+      - "worker/settings-input-normalizer.ts"
       - "admin-session-authorization.ts"
       - "tests/settings-draft-lifecycle.test.mjs"
+      - "tests/settings-reset-fallback-refresh.test.mjs"
+      - "tests/settings-source-runtime-safety.test.mjs"
       - "e2e/**"
       - "scripts/run-auth-e2e.sh"
       - "compose.e2e.yaml"
@@ -30,8 +39,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run settings lifecycle contract
-        run: node --experimental-strip-types --test tests/settings-draft-lifecycle.test.mjs
+      - name: Run settings lifecycle contracts
+        run: node --experimental-strip-types --test tests/settings-draft-lifecycle.test.mjs tests/settings-reset-fallback-refresh.test.mjs tests/settings-source-runtime-safety.test.mjs
 
       - name: Prepare isolated E2E environment
         run: cp .env.e2e.example .env.e2e

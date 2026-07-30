@@ -5,16 +5,64 @@ import worker from "../dist/server/index.js";
 
 class MemoryD1 {
   row = null;
+  lock = null;
 
   prepare(sql) {
     let values = [];
     const statement = {
       bind: (...args) => { values = args; return statement; },
       run: async () => {
-        if (sql.startsWith("INSERT INTO app_settings")) this.row = { config_json: values[1], encrypted_secrets: values[2], updated_at: values[3] };
-        return { success: true };
+        if (sql.startsWith("DELETE FROM portal_settings_source_lock WHERE id = ? AND acquired_at < ?")) {
+          if (this.lock && Number(this.lock.acquiredAt) < Number(values[1])) {
+            this.lock = null;
+            return { success: true, meta: { changes: 1 } };
+          }
+          return { success: true, meta: { changes: 0 } };
+        }
+        if (sql.startsWith("INSERT OR IGNORE INTO portal_settings_source_lock")) {
+          if (this.lock) return { success: true, meta: { changes: 0 } };
+          this.lock = { owner: values[1], acquiredAt: values[2] };
+          return { success: true, meta: { changes: 1 } };
+        }
+        if (sql.startsWith("DELETE FROM portal_settings_source_lock WHERE id = ? AND owner = ?")) {
+          if (this.lock?.owner === values[1]) {
+            this.lock = null;
+            return { success: true, meta: { changes: 1 } };
+          }
+          return { success: true, meta: { changes: 0 } };
+        }
+        if (sql.startsWith("INSERT INTO app_settings")) {
+          this.row = { config_json: values[1], encrypted_secrets: values[2], updated_at: values[3] };
+          return { success: true, meta: { changes: 1 } };
+        }
+        if (sql.startsWith("DELETE FROM app_settings WHERE id = ? AND updated_at = ?")) {
+          if (this.row && Number(this.row.updated_at) === Number(values[1])) {
+            this.row = null;
+            return { success: true, meta: { changes: 1 } };
+          }
+          return { success: true, meta: { changes: 0 } };
+        }
+        if (sql.startsWith("UPDATE app_settings SET config_json = ? WHERE id = ? AND updated_at = ?")) {
+          if (this.row && Number(this.row.updated_at) === Number(values[2])) {
+            this.row.config_json = values[0];
+            return { success: true, meta: { changes: 1 } };
+          }
+          return { success: true, meta: { changes: 0 } };
+        }
+        if (sql.startsWith("UPDATE app_settings SET config_json = ?, encrypted_secrets = ?, updated_at = ? WHERE id = ? AND updated_at = ?")) {
+          if (this.row && Number(this.row.updated_at) === Number(values[4])) {
+            this.row = { config_json: values[0], encrypted_secrets: values[1], updated_at: values[2] };
+            return { success: true, meta: { changes: 1 } };
+          }
+          return { success: true, meta: { changes: 0 } };
+        }
+        return { success: true, meta: { changes: 0 } };
       },
-      first: async () => sql.startsWith("SELECT config_json") ? this.row : null,
+      first: async () => {
+        if (!sql.startsWith("SELECT config_json")) return null;
+        if (sql.includes("updated_at = ?") && this.row && Number(this.row.updated_at) !== Number(values.at(-1))) return null;
+        return this.row;
+      },
     };
     return statement;
   }
@@ -30,6 +78,8 @@ function adminEnv(values = {}) {
   };
 }
 
+const adminHeaders = { "content-type": "application/json", "x-admin-token": "admin-token" };
+
 test("healthcheck does not depend on database or external integrations", async () => {
   const response = await worker.fetch(new Request("https://dashboard.test/api/integrations/health"), {
     DB: { prepare() { throw new Error("database must not be touched"); } },
@@ -40,7 +90,7 @@ test("healthcheck does not depend on database or external integrations", async (
   assert.deepEqual(await response.json(), { ok: true });
 });
 
-test("settings require admin auth, encrypt secrets and persist across requests", async () => {
+test("settings require admin auth, encrypt secrets and persist source metadata", async () => {
   const db = new MemoryD1();
   const env = adminEnv({ DB: db, ADMIN_TOKEN: "admin-token", CONFIG_ENCRYPTION_KEY: `  ${Buffer.alloc(32, 7).toString("base64")}  ` });
 
@@ -49,7 +99,7 @@ test("settings require admin auth, encrypt secrets and persist across requests",
 
   const saved = await worker.fetch(new Request("https://dashboard.test/api/integrations/settings", {
     method: "PUT",
-    headers: { "content-type": "application/json", "x-admin-token": "admin-token" },
+    headers: adminHeaders,
     body: JSON.stringify({ demoMode: false, ipaUrl: "https://ipa.example.test", ipaUsername: "reader", ipaPassword: "ipa-secret", xyopsUrl: "https://xyops.example.test", xyopsApiKey: "xyops-secret" }),
   }), env, {});
   assert.equal(saved.status, 200);
@@ -60,6 +110,7 @@ test("settings require admin auth, encrypt secrets and persist across requests",
   assert.doesNotMatch(JSON.stringify(savedBody), /ipa-secret|xyops-secret/);
   assert.doesNotMatch(db.row.encrypted_secrets, /ipa-secret|xyops-secret/);
   assert.match(db.row.encrypted_secrets, /^v1\./);
+  assert.deepEqual(JSON.parse(db.row.config_json).overrides, ["demoMode", "ipaUrl", "ipaUsername", "ipaPassword", "xyopsUrl", "xyopsApiKey"]);
 
   const loaded = await worker.fetch(new Request("https://dashboard.test/api/integrations/settings", { headers: { "x-admin-token": "admin-token" } }), env, {});
   assert.equal(loaded.status, 200);
@@ -67,6 +118,7 @@ test("settings require admin auth, encrypt secrets and persist across requests",
   assert.equal(loadedBody.freeipa.url, "https://ipa.example.test");
   assert.equal(loadedBody.freeipa.username, "reader");
   assert.equal(loadedBody.xyops.url, "https://xyops.example.test");
+  assert.equal(db.lock, null);
 });
 
 test("explicit demo mode is required for demo catalog", async () => {
@@ -87,7 +139,7 @@ test("FreeIPA connection test replaces opaque runtime failures with actionable d
   try {
     const response = await worker.fetch(new Request("https://dashboard.test/api/integrations/settings/test", {
       method: "POST",
-      headers: { "content-type": "application/json", "x-admin-token": "admin-token" },
+      headers: adminHeaders,
       body: JSON.stringify({ service: "freeipa", ipaUrl: "https://ipa.example.test", ipaUsername: "reader", ipaPassword: "secret" }),
     }), adminEnv({ ADMIN_TOKEN: "admin-token" }), {});
     assert.equal(response.status, 502);
@@ -111,7 +163,7 @@ test("FreeIPA connection test uses the Docker Node Gateway when configured", asy
   try {
     const response = await worker.fetch(new Request("https://dashboard.test/api/integrations/settings/test", {
       method: "POST",
-      headers: { "content-type": "application/json", "x-admin-token": "admin-token" },
+      headers: adminHeaders,
       body: JSON.stringify({ service: "freeipa", ipaUrl: "https://ipa.example.test", ipaUsername: "reader", ipaPassword: "secret" }),
     }), adminEnv({ ADMIN_TOKEN: "admin-token", IPA_NODE_GATEWAY_URL: "http://127.0.0.1:3301", IPA_NODE_GATEWAY_TOKEN: "gateway-token" }), {});
     assert.equal(response.status, 200);
@@ -149,7 +201,7 @@ test("integration status probes FreeIPA through the Docker Node Gateway", async 
   }
 });
 
-test("automation routes require admin auth and persist without secret defaults", async () => {
+test("automation routes preserve the latest source metadata and omit secret defaults", async () => {
   const db = new MemoryD1();
   const env = adminEnv({ DB: db, ADMIN_TOKEN: "admin-token", CONFIG_ENCRYPTION_KEY: Buffer.alloc(32, 9).toString("base64") });
   const route = {
@@ -170,7 +222,7 @@ test("automation routes require admin auth and persist without secret defaults",
   const unauthorized = await worker.fetch(new Request("https://dashboard.test/api/integrations/routes", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ routes: [route] }) }), env, {});
   assert.equal(unauthorized.status, 401);
 
-  const saved = await worker.fetch(new Request("https://dashboard.test/api/integrations/routes", { method: "PUT", headers: { "content-type": "application/json", "x-admin-token": "admin-token" }, body: JSON.stringify({ routes: [route] }) }), env, {});
+  const saved = await worker.fetch(new Request("https://dashboard.test/api/integrations/routes", { method: "PUT", headers: adminHeaders, body: JSON.stringify({ routes: [route] }) }), env, {});
   assert.equal(saved.status, 200);
   const savedBody = await saved.json();
   assert.equal(savedBody.routes[0].eventId, "event-42");
@@ -179,12 +231,21 @@ test("automation routes require admin auth and persist without secret defaults",
   assert.deepEqual(savedBody.routes[0].fields[0].visibleWhen, { field: "mode", operator: "equals", value: "manual" });
   assert.equal(savedBody.routes[0].fields[1].default, undefined);
   assert.doesNotMatch(db.row.config_json, /must-not-persist/);
+  assert.deepEqual(JSON.parse(db.row.config_json).overrides, []);
 
-  const loaded = await worker.fetch(new Request("https://dashboard.test/api/integrations/routes"), env, {});
-  assert.equal(loaded.status, 200);
-  assert.deepEqual(await loaded.json().then((body) => body.routes.map((item) => item.key)), ["disable-user"]);
+  const direct = await worker.fetch(new Request("https://dashboard.test/api/integrations/settings", {
+    method: "PUT",
+    headers: adminHeaders,
+    body: JSON.stringify({ demoMode: true }),
+  }), env, {});
+  assert.equal(direct.status, 200);
+  assert.deepEqual(JSON.parse(db.row.config_json).overrides, ["demoMode"]);
 
-  await worker.fetch(new Request("https://dashboard.test/api/integrations/routes", { method: "PUT", headers: { "content-type": "application/json", "x-admin-token": "admin-token" }, body: JSON.stringify({ routes: [] }) }), env, {});
+  const replaced = await worker.fetch(new Request("https://dashboard.test/api/integrations/routes", { method: "PUT", headers: adminHeaders, body: JSON.stringify({ routes: [] }) }), env, {});
+  assert.equal(replaced.status, 200);
+  assert.deepEqual(JSON.parse(db.row.config_json).overrides, ["demoMode"]);
+  assert.equal(db.lock, null);
+
   const empty = await worker.fetch(new Request("https://dashboard.test/api/integrations/routes"), env, {});
-  assert.deepEqual(await empty.json().then((body) => ({ mode: body.mode, routes: body.routes })), { mode: "unconfigured", routes: [] });
+  assert.deepEqual(await empty.json().then((body) => body.routes), []);
 });

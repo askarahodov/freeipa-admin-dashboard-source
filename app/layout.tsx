@@ -14,6 +14,7 @@ import "./freeipa-group-member-browser.css";
 import "./operation-explorer.css";
 import "./local-admin-session.css";
 import "./settings-lifecycle.css";
+import "./settings-source-resets.css";
 import LocalAuthToolbar from "./LocalAuthToolbar";
 import LocalAdministrationContext from "./LocalAdministrationContext";
 import LocalAdminSessionBridge from "./LocalAdminSessionBridge";

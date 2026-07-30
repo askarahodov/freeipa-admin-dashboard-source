@@ -4,7 +4,14 @@ import test from "node:test";
 
 const boundary = fs.readFileSync(new URL("../worker/settings-input-normalizer-entry.ts", import.meta.url), "utf8");
 
- test("reset draft creation serializes override check and persistence", () => {
+test("reset draft mutations authorize through the protected lifecycle first", () => {
+  assert.equal(boundary.includes("authorizeSettingsMutation"), true);
+  assert.equal(boundary.includes('url.pathname = "/api/integrations/settings/effective"'), true);
+  assert.equal(boundary.includes("const denied = await authorizeSettingsMutation(prepared, sourceEnv, ctx)"), true);
+  assert.equal(boundary.includes("if (denied) return denied"), true);
+});
+
+test("reset draft creation serializes override check and persistence", () => {
   assert.equal(boundary.includes('url.pathname === "/api/integrations/settings/drafts"'), true);
   assert.equal(boundary.includes("resetFieldsFromBody"), true);
   assert.equal(boundary.includes("withSourceMutationLock(sourceEnv, () => runtime.fetch(prepared, sourceEnv, ctx))"), true);

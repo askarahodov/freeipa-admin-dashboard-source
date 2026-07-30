@@ -26,6 +26,7 @@ on:
       - "admin-session-authorization.ts"
       - "tests/portal-schema-inventory.test.mjs"
       - "tests/portal-schema-migrations.test.mjs"
+      - "tests/portal-schema-review-hardening.test.mjs"
       - "tests/portal-schema-boundary.test.mjs"
       - "tests/local-diagnostics-schema.test.mjs"
       - "tests/settings-draft-lifecycle.test.mjs"
@@ -50,7 +51,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run settings and schema contracts
-        run: node --experimental-strip-types --test tests/portal-schema-inventory.test.mjs tests/portal-schema-migrations.test.mjs tests/portal-schema-boundary.test.mjs tests/local-diagnostics-schema.test.mjs tests/settings-draft-lifecycle.test.mjs tests/settings-reset-fallback-refresh.test.mjs tests/settings-source-runtime-safety.test.mjs
+        run: node --experimental-strip-types --test tests/portal-schema-inventory.test.mjs tests/portal-schema-migrations.test.mjs tests/portal-schema-review-hardening.test.mjs tests/portal-schema-boundary.test.mjs tests/local-diagnostics-schema.test.mjs tests/settings-draft-lifecycle.test.mjs tests/settings-reset-fallback-refresh.test.mjs tests/settings-source-runtime-safety.test.mjs
 
       - name: Prepare isolated E2E environment
         run: cp .env.e2e.example .env.e2e

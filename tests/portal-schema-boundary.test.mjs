@@ -13,7 +13,7 @@ test("Vite uses the schema migration boundary as the outer worker entry", () => 
 test("normal fetch and scheduled dispatch require a ready production schema", async () => {
   assert.equal(fs.existsSync(entry), true, "worker/schema-migrations-entry.ts must exist");
   const source = fs.readFileSync(entry, "utf8");
-  assert.equal(source.includes('import rootRuntime from "./service-admin-root-entry"'), true);
+  assert.equal(source.includes('import rootRuntime from "./service-admin-root-entry.ts"'), true);
   assert.equal(source.includes("await ensurePortalSchema(sourceEnv)"), true);
   assert.equal(source.includes('schema.state !== "ready"'), true);
   assert.equal(source.includes("return rootRuntime.fetch(request, sourceEnv, ctx)"), true);
@@ -32,7 +32,7 @@ test("recovery status requires constant-time service token authorization and ret
   assert.equal(source.includes('url.pathname === "/api/schema/status"'), true);
   assert.equal(source.includes("serviceAdminTokenAuthorized(request, sourceEnv.ADMIN_TOKEN)"), true);
   assert.equal(source.includes("publicPortalSchemaStatus(schema)"), true);
-  assert.equal(source.includes('schema_authorization_required'), true);
+  assert.equal(source.includes("schema_authorization_required"), true);
   assert.equal(source.includes('"cache-control": "no-store"'), true);
 
   const module = await import(entry.href);

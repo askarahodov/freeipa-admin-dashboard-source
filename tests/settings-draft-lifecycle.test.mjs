@@ -40,9 +40,11 @@ test("settings lifecycle runs behind revision, local auth, origin, normalizer an
   assert.equal(authorization.includes('"/api/integrations/settings/effective"'), true);
   assert.equal(authorization.includes('pathname.startsWith("/api/integrations/settings/drafts/")'), true);
   assert.equal(localBoundary.includes("sameOriginAdminMutation(request)"), true);
-  assert.equal(localBoundary.includes('headers.set("x-admin-token", internalToken)'), true);
+  assert.equal(localBoundary.includes("localAdminSessionToken(session)"), true);
+  assert.equal(localBoundary.includes("delegatedEnv(sourceEnv, session, internalToken)"), true);
   assert.equal(safeSource.includes('permissions.includes("settings.manage")'), true);
-  assert.equal(safeSource.includes('if (!requiresSourceRuntime(request)) return lifecycleRuntime.fetch'), true);
+  assert.equal(safeSource.includes("isOperationalIntegrationRequest"), true);
+  assert.equal(safeSource.includes("dynamicInheritedEnv"), true);
   assert.equal(sourceContext.includes('typeof ctx?.waitUntil === "function"'), true);
   assert.equal(lifecycle.includes('request.headers.get("oai-authenticated-user-email")'), false);
 });
@@ -120,8 +122,10 @@ test("source mutations are serialized, cleanup-safe and rollback remains tracked
   assert.equal(safeSource.includes("DELETE FROM portal_settings_drafts WHERE id = ? AND status IN ('draft','validated','invalid')"), true);
 });
 
-test("viewer requests bypass source synchronization and admin writes emit compensation audit", () => {
-  assert.equal(safeSource.includes('if (!requiresSourceRuntime(request)) return lifecycleRuntime.fetch'), true);
+test("operational requests dynamically inherit ENV and admin writes emit compensation audit", () => {
+  assert.equal(safeSource.includes("isOperationalIntegrationRequest"), true);
+  assert.equal(safeSource.includes("dynamicInheritedEnv"), true);
+  assert.equal(safeSource.includes("return lifecycleRuntime.fetch(request, operationalEnv, ctx)"), true);
   assert.equal(safeSource.includes('settings.updated.compensated_rollback'), true);
   assert.equal(safeSource.includes('routes.updated.compensated_rollback'), true);
   assert.equal(safeSource.includes("auditCompensation"), true);

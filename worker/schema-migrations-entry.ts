@@ -1,10 +1,12 @@
 import rootRuntime from "./service-admin-root-entry.ts";
 import { serviceAdminTokenAuthorized } from "../admin-session-authorization.ts";
+import { ensurePortalSchema, type PortalSchemaStatus } from "../db/portal-migrations.ts";
 import {
-  ensurePortalSchema,
-  publicPortalSchemaStatus,
-  type PortalSchemaStatus,
-} from "../db/portal-migrations.ts";
+  migrationCapableDatabase,
+  schemaAuthorizationResponse,
+  schemaFailureResponse,
+  schemaStatusResponse,
+} from "./schema-migrations-boundary.ts";
 
 type RuntimeEnv = NonNullable<Parameters<typeof rootRuntime.fetch>[1]> & {
   DB?: D1Database;
@@ -13,29 +15,8 @@ type RuntimeEnv = NonNullable<Parameters<typeof rootRuntime.fetch>[1]> & {
 type RuntimeContext = Parameters<typeof rootRuntime.fetch>[2];
 type ScheduledController = Parameters<NonNullable<typeof rootRuntime.scheduled>>[0];
 
-const jsonHeaders = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
-
-function json(data: unknown, status = 200): Response {
-  return new Response(JSON.stringify(data), { status, headers: jsonHeaders });
-}
-
-export function migrationCapableDatabase(value: unknown): value is D1Database {
-  if (!value || typeof value !== "object") return false;
-  const database = value as { prepare?: unknown; batch?: unknown };
-  return typeof database.prepare === "function" && typeof database.batch === "function";
-}
-
 async function portalSchema(sourceEnv: RuntimeEnv): Promise<PortalSchemaStatus> {
   return await ensurePortalSchema(sourceEnv);
-}
-
-export function schemaFailureResponse(schema: PortalSchemaStatus): Response {
-  const safe = publicPortalSchemaStatus(schema);
-  return json({
-    error: "Portal database schema is not ready",
-    code: safe.errorCode || "schema_migration_failed",
-    schema: safe,
-  }, 503);
 }
 
 const worker = {
@@ -46,11 +27,8 @@ const worker = {
     if (!migrationCapableDatabase(sourceEnv.DB)) return rootRuntime.fetch(request, sourceEnv, ctx);
 
     if (url.pathname === "/api/schema/status") {
-      if (!await serviceAdminTokenAuthorized(request, sourceEnv.ADMIN_TOKEN)) {
-        return json({ error: "Administrator authorization required", code: "schema_authorization_required" }, 401);
-      }
-      const schema = await portalSchema(sourceEnv);
-      return json({ schema: publicPortalSchemaStatus(schema) });
+      if (!await serviceAdminTokenAuthorized(request, sourceEnv.ADMIN_TOKEN)) return schemaAuthorizationResponse();
+      return schemaStatusResponse(await portalSchema(sourceEnv));
     }
 
     const schema = await portalSchema(sourceEnv);
@@ -67,4 +45,5 @@ const worker = {
   },
 };
 
+export { migrationCapableDatabase, schemaFailureResponse } from "./schema-migrations-boundary.ts";
 export default worker;

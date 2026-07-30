@@ -484,7 +484,6 @@ async function adminAuthorized(request: Request, env: Env): Promise<boolean> {
 
 async function readStoredSettings(env: Env): Promise<StoredSettings | null> {
   if (!env.DB) return null;
-  await env.DB.prepare(createSettingsTable).run();
   const row = await env.DB.prepare("SELECT config_json, encrypted_secrets, updated_at FROM app_settings WHERE id = ?").bind("main").first<{ config_json: string; encrypted_secrets: string; updated_at: number }>();
   if (!row) return null;
   const config = JSON.parse(row.config_json) as Partial<StoredConfig>;
@@ -495,7 +494,6 @@ async function readStoredSettings(env: Env): Promise<StoredSettings | null> {
 async function saveStoredSettings(env: Env, settings: StoredSettings): Promise<void> {
   if (!env.DB) throw new Error("Persistent database is unavailable");
   const encryptedSecrets = await encryptSecrets(settings.secrets, env.CONFIG_ENCRYPTION_KEY);
-  await env.DB.prepare(createSettingsTable).run();
   await env.DB.prepare("INSERT INTO app_settings (id, config_json, encrypted_secrets, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET config_json = excluded.config_json, encrypted_secrets = excluded.encrypted_secrets, updated_at = excluded.updated_at").bind("main", JSON.stringify(settings.config), encryptedSecrets, settings.updatedAt).run();
 }
 

@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import path from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 const entry = new URL("../worker/schema-migrations-entry.ts", import.meta.url);
 const helpers = new URL("../worker/schema-migrations-boundary.ts", import.meta.url);
 const vite = fs.readFileSync(new URL("../vite.config.ts", import.meta.url), "utf8");
+const testsDirectory = path.dirname(fileURLToPath(import.meta.url));
 
 test("Vite uses the schema migration boundary as the outer worker entry", () => {
   assert.equal(fs.existsSync(entry), true, "worker/schema-migrations-entry.ts must exist");
@@ -54,4 +57,14 @@ test("recovery status requires constant-time service token authorization and ret
   assert.equal(payload.code, "schema_incompatible_drift");
   assert.equal(JSON.stringify(payload).includes("CREATE TABLE"), false);
   assert.equal(JSON.stringify(payload).includes("checksum"), false);
+});
+
+test("no test still treats service-admin-root as the outer Vite entry", () => {
+  const stale = [];
+  for (const name of fs.readdirSync(testsDirectory).filter((value) => value.endsWith(".test.mjs"))) {
+    if (name === path.basename(fileURLToPath(import.meta.url))) continue;
+    const source = fs.readFileSync(path.join(testsDirectory, name), "utf8");
+    if (/\.includes\(\s*["'][^"']*worker\/service-admin-root-entry\.ts["']\s*\)/.test(source)) stale.push(name);
+  }
+  assert.deepEqual(stale, [], `stale outer worker entry assertions: ${stale.join(", ")}`);
 });

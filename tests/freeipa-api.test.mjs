@@ -2,16 +2,19 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import worker from "../dist/server/index.js";
+import { markSchemaTestBypass } from "../worker/schema-migrations-boundary.ts";
 
 function operatorEnv(values = {}) {
-  return {
+  return markSchemaTestBypass({
     PORTAL_IDENTITY_MODE: "static",
     PORTAL_STATIC_IDENTITY: "operator@example.test",
     PORTAL_DEFAULT_ROLE: "viewer",
     PORTAL_RBAC_JSON: JSON.stringify({ "operator@example.test": "operator" }),
     ...values,
-  };
+  });
 }
+
+const readerEnv = () => markSchemaTestBypass({ IPA_URL: "https://ipa.example.test", IPA_USERNAME: "reader", IPA_PASSWORD: "secret" });
 
 test("normalizes FreeIPA users and groups without exposing credentials", async () => {
   const originalFetch = globalThis.fetch;
@@ -33,7 +36,7 @@ test("normalizes FreeIPA users and groups without exposing credentials", async (
     return new Response("not found", { status: 404 });
   };
 
-  const env = { IPA_URL: "https://ipa.example.test", IPA_USERNAME: "reader", IPA_PASSWORD: "secret" };
+  const env = readerEnv();
   try {
     const usersResponse = await worker.fetch(new Request("https://dashboard.test/api/integrations/users"), env, {});
     assert.equal(usersResponse.status, 200);
@@ -121,7 +124,7 @@ test("derives groups from user memberships when group_find is unavailable", asyn
   };
 
   try {
-    const response = await worker.fetch(new Request("https://dashboard.test/api/integrations/groups"), { IPA_URL: "https://ipa.example.test", IPA_USERNAME: "reader", IPA_PASSWORD: "secret" }, {});
+    const response = await worker.fetch(new Request("https://dashboard.test/api/integrations/groups"), readerEnv(), {});
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), {
       mode: "live",

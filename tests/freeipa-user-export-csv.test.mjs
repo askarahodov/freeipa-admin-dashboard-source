@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import worker from "../dist/server/index.js";
+import { markSchemaTestBypass } from "../worker/schema-migrations-boundary.ts";
 
-const env = {
+const env = markSchemaTestBypass({
   PORTAL_IDENTITY_MODE: "static",
   PORTAL_STATIC_IDENTITY: "operator@example.test",
   PORTAL_DEFAULT_ROLE: "viewer",
@@ -11,7 +12,7 @@ const env = {
   IPA_URL: "https://ipa.example.test",
   IPA_USERNAME: "administrator",
   IPA_PASSWORD: "secret",
-};
+});
 
 test("exports the complete filtered set as formula-safe UTF-8 CSV", async () => {
   const originalFetch = globalThis.fetch;

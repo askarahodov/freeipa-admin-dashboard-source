@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { markSchemaTestBypass } from "../worker/schema-migrations-boundary.ts";
+
 const developmentPreviewMeta =
   /<meta(?=[^>]*\bname=["']codex-preview["'])(?=[^>]*\bcontent=["']development["'])[^>]*>/i;
 
@@ -13,11 +15,11 @@ test("renders development preview metadata", async () => {
     new Request("http://localhost/", {
       headers: { accept: "text/html" },
     }),
-    {
+    markSchemaTestBypass({
       ASSETS: {
         fetch: async () => new Response("Not found", { status: 404 }),
       },
-    },
+    }),
     {
       waitUntil() {},
       passThroughOnException() {},
@@ -36,11 +38,11 @@ test("serves generated automation and portal routes through the application shel
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("routes", `${process.pid}-${Date.now()}`);
   const { default: worker } = await import(workerUrl.href);
-  const env = {
+  const env = markSchemaTestBypass({
     ASSETS: {
       fetch: async () => new Response("Not found", { status: 404 }),
     },
-  };
+  });
   const ctx = { waitUntil() {}, passThroughOnException() {} };
 
   for (const path of ["/automation/databases", "/automation/server-management", "/users", "/groups", "/operations", "/settings", "/diagnostics", "/sessions"]) {

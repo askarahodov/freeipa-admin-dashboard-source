@@ -1,5 +1,6 @@
 import localRuntime from "./settings-revisions-entry";
 import { listLocalUsers, resolveLocalSession, type LocalAuthEnv } from "../local-auth";
+import { inspectPortalSchema, publicPortalSchemaStatus, type PortalSchemaStatus } from "../db/portal-migrations.ts";
 
 type RuntimeEnv = NonNullable<Parameters<typeof localRuntime.fetch>[1]> & LocalAuthEnv & {
   PORTAL_IDENTITY_MODE?: string;
@@ -35,6 +36,10 @@ function json(data: unknown, status = 200): Response {
 
 function localMode(env: RuntimeEnv): boolean {
   return String(env.PORTAL_IDENTITY_MODE ?? "").trim().toLowerCase() === "local";
+}
+
+export function schemaDiagnostics(schema: PortalSchemaStatus) {
+  return publicPortalSchemaStatus(schema);
 }
 
 async function tableCount(env: RuntimeEnv, table: CountableTable): Promise<number | null> {
@@ -74,10 +79,11 @@ async function diagnostics(request: Request, env: RuntimeEnv, ctx: RuntimeContex
   const session = await resolveLocalSession(env, request);
   if (!session) return json({ error: "Требуется повторный вход" }, 401);
   if (session.role !== "admin") return json({ error: "Недостаточно прав для диагностики" }, 403);
-  const [users, sizeBytes, status, ...counts] = await Promise.all([
+  const [users, sizeBytes, integration, schema, ...counts] = await Promise.all([
     listLocalUsers(env),
     databaseSize(env),
     integrationStatus(request, env, ctx),
+    inspectPortalSchema(env),
     ...countableTables.map((table) => tableCount(env, table)),
   ]);
   const tableCounts = Object.fromEntries(countableTables.map((table, index) => [table, counts[index]]));
@@ -95,7 +101,7 @@ async function diagnostics(request: Request, env: RuntimeEnv, ctx: RuntimeContex
       lockedUsers: users.filter((user) => Boolean(user.lockedUntil)).length,
       activeSessions: users.reduce((sum, user) => sum + user.activeSessions, 0),
     },
-    database: { available: true, sizeBytes, tables: tableCounts },
+    database: { available: true, sizeBytes, tables: tableCounts, schema: schemaDiagnostics(schema) },
     configuration: {
       encryptionConfigured: Boolean(env.CONFIG_ENCRYPTION_KEY),
       adminTokenConfigured: Boolean(env.ADMIN_TOKEN),
@@ -103,7 +109,7 @@ async function diagnostics(request: Request, env: RuntimeEnv, ctx: RuntimeContex
       freeipaGatewayConfigured: Boolean(env.IPA_NODE_GATEWAY_URL),
       xyopsConfigured: Boolean(env.XYOPS_URL && env.XYOPS_API_KEY),
     },
-    integrations: status,
+    integrations: integration,
   });
 }
 

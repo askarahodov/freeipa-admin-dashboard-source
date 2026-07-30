@@ -91,6 +91,16 @@ FreeIPA отвечает за доменные учётные записи, гр
 
 Подробный актуальный список незакрытых и отложенных задач ведётся в `docs/OPEN_TASKS.md`.
 
+### P1 — целостность данных и disaster recovery
+
+- [x] Первый этап #57: полный canonical inventory текущих таблиц, named indexes и append-only triggers.
+- [x] Первый этап #57: versioned migration journal с SHA-256 checksum и startup lock.
+- [x] Первый этап #57: безопасный adoption существующей runtime-базы без изменения строк.
+- [x] Первый этап #57: blocking incompatible drift, reporting compatible drift и recovery diagnostics.
+- [x] Первый этап #57: внешний readiness boundary до обычного API и scheduled-задач.
+- [ ] Завершить #57: убрать schema-changing DDL из request handlers и оставить migrations единственным владельцем схемы.
+- [ ] После полного #57 реализовать #37: versioned backup manifest, encrypted backup, preview, selective/full restore и offline recovery.
+
 ### P0 — эксплуатационная проверка
 
 - [ ] Прогнать локальный acceptance-сценарий на реальных тестовых FreeIPA и XYOps.

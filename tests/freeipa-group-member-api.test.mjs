@@ -2,15 +2,16 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import worker from "../dist/server/index.js";
+import { markSchemaTestBypass } from "../worker/schema-migrations-boundary.ts";
 
-const env = {
+const env = markSchemaTestBypass({
   PORTAL_IDENTITY_MODE: "static",
   PORTAL_STATIC_IDENTITY: "viewer@example.test",
   PORTAL_DEFAULT_ROLE: "viewer",
   IPA_URL: "https://ipa.example.test",
   IPA_USERNAME: "reader",
   IPA_PASSWORD: "secret",
-};
+});
 
 function rpcPayload(init) {
   return JSON.parse(String(init.body));

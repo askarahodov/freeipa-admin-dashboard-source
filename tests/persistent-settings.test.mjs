@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import worker from "../dist/server/index.js";
+import { markSchemaTestBypass } from "../worker/schema-migrations-boundary.ts";
 
 class MemoryD1 {
   row = null;
@@ -69,13 +70,13 @@ class MemoryD1 {
 }
 
 function adminEnv(values = {}) {
-  return {
+  return markSchemaTestBypass({
     PORTAL_IDENTITY_MODE: "static",
     PORTAL_STATIC_IDENTITY: "admin@example.test",
     PORTAL_DEFAULT_ROLE: "viewer",
     PORTAL_RBAC_JSON: JSON.stringify({ "admin@example.test": "admin" }),
     ...values,
-  };
+  });
 }
 
 const adminHeaders = { "content-type": "application/json", "x-admin-token": "admin-token" };
@@ -122,11 +123,11 @@ test("settings require admin auth, encrypt secrets and persist source metadata",
 });
 
 test("explicit demo mode is required for demo catalog", async () => {
-  const unconfigured = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog"), {}, {});
+  const unconfigured = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog"), markSchemaTestBypass({}), {});
   assert.equal(unconfigured.status, 200);
   assert.deepEqual(await unconfigured.json().then((body) => ({ mode: body.mode, count: body.events.length })), { mode: "unconfigured", count: 0 });
 
-  const demo = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog"), { DEMO_MODE: "true" }, {});
+  const demo = await worker.fetch(new Request("https://dashboard.test/api/integrations/catalog"), markSchemaTestBypass({ DEMO_MODE: "true" }), {});
   assert.equal(demo.status, 200);
   const demoBody = await demo.json();
   assert.equal(demoBody.mode, "demo");
@@ -185,13 +186,13 @@ test("integration status probes FreeIPA through the Docker Node Gateway", async 
     return Response.json({ result: [{ uid: ["alice"] }] });
   };
   try {
-    const response = await worker.fetch(new Request("https://dashboard.test/api/integrations/status"), {
+    const response = await worker.fetch(new Request("https://dashboard.test/api/integrations/status"), markSchemaTestBypass({
       IPA_URL: "https://ipa.example.test",
       IPA_USERNAME: "reader",
       IPA_PASSWORD: "secret",
       IPA_NODE_GATEWAY_URL: "http://127.0.0.1:3301",
       IPA_NODE_GATEWAY_TOKEN: "gateway-token",
-    }, {});
+    }), {});
     assert.equal(response.status, 200);
     const body = await response.json();
     assert.deepEqual(body.freeipa, { configured: true, reachable: true, error: null });

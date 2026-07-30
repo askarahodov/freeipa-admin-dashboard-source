@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import worker from "../dist/server/index.js";
+import { markSchemaTestBypass } from "../worker/schema-migrations-boundary.ts";
 
 const assignments = JSON.stringify({
   "viewer@example.test": "viewer",
@@ -9,12 +10,13 @@ const assignments = JSON.stringify({
   "admin@example.test": "admin",
 });
 
-const workspaceEnv = {
+const schemaEnv = (values) => markSchemaTestBypass(values);
+const workspaceEnv = schemaEnv({
   DEMO_MODE: "true",
   PORTAL_IDENTITY_MODE: "workspace",
   PORTAL_DEFAULT_ROLE: "viewer",
   PORTAL_RBAC_JSON: assignments,
-};
+});
 
 function request(path, email, init = {}) {
   const headers = new Headers(init.headers);
@@ -69,11 +71,11 @@ test("operator can manage FreeIPA but destructive deletes require admin", async 
 });
 
 test("anonymous requests are viewer even when legacy defaults grant admin", async () => {
-  const response = await worker.fetch(new Request("https://dashboard.test/api/integrations/status"), {
+  const response = await worker.fetch(new Request("https://dashboard.test/api/integrations/status"), schemaEnv({
     DEMO_MODE: "true",
     PORTAL_DEFAULT_ROLE: "admin",
     PORTAL_RBAC_JSON: JSON.stringify({ "*": "admin", "portal-user": "admin" }),
-  }, {});
+  }), {});
   assert.equal(response.status, 200);
   const body = await response.json();
   assert.equal(body.access.identity, "portal-user");
@@ -82,13 +84,13 @@ test("anonymous requests are viewer even when legacy defaults grant admin", asyn
 });
 
 test("proxy mode ignores forged workspace identity and requires its shared secret", async () => {
-  const env = {
+  const env = schemaEnv({
     DEMO_MODE: "true",
     PORTAL_IDENTITY_MODE: "proxy",
     PORTAL_DEFAULT_ROLE: "viewer",
     PORTAL_RBAC_JSON: assignments,
     PORTAL_PROXY_SHARED_SECRET: "proxy-secret",
-  };
+  });
   const trusted = await worker.fetch(request("/api/integrations/status", "admin@example.test", {
     headers: {
       "x-auth-request-email": "operator@example.test",
@@ -111,13 +113,13 @@ test("proxy mode ignores forged workspace identity and requires its shared secre
 });
 
 test("static mode supports an explicit identity for isolated local development", async () => {
-  const response = await worker.fetch(new Request("https://dashboard.test/api/integrations/status"), {
+  const response = await worker.fetch(new Request("https://dashboard.test/api/integrations/status"), schemaEnv({
     DEMO_MODE: "true",
     PORTAL_IDENTITY_MODE: "static",
     PORTAL_STATIC_IDENTITY: "admin@example.test",
     PORTAL_DEFAULT_ROLE: "viewer",
     PORTAL_RBAC_JSON: assignments,
-  }, {});
+  }), {});
   assert.equal(response.status, 200);
   const body = await response.json();
   assert.equal(body.access.identity, "admin@example.test");

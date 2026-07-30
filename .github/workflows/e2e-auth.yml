@@ -8,6 +8,12 @@ on:
       - "app/SettingsLifecycleWizard.tsx"
       - "app/settings-source-resets.css"
       - "app/layout.tsx"
+      - "db/portal-schema.ts"
+      - "db/portal-migration-v1.ts"
+      - "db/portal-migrations.ts"
+      - "worker/schema-migrations-entry.ts"
+      - "worker/schema-migrations-boundary.ts"
+      - "worker/diagnostics-entry.ts"
       - "worker/local-auth.ts"
       - "worker/local-secure-entry.ts"
       - "worker/settings-lifecycle-entry.ts"
@@ -18,6 +24,11 @@ on:
       - "worker/settings-input-normalizer-entry.ts"
       - "worker/settings-input-normalizer.ts"
       - "admin-session-authorization.ts"
+      - "tests/portal-schema-inventory.test.mjs"
+      - "tests/portal-schema-migrations.test.mjs"
+      - "tests/portal-schema-review-hardening.test.mjs"
+      - "tests/portal-schema-boundary.test.mjs"
+      - "tests/local-diagnostics-schema.test.mjs"
       - "tests/settings-draft-lifecycle.test.mjs"
       - "tests/settings-reset-fallback-refresh.test.mjs"
       - "tests/settings-source-runtime-safety.test.mjs"
@@ -39,8 +50,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run settings lifecycle contracts
-        run: node --experimental-strip-types --test tests/settings-draft-lifecycle.test.mjs tests/settings-reset-fallback-refresh.test.mjs tests/settings-source-runtime-safety.test.mjs
+      - name: Run settings and schema contracts
+        run: node --experimental-strip-types --test tests/portal-schema-inventory.test.mjs tests/portal-schema-migrations.test.mjs tests/portal-schema-review-hardening.test.mjs tests/portal-schema-boundary.test.mjs tests/local-diagnostics-schema.test.mjs tests/settings-draft-lifecycle.test.mjs tests/settings-reset-fallback-refresh.test.mjs tests/settings-source-runtime-safety.test.mjs
 
       - name: Prepare isolated E2E environment
         run: cp .env.e2e.example .env.e2e

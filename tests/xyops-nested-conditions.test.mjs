@@ -2,9 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import worker from "../dist/server/index.js";
+import { markSchemaTestBypass } from "../worker/schema-migrations-boundary.ts";
 
 function operatorEnv(values = {}) {
-  return {
+  return markSchemaTestBypass({
     PORTAL_IDENTITY_MODE: "static",
     PORTAL_STATIC_IDENTITY: "operator@example.test",
     PORTAL_DEFAULT_ROLE: "viewer",
@@ -12,7 +13,7 @@ function operatorEnv(values = {}) {
     XYOPS_URL: "https://xyops.example.test",
     XYOPS_API_KEY: "api-secret",
     ...values,
-  };
+  });
 }
 
 const nestedCondition = {

@@ -61,6 +61,8 @@ docker compose down
 
 Данные сохраняются в именованном томе `dashboard-data`.
 
+При запуске Worker сначала проверяет canonical schema локальной D1/SQLite-базы, применяет только additive migrations и сверяет migration journal. Обычный API и scheduled-задачи не запускаются, пока база не перейдёт в состояние `ready`. Подробности: [docs/DATABASE_MIGRATIONS.md](docs/DATABASE_MIGRATIONS.md).
+
 ## Локальная аутентификация
 
 Основной режим:
@@ -116,6 +118,7 @@ PORTAL_DEFAULT_ROLE=viewer
 - **Backend:** Worker API в `worker/`;
 - **Локальный runtime:** Wrangler/Workerd внутри контейнера;
 - **Хранилище:** локальная D1/SQLite-совместимая база в Docker volume;
+- **Migration boundary:** canonical schema, migration journal, startup lock и drift detection до запуска обычного API;
 - **FreeIPA Gateway:** приватный Node.js-процесс `scripts/freeipa-gateway.mjs`;
 - **Интеграция XYOps:** серверный API-клиент, ключи не передаются браузеру.
 
@@ -133,6 +136,10 @@ FreeIPA Gateway запускается автоматически вместе �
 | `xyops_catalog_history` | ограниченная история изменений каталога |
 | `process_presentation_sets` | названия, категории, значки, порядок и локализация |
 | `portal_audit_events` | append-only аудит административных действий |
+| `portal_schema_migrations` | versioned migration journal с checksum и временем применения |
+| `portal_schema_lock` | сериализация concurrent startup migrations |
+
+Полный canonical inventory находится в `db/portal-schema.ts`.
 
 ## Основные API
 
@@ -180,6 +187,15 @@ PUT  /api/integrations/settings
 POST /api/integrations/settings/test
 ```
 
+### Recovery-диагностика схемы
+
+```text
+GET /api/schema/status
+x-admin-token: <ADMIN_TOKEN>
+```
+
+Endpoint доступен даже при заблокированном обычном API, но только с корректным service-admin token. Он возвращает безопасные version/drift/error metadata без SQL, credentials, encrypted values и exception bodies.
+
 Часть критичных endpoint дополнительно использует `ADMIN_TOKEN`. Он остаётся серверным секретом и не заменяет пользовательскую RBAC-проверку.
 
 ## Локальная разработка
@@ -226,6 +242,7 @@ artifacts/local-integration/compose.log
 
 - [Локальная аутентификация и RBAC](docs/LOCAL_AUTH_RBAC.md)
 - [Локальные acceptance-тесты](docs/LOCAL_ACCEPTANCE_TESTS.md)
+- [Canonical schema и migration lifecycle](docs/DATABASE_MIGRATIONS.md)
 - [Дорожная карта](docs/PRODUCT_ROADMAP.md)
 - [Контракт XYOps](docs/XYOPS_EXECUTION_OWNERSHIP.md)
 - [Инспектор XYOps](docs/XYOPS_INSPECTOR.md)
@@ -234,6 +251,8 @@ artifacts/local-integration/compose.log
 
 ## Резервное копирование
 
-Для резервного копирования остановите контейнер и сохраните содержимое volume `dashboard-data`. В резервную копию входят локальные пользователи, роли, сессии, настройки, история операций, approvals, метаданные и аудит.
+До появления управляемого backup/restore workflow остановите контейнер и сохраните содержимое volume `dashboard-data`. В резервную копию входят локальные пользователи, роли, сессии, настройки, история операций, approvals, метаданные, migration journal и аудит.
 
 Пароли FreeIPA, ключ XYOps и другие секреты внутри базы зашифрованы ключом `CONFIG_ENCRYPTION_KEY`. Этот ключ необходимо хранить отдельно от резервной копии базы.
+
+Canonical migration lifecycle является обязательной технической основой для управляемого backup/restore из задачи #37. Полный restore, compatibility preview и selective recovery не следует считать реализованными до завершения #57 и #37.

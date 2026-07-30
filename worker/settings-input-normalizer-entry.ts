@@ -1,4 +1,4 @@
-import runtime, { authorizeSettingsMutation } from "./settings-source-safe-entry";
+import runtime, { authorizeSettingsMutation } from "./settings-source-context-entry";
 import { normalizeSettingsRequestBody } from "./settings-input-normalizer";
 
 type RuntimeEnv = NonNullable<Parameters<typeof runtime.fetch>[1]> & {
@@ -14,12 +14,7 @@ type RuntimeEnv = NonNullable<Parameters<typeof runtime.fetch>[1]> & {
 type RuntimeContext = Parameters<typeof runtime.fetch>[2];
 type ScheduledController = Parameters<NonNullable<typeof runtime.scheduled>>[0];
 type SettingField = "demoMode" | "ipaUrl" | "ipaUsername" | "ipaPassword" | "xyopsUrl" | "xyopsApiKey";
-type DraftRow = {
-  changes_json: string;
-  encrypted_secrets: string;
-  status: string;
-  updated_at: number;
-};
+type DraftRow = { changes_json: string; encrypted_secrets: string; status: string; updated_at: number };
 
 const settingFields: SettingField[] = ["demoMode", "ipaUrl", "ipaUsername", "ipaPassword", "xyopsUrl", "xyopsApiKey"];
 const jsonHeaders = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
@@ -211,7 +206,6 @@ const worker = {
     }
     return runtime.fetch(prepared, sourceEnv, ctx);
   },
-
   async scheduled(controller: ScheduledController, env: RuntimeEnv | undefined, ctx: RuntimeContext): Promise<void> {
     return runtime.scheduled?.(controller, env, ctx);
   },

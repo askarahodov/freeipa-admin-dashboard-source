@@ -46,7 +46,7 @@ function tableBody(sql) {
 function uniqueColumns(sql) {
   const output = [];
   for (const clause of splitSqlList(tableBody(sql))) {
-    const tableConstraint = clause.match(/^(?:CONSTRAINT\s+\S+\s+)?UNIQUE\s*\((.+)\)$/i);
+    const tableConstraint = clause.match(/^(?:CONSTRAINT\s+\S+\s+)?UNIQUE\s*\((.+)\)/i);
     if (tableConstraint) {
       output.push(splitSqlList(tableConstraint[1]).map((column) => column.trim().replace(/^["`\[]|["`\]]$/g, "").split(/\s+/)[0]));
       continue;
@@ -126,7 +126,9 @@ class ReviewSafetyD1 {
     const statement = {
       bind: (...args) => { values = args; return statement; },
       run: async () => {
-        if (/^CREATE TABLE IF NOT EXISTS (portal_schema_migrations|portal_schema_lock)/i.test(normalized)) return result(0);
+        if (/^CREATE TABLE IF NOT EXISTS /i.test(normalized)) return result(0);
+        if (/^CREATE INDEX IF NOT EXISTS /i.test(normalized)) return result(0);
+        if (/^CREATE TRIGGER IF NOT EXISTS /i.test(normalized)) return result(0);
         if (normalized.startsWith("DELETE FROM portal_schema_lock WHERE id = ? AND acquired_at < ?")) {
           if (this.lock?.id === values[0] && this.lock.acquired_at < values[1]) this.lock = null;
           return result(0);
@@ -145,6 +147,16 @@ class ReviewSafetyD1 {
         }
         if (normalized.startsWith("DELETE FROM portal_schema_lock WHERE id = ? AND owner = ?")) {
           if (this.lock?.id === values[0] && this.lock.owner === values[1]) this.lock = null;
+          return result(1);
+        }
+        if (normalized.startsWith("INSERT INTO portal_schema_migrations")) {
+          this.migrations.set(Number(values[0]), {
+            version: Number(values[0]),
+            name: String(values[1]),
+            checksum: String(values[2]),
+            applied_at: Number(values[3]),
+            execution_ms: Number(values[4]),
+          });
           return result(1);
         }
         throw new Error(`Unsupported run SQL: ${normalized}`);
@@ -166,7 +178,7 @@ class ReviewSafetyD1 {
         if (indexList) {
           return {
             results: [...this.indexes.values()]
-              .filter((index) => index.table === indexList[1])
+              .filter((index) => index.table.toLowerCase() === indexList[1].toLowerCase())
               .map((index, seq) => ({ seq, name: index.name, unique: index.unique, origin: index.unique ? "u" : "c", partial: index.partial })),
           };
         }
@@ -237,6 +249,21 @@ test("rejects extra triggers attached to canonical tables", async () => {
   assert.ok(status.incompatibleDrift.includes("trigger:plugin_block_users:unexpected_on_canonical_table"));
 });
 
+test("rejects extra triggers when SQLite preserves different table-name casing", async () => {
+  const db = new ReviewSafetyD1();
+  await seedBaseline(db);
+  db.triggers.set("plugin_block_users_upper", {
+    name: "plugin_block_users_upper",
+    table: "PORTAL_USERS",
+    sql: "CREATE TRIGGER plugin_block_users_upper BEFORE INSERT ON PORTAL_USERS BEGIN SELECT RAISE(ABORT, 'blocked'); END",
+  });
+
+  const status = await inspectPortalSchema({ DB: db });
+
+  assert.equal(status.state, "incompatible");
+  assert.ok(status.incompatibleDrift.includes("trigger:plugin_block_users_upper:unexpected_on_canonical_table"));
+});
+
 test("rejects added CHECK or foreign-key constraints on canonical tables", async () => {
   const checkDb = new ReviewSafetyD1();
   await seedBaseline(checkDb);
@@ -256,4 +283,67 @@ test("rejects added CHECK or foreign-key constraints on canonical tables", async
   const foreignKeyStatus = await inspectPortalSchema({ DB: foreignKeyDb });
   assert.equal(foreignKeyStatus.state, "incompatible");
   assert.ok(foreignKeyStatus.incompatibleDrift.includes("table:portal_sessions:restrictive_constraints"));
+});
+
+test("rejects expanded composite primary keys on canonical tables", async () => {
+  const db = new ReviewSafetyD1();
+  await seedBaseline(db);
+  db.tables.get("app_settings").push({ cid: 99, name: "tenant_id", type: "TEXT", notnull: 0, dflt_value: null, pk: 2 });
+
+  const status = await inspectPortalSchema({ DB: db });
+
+  assert.equal(status.state, "incompatible");
+  assert.ok(status.incompatibleDrift.includes("primary_key:app_settings:definition"));
+});
+
+test("rejects extra unique indexes on canonical tables", async () => {
+  const db = new ReviewSafetyD1();
+  await seedBaseline(db);
+  db.indexes.set("plugin_unique_actor", {
+    name: "plugin_unique_actor",
+    table: "portal_audit_events",
+    unique: 1,
+    partial: 0,
+    columns: [{ name: "actor_identity", desc: false }],
+    sql: "CREATE UNIQUE INDEX plugin_unique_actor ON portal_audit_events(actor_identity)",
+  });
+
+  const status = await inspectPortalSchema({ DB: db });
+
+  assert.equal(status.state, "incompatible");
+  assert.ok(status.incompatibleDrift.includes("index:plugin_unique_actor:unexpected_unique_on_canonical_table"));
+});
+
+test("rejects NOT NULL extra columns whose SQL default evaluates to NULL", async () => {
+  const db = new ReviewSafetyD1();
+  await seedBaseline(db);
+  db.tables.get("portal_users").push({ cid: 99, name: "tenant_id", type: "TEXT", notnull: 1, dflt_value: "(NULL)", pk: 0 });
+
+  const status = await inspectPortalSchema({ DB: db });
+
+  assert.equal(status.state, "incompatible");
+  assert.ok(status.incompatibleDrift.includes("column:portal_users.tenant_id:required_extra"));
+});
+
+test("rejects changed conflict policies on required unique constraints", async () => {
+  const db = new ReviewSafetyD1();
+  await seedBaseline(db);
+  const usersSql = db.tableSql.get("portal_users");
+  db.tableSql.set("portal_users", usersSql.replace("username TEXT NOT NULL UNIQUE", "username TEXT NOT NULL UNIQUE ON CONFLICT REPLACE"));
+
+  const status = await inspectPortalSchema({ DB: db });
+
+  assert.equal(status.state, "incompatible");
+  assert.ok(status.incompatibleDrift.includes("unique:portal_users.username:conflict_policy"));
+});
+
+test("does not journal baseline adoption before validating secondary definitions", async () => {
+  const db = new ReviewSafetyD1();
+  db.indexes.get("portal_sessions_user_idx").columns = [{ name: "expires_at", desc: false }];
+
+  const status = await ensurePortalSchemaWithRegistry({ DB: db }, portalMigrations, { maxLockAttempts: 1 });
+
+  assert.equal(status.state, "incompatible");
+  assert.ok(status.incompatibleDrift.includes("index:portal_sessions_user_idx:definition"));
+  assert.equal(db.migrations.has(1), false, "baseline journal must remain pending until secondary objects verify");
 });

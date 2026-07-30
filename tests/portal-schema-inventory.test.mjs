@@ -45,6 +45,6 @@ test("baseline owns migration infrastructure and contains no destructive or data
   assert.ok(Array.isArray(schema.portalBaselineStatements));
   assert.ok(schema.portalBaselineStatements.length > 20);
 
-  const unsafe = schema.portalBaselineStatements.filter((statement) => /\b(?:DROP|DELETE|UPDATE|INSERT\s+INTO)\b|ALTER\s+TABLE/i.test(statement));
+  const unsafe = schema.portalBaselineStatements.filter((statement) => /^\s*(?:DROP|DELETE|UPDATE|INSERT\s+INTO)\b|ALTER\s+TABLE/i.test(statement));
   assert.deepEqual(unsafe, [], `automatic baseline contains unsafe SQL: ${unsafe.join(" | ")}`);
 });

@@ -2,12 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { PORTAL_BACKUP_DOMAINS } from "../backup-manifest.ts";
-import {
-  FULL_BACKUP_EXPORTERS,
-  FULL_BACKUP_TABLES,
-  FullBackupValidationError,
-  validateFullBackupDomainPayload,
-} from "../backup-full-domains.ts";
+import { FULL_BACKUP_EXPORTERS, FULL_BACKUP_TABLES, FullBackupValidationError, validateFullBackupDomainPayload } from "../backup-full-domains.ts";
 
 const expectedTables = {
   settings: ["app_settings", "portal_settings_drafts", "portal_settings_apply_commits", "portal_settings_revisions", "portal_settings_draft_resets"],
@@ -19,7 +14,6 @@ const expectedTables = {
   approvals: ["operation_approvals", "operation_approval_decisions"],
   audit: ["portal_audit_events"],
 };
-
 const descriptor = (name) => FULL_BACKUP_TABLES.flatMap(([, tables]) => tables).find((table) => table.name === name);
 
 test("full backup registry is canonical exhaustive and read only", () => {
@@ -49,48 +43,36 @@ test("full registry includes encrypted recovery material but no external encrypt
   assert.equal(descriptor("portal_settings_revisions").columns.includes("encrypted_secrets"), true);
   assert.equal(descriptor("operation_run_replays").columns.includes("encrypted_spec"), true);
   assert.equal(descriptor("operation_approvals").columns.includes("encrypted_spec"), true);
-
   const source = fs.readFileSync(new URL("../backup-full-domains.ts", import.meta.url), "utf8");
   assert.doesNotMatch(source, /CONFIG_ENCRYPTION_KEY|backup_password|backup_key|ipa_password|xyops_api_key/i);
 });
 
-test("validates exact table bundles and rejects duplicate primary keys", () => {
+test("validates exact table bundles and rejects ambiguous primary keys", () => {
   const table = descriptor("app_settings");
   const valid = {
     domain: "settings",
     schemaVersion: 1,
-    tables: FULL_BACKUP_TABLES.find(([domain]) => domain === "settings")[1].map((item) => ({
-      name: item.name,
-      columns: [...item.columns],
-      primaryKey: [...item.primaryKey],
-      rows: item.name === "app_settings" ? [["main", "{}", "encrypted", 1]] : [],
-    })),
+    tables: FULL_BACKUP_TABLES.find(([domain]) => domain === "settings")[1].map((item) => ({ name: item.name, columns: [...item.columns], primaryKey: [...item.primaryKey], rows: item.name === "app_settings" ? [["main", "{}", "encrypted", 1]] : [] })),
   };
   assert.deepEqual(validateFullBackupDomainPayload("settings", valid), valid);
+  const unknown = structuredClone(valid);
+  unknown.extra = true;
+  assert.throws(() => validateFullBackupDomainPayload("settings", unknown), FullBackupValidationError);
+  const nullKey = structuredClone(valid);
+  nullKey.tables[0].rows[0][0] = null;
+  assert.throws(() => validateFullBackupDomainPayload("settings", nullKey), FullBackupValidationError);
   const duplicate = structuredClone(valid);
   duplicate.tables.find((item) => item.name === table.name).rows.push(["main", "{}", "other", 2]);
-  assert.throws(
-    () => validateFullBackupDomainPayload("settings", duplicate),
-    (error) => error instanceof FullBackupValidationError && error.code === "backup_full_payload_invalid",
-  );
+  assert.throws(() => validateFullBackupDomainPayload("settings", duplicate), (error) => error instanceof FullBackupValidationError && error.code === "backup_full_payload_invalid");
 });
 
 test("exports positional rows in declared order", async () => {
   const seen = [];
-  const env = {
-    DB: {
-      prepare(sql) {
-        seen.push(sql);
-        return { async all() {
-          if (sql.includes("FROM portal_users")) {
-            return { results: [{ id: "u1", username: "admin", display_name: "Admin", password_hash: "h", password_salt: "s", password_iterations: 210000, role: "admin", disabled: 0, failed_attempts: 0, locked_until: null, created_at: 1, updated_at: 2, last_login_at: null }] };
-          }
-          if (sql.includes("FROM portal_sessions")) return { results: [] };
-          return { results: [] };
-        } };
-      },
-    },
-  };
+  const env = { DB: { prepare(sql) { seen.push(sql); return { async all() {
+    if (sql.includes("FROM portal_users")) return { results: [{ id: "u1", username: "admin", display_name: "Admin", password_hash: "h", password_salt: "s", password_iterations: 210000, role: "admin", disabled: 0, failed_attempts: 0, locked_until: null, created_at: 1, updated_at: 2, last_login_at: null }] };
+    if (sql.includes("FROM portal_sessions")) return { results: [] };
+    return { results: [] };
+  } }; } } };
   const result = await FULL_BACKUP_EXPORTERS.get("local-auth").export(env, 1);
   assert.equal(result.records, 1);
   assert.deepEqual(result.payload.tables[0].rows[0], ["u1", "admin", "Admin", "h", "s", 210000, "admin", 0, 0, null, 1, 2, null]);

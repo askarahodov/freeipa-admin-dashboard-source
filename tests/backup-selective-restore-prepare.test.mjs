@@ -8,6 +8,7 @@ import {
 
 const sourceDocument = { manifest: { format: "source" } };
 const recoveryDocument = { manifest: { format: "recovery" } };
+const sourcePayload = { domain: "policies", schemaVersion: 1, tables: [] };
 const input = {
   operation: "restore",
   document: sourceDocument,
@@ -49,6 +50,21 @@ function dependencies(overrides = {}) {
         assert.equal(receivedSchema, schema);
         return isolated;
       },
+      async decryptSource(document, password, domains) {
+        calls.push("decrypt-source");
+        assert.equal(document, sourceDocument);
+        assert.equal(password, input.password);
+        assert.deepEqual(domains, ["policies"]);
+        return {
+          selectedDomains: ["policies"],
+          fullPayloads: new Map([["policies", sourcePayload]]),
+        };
+      },
+      validateCandidate(policy, payloads) {
+        calls.push("validate-candidate");
+        assert.deepEqual(policy.selectedDomains, ["policies"]);
+        assert.equal(payloads.get("policies"), sourcePayload);
+      },
       async createRecovery(env, password, policy) {
         calls.push("recovery-create");
         assert.equal(password, input.recoveryPassword);
@@ -60,7 +76,13 @@ function dependencies(overrides = {}) {
         assert.equal(document, recoveryDocument);
         assert.equal(password, input.recoveryPassword);
         assert.deepEqual(policy.physicalDomains, ["policies"]);
-        return { verified: true, bindingHash: recovery.bindingHash, physicalDomains: ["policies"], summary: recovery.summary };
+        return {
+          verified: true,
+          bindingHash: recovery.bindingHash,
+          physicalDomains: ["policies"],
+          summary: recovery.summary,
+          currentFullPayloads: new Map([["policies", sourcePayload]]),
+        };
       },
       createSecret() {
         calls.push("secret");
@@ -95,7 +117,7 @@ function dependencies(overrides = {}) {
   };
 }
 
-test("prepares only after isolated restore and recovery verification", async () => {
+test("prepares only after candidate validation and recovery verification", async () => {
   const deps = dependencies();
   const result = await prepareSelectiveProductionRestore(
     { DB: {} },
@@ -106,7 +128,15 @@ test("prepares only after isolated restore and recovery verification", async () 
     new Map(),
     deps.value,
   );
-  assert.deepEqual(deps.calls, ["test", "recovery-create", "recovery-verify", "secret", "stage-create"]);
+  assert.deepEqual(deps.calls, [
+    "test",
+    "decrypt-source",
+    "validate-candidate",
+    "recovery-create",
+    "recovery-verify",
+    "secret",
+    "stage-create",
+  ]);
   assert.equal(result.prepared, true);
   assert.equal(result.productionMutated, false);
   assert.equal(result.stage.id, "restore_11111111-1111-4111-8111-111111111111");
@@ -136,6 +166,24 @@ test("does not create recovery or stage when isolated verification cannot commit
       && error.code === "backup_restore_commit_failed",
   );
   assert.deepEqual(deps.calls, ["test"]);
+});
+
+test("rejects an invalid active-admin candidate before recovery creation", async () => {
+  const deps = dependencies({
+    validateCandidate() {
+      deps.calls.push("validate-candidate");
+      throw Object.assign(new Error("secret row detail"), { code: "backup_restore_admin_required" });
+    },
+  });
+  await assert.rejects(
+    () => prepareSelectiveProductionRestore(
+      { DB: {} }, input, schema, "admin", new Map(), new Map(), deps.value,
+    ),
+    (error) => error instanceof BackupSelectiveRestorePrepareError
+      && error.code === "backup_restore_admin_required"
+      && !error.message.includes("secret row"),
+  );
+  assert.deepEqual(deps.calls, ["test", "decrypt-source", "validate-candidate"]);
 });
 
 test("does not persist a stage when recovery creation or verification fails", async () => {

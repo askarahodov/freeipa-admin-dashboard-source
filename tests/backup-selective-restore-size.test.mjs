@@ -154,7 +154,7 @@ test("commit normalizes an oversized D1 plan to a safe 422 before batch", async 
 
   await assert.rejects(
     () => commitSelectiveProductionRestore(
-      { DB }, input, schema, "admin", new Map(), new Map(), dependencies,
+      { DB: db }, input, schema, "admin", new Map(), new Map(), dependencies,
     ),
     (error) => error instanceof BackupSelectiveRestoreCommitError
       && error.code === "backup_restore_commit_too_large"

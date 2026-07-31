@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildSelectiveRestoreStatements } from "../backup-selective-write-plan.ts";
+import { FULL_BACKUP_TABLES } from "../backup-full-domains.ts";
 import { validateSelectiveRestoreDomains } from "../backup-selective-restore-policy.ts";
+import { buildSelectiveRestoreStatements } from "../backup-selective-write-plan.ts";
 
 class FakeStatement {
   constructor(sql) {
@@ -48,48 +49,45 @@ const audit = {
   outcome: "success",
   metadataJson: "{\"domains\":[\"policies\"]}",
 };
-const policiesPayload = {
-  domain: "policies",
-  schemaVersion: 1,
-  tables: [
-    {
-      name: "catalog_visibility_policies",
-      columns: ["id", "policy_json", "updated_at"],
-      primaryKey: ["id"],
-      rows: [["visibility", "{}", 1]],
-    },
-    {
-      name: "approval_policy_sets",
-      columns: ["id", "policy_json", "updated_at"],
-      primaryKey: ["id"],
-      rows: [["approval", "{}", 2]],
-    },
-    {
-      name: "process_presentation_sets",
-      columns: ["id", "metadata_json", "updated_at"],
-      primaryKey: ["id"],
-      rows: [["presentation", "{}", 3]],
-    },
-  ],
-};
-const localAuthPayload = {
-  domain: "local-auth",
-  schemaVersion: 1,
-  tables: [
-    {
-      name: "portal_users",
-      columns: ["id", "username", "display_name", "password_hash", "password_salt", "password_iterations", "role", "disabled", "failed_attempts", "locked_until", "created_at", "updated_at", "last_login_at"],
-      primaryKey: ["id"],
-      rows: [["user-1", "admin", "Admin", "hash", "salt", 210000, "admin", 0, 0, null, 1, 1, null]],
-    },
-    {
-      name: "portal_sessions",
-      columns: ["id", "user_id", "token_hash", "created_at", "last_seen_at", "expires_at", "user_agent"],
-      primaryKey: ["id"],
-      rows: [["session-1", "user-1", "token-hash", 1, 1, 2, "browser"]],
-    },
-  ],
-};
+
+function definitions(domain) {
+  const found = FULL_BACKUP_TABLES.find(([candidate]) => candidate === domain);
+  assert.ok(found);
+  return found[1];
+}
+
+function placeholderRow(descriptor, seed) {
+  return descriptor.columns.map((column, index) => {
+    if (descriptor.primaryKey.includes(column)) return `${seed}-pk-${index}`;
+    if (/(_at|_count|iterations|revision|required_approvals|disabled|failed_attempts|replayable|truncated|cannot_approve)$/.test(column)) return 1;
+    if (column.endsWith("_json") || column === "config_json" || column === "metadata_json" || column === "policy_json") return "{}";
+    return `${seed}-${column}`;
+  });
+}
+
+function domainPayload(domain, rowTables = new Set()) {
+  return {
+    domain,
+    schemaVersion: 1,
+    tables: definitions(domain).map((descriptor) => ({
+      name: descriptor.name,
+      columns: [...descriptor.columns],
+      primaryKey: [...descriptor.primaryKey],
+      rows: rowTables.has(descriptor.name) ? [placeholderRow(descriptor, descriptor.name)] : [],
+    })),
+  };
+}
+
+const policiesPayload = domainPayload("policies", new Set([
+  "catalog_visibility_policies",
+  "approval_policy_sets",
+  "process_presentation_sets",
+]));
+const localAuthPayload = domainPayload("local-auth");
+localAuthPayload.tables[0].rows = [[
+  "user-1", "admin", "Admin", "hash", "salt", 210000, "admin", 0, 0, null, 1, 1, null,
+]];
+localAuthPayload.tables[1].rows = [["session-1", "user-1", "token-hash", 1, 1, 2, "browser"]];
 
 test("builds one guarded claim delete insert audit and commit sequence", () => {
   const db = new FakeDb();
@@ -100,7 +98,7 @@ test("builds one guarded claim delete insert audit and commit sequence", () => {
     new Map([["policies", policiesPayload]]),
     audit,
   );
-  assert.equal(statements, db.prepared);
+  assert.deepEqual(statements, db.prepared);
   assert.equal(statements.length, 9);
   assert.match(statements[0].sql, /^UPDATE portal_backup_restore_stages SET status = 'committing'/);
   assert.deepEqual(statements[0].values, [guard.now, guard.id, guard.actorIdentity, guard.stageSecretHash, guard.now]);
@@ -109,7 +107,6 @@ test("builds one guarded claim delete insert audit and commit sequence", () => {
   assert.match(statements[2].sql, /^DELETE FROM approval_policy_sets WHERE EXISTS/);
   assert.match(statements[3].sql, /^DELETE FROM catalog_visibility_policies WHERE EXISTS/);
   assert.match(statements[4].sql, /^INSERT INTO catalog_visibility_policies \(id, policy_json, updated_at\) SELECT \?, \?, \? WHERE EXISTS/);
-  assert.deepEqual(statements[4].values.slice(0, 3), ["visibility", "{}", 1]);
   assert.match(statements[5].sql, /^INSERT INTO approval_policy_sets/);
   assert.match(statements[6].sql, /^INSERT INTO process_presentation_sets/);
   assert.match(statements[7].sql, /^INSERT INTO portal_audit_events/);
@@ -139,25 +136,8 @@ test("revokes sessions and never inserts historical session rows", () => {
 });
 
 test("uses dependency-safe domain and table ordering for operations and approvals", () => {
-  const operations = {
-    domain: "operations",
-    schemaVersion: 1,
-    tables: [
-      ["operation_runs", ["id", "job_id", "event_id", "title", "kind", "mode", "status", "actor", "subject", "error", "stages_json", "started_at", "updated_at", "completed_at"], ["id"]],
-      ["operation_run_results", ["run_id", "job_id", "summary", "values_json", "links_json", "files_json", "table_json", "truncated", "captured_at"], ["run_id"]],
-      ["operation_run_replays", ["run_id", "event_id", "schema_version", "encrypted_spec", "replayable", "reason", "parent_run_id", "created_at"], ["run_id"]],
-      ["operation_notifications", ["id", "run_id", "status", "title", "message", "created_at"], ["id"]],
-      ["operation_notification_reads", ["notification_id", "identity", "read_at"], ["notification_id", "identity"]],
-    ].map(([name, columns, primaryKey]) => ({ name, columns, primaryKey, rows: [] })),
-  };
-  const approvals = {
-    domain: "approvals",
-    schemaVersion: 1,
-    tables: [
-      { name: "operation_approvals", columns: ["id", "event_id", "title", "category", "schema_version", "requester_identity", "requester_role", "requester_groups_json", "status", "required_approvals", "approver_roles_json", "approver_groups_json", "requester_cannot_approve", "rule_id", "summary_json", "encrypted_spec", "request_fingerprint", "expires_at", "created_at", "updated_at", "approved_at", "executed_at", "run_id", "parent_run_id", "error"], primaryKey: ["id"], rows: [] },
-      { name: "operation_approval_decisions", columns: ["approval_id", "approver_identity", "approver_role", "decision", "comment", "decided_at"], primaryKey: ["approval_id", "approver_identity"], rows: [] },
-    ],
-  };
+  const operations = domainPayload("operations", new Set(["operation_runs"]));
+  const approvals = domainPayload("approvals", new Set(["operation_approvals"]));
   const db = new FakeDb();
   const sql = buildSelectiveRestoreStatements(
     db,

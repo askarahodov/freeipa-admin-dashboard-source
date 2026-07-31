@@ -19,11 +19,12 @@ test("portal permission matrix matches the runtime RBAC contract", () => {
     "xyops.approve",
     "settings.manage",
     "backup.export",
+    "backup.export.encrypted",
   ]);
   assert.deepEqual(portalRolePermissions, {
     viewer: ["directory.read"],
     operator: ["directory.read", "freeipa.write", "xyops.run"],
-    admin: ["directory.read", "freeipa.write", "freeipa.delete", "xyops.run", "xyops.approve", "settings.manage", "backup.export"],
+    admin: ["directory.read", "freeipa.write", "freeipa.delete", "xyops.run", "xyops.approve", "settings.manage", "backup.export", "backup.export.encrypted"],
   });
 });
 
@@ -34,6 +35,8 @@ test("roleHasPermission denies permissions that are not explicitly granted", () 
   assert.equal(roleHasPermission("operator", "xyops.approve"), false);
   assert.equal(roleHasPermission("admin", "settings.manage"), true);
   assert.equal(roleHasPermission("admin", "backup.export"), true);
+  assert.equal(roleHasPermission("viewer", "backup.export.encrypted"), false);
+  assert.equal(roleHasPermission("admin", "backup.export.encrypted"), true);
 });
 
 test("every permission has safe user-facing metadata", () => {

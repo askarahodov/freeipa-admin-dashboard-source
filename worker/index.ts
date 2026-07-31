@@ -71,12 +71,12 @@ type CatalogChange = { id: string; title: string; kind: "new" | "changed" | "rem
 type CatalogSnapshot = { events: CatalogEvent[]; syncedAt: number };
 type CatalogHistoryEntry = { id: string; syncedAt: number; changes: CatalogChange[]; processCount: number };
 type PortalRole = "viewer" | "operator" | "admin";
-type PortalPermission = "directory.read" | "freeipa.write" | "freeipa.delete" | "xyops.run" | "xyops.approve" | "settings.manage";
+type PortalPermission = "directory.read" | "freeipa.write" | "freeipa.delete" | "xyops.run" | "xyops.approve" | "settings.manage" | "backup.export";
 
 const rolePermissions: Record<PortalRole, PortalPermission[]> = {
   viewer: ["directory.read"],
   operator: ["directory.read", "freeipa.write", "xyops.run"],
-  admin: ["directory.read", "freeipa.write", "freeipa.delete", "xyops.run", "xyops.approve", "settings.manage"],
+  admin: ["directory.read", "freeipa.write", "freeipa.delete", "xyops.run", "xyops.approve", "settings.manage", "backup.export"],
 };
 
 // Image security config. SVG sources with .svg extension auto-skip the

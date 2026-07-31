@@ -16,9 +16,11 @@ import {
 } from "./backup-encrypted-preview.ts";
 import type { BackupExportEnv } from "./backup-export.ts";
 import {
+  FULL_BACKUP_TABLES,
   FullBackupValidationError,
   validateFullBackupDomainPayload,
   type FullBackupDomainExporter,
+  type FullBackupDomainPayload,
 } from "./backup-full-domains.ts";
 import type { SelectiveRestorePolicyResult } from "./backup-selective-restore-policy.ts";
 
@@ -47,6 +49,7 @@ export type VerifiedSelectiveRecoveryPoint = {
   bindingHash: string;
   physicalDomains: PortalBackupDomain[];
   summary: { domains: number; tables: number; records: number };
+  currentFullPayloads: ReadonlyMap<PortalBackupDomain, FullBackupDomainPayload>;
 };
 
 type RecoveryPointDependencies = {
@@ -113,6 +116,11 @@ function summaryFromPayloads(
   return { domains: domains.length, tables, records };
 }
 
+function physicalTableCount(domains: readonly PortalBackupDomain[]): number {
+  const counts = new Map(FULL_BACKUP_TABLES.map(([domain, tables]) => [domain, tables.length]));
+  return domains.reduce((total, domain) => total + (counts.get(domain) ?? 0), 0);
+}
+
 async function manifestBinding(document: EncryptedBackupDocument): Promise<string> {
   return sha256Hex(canonicalBackupJson(document.manifest));
 }
@@ -148,10 +156,6 @@ export async function createSelectiveRecoveryPoint(
         || document.manifest.schemaVersion !== schemaVersion) {
       fail("backup_recovery_point_invalid", 422, "Backup recovery point is invalid");
     }
-    const tables = policy.physicalDomains.reduce((total, domain) => {
-      const exporter = fullRegistry.get(domain);
-      return total + (exporter ? 1 : 0);
-    }, 0);
     return {
       document,
       bindingHash: await manifestBinding(document),
@@ -159,7 +163,7 @@ export async function createSelectiveRecoveryPoint(
       physicalDomains: [...policy.physicalDomains],
       summary: {
         domains: policy.physicalDomains.length,
-        tables,
+        tables: physicalTableCount(policy.physicalDomains),
         records: document.summary.records,
       },
     };
@@ -201,6 +205,7 @@ export async function verifySelectiveRecoveryPoint(
       fail("backup_recovery_point_invalid", 422, "Backup recovery point is invalid");
     }
 
+    const currentFullPayloads = new Map<PortalBackupDomain, FullBackupDomainPayload>();
     for (const domain of policy.physicalDomains) {
       const incoming = decrypted.fullPayloads.get(domain);
       const exporter = fullRegistry.get(domain);
@@ -221,6 +226,7 @@ export async function verifySelectiveRecoveryPoint(
       if (incomingHash !== currentHash) {
         fail("backup_recovery_point_stale", 409, "Backup recovery point is stale");
       }
+      currentFullPayloads.set(domain, current);
     }
 
     return {
@@ -228,6 +234,7 @@ export async function verifySelectiveRecoveryPoint(
       bindingHash: await manifestBinding(document),
       physicalDomains: [...policy.physicalDomains],
       summary: summaryFromPayloads(policy.physicalDomains, decrypted.fullPayloads),
+      currentFullPayloads,
     };
   } catch (error) {
     throw normalizeError(error);

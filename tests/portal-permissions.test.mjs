@@ -9,6 +9,12 @@ import {
   roleHasPermission,
 } from "../portal-permissions.ts";
 
+const selectiveRestorePermissions = [
+  "backup.restore.prepare",
+  "backup.restore.commit",
+  "backup.restore.cancel",
+];
+
 test("portal permission matrix matches the runtime RBAC contract", () => {
   assert.deepEqual(portalRoles, ["viewer", "operator", "admin"]);
   assert.deepEqual(portalPermissionOrder, [
@@ -21,11 +27,23 @@ test("portal permission matrix matches the runtime RBAC contract", () => {
     "backup.export",
     "backup.export.encrypted",
     "backup.restore.test",
+    ...selectiveRestorePermissions,
   ]);
   assert.deepEqual(portalRolePermissions, {
     viewer: ["directory.read"],
     operator: ["directory.read", "freeipa.write", "xyops.run"],
-    admin: ["directory.read", "freeipa.write", "freeipa.delete", "xyops.run", "xyops.approve", "settings.manage", "backup.export", "backup.export.encrypted", "backup.restore.test"],
+    admin: [
+      "directory.read",
+      "freeipa.write",
+      "freeipa.delete",
+      "xyops.run",
+      "xyops.approve",
+      "settings.manage",
+      "backup.export",
+      "backup.export.encrypted",
+      "backup.restore.test",
+      ...selectiveRestorePermissions,
+    ],
   });
 });
 
@@ -41,6 +59,11 @@ test("roleHasPermission denies permissions that are not explicitly granted", () 
   assert.equal(roleHasPermission("viewer", "backup.restore.test"), false);
   assert.equal(roleHasPermission("operator", "backup.restore.test"), false);
   assert.equal(roleHasPermission("admin", "backup.restore.test"), true);
+  for (const permission of selectiveRestorePermissions) {
+    assert.equal(roleHasPermission("viewer", permission), false, permission);
+    assert.equal(roleHasPermission("operator", permission), false, permission);
+    assert.equal(roleHasPermission("admin", permission), true, permission);
+  }
 });
 
 test("every permission has safe user-facing metadata", () => {

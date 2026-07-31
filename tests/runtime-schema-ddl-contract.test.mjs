@@ -14,7 +14,10 @@ const ignoredDirectories = new Set([
 ]);
 const ddlOwners = new Set([
   "db/portal-migration-v1.ts",
+  "db/portal-migration-v2.ts",
   "db/portal-migrations.ts",
+  "db/portal-migrations-v2.ts",
+  "db/portal-restore-stage-schema.ts",
   "db/portal-schema.ts",
 ]);
 const schemaChangingSql = /\b(?:CREATE\s+(?:UNIQUE\s+)?(?:TABLE|INDEX|TRIGGER)|ALTER\s+TABLE|DROP\s+(?:TABLE|INDEX|TRIGGER)|REINDEX)\b/gi;

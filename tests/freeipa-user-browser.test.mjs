@@ -8,6 +8,7 @@ test("user browser uses the shared FreeIPA action contract and exposes server qu
   const wrapper = fs.readFileSync(new URL("../worker/freeipa-user-query-entry.ts", import.meta.url), "utf8");
   const bulkWrapper = fs.readFileSync(new URL("../worker/freeipa-user-bulk-entry.ts", import.meta.url), "utf8");
   const topWrapper = fs.readFileSync(new URL("../worker/freeipa-group-member-entry.ts", import.meta.url), "utf8");
+  const selectiveRoot = fs.readFileSync(new URL("../worker/backup-selective-restore-root-entry.ts", import.meta.url), "utf8");
   const serviceRoot = fs.readFileSync(new URL("../worker/service-admin-root-entry.ts", import.meta.url), "utf8");
   const schemaRoot = fs.readFileSync(new URL("../worker/schema-migrations-entry.ts", import.meta.url), "utf8");
   const layout = fs.readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
@@ -28,7 +29,9 @@ test("user browser uses the shared FreeIPA action contract and exposes server qu
   assert.equal(bulkWrapper.includes("freeipa-user-query-entry"), true);
   assert.equal(topWrapper.includes("freeipa-user-bulk-entry"), true);
   assert.equal(topWrapper.includes("return bulkRuntime.fetch"), true);
-  assert.equal(serviceRoot.includes('import rootRuntime from "./freeipa-group-member-entry"'), true);
+  assert.equal(selectiveRoot.includes('import rootRuntime from "./freeipa-group-member-entry.ts"'), true);
+  assert.equal(selectiveRoot.includes("return rootRuntime.fetch"), true);
+  assert.equal(serviceRoot.includes('import rootRuntime from "./backup-selective-restore-root-entry"'), true);
   assert.equal(schemaRoot.includes('import rootRuntime from "./service-admin-root-entry.ts"'), true);
   assert.equal(layout.includes("<FreeIpaUserBrowser />"), true);
   assert.equal(vite.includes('main: "./worker/schema-migrations-entry.ts"'), true);

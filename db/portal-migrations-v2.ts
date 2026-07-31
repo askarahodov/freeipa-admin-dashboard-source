@@ -46,6 +46,49 @@ type MigrationEnv = { DB?: D1Database };
 type MigrationOptions = Parameters<typeof ensurePortalSchemaWithRegistry>[2];
 type TableInfoRow = { name: string; type: string; notnull: number; pk: number };
 type SchemaObjectRow = { name: string; type: string; tbl_name: string; sql: string | null };
+type ReadyCacheEntry = { expiresAt: number; status: PortalSchemaStatus };
+type CoalescingOptions = {
+  now?: () => number;
+  cacheTtlMs?: number;
+};
+
+let successfulV2Cache = new WeakMap<object, ReadyCacheEntry>();
+let inFlightV2Ensures = new WeakMap<object, Promise<PortalSchemaStatus>>();
+
+function safeNow(options: CoalescingOptions = {}): number {
+  const value = options.now?.() ?? Date.now();
+  return Number.isFinite(value) ? Math.trunc(value) : Date.now();
+}
+
+export function coalescePortalSchemaV2Ensure(
+  database: object,
+  runner: () => Promise<PortalSchemaStatus>,
+  options: CoalescingOptions = {},
+): Promise<PortalSchemaStatus> {
+  const now = safeNow(options);
+  const cached = successfulV2Cache.get(database);
+  if (cached && cached.expiresAt > now) return Promise.resolve({ ...cached.status, verifiedAt: now });
+  const inFlight = inFlightV2Ensures.get(database);
+  if (inFlight) return inFlight;
+
+  const promise = runner().then((schema) => {
+    if (schema.state === "ready") {
+      const ttl = Math.max(0, Math.min(Math.trunc(options.cacheTtlMs ?? 5_000), 60_000));
+      successfulV2Cache.set(database, { expiresAt: safeNow(options) + ttl, status: schema });
+    }
+    return schema;
+  });
+  inFlightV2Ensures.set(database, promise);
+  void promise.finally(() => {
+    if (inFlightV2Ensures.get(database) === promise) inFlightV2Ensures.delete(database);
+  });
+  return promise;
+}
+
+export function clearPortalSchemaV2CacheForTests(): void {
+  successfulV2Cache = new WeakMap();
+  inFlightV2Ensures = new WeakMap();
+}
 
 export function normalizePortalRestoreStageSql(value: unknown): string {
   return String(value ?? "")
@@ -141,10 +184,20 @@ export async function inspectPortalSchemaV2(
   return verifyRestoreStageSchema(env, status);
 }
 
-export async function ensurePortalSchemaV2(
+export function ensurePortalSchemaV2(
   env: MigrationEnv,
   options: MigrationOptions = {},
 ): Promise<PortalSchemaStatus> {
-  const status = await ensurePortalSchemaWithRegistry(env, portalMigrationsV2, options);
-  return verifyRestoreStageSchema(env, status);
+  if (!env.DB) {
+    return ensurePortalSchemaWithRegistry(env, portalMigrationsV2, options)
+      .then((status) => verifyRestoreStageSchema(env, status));
+  }
+  return coalescePortalSchemaV2Ensure(
+    env.DB as unknown as object,
+    async () => {
+      const status = await ensurePortalSchemaWithRegistry(env, portalMigrationsV2, options);
+      return verifyRestoreStageSchema(env, status);
+    },
+    options,
+  );
 }

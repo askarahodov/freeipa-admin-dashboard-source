@@ -117,6 +117,10 @@ export async function verifyRestoreStageSecret(expectedHash: unknown, providedSe
   return equalHash(expectedHash, providedHash);
 }
 
+export function verifyRestoreStageBinding(expectedHash: unknown, providedHash: unknown): boolean {
+  return equalHash(expectedHash, providedHash);
+}
+
 export async function createRestoreStageBinding(inputValue: RestoreStageBindingInput): Promise<string> {
   const input = validateBindingInput(inputValue);
   return sha256Hex(canonicalBackupJson({

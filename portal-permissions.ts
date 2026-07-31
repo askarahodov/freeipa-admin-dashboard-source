@@ -9,7 +9,10 @@ export type PortalPermission =
   | "settings.manage"
   | "backup.export"
   | "backup.export.encrypted"
-  | "backup.restore.test";
+  | "backup.restore.test"
+  | "backup.restore.prepare"
+  | "backup.restore.commit"
+  | "backup.restore.cancel";
 
 export const portalRoles: PortalRole[] = ["viewer", "operator", "admin"];
 
@@ -23,6 +26,9 @@ export const portalPermissionOrder: PortalPermission[] = [
   "backup.export",
   "backup.export.encrypted",
   "backup.restore.test",
+  "backup.restore.prepare",
+  "backup.restore.commit",
+  "backup.restore.cancel",
 ];
 
 export const portalRoleLabels: Record<PortalRole, string> = {
@@ -91,12 +97,43 @@ export const portalPermissionMetadata: Record<PortalPermission, {
     description: "Проверка выбранных данных резервной копии в изолированном временном хранилище без изменения портала.",
     scope: "Portal",
   },
+  "backup.restore.prepare": {
+    title: "Подготовка восстановления",
+    shortTitle: "Restore prepare",
+    description: "Проверка selective restore, создание обязательной зашифрованной recovery point и временного commit stage.",
+    scope: "Portal",
+  },
+  "backup.restore.commit": {
+    title: "Применение восстановления",
+    shortTitle: "Restore commit",
+    description: "Транзакционное применение подготовленного selective restore после повторной проверки состояния и подтверждений.",
+    scope: "Portal",
+  },
+  "backup.restore.cancel": {
+    title: "Отмена восстановления",
+    shortTitle: "Restore cancel",
+    description: "Отмена ещё не применённого selective restore stage до начала транзакционного commit.",
+    scope: "Portal",
+  },
 };
 
 export const portalRolePermissions: Record<PortalRole, PortalPermission[]> = {
   viewer: ["directory.read"],
   operator: ["directory.read", "freeipa.write", "xyops.run"],
-  admin: ["directory.read", "freeipa.write", "freeipa.delete", "xyops.run", "xyops.approve", "settings.manage", "backup.export", "backup.export.encrypted", "backup.restore.test"],
+  admin: [
+    "directory.read",
+    "freeipa.write",
+    "freeipa.delete",
+    "xyops.run",
+    "xyops.approve",
+    "settings.manage",
+    "backup.export",
+    "backup.export.encrypted",
+    "backup.restore.test",
+    "backup.restore.prepare",
+    "backup.restore.commit",
+    "backup.restore.cancel",
+  ],
 };
 
 export function roleHasPermission(role: PortalRole, permission: PortalPermission): boolean {

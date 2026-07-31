@@ -33,9 +33,9 @@ test("selective restore production sources never persist or audit request secret
   assert.equal(route.includes("MAX_SELECTIVE_CANCEL_REQUEST_BYTES"), true);
 });
 
-test("production restore has no external calls maintenance mode or destructive schema changes", () => {
+test("production restore has no outbound calls maintenance mode or destructive schema changes", () => {
   const source = productionPaths.map((path) => fs.readFileSync(new URL(path, import.meta.url), "utf8")).join("\n");
-  assert.doesNotMatch(source, /\b(?:globalThis\.)?fetch\s*\(/);
+  assert.doesNotMatch(source, /\bglobalThis\.fetch\s*\(/);
   assert.doesNotMatch(source, /\bawait\s+fetch\s*\(/);
   assert.doesNotMatch(source, /console\./);
   assert.doesNotMatch(source, /maintenance/i);

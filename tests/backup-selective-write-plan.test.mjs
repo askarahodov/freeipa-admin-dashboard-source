@@ -3,7 +3,10 @@ import test from "node:test";
 
 import { FULL_BACKUP_TABLES } from "../backup-full-domains.ts";
 import { validateSelectiveRestoreDomains } from "../backup-selective-restore-policy.ts";
-import { buildSelectiveRestoreStatements } from "../backup-selective-write-plan.ts";
+import {
+  buildSelectiveRestoreStatements,
+  validateSelectiveRestoreCandidate,
+} from "../backup-selective-write-plan.ts";
 
 class FakeStatement {
   constructor(sql) {
@@ -83,30 +86,55 @@ const policiesPayload = domainPayload("policies", new Set([
   "approval_policy_sets",
   "process_presentation_sets",
 ]));
+const currentPoliciesPayload = structuredClone(policiesPayload);
+currentPoliciesPayload.tables[0].rows[0][1] = "{\"current\":true}";
 const localAuthPayload = domainPayload("local-auth");
 localAuthPayload.tables[0].rows = [[
   "user-1", "admin", "Admin", "hash", "salt", 210000, "admin", 0, 0, null, 1, 1, null,
 ]];
 localAuthPayload.tables[1].rows = [["session-1", "user-1", "token-hash", 1, 1, 2, "browser"]];
 
-test("builds one guarded claim delete insert audit and commit sequence", () => {
+function policiesStatements() {
   const db = new FakeDb();
   const statements = buildSelectiveRestoreStatements(
     db,
     guard,
     validateSelectiveRestoreDomains(["policies"]),
     new Map([["policies", policiesPayload]]),
+    new Map([["policies", currentPoliciesPayload]]),
     audit,
   );
+  return { db, statements };
+}
+
+test("claims the stage only while every selected production table still matches recovery state", () => {
+  const { db, statements } = policiesStatements();
   assert.deepEqual(statements, db.prepared);
   assert.equal(statements.length, 9);
   assert.match(statements[0].sql, /^UPDATE portal_backup_restore_stages SET status = 'committing'/);
-  assert.deepEqual(statements[0].values, [guard.now, guard.id, guard.actorIdentity, guard.stageSecretHash, guard.now]);
+  assert.equal((statements[0].sql.match(/SELECT COUNT\(\*\) FROM/g) ?? []).length, 3);
+  assert.equal((statements[0].sql.match(/FROM json_each\(\?\)/g) ?? []).length, 6);
+  assert.match(statements[0].sql, /NOT EXISTS \(SELECT id, policy_json, updated_at FROM catalog_visibility_policies EXCEPT SELECT json_extract/);
+  assert.deepEqual(statements[0].values.slice(0, 5), [
+    guard.now,
+    guard.id,
+    guard.actorIdentity,
+    guard.stageSecretHash,
+    guard.now,
+  ]);
+  assert.equal(statements[0].values[5], 1);
+  assert.equal(statements[0].values[6], JSON.stringify(currentPoliciesPayload.tables[0].rows));
+  assert.equal(statements[0].values[7], JSON.stringify(currentPoliciesPayload.tables[0].rows));
+});
 
+test("builds dependency-safe guarded deletes and one JSON insert per populated table", () => {
+  const { statements } = policiesStatements();
   assert.match(statements[1].sql, /^DELETE FROM process_presentation_sets WHERE EXISTS/);
   assert.match(statements[2].sql, /^DELETE FROM approval_policy_sets WHERE EXISTS/);
   assert.match(statements[3].sql, /^DELETE FROM catalog_visibility_policies WHERE EXISTS/);
-  assert.match(statements[4].sql, /^INSERT INTO catalog_visibility_policies \(id, policy_json, updated_at\) SELECT \?, \?, \? WHERE EXISTS/);
+  assert.match(statements[4].sql, /^INSERT INTO catalog_visibility_policies \(id, policy_json, updated_at\) SELECT json_extract\(value, '\$\[0\]'\), json_extract/);
+  assert.match(statements[4].sql, /FROM json_each\(\?\) WHERE EXISTS/);
+  assert.equal(statements[4].values[0], JSON.stringify(policiesPayload.tables[0].rows));
   assert.match(statements[5].sql, /^INSERT INTO approval_policy_sets/);
   assert.match(statements[6].sql, /^INSERT INTO process_presentation_sets/);
   assert.match(statements[7].sql, /^INSERT INTO portal_audit_events/);
@@ -125,6 +153,7 @@ test("revokes sessions and never inserts historical session rows", () => {
     guard,
     validateSelectiveRestoreDomains(["local-auth", "rbac"]),
     new Map([["local-auth", localAuthPayload]]),
+    new Map([["local-auth", structuredClone(localAuthPayload)]]),
     { ...audit, metadataJson: "{\"domains\":[\"local-auth\",\"rbac\"]}" },
   );
   const sql = statements.map((statement) => statement.sql);
@@ -133,17 +162,20 @@ test("revokes sessions and never inserts historical session rows", () => {
   assert.equal(sql.some((value) => value.startsWith("INSERT INTO portal_users")), true);
   assert.equal(sql.some((value) => value.startsWith("INSERT INTO portal_sessions")), false);
   assert.equal(sql.some((value) => value.includes("portal_role_assignments")), false);
+  assert.match(sql[0], /SELECT COUNT\(\*\) FROM portal_sessions/);
 });
 
 test("uses dependency-safe domain and table ordering for operations and approvals", () => {
   const operations = domainPayload("operations", new Set(["operation_runs"]));
   const approvals = domainPayload("approvals", new Set(["operation_approvals"]));
   const db = new FakeDb();
+  const source = new Map([["operations", operations], ["approvals", approvals]]);
   const sql = buildSelectiveRestoreStatements(
     db,
     guard,
     validateSelectiveRestoreDomains(["operations", "approvals"]),
-    new Map([["operations", operations], ["approvals", approvals]]),
+    source,
+    new Map([["operations", structuredClone(operations)], ["approvals", structuredClone(approvals)]]),
     audit,
   ).map((statement) => statement.sql);
 
@@ -161,6 +193,7 @@ test("rejects missing payloads and invalid active-admin local-auth data before p
       guard,
       validateSelectiveRestoreDomains(["policies"]),
       new Map(),
+      new Map([["policies", currentPoliciesPayload]]),
       audit,
     ),
     (error) => error?.code === "backup_restore_commit_failed",
@@ -168,12 +201,9 @@ test("rejects missing payloads and invalid active-admin local-auth data before p
   const disabledAdmin = structuredClone(localAuthPayload);
   disabledAdmin.tables[0].rows[0][7] = 1;
   assert.throws(
-    () => buildSelectiveRestoreStatements(
-      db,
-      guard,
+    () => validateSelectiveRestoreCandidate(
       validateSelectiveRestoreDomains(["local-auth"]),
       new Map([["local-auth", disabledAdmin]]),
-      audit,
     ),
     (error) => error?.code === "backup_restore_admin_required",
   );

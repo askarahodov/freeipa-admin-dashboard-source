@@ -1,5 +1,10 @@
-import type { PortalBackupDomainExporter } from "./backup-export.ts";
-import type { BackupExportEnv } from "./backup-export.ts";
+import {
+  BackupEncryptedPreviewError,
+  decryptEncryptedBackupDomains,
+  validateEncryptedBackupDocument,
+  type DecryptedEncryptedBackupSelection,
+} from "./backup-encrypted-preview.ts";
+import type { BackupExportEnv, PortalBackupDomainExporter } from "./backup-export.ts";
 import type { FullBackupDomainExporter } from "./backup-full-domains.ts";
 import {
   BackupIsolatedRestoreError,
@@ -32,6 +37,10 @@ import {
   BackupSelectiveRestorePolicyError,
   validateSelectiveRestoreDomains,
 } from "./backup-selective-restore-policy.ts";
+import {
+  BackupSelectiveWritePlanError,
+  validateSelectiveRestoreCandidate,
+} from "./backup-selective-write-plan.ts";
 
 export class BackupSelectiveRestorePrepareError extends Error {
   readonly code: string;
@@ -71,6 +80,12 @@ export type SelectiveRestorePrepareResult = {
 
 type PrepareDependencies = {
   testRestore?: typeof testRestoreEncryptedBackupImport;
+  decryptSource?: (
+    document: unknown,
+    password: unknown,
+    domains: readonly PortalBackupDomain[],
+  ) => Promise<Pick<DecryptedEncryptedBackupSelection, "selectedDomains" | "fullPayloads">>;
+  validateCandidate?: typeof validateSelectiveRestoreCandidate;
   createRecovery?: typeof createSelectiveRecoveryPoint;
   verifyRecovery?: typeof verifySelectiveRecoveryPoint;
   createSecret?: typeof createRestoreStageSecret;
@@ -99,6 +114,7 @@ const safeErrors = new Map<string, { status: number; message: string }>([
   ["backup_restore_dependency_invalid", { status: 422, message: "Backup restore domain dependencies are invalid" }],
   ["backup_restore_domain_unsupported", { status: 422, message: "Backup restore domain is unsupported" }],
   ["backup_restore_stale", { status: 409, message: "Backup restore preview is stale" }],
+  ["backup_restore_admin_required", { status: 422, message: "Restored local authentication requires an active administrator" }],
   ["backup_restore_commit_failed", { status: 422, message: "Backup restore candidate cannot be committed" }],
   ["backup_recovery_point_invalid", { status: 422, message: "Backup recovery point is invalid" }],
   ["backup_recovery_point_stale", { status: 409, message: "Backup recovery point is stale" }],
@@ -162,10 +178,25 @@ function stageId(value: unknown): string {
   return id;
 }
 
+function arraysEqual(left: readonly unknown[], right: readonly unknown[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+async function decryptSourceDocument(
+  documentValue: unknown,
+  password: unknown,
+  domains: readonly PortalBackupDomain[],
+): Promise<Pick<DecryptedEncryptedBackupSelection, "selectedDomains" | "fullPayloads">> {
+  const document = await validateEncryptedBackupDocument(documentValue);
+  return decryptEncryptedBackupDomains(document, password, domains);
+}
+
 function normalizeError(error: unknown): BackupSelectiveRestorePrepareError {
   if (error instanceof BackupSelectiveRestorePrepareError) return error;
   if (error instanceof BackupSelectiveRestorePolicyError
       || error instanceof BackupIsolatedRestoreError
+      || error instanceof BackupEncryptedPreviewError
+      || error instanceof BackupSelectiveWritePlanError
       || error instanceof BackupSelectiveRecoveryPointError
       || error instanceof BackupRestoreStageError
       || error instanceof BackupRestoreStageRepositoryError) {
@@ -214,10 +245,19 @@ export async function prepareSelectiveProductionRestore(
     if (!isolated.canCommit
         || isolated.currentSchemaVersion !== schema.currentVersion
         || isolated.sourceSchemaVersion !== schema.currentVersion
-        || isolated.selectedDomains.length !== policy.selectedDomains.length
-        || isolated.selectedDomains.some((domain, index) => domain !== policy.selectedDomains[index])) {
+        || !arraysEqual(isolated.selectedDomains, policy.selectedDomains)) {
       fail("backup_restore_commit_failed", 422, "Backup restore candidate cannot be committed");
     }
+
+    const source = await (dependencies.decryptSource ?? decryptSourceDocument)(
+      input.document,
+      input.password,
+      policy.selectedDomains,
+    );
+    if (!arraysEqual(source.selectedDomains, policy.selectedDomains)) {
+      fail("backup_restore_stale", 409, "Backup restore preview is stale");
+    }
+    (dependencies.validateCandidate ?? validateSelectiveRestoreCandidate)(policy, source.fullPayloads);
 
     const recovery = await (dependencies.createRecovery ?? createSelectiveRecoveryPoint)(
       env,
@@ -238,8 +278,7 @@ export async function prepareSelectiveProductionRestore(
     );
     if (!verified.verified
         || verified.bindingHash !== recovery.bindingHash
-        || verified.physicalDomains.length !== policy.physicalDomains.length
-        || verified.physicalDomains.some((domain, index) => domain !== policy.physicalDomains[index])) {
+        || !arraysEqual(verified.physicalDomains, policy.physicalDomains)) {
       fail("backup_recovery_point_invalid", 422, "Backup recovery point is invalid");
     }
 

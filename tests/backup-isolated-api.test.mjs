@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import { BackupIsolatedRestoreError } from "../backup-isolated-restore.ts";
 import { handleIsolatedBackupRestoreRequest } from "../worker/backup-isolated-restore-entry.ts";
 
 const context = { identity: "admin@example.test", role: "admin", groups: ["admins"] };
@@ -122,6 +123,28 @@ test("rejects unavailable and non-ready databases before restore orchestration",
   );
   assert.equal(blocked.status, 409);
   assert.equal(called, 0);
+});
+
+test("preserves trusted candidate failures as 422", async () => {
+  const response = await handleIsolatedBackupRestoreRequest(
+    new Request("https://portal.test/api/admin/backups/import/encrypted/test-restore", { method: "POST", body: JSON.stringify(requestBody) }),
+    { DB: {} }, context,
+    {
+      async inspectSchema() { return { state: "ready", currentVersion: 1 }; },
+      async testRestore() {
+        throw new BackupIsolatedRestoreError(
+          "backup_test_restore_failed",
+          422,
+          "internal candidate details",
+        );
+      },
+    },
+  );
+  assert.equal(response.status, 422);
+  assert.deepEqual(await response.json(), {
+    error: "Backup test restore failed",
+    code: "backup_test_restore_failed",
+  });
 });
 
 test("normalizes stale and arbitrary failures without leaking request material", async () => {

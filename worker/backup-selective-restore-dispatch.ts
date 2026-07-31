@@ -11,7 +11,8 @@ import {
   SELECTIVE_RESTORE_PREPARE_PATH,
 } from "./backup-selective-restore-entry.ts";
 
-export type SelectiveBackupRuntimeEnv = EncryptedBackupAccessEnv & Record<string, unknown>;
+export type SelectiveBackupRuntimeEnv = Parameters<typeof handleSelectiveBackupRestoreRequest>[1]
+  & EncryptedBackupAccessEnv;
 
 export type SelectiveBackupDispatchDependencies = {
   prepareHandler?: typeof handleSelectiveBackupRestoreRequest;

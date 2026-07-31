@@ -35,7 +35,8 @@ test("selective restore production sources never persist or audit request secret
 
 test("production restore has no external calls maintenance mode or destructive schema changes", () => {
   const source = productionPaths.map((path) => fs.readFileSync(new URL(path, import.meta.url), "utf8")).join("\n");
-  assert.doesNotMatch(source, /\bfetch\s*\(/);
+  assert.doesNotMatch(source, /\b(?:globalThis\.)?fetch\s*\(/);
+  assert.doesNotMatch(source, /\bawait\s+fetch\s*\(/);
   assert.doesNotMatch(source, /console\./);
   assert.doesNotMatch(source, /maintenance/i);
   assert.doesNotMatch(source, /CONFIG_ENCRYPTION_KEY/);

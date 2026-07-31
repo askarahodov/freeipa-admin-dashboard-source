@@ -44,6 +44,22 @@ test("encrypted export enforces body limit before handler", async () => {
   assert.equal(called, false);
 });
 
+test("encrypted export normalizes arbitrary dependency errors", async () => {
+  const audits = [];
+  const response = await handleEncryptedBackupExportRequest(
+    new Request("https://portal.test/api/admin/backups/export/encrypted", { method: "POST", body: JSON.stringify({ domains: ["settings"], password: "top secret password" }) }),
+    { DB: {} }, context,
+    {
+      async inspectSchema() { return { state: "ready", currentVersion: 1 }; },
+      async exportBackup() { throw Object.assign(new Error("raw top secret failure"), { code: "top secret password", status: 422 }); },
+      async appendAudit(_env, _context, event) { audits.push(event); },
+    },
+  );
+  assert.equal(response.status, 500);
+  assert.deepEqual(await response.json(), { error: "Encrypted backup export failed", code: "backup_encrypted_export_failed" });
+  assert.doesNotMatch(JSON.stringify(audits), /top secret password|raw top secret/);
+});
+
 test("encrypted preview returns safe counts and sanitized failure", async () => {
   const audits = [];
   const requestBody = { document: fakeDocument, password: "top secret password" };
@@ -76,4 +92,19 @@ test("encrypted preview returns safe counts and sanitized failure", async () => 
   );
   assert.equal(failed.status, 422);
   assert.deepEqual(await failed.json(), { error: "Backup decryption failed", code: "backup_decryption_failed" });
+
+  const maliciousAudits = [];
+  const malicious = structuredClone(requestBody);
+  malicious.document.manifest.domains = ["settings", "top secret password"];
+  const rejected = await handleEncryptedBackupPreviewRequest(
+    new Request("https://portal.test/api/admin/backups/import/encrypted/preview", { method: "POST", body: JSON.stringify(malicious) }),
+    { DB: {} }, context,
+    {
+      async inspectSchema() { return { state: "ready", currentVersion: 1 }; },
+      async previewBackup() { throw Object.assign(new Error("invalid"), { code: "backup_request_invalid", status: 400 }); },
+      async appendAudit(_env, _context, event) { maliciousAudits.push(event); },
+    },
+  );
+  assert.equal(rejected.status, 400);
+  assert.doesNotMatch(JSON.stringify(maliciousAudits), /top secret password/);
 });

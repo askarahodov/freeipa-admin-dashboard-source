@@ -1,6 +1,7 @@
 export const LOCAL_ADMIN_SESSION_MARKER = "__local_admin_session__";
 
 const ADMIN_INTEGRATION_PATHS = new Set([
+  "/api/admin/backups/import/preview",
   "/api/integrations/settings",
   "/api/integrations/settings/test",
   "/api/integrations/settings/effective",

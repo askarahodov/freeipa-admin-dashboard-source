@@ -181,7 +181,7 @@ test("same-origin and method checks run before schema, body-dependent handlers a
   }
 });
 
-test("rejects oversized and malformed requests before restore cores", async () => {
+test("rejects oversized and malformed requests before restore cores while auditing safely", async () => {
   for (const req of [
     request("/api/admin/backups/import/encrypted/prepare-commit", "{}", { headers: { "content-length": String(43 * 1024 * 1024) } }),
     request("/api/admin/backups/import/encrypted/prepare-commit", "{"),
@@ -190,7 +190,13 @@ test("rejects oversized and malformed requests before restore cores", async () =
     const f = fixture();
     const response = await handleSelectiveBackupRestoreRequest(req, { DB: {} }, context, f.dependencies);
     assert.equal([400, 413].includes(response.status), true);
-    assert.deepEqual(f.calls, []);
+    assert.deepEqual(f.calls, ["audit"]);
+    assert.equal(f.audit.length, 1);
+    assert.equal(f.audit[0].outcome, "failure");
+    const serializedAudit = JSON.stringify(f.audit);
+    for (const forbidden of [prepareInput.password, prepareInput.recoveryPassword, prepareInput.approvalToken, stageSecret]) {
+      assert.equal(serializedAudit.includes(forbidden), false);
+    }
   }
 });
 

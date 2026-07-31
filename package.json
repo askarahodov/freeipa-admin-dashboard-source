@@ -8,7 +8,7 @@
   "scripts": {
     "install:ci": "bash scripts/install-ci.sh",
     "dev": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vite",
-    "build": "bash scripts/build-verified.sh && mkdir -p dist/source-artifact/db && cp db/portal-schema.ts db/portal-migrations.ts dist/source-artifact/db/",
+    "build": "bash scripts/build-verified.sh",
     "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext start",
     "start:docker": "node scripts/start-worker.mjs",
     "test": "npm run build && node --experimental-strip-types --test tests/*.test.mjs",

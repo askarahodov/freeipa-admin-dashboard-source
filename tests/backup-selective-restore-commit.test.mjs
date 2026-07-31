@@ -165,6 +165,7 @@ test("commits exactly one guarded D1 batch after every safety gate", async () =>
     "verify-secret",
     "test-restore",
     "verify-recovery",
+    "verify-binding",
     "create-binding",
     "verify-binding",
     "decrypt-source",

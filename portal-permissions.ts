@@ -6,7 +6,8 @@ export type PortalPermission =
   | "freeipa.delete"
   | "xyops.run"
   | "xyops.approve"
-  | "settings.manage";
+  | "settings.manage"
+  | "backup.export";
 
 export const portalRoles: PortalRole[] = ["viewer", "operator", "admin"];
 
@@ -17,6 +18,7 @@ export const portalPermissionOrder: PortalPermission[] = [
   "xyops.run",
   "xyops.approve",
   "settings.manage",
+  "backup.export",
 ];
 
 export const portalRoleLabels: Record<PortalRole, string> = {
@@ -67,12 +69,18 @@ export const portalPermissionMetadata: Record<PortalPermission, {
     description: "Настройки, аудит, политики, метаданные каталога, диагностика, пользователи и сессии портала.",
     scope: "Portal",
   },
+  "backup.export": {
+    title: "Экспорт резервной копии",
+    shortTitle: "Backup export",
+    description: "Создание безопасной sanitised-выгрузки конфигурации и данных портала без секретов.",
+    scope: "Portal",
+  },
 };
 
 export const portalRolePermissions: Record<PortalRole, PortalPermission[]> = {
   viewer: ["directory.read"],
   operator: ["directory.read", "freeipa.write", "xyops.run"],
-  admin: ["directory.read", "freeipa.write", "freeipa.delete", "xyops.run", "xyops.approve", "settings.manage"],
+  admin: ["directory.read", "freeipa.write", "freeipa.delete", "xyops.run", "xyops.approve", "settings.manage", "backup.export"],
 };
 
 export function roleHasPermission(role: PortalRole, permission: PortalPermission): boolean {

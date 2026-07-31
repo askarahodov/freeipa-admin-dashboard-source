@@ -10,6 +10,7 @@ import { catalogEventAllowed, readCatalogPolicySet, saveCatalogPolicySet } from 
 import { approvalExecutionMatches, approvalRequirement, cancelApproval, claimApprovalExecution, createApprovalRequest, decideApproval, finishApprovalExecution, listApprovals, readApprovalPolicySet, readExecutingApproval, saveApprovalPolicySet } from "../approval-gates";
 import { appendAuditEvent, auditCorrelationFor, auditErrorCode, createAuditContext, listAuditEvents, withAuditCorrelation, type AuditContext } from "../audit-log";
 import { applyProcessPresentation, availableProcessPresentationLocales, presentationLocalePreferences, readProcessPresentationSet, resolveProcessPresentationLocale, saveProcessPresentationSet } from "../process-presentation";
+import { handleBackupExportRequest } from "./backup-export-entry";
 
 interface Env {
   ASSETS: Fetcher;
@@ -71,12 +72,12 @@ type CatalogChange = { id: string; title: string; kind: "new" | "changed" | "rem
 type CatalogSnapshot = { events: CatalogEvent[]; syncedAt: number };
 type CatalogHistoryEntry = { id: string; syncedAt: number; changes: CatalogChange[]; processCount: number };
 type PortalRole = "viewer" | "operator" | "admin";
-type PortalPermission = "directory.read" | "freeipa.write" | "freeipa.delete" | "xyops.run" | "xyops.approve" | "settings.manage";
+type PortalPermission = "directory.read" | "freeipa.write" | "freeipa.delete" | "xyops.run" | "xyops.approve" | "settings.manage" | "backup.export";
 
 const rolePermissions: Record<PortalRole, PortalPermission[]> = {
   viewer: ["directory.read"],
   operator: ["directory.read", "freeipa.write", "xyops.run"],
-  admin: ["directory.read", "freeipa.write", "freeipa.delete", "xyops.run", "xyops.approve", "settings.manage"],
+  admin: ["directory.read", "freeipa.write", "freeipa.delete", "xyops.run", "xyops.approve", "settings.manage", "backup.export"],
 };
 
 // Image security config. SVG sources with .svg extension auto-skip the
@@ -89,6 +90,12 @@ const worker = {
   async fetch(request: Request, env: Env | undefined, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     const runtimeEnv = env ?? (process.env as unknown as Env);
+
+    if (url.pathname === "/api/admin/backups/export") {
+      const denied = requirePortalPermission(request, runtimeEnv, "backup.export");
+      if (denied) return denied;
+      return handleBackupExportRequest(request, runtimeEnv, createAuditContext(portalAccess(request, runtimeEnv)));
+    }
 
     if (url.pathname.startsWith("/api/integrations/")) {
       return handleIntegrationApi(request, runtimeEnv, url);

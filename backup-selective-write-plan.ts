@@ -11,6 +11,11 @@ import {
 } from "./backup-manifest.ts";
 import type { SelectiveRestorePolicyResult } from "./backup-selective-restore-policy.ts";
 
+export const MAX_SELECTIVE_RESTORE_JSON_BINDING_BYTES = 1_750_000;
+export const MAX_SELECTIVE_RESTORE_CLAIM_PARAMETERS = 100;
+export const MAX_SELECTIVE_RESTORE_BATCH_STATEMENTS = 48;
+export const MAX_SELECTIVE_RESTORE_SQL_BYTES = 100_000;
+
 export class BackupSelectiveWritePlanError extends Error {
   readonly code: string;
   readonly status: number;
@@ -49,15 +54,21 @@ type RestoreTable = {
   domain: PortalBackupDomain;
   descriptor: FullBackupTableDefinition;
   payload: FullBackupTable;
+  rowChunks: string[];
 };
 
 const definitionsByDomain = new Map<PortalBackupDomain, readonly FullBackupTableDefinition[]>(FULL_BACKUP_TABLES);
 const stageIdPattern = /^restore_[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const hashPattern = /^[0-9a-f]{64}$/;
 const guardedStage = "SELECT 1 FROM portal_backup_restore_stages WHERE id = ? AND actor_identity = ? AND stage_secret_hash = ? AND status = 'committing'";
+const encoder = new TextEncoder();
 
 function fail(code = "backup_restore_commit_failed", message = "Backup restore commit failed"): never {
   throw new BackupSelectiveWritePlanError(code, 422, message);
+}
+
+function tooLarge(): never {
+  fail("backup_restore_commit_too_large", "Backup restore candidate exceeds atomic D1 limits");
 }
 
 function strictText(value: unknown, maximum = 1024): string {
@@ -112,6 +123,34 @@ function guardValues(guard: SelectiveRestoreStageGuard): [string, string, string
   return [guard.id, guard.actorIdentity, guard.stageSecretHash];
 }
 
+function jsonBytes(value: string): number {
+  return encoder.encode(value).byteLength;
+}
+
+function chunkRows(rows: readonly unknown[][]): string[] {
+  const chunks: string[] = [];
+  let rowJson: string[] = [];
+  let bytes = 2;
+  const flush = () => {
+    if (!rowJson.length) return;
+    chunks.push(`[${rowJson.join(",")}]`);
+    rowJson = [];
+    bytes = 2;
+  };
+
+  for (const row of rows) {
+    const serialized = canonicalBackupJson(row);
+    const serializedBytes = jsonBytes(serialized);
+    if (serializedBytes + 2 > MAX_SELECTIVE_RESTORE_JSON_BINDING_BYTES) tooLarge();
+    const additional = serializedBytes + (rowJson.length ? 1 : 0);
+    if (bytes + additional > MAX_SELECTIVE_RESTORE_JSON_BINDING_BYTES) flush();
+    rowJson.push(serialized);
+    bytes += serializedBytes + (rowJson.length > 1 ? 1 : 0);
+  }
+  flush();
+  return chunks;
+}
+
 function restoreTables(
   policy: SelectiveRestorePolicyResult,
   fullPayloads: ReadonlyMap<PortalBackupDomain, FullBackupDomainPayload>,
@@ -124,7 +163,12 @@ function restoreTables(
     const payload = validateFullBackupDomainPayload(domain, source);
     if (payload.tables.length !== definitions.length) fail();
     for (let index = 0; index < definitions.length; index += 1) {
-      output.push({ domain, descriptor: definitions[index], payload: payload.tables[index] });
+      output.push({
+        domain,
+        descriptor: definitions[index],
+        payload: payload.tables[index],
+        rowChunks: chunkRows(payload.tables[index].rows),
+      });
     }
   }
   return output;
@@ -147,6 +191,8 @@ function prepared(
   sql: string,
   values: readonly unknown[],
 ): D1PreparedStatement {
+  if (jsonBytes(sql) > MAX_SELECTIVE_RESTORE_SQL_BYTES) tooLarge();
+  if (values.length > MAX_SELECTIVE_RESTORE_CLAIM_PARAMETERS) tooLarge();
   return db.prepare(sql).bind(...values);
 }
 
@@ -157,17 +203,26 @@ function rowProjection(descriptor: FullBackupTableDefinition, source: string): s
 }
 
 function currentStateGuard(table: RestoreTable): { sql: string; values: unknown[] } {
-  const rowsJson = canonicalBackupJson(table.payload.rows);
   const columns = table.descriptor.columns.join(", ");
   const projected = rowProjection(table.descriptor, "value");
   return {
     sql: [
       `(SELECT COUNT(*) FROM ${table.descriptor.name}) = ?`,
-      `NOT EXISTS (SELECT ${columns} FROM ${table.descriptor.name} EXCEPT SELECT ${projected} FROM json_each(?))`,
-      `NOT EXISTS (SELECT ${projected} FROM json_each(?) EXCEPT SELECT ${columns} FROM ${table.descriptor.name})`,
+      ...table.rowChunks.map(() => (
+        `NOT EXISTS (SELECT ${projected} FROM json_each(?) EXCEPT SELECT ${columns} FROM ${table.descriptor.name})`
+      )),
     ].join(" AND "),
-    values: [table.payload.rows.length, rowsJson, rowsJson],
+    values: [table.payload.rows.length, ...table.rowChunks],
   };
+}
+
+function validateBatchSize(sourceTables: readonly RestoreTable[], claimParameterCount: number): void {
+  if (claimParameterCount > MAX_SELECTIVE_RESTORE_CLAIM_PARAMETERS) tooLarge();
+  const insertChunks = sourceTables
+    .filter((table) => table.descriptor.name !== "portal_sessions")
+    .reduce((total, table) => total + table.rowChunks.length, 0);
+  const statements = 1 + sourceTables.length + insertChunks + 2;
+  if (statements > MAX_SELECTIVE_RESTORE_BATCH_STATEMENTS) tooLarge();
 }
 
 export function validateSelectiveRestoreCandidate(
@@ -181,6 +236,8 @@ export function validateSelectiveRestoreCandidate(
       || policy.physicalDomains.includes("rbac")) fail();
   const tables = restoreTables(policy, fullPayloads);
   if (policy.selectedDomains.includes("local-auth")) requireActiveAdministrator(tables);
+  const claimParameters = 5 + tables.reduce((total, table) => total + 1 + table.rowChunks.length, 0);
+  validateBatchSize(tables, claimParameters);
 }
 
 export function buildSelectiveRestoreStatements(
@@ -212,6 +269,7 @@ export function buildSelectiveRestoreStatements(
     guard.now,
     ...claimGuards.flatMap((item) => item.values),
   ];
+  validateBatchSize(sourceTables, claimValues.length);
 
   const statements: D1PreparedStatement[] = [prepared(db, claimSql, claimValues)];
 
@@ -224,12 +282,14 @@ export function buildSelectiveRestoreStatements(
   }
 
   for (const item of sourceTables) {
-    if (item.descriptor.name === "portal_sessions" || item.payload.rows.length === 0) continue;
-    statements.push(prepared(
-      db,
-      `INSERT INTO ${item.descriptor.name} (${item.descriptor.columns.join(", ")}) SELECT ${rowProjection(item.descriptor, "value")} FROM json_each(?) WHERE EXISTS (${guardedStage})`,
-      [canonicalBackupJson(item.payload.rows), ...guardValues(guard)],
-    ));
+    if (item.descriptor.name === "portal_sessions") continue;
+    for (const rowsJson of item.rowChunks) {
+      statements.push(prepared(
+        db,
+        `INSERT INTO ${item.descriptor.name} (${item.descriptor.columns.join(", ")}) SELECT ${rowProjection(item.descriptor, "value")} FROM json_each(?) WHERE EXISTS (${guardedStage})`,
+        [rowsJson, ...guardValues(guard)],
+      ));
+    }
   }
 
   statements.push(prepared(

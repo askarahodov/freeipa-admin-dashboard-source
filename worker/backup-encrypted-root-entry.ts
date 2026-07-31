@@ -3,12 +3,6 @@ import type { BackupExportEnv } from "../backup-export.ts";
 import { handleEncryptedBackupExportRequest } from "./backup-encrypted-export-entry.ts";
 import { handleEncryptedBackupPreviewRequest } from "./backup-encrypted-preview-entry.ts";
 import { handleIsolatedBackupRestoreRequest } from "./backup-isolated-restore-entry.ts";
-import {
-  handleSelectiveBackupRestoreRequest,
-  SELECTIVE_RESTORE_CANCEL_PATH,
-  SELECTIVE_RESTORE_COMMIT_PATH,
-  SELECTIVE_RESTORE_PREPARE_PATH,
-} from "./backup-selective-restore-entry.ts";
 
 type PortalRole = "viewer" | "operator" | "admin";
 
@@ -29,9 +23,6 @@ export type EncryptedBackupDispatchDependencies = {
   exportHandler?: typeof handleEncryptedBackupExportRequest;
   previewHandler?: typeof handleEncryptedBackupPreviewRequest;
   testRestoreHandler?: typeof handleIsolatedBackupRestoreRequest;
-  prepareHandler?: typeof handleSelectiveBackupRestoreRequest;
-  commitHandler?: typeof handleSelectiveBackupRestoreRequest;
-  cancelHandler?: typeof handleSelectiveBackupRestoreRequest;
   createContext?: (access: EncryptedBackupAccess) => AuditContext;
 };
 
@@ -90,28 +81,14 @@ export async function handleEncryptedBackupRoute(
   const exportPath = "/api/admin/backups/export/encrypted";
   const previewPath = "/api/admin/backups/import/encrypted/preview";
   const testRestorePath = "/api/admin/backups/import/encrypted/test-restore";
-  const selectivePaths = new Set([
-    SELECTIVE_RESTORE_PREPARE_PATH,
-    SELECTIVE_RESTORE_COMMIT_PATH,
-    SELECTIVE_RESTORE_CANCEL_PATH,
-  ]);
-  if (pathname !== exportPath
-      && pathname !== previewPath
-      && pathname !== testRestorePath
-      && !selectivePaths.has(pathname)) return null;
+  if (pathname !== exportPath && pathname !== previewPath && pathname !== testRestorePath) return null;
 
   const access = encryptedBackupAccess(request, env);
   const requiredPermission = pathname === exportPath
     ? "backup.export.encrypted"
     : pathname === testRestorePath
       ? "backup.restore.test"
-      : pathname === SELECTIVE_RESTORE_PREPARE_PATH
-        ? "backup.restore.prepare"
-        : pathname === SELECTIVE_RESTORE_COMMIT_PATH
-          ? "backup.restore.commit"
-          : pathname === SELECTIVE_RESTORE_CANCEL_PATH
-            ? "backup.restore.cancel"
-            : "backup.restore.preview";
+      : "backup.restore.preview";
   if (access.role !== "admin") return denied(requiredPermission, access.role);
 
   const context = (dependencies.createContext ?? createAuditContext)(access);
@@ -120,15 +97,6 @@ export async function handleEncryptedBackupRoute(
   }
   if (pathname === testRestorePath) {
     return (dependencies.testRestoreHandler ?? handleIsolatedBackupRestoreRequest)(request, env, context);
-  }
-  if (pathname === SELECTIVE_RESTORE_PREPARE_PATH) {
-    return (dependencies.prepareHandler ?? handleSelectiveBackupRestoreRequest)(request, env, context);
-  }
-  if (pathname === SELECTIVE_RESTORE_COMMIT_PATH) {
-    return (dependencies.commitHandler ?? handleSelectiveBackupRestoreRequest)(request, env, context);
-  }
-  if (pathname === SELECTIVE_RESTORE_CANCEL_PATH) {
-    return (dependencies.cancelHandler ?? handleSelectiveBackupRestoreRequest)(request, env, context);
   }
   return (dependencies.previewHandler ?? handleEncryptedBackupPreviewRequest)(request, env, context);
 }

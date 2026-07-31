@@ -11,6 +11,7 @@ const productionPaths = [
   "../backup-selective-restore-prepare.ts",
   "../backup-selective-restore-commit.ts",
   "../worker/backup-selective-restore-entry.ts",
+  "../worker/backup-selective-restore-root-entry.ts",
 ];
 
 test("selective restore production sources never persist or audit request secrets", () => {
@@ -32,7 +33,7 @@ test("selective restore production sources never persist or audit request secret
   assert.equal(route.includes("MAX_SELECTIVE_CANCEL_REQUEST_BYTES"), true);
 });
 
-test("production restore has no external calls maintenance mode or dynamic schema changes", () => {
+test("production restore has no external calls maintenance mode or destructive schema changes", () => {
   const source = productionPaths.map((path) => fs.readFileSync(new URL(path, import.meta.url), "utf8")).join("\n");
   assert.doesNotMatch(source, /\bfetch\s*\(/);
   assert.doesNotMatch(source, /console\./);
@@ -44,19 +45,24 @@ test("production restore has no external calls maintenance mode or dynamic schem
   assert.doesNotMatch(source, /INSERT\s+INTO\s+portal_sessions/i);
 });
 
-test("the root worker wires each selective route once behind admin RBAC", () => {
-  const root = fs.readFileSync(new URL("../worker/backup-encrypted-root-entry.ts", import.meta.url), "utf8");
+test("dedicated outer root wires each selective route once behind admin RBAC", () => {
+  const root = fs.readFileSync(new URL("../worker/backup-selective-restore-root-entry.ts", import.meta.url), "utf8");
+  const readOnlyRoot = fs.readFileSync(new URL("../worker/backup-encrypted-root-entry.ts", import.meta.url), "utf8");
   for (const value of [
-    "/api/admin/backups/import/encrypted/prepare-commit",
-    "/api/admin/backups/import/encrypted/commit",
-    "/api/admin/backups/import/encrypted/cancel",
+    "SELECTIVE_RESTORE_PREPARE_PATH",
+    "SELECTIVE_RESTORE_COMMIT_PATH",
+    "SELECTIVE_RESTORE_CANCEL_PATH",
     "backup.restore.prepare",
     "backup.restore.commit",
     "backup.restore.cancel",
+    "encryptedBackupAccess",
+    "freeipa-group-member-entry",
   ]) {
     assert.equal(root.includes(value), true, value);
   }
   assert.equal((root.match(/prepareHandler/g) ?? []).length >= 2, true);
   assert.equal((root.match(/commitHandler/g) ?? []).length >= 2, true);
   assert.equal((root.match(/cancelHandler/g) ?? []).length >= 2, true);
+  assert.equal(readOnlyRoot.includes("backup.restore.commit"), false);
+  assert.equal(readOnlyRoot.includes("backup-selective-restore"), false);
 });

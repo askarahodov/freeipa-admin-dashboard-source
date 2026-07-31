@@ -54,11 +54,13 @@ test("migration two changes schema only and production uses the version two regi
   const migrationSource = fs.readFileSync(new URL("../db/portal-migration-v2.ts", import.meta.url), "utf8");
   const hardenedSource = fs.readFileSync(new URL("../db/portal-migrations-hardened.ts", import.meta.url), "utf8");
   const registrySource = fs.readFileSync(new URL("../db/portal-migrations-v2.ts", import.meta.url), "utf8");
+  const schemaSource = fs.readFileSync(new URL("../db/portal-restore-stage-schema.ts", import.meta.url), "utf8");
 
   assert.doesNotMatch(migrationSource, /\b(?:INSERT|UPDATE|DELETE|REPLACE)\b/i);
   assert.doesNotMatch(migrationSource, /\b(?:DROP|ALTER)\b/i);
   assert.equal(hardenedSource.includes("portalMigrationsV2 as portalMigrations"), true);
   assert.equal(hardenedSource.includes("ensurePortalSchemaV2"), true);
-  assert.equal(registrySource.includes("portal_backup_restore_stages"), true);
-  assert.equal(registrySource.includes("portal_restore_stage"), false);
+  assert.equal(registrySource.includes("portalRestoreStageTable"), true);
+  assert.equal(registrySource.includes("backup-restore-stage-metadata"), true);
+  assert.equal(schemaSource.includes("portal_backup_restore_stages"), true);
 });

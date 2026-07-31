@@ -6,6 +6,7 @@ test("group member browser uses direct FreeIPA actions and the paginated API", (
   const component = fs.readFileSync(new URL("../app/FreeIpaGroupMemberBrowser.tsx", import.meta.url), "utf8");
   const events = fs.readFileSync(new URL("../freeipa-ui-events.ts", import.meta.url), "utf8");
   const wrapper = fs.readFileSync(new URL("../worker/freeipa-group-member-entry.ts", import.meta.url), "utf8");
+  const selectiveRoot = fs.readFileSync(new URL("../worker/backup-selective-restore-root-entry.ts", import.meta.url), "utf8");
   const serviceRoot = fs.readFileSync(new URL("../worker/service-admin-root-entry.ts", import.meta.url), "utf8");
   const schemaRoot = fs.readFileSync(new URL("../worker/schema-migrations-entry.ts", import.meta.url), "utf8");
   const layout = fs.readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
@@ -22,7 +23,8 @@ test("group member browser uses direct FreeIPA actions and the paginated API", (
   assert.equal(wrapper.includes("/api/integrations/groups"), true);
   assert.equal(wrapper.includes("/api/integrations/users"), true);
   assert.equal(wrapper.includes("queryFreeIpaGroupMembers"), true);
-  assert.equal(serviceRoot.includes('import rootRuntime from "./freeipa-group-member-entry"'), true);
+  assert.equal(selectiveRoot.includes('import rootRuntime from "./freeipa-group-member-entry.ts"'), true);
+  assert.equal(serviceRoot.includes('import rootRuntime from "./backup-selective-restore-root-entry"'), true);
   assert.equal(schemaRoot.includes('import rootRuntime from "./service-admin-root-entry.ts"'), true);
   assert.equal(layout.includes("<FreeIpaGroupMemberBrowser />"), true);
   assert.equal(vite.includes('main: "./worker/schema-migrations-entry.ts"'), true);

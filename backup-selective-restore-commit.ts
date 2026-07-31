@@ -134,6 +134,7 @@ const safeErrors = new Map<string, { status: number; message: string }>([
   ["backup_recovery_point_invalid", { status: 422, message: "Backup recovery point is invalid" }],
   ["backup_recovery_point_stale", { status: 409, message: "Backup recovery point is stale" }],
   ["backup_restore_admin_required", { status: 422, message: "Restored local authentication requires an active administrator" }],
+  ["backup_restore_commit_too_large", { status: 422, message: "Backup restore candidate exceeds atomic commit limits" }],
   ["backup_restore_commit_failed", { status: 500, message: "Backup restore commit failed" }],
 ]);
 

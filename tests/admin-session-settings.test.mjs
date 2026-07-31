@@ -4,6 +4,7 @@ import test from "node:test";
 
 const authorization = fs.readFileSync(new URL("../admin-session-authorization.ts", import.meta.url), "utf8");
 const runtime = fs.readFileSync(new URL("../worker/local-secure-entry.ts", import.meta.url), "utf8");
+const selectiveRoot = fs.readFileSync(new URL("../worker/backup-selective-restore-root-entry.ts", import.meta.url), "utf8");
 const serviceRoot = fs.readFileSync(new URL("../worker/service-admin-root-entry.ts", import.meta.url), "utf8");
 const schemaRoot = fs.readFileSync(new URL("../worker/schema-migrations-entry.ts", import.meta.url), "utf8");
 const viteConfig = fs.readFileSync(new URL("../vite.config.ts", import.meta.url), "utf8");
@@ -19,9 +20,12 @@ const protectedPaths = [
   "/api/integrations/approval/policies",
   "/api/integrations/routes",
   "/api/integrations/catalog/sync",
+  "/api/admin/backups/import/encrypted/prepare-commit",
+  "/api/admin/backups/import/encrypted/commit",
+  "/api/admin/backups/import/encrypted/cancel",
 ];
 
-test("all administrative settings endpoints use the shared session authorization boundary", () => {
+test("all administrative settings and restore endpoints use the shared session authorization boundary", () => {
   for (const path of protectedPaths) assert.equal(authorization.includes(`"${path}"`), true, path);
   assert.equal(runtime.includes("isAdminIntegrationPath(url.pathname)"), true);
   assert.equal(runtime.includes('headers.delete("x-admin-token")'), true);
@@ -38,7 +42,8 @@ test("local session mutations require same-origin while service token access sta
   assert.equal(schemaRoot.includes('import rootRuntime from "./service-admin-root-entry.ts"'), true);
   assert.equal(serviceRoot.includes("serviceAdminTokenAuthorized(request, sourceEnv.ADMIN_TOKEN)"), true);
   assert.equal(serviceRoot.includes('PORTAL_IDENTITY_MODE: "static"'), true);
-  assert.equal(serviceRoot.includes('import rootRuntime from "./freeipa-group-member-entry"'), true);
+  assert.equal(serviceRoot.includes('import rootRuntime from "./backup-selective-restore-root-entry"'), true);
+  assert.equal(selectiveRoot.includes('import rootRuntime from "./freeipa-group-member-entry"'), true);
   assert.equal(serviceRoot.includes("resolveLocalSession"), false);
   assert.equal(serviceRoot.includes("env.DB"), false);
 });

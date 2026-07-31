@@ -5,6 +5,10 @@ import {
   type FreeIpaDirectoryGroup,
 } from "../freeipa-group-member-query";
 import type { FreeIpaDirectoryUser } from "../freeipa-user-query";
+import {
+  portalRolePermissions,
+  type PortalRole,
+} from "../portal-permissions";
 import { handleBackupImportPreviewRoute, type BackupPreviewAccessEnv } from "./backup-import-preview-root-entry";
 import { handleEncryptedBackupRoute, type EncryptedBackupAccessEnv } from "./backup-encrypted-root-entry";
 
@@ -14,6 +18,14 @@ type ScheduledController = Parameters<NonNullable<typeof bulkRuntime.scheduled>>
 
 type GroupsPayload = { mode?: string; groups?: unknown; error?: string };
 type UsersPayload = { mode?: string; users?: unknown; error?: string };
+type StatusPayload = {
+  access?: {
+    identity?: unknown;
+    role?: unknown;
+    permissions?: unknown;
+  };
+  [key: string]: unknown;
+};
 
 const jsonHeaders = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
 
@@ -51,6 +63,25 @@ async function readPayload<T>(response: Response): Promise<T & { error?: string 
   return payload && typeof payload === "object" && !Array.isArray(payload)
     ? payload as T & { error?: string }
     : {} as T & { error?: string };
+}
+
+function portalRole(value: unknown): PortalRole | null {
+  return value === "viewer" || value === "operator" || value === "admin" ? value : null;
+}
+
+async function withEffectivePermissions(response: Response): Promise<Response> {
+  if (!response.ok) return response;
+  const payload = await response.clone().json().catch(() => null) as StatusPayload | null;
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return response;
+  const role = portalRole(payload.access?.role);
+  if (!role || !payload.access) return response;
+  return json({
+    ...payload,
+    access: {
+      ...payload.access,
+      permissions: [...portalRolePermissions[role]],
+    },
+  }, response.status);
 }
 
 async function handleGroupMembers(request: Request, env: RuntimeEnv, ctx: RuntimeContext, url: URL): Promise<Response> {
@@ -102,7 +133,11 @@ const worker = {
     if (request.method === "GET" && url.pathname === "/api/integrations/groups/members") {
       return handleGroupMembers(request, sourceEnv, ctx, url);
     }
-    return bulkRuntime.fetch(request, sourceEnv, ctx);
+    const response = await bulkRuntime.fetch(request, sourceEnv, ctx);
+    if (request.method === "GET" && url.pathname === "/api/integrations/status") {
+      return withEffectivePermissions(response);
+    }
+    return response;
   },
 
   async scheduled(controller: ScheduledController, env: RuntimeEnv | undefined, ctx: RuntimeContext): Promise<void> {

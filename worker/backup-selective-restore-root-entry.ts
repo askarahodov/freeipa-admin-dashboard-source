@@ -1,5 +1,5 @@
 import { createAuditContext, type AuditContext } from "../audit-log.ts";
-import rootRuntime from "./freeipa-group-member-entry";
+import rootRuntime from "./freeipa-group-member-entry.ts";
 import {
   encryptedBackupAccess,
   type EncryptedBackupAccess,

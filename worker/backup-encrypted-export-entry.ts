@@ -60,16 +60,25 @@ async function auditSafe(
   await audit(env, context, event).catch(() => null);
 }
 
+const safeErrors = new Map<string, { status: number; message: string }>([
+  ["backup_request_too_large", { status: 413, message: "Encrypted backup export request is too large" }],
+  ["backup_request_invalid", { status: 400, message: "Encrypted backup export request is invalid" }],
+  ["backup_database_unavailable", { status: 503, message: "Backup database is unavailable" }],
+  ["backup_schema_incompatible", { status: 409, message: "Backup schema is incompatible" }],
+  ["backup_password_invalid", { status: 400, message: "Backup password is invalid" }],
+  ["backup_encryption_unsupported", { status: 422, message: "Backup encryption parameters are unsupported" }],
+  ["backup_encryption_failed", { status: 500, message: "Backup encryption failed" }],
+  ["backup_payload_too_large", { status: 413, message: "Backup payload is too large" }],
+  ["backup_document_too_large", { status: 413, message: "Encrypted backup document is too large" }],
+  ["backup_encrypted_export_failed", { status: 500, message: "Encrypted backup export failed" }],
+]);
+
 function normalizeError(error: unknown): BackupEncryptedExportError {
-  if (error instanceof BackupEncryptedExportError) return error;
-  if (error && typeof error === "object") {
-    const code = typeof (error as { code?: unknown }).code === "string" ? (error as { code: string }).code : "";
-    const status = Number((error as { status?: unknown }).status);
-    if (code && Number.isInteger(status) && status >= 400 && status <= 599) {
-      const safeMessage = code === "backup_decryption_failed" ? "Backup decryption failed" : "Encrypted backup export failed";
-      return new BackupEncryptedExportError(code, status, safeMessage);
-    }
-  }
+  const code = error && typeof error === "object" && typeof (error as { code?: unknown }).code === "string"
+    ? (error as { code: string }).code
+    : "";
+  const safe = safeErrors.get(code);
+  if (safe) return new BackupEncryptedExportError(code, safe.status, safe.message);
   return new BackupEncryptedExportError("backup_encrypted_export_failed", 500, "Encrypted backup export failed");
 }
 

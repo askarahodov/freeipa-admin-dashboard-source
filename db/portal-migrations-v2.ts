@@ -47,12 +47,13 @@ type MigrationOptions = Parameters<typeof ensurePortalSchemaWithRegistry>[2];
 type TableInfoRow = { name: string; type: string; notnull: number; pk: number };
 type SchemaObjectRow = { name: string; type: string; tbl_name: string; sql: string | null };
 
-function normalizedSql(value: unknown): string {
+export function normalizePortalRestoreStageSql(value: unknown): string {
   return String(value ?? "")
     .replaceAll('"', "")
     .replaceAll("`", "")
     .replaceAll("[", "")
     .replaceAll("]", "")
+    .replace(/\bif\s+not\s+exists\b/gi, "")
     .replace(/\s+/g, " ")
     .trim()
     .toLowerCase();
@@ -106,12 +107,12 @@ async function verifyRestoreStageSchema(
     if (!table) reasons.push("table:portal_backup_restore_stages:missing");
     if (!index) reasons.push("index:portal_backup_restore_stages_status_idx:missing");
 
-    const tableSql = normalizedSql(table?.sql);
+    const tableSql = normalizePortalRestoreStageSql(table?.sql);
     if (tableSql && (/\b(?:check|references|foreign key)\b/.test(tableSql)
         || (tableSql.match(/\bunique\b/g) ?? []).length > 0)) {
       reasons.push("table:portal_backup_restore_stages:unexpected_constraint");
     }
-    if (index && normalizedSql(index.sql) !== normalizedSql(portalRestoreStageIndex.sql)) {
+    if (index && normalizePortalRestoreStageSql(index.sql) !== normalizePortalRestoreStageSql(portalRestoreStageIndex.sql)) {
       reasons.push("index:portal_backup_restore_stages_status_idx:definition");
     }
     for (const row of rows) {

@@ -93,13 +93,20 @@ FreeIPA отвечает за доменные учётные записи, гр
 
 ### P1 — целостность данных и disaster recovery
 
-- [x] Первый этап #57: полный canonical inventory текущих таблиц, named indexes и append-only triggers.
-- [x] Первый этап #57: versioned migration journal с SHA-256 checksum и startup lock.
-- [x] Первый этап #57: безопасный adoption существующей runtime-базы без изменения строк.
-- [x] Первый этап #57: blocking incompatible drift, reporting compatible drift и recovery diagnostics.
-- [x] Первый этап #57: внешний readiness boundary до обычного API и scheduled-задач.
-- [ ] Завершить #57: убрать schema-changing DDL из request handlers и оставить migrations единственным владельцем схемы.
-- [ ] После полного #57 реализовать #37: versioned backup manifest, encrypted backup, preview, selective/full restore и offline recovery.
+- [x] #57: полный canonical inventory текущих таблиц, named indexes и append-only triggers.
+- [x] #57: versioned migration journal с SHA-256 checksum и startup lock.
+- [x] #57: безопасный adoption существующей runtime-базы без изменения строк.
+- [x] #57: blocking incompatible drift, reporting compatible drift и recovery diagnostics.
+- [x] #57: внешний readiness boundary до обычного API и scheduled-задач.
+- [x] #57: удаление schema-changing DDL из request/scheduled runtime paths.
+- [x] #37 PR #65: versioned manifest, canonical paths и checksums.
+- [x] #37 PR #66: administrator-only sanitized logical export без секретов.
+- [x] #37 PR #67: read-only import preflight, schema compatibility, counts и conflict preview.
+- [x] #37 PR #68: encrypted full logical export и read-only encrypted preview с отдельным backup password.
+- [ ] #37: isolated test restore и optimistic concurrency token.
+- [ ] #37: selective restore с staged/transactional commit, cancellation и rollback.
+- [ ] #37: destructive full restore с maintenance mode, explicit confirmation и обязательным pre-restore recovery point.
+- [ ] #37: CLI/offline recovery, volume-level procedure и restore smoke после перезапуска.
 
 ### P0 — эксплуатационная проверка
 
@@ -152,9 +159,10 @@ FreeIPA отвечает за доменные учётные записи, гр
 - [x] Playwright: login/logout и неверный пароль.
 - [x] Playwright: создание пользователя и назначение ролей.
 - [x] Playwright: ограничения viewer/operator/admin.
-- [ ] Playwright: FreeIPA CRUD и membership.
-- [ ] Playwright: XYOps run, approval, cancel и result.
+- [x] Playwright: FreeIPA CRUD и membership.
+- [x] Playwright: XYOps run, approval, cancel и result.
 - [ ] Playwright: сохранение состояния после перезапуска.
+- [ ] Playwright: backup export/import preview и restore rollback после появления restore commit.
 
 ### P2 — дополнительные модули FreeIPA
 
@@ -170,6 +178,6 @@ FreeIPA отвечает за доменные учётные записи, гр
 
 Администратор разворачивает портал локально одной командой Docker Compose, входит под внутренней учётной записью, управляет ролями и сессиями через UI и не зависит от FreeIPA для аутентификации.
 
-Оператор выполняет разрешённые операции FreeIPA и XYOps, viewer не может изменять данные, а admin управляет настройками, согласованиями, аудитом, диагностикой и RBAC.
+Оператор выполняет разрешённые операции FreeIPA и XYOps, viewer не может изменять данные, а admin управляет настройками, согласованиями, аудитом, диагностикой, RBAC и резервными копиями.
 
 После перезапуска контейнеров сохраняются пользователи, password hashes, роли, настройки, операции, approvals, metadata и аудит. Секреты не возвращаются браузеру и не попадают в журналы или тестовые отчёты.

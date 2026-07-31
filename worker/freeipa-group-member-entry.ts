@@ -133,11 +133,11 @@ const worker = {
     if (request.method === "GET" && url.pathname === "/api/integrations/groups/members") {
       return handleGroupMembers(request, sourceEnv, ctx, url);
     }
-    const response = await bulkRuntime.fetch(request, sourceEnv, ctx);
     if (request.method === "GET" && url.pathname === "/api/integrations/status") {
+      const response = await bulkRuntime.fetch(request, sourceEnv, ctx);
       return withEffectivePermissions(response);
     }
-    return response;
+    return bulkRuntime.fetch(request, sourceEnv, ctx);
   },
 
   async scheduled(controller: ScheduledController, env: RuntimeEnv | undefined, ctx: RuntimeContext): Promise<void> {

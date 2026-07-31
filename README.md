@@ -16,7 +16,8 @@
 - журнал операций, уведомления и append-only аудит;
 - собственная локальная база пользователей портала;
 - управление ролями `viewer`, `operator` и `admin` через UI;
-- sanitized и полные зашифрованные логические резервные копии с read-only preview.
+- sanitized и полные зашифрованные логические резервные копии;
+- read-only preview и изолированная проверка восстановления без изменения рабочей базы.
 
 ## Требования
 
@@ -95,7 +96,7 @@ PORTAL_DEFAULT_ROLE=viewer
 |---|---|
 | `viewer` | просмотр каталога, FreeIPA, операций и собственных уведомлений |
 | `operator` | права viewer, изменения FreeIPA и запуск XYOps |
-| `admin` | все права, удаление объектов, согласования, настройки, аудит, RBAC и создание резервных копий |
+| `admin` | все права, удаление объектов, согласования, настройки, аудит, RBAC, создание резервных копий и изолированная проверка восстановления |
 
 Сервер запрещает удалить, отключить или понизить последнего активного администратора.
 
@@ -195,9 +196,14 @@ POST /api/admin/backups/export
 POST /api/admin/backups/import/preview
 POST /api/admin/backups/export/encrypted
 POST /api/admin/backups/import/encrypted/preview
+POST /api/admin/backups/import/encrypted/test-restore
 ```
 
-Все четыре endpoint доступны только администратору и используют `cache-control: no-store`. Export создаёт логический документ в ответе и не сохраняет его на сервере. Preview проверяет manifest, paths, checksums, schema compatibility и conflicts, но ничего не записывает в базу.
+Все endpoint доступны только администратору и используют `cache-control: no-store`. Export создаёт логический документ в ответе и не сохраняет его на сервере.
+
+Encrypted preview может проверять все домены backup или явное непустое подмножество `domains`. Он проверяет manifest, paths, checksums, schema compatibility и conflicts, а затем возвращает opaque `approvalToken`, связанный с выбранным backup, доменами, текущей схемой и текущим состоянием выбранных данных.
+
+`test-restore` повторно вычисляет token и отклоняет устаревший preview с `409 backup_restore_stale`. После этого данные расшифровываются только в памяти, копируются в новое request-scoped хранилище и проходят проверки table contract, primary keys, JSON-полей и внутренних ссылок. Endpoint всегда возвращает `productionMutated: false`; рабочая D1-база используется только для read-only fingerprint и comparison.
 
 ### Recovery-диагностика схемы
 
@@ -260,6 +266,7 @@ artifacts/local-integration/compose.log
 - [Инспектор XYOps](docs/XYOPS_INSPECTOR.md)
 - [Презентационные метаданные](docs/PROCESS_PRESENTATION_METADATA.md)
 - [Аудит](docs/AUDIT_LOG.md)
+- [Дизайн isolated test restore](docs/superpowers/specs/2026-07-31-isolated-test-restore-design.md)
 
 ## Резервное копирование
 
@@ -272,14 +279,24 @@ Encrypted full backup использует PBKDF2-SHA-256 и AES-256-GCM. Для
 
 Пароль backup существует только в текущем HTTP-запросе: он не сохраняется, не возвращается, не записывается в audit и не заменяет `CONFIG_ENCRYPTION_KEY`. Сам `CONFIG_ENCRYPTION_KEY` никогда не включается в backup; его необходимо хранить отдельно.
 
+Текущий managed recovery workflow поддерживает:
+
+- read-only preview всех или выбранных доменов;
+- optimistic concurrency token без раскрытия full current-state fingerprints;
+- constant-time token verification перед test restore;
+- изолированное request-scoped memory staging;
+- структурные и реляционные проверки settings, local-auth, RBAC, operations и approvals;
+- безопасные aggregate results и fixed warning codes без row identifiers.
+
 Ограничения текущего этапа:
 
 - export request — не более 16 KiB;
-- encrypted preview request — не более 20 MiB до JSON parsing;
+- encrypted preview и test-restore request — не более 20 MiB до JSON parsing;
 - сумма canonical encrypted envelopes — не более 18 MiB;
 - PBKDF2 work factor — от 210000 до 1000000 iterations;
-- backup не сохраняется сервером;
-- restore commit, DML, migrations и maintenance mode отсутствуют;
-- selective/full restore и offline recovery будут реализованы отдельными этапами #37.
+- backup и approval token не сохраняются сервером;
+- test restore не расшифровывает portal secret blobs через `CONFIG_ENCRYPTION_KEY`;
+- production restore commit, DML, migrations и maintenance mode отсутствуют;
+- selective/full production restore и offline recovery будут реализованы отдельными этапами #37.
 
-До появления destructive restore workflow продолжайте хранить отдельную volume-level копию `dashboard-data` и отдельно защищённый `CONFIG_ENCRYPTION_KEY`. Логические preview endpoint предназначены только для проверки совместимости и конфликтов и не изменяют данные портала.
+До появления destructive restore workflow продолжайте хранить отдельную volume-level копию `dashboard-data` и отдельно защищённый `CONFIG_ENCRYPTION_KEY`. `canCommit` из test restore является только advisory результатом и не запускает изменение рабочей базы.

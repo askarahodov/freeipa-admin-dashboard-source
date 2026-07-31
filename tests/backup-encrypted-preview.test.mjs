@@ -107,6 +107,7 @@ test("passes only safe projected records to existing comparison engine", async (
     { state: "ready", currentVersion: 1, appliedVersions: [1] },
     new Map(),
     {
+      fullRegistry: registry(),
       async preview(_env, projected, schema) {
         received = { projected, schema };
         return { selectedDomains: projected.manifest.domains, canRestore: true, summary: { add: 2, update: 0, unchanged: 0, conflict: 0, removeIgnored: 0 }, domains: [], backup: {}, requiredMigrations: [] };
@@ -114,6 +115,7 @@ test("passes only safe projected records to existing comparison engine", async (
     },
   );
   assert.equal(result.summary.add, 2);
+  assert.match(result.restorePlan.approvalToken, /^[0-9a-f]{64}$/);
   assert.equal(received.projected.manifest.mode, "encrypted");
   assert.doesNotMatch(canonicalBackupJson(received.projected.payloads), /encrypted-settings|hash|token/);
 });

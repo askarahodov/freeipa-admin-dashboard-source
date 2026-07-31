@@ -8,7 +8,8 @@ export type PortalPermission =
   | "xyops.approve"
   | "settings.manage"
   | "backup.export"
-  | "backup.export.encrypted";
+  | "backup.export.encrypted"
+  | "backup.restore.test";
 
 export const portalRoles: PortalRole[] = ["viewer", "operator", "admin"];
 
@@ -21,6 +22,7 @@ export const portalPermissionOrder: PortalPermission[] = [
   "settings.manage",
   "backup.export",
   "backup.export.encrypted",
+  "backup.restore.test",
 ];
 
 export const portalRoleLabels: Record<PortalRole, string> = {
@@ -83,12 +85,18 @@ export const portalPermissionMetadata: Record<PortalPermission, {
     description: "Создание полной зашифрованной копии данных портала с отдельным пользовательским ключом.",
     scope: "Portal",
   },
+  "backup.restore.test": {
+    title: "Проверка восстановления",
+    shortTitle: "Test restore",
+    description: "Проверка выбранных данных резервной копии в изолированном временном хранилище без изменения портала.",
+    scope: "Portal",
+  },
 };
 
 export const portalRolePermissions: Record<PortalRole, PortalPermission[]> = {
   viewer: ["directory.read"],
   operator: ["directory.read", "freeipa.write", "xyops.run"],
-  admin: ["directory.read", "freeipa.write", "freeipa.delete", "xyops.run", "xyops.approve", "settings.manage", "backup.export", "backup.export.encrypted"],
+  admin: ["directory.read", "freeipa.write", "freeipa.delete", "xyops.run", "xyops.approve", "settings.manage", "backup.export", "backup.export.encrypted", "backup.restore.test"],
 };
 
 export function roleHasPermission(role: PortalRole, permission: PortalPermission): boolean {

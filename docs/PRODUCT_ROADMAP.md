@@ -103,9 +103,9 @@ FreeIPA отвечает за доменные учётные записи, гр
 - [x] #37 PR #66: administrator-only sanitized logical export без секретов.
 - [x] #37 PR #67: read-only import preflight, schema compatibility, counts и conflict preview.
 - [x] #37 PR #68: encrypted full logical export и read-only encrypted preview с отдельным backup password.
-- [ ] #37: isolated test restore и optimistic concurrency token.
-- [ ] #37: selective restore с staged/transactional commit, cancellation и rollback.
-- [ ] #37: destructive full restore с maintenance mode, explicit confirmation и обязательным pre-restore recovery point.
+- [x] #37 PR #69: selected-domain preview plan, optimistic concurrency token и isolated in-memory test restore без production mutation.
+- [ ] #37: selective production restore с staged/transactional commit, cancellation, pre-restore recovery point и rollback.
+- [ ] #37: destructive full restore с maintenance mode, explicit confirmation и обязательным full recovery point.
 - [ ] #37: CLI/offline recovery, volume-level procedure и restore smoke после перезапуска.
 
 ### P0 — эксплуатационная проверка
@@ -162,7 +162,7 @@ FreeIPA отвечает за доменные учётные записи, гр
 - [x] Playwright: FreeIPA CRUD и membership.
 - [x] Playwright: XYOps run, approval, cancel и result.
 - [ ] Playwright: сохранение состояния после перезапуска.
-- [ ] Playwright: backup export/import preview и restore rollback после появления restore commit.
+- [ ] Playwright: production backup restore commit и rollback после появления selective restore.
 
 ### P2 — дополнительные модули FreeIPA
 
@@ -178,6 +178,6 @@ FreeIPA отвечает за доменные учётные записи, гр
 
 Администратор разворачивает портал локально одной командой Docker Compose, входит под внутренней учётной записью, управляет ролями и сессиями через UI и не зависит от FreeIPA для аутентификации.
 
-Оператор выполняет разрешённые операции FreeIPA и XYOps, viewer не может изменять данные, а admin управляет настройками, согласованиями, аудитом, диагностикой, RBAC и резервными копиями.
+Оператор выполняет разрешённые операции FreeIPA и XYOps, viewer не может изменять данные, а admin управляет настройками, согласованиями, аудитом, диагностикой, RBAC и резервными копиями, включая изолированную проверку восстановления.
 
 После перезапуска контейнеров сохраняются пользователи, password hashes, роли, настройки, операции, approvals, metadata и аудит. Секреты не возвращаются браузеру и не попадают в журналы или тестовые отчёты.

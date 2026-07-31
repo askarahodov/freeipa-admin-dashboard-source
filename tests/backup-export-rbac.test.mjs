@@ -28,14 +28,16 @@ const env = markSchemaTestBypass({
   PORTAL_RBAC_JSON: assignments,
 });
 
-test("backup.export is granted only to the default admin role", async () => {
+test("backup permissions are granted only to the default admin role", async () => {
   const viewer = await (await worker.fetch(request("viewer@example.test"), env, {})).json();
   const operator = await (await worker.fetch(request("operator@example.test"), env, {})).json();
   const admin = await (await worker.fetch(request("admin@example.test"), env, {})).json();
 
-  assert.equal(viewer.access.permissions.includes("backup.export"), false);
-  assert.equal(operator.access.permissions.includes("backup.export"), false);
-  assert.equal(admin.access.permissions.includes("backup.export"), true);
+  for (const permission of ["backup.export", "backup.export.encrypted", "backup.restore.test"]) {
+    assert.equal(viewer.access.permissions.includes(permission), false, permission);
+    assert.equal(operator.access.permissions.includes(permission), false, permission);
+    assert.equal(admin.access.permissions.includes(permission), true, permission);
+  }
 });
 
 test("every browser-visible role permission has complete metadata", () => {
@@ -47,11 +49,20 @@ test("every browser-visible role permission has complete metadata", () => {
     assert.equal(typeof metadata?.scope, "string", `missing scope for ${permission}`);
   }
   assert.equal(portalRolePermissions.admin.includes("backup.export"), true);
+  assert.equal(portalRolePermissions.admin.includes("backup.export.encrypted"), true);
+  assert.equal(portalRolePermissions.admin.includes("backup.restore.test"), true);
 });
 
-test("runtime admin permissions are representable by the browser permission catalogue", async () => {
-  const admin = await (await worker.fetch(request("admin@example.test"), env, {})).json();
-  for (const permission of admin.access.permissions) {
-    assert.ok(portalPermissionMetadata[permission], `runtime permission has no browser metadata: ${permission}`);
+test("runtime permissions exactly match the shared browser role catalogue", async () => {
+  for (const [email, role] of [
+    ["viewer@example.test", "viewer"],
+    ["operator@example.test", "operator"],
+    ["admin@example.test", "admin"],
+  ]) {
+    const payload = await (await worker.fetch(request(email), env, {})).json();
+    assert.deepEqual(payload.access.permissions, portalRolePermissions[role]);
+    for (const permission of payload.access.permissions) {
+      assert.ok(portalPermissionMetadata[permission], `runtime permission has no browser metadata: ${permission}`);
+    }
   }
 });

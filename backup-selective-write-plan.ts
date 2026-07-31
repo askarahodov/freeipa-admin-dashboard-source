@@ -5,7 +5,10 @@ import {
   type FullBackupTable,
   type FullBackupTableDefinition,
 } from "./backup-full-domains.ts";
-import type { PortalBackupDomain } from "./backup-manifest.ts";
+import {
+  canonicalBackupJson,
+  type PortalBackupDomain,
+} from "./backup-manifest.ts";
 import type { SelectiveRestorePolicyResult } from "./backup-selective-restore-policy.ts";
 
 export class BackupSelectiveWritePlanError extends Error {
@@ -147,27 +150,72 @@ function prepared(
   return db.prepare(sql).bind(...values);
 }
 
+function rowProjection(descriptor: FullBackupTableDefinition, source: string): string {
+  return descriptor.columns
+    .map((_, index) => `json_extract(${source}, '$[${index}]')`)
+    .join(", ");
+}
+
+function currentStateGuard(table: RestoreTable): { sql: string; values: unknown[] } {
+  const rowsJson = canonicalBackupJson(table.payload.rows);
+  const columns = table.descriptor.columns.join(", ");
+  const projected = rowProjection(table.descriptor, "value");
+  return {
+    sql: [
+      `(SELECT COUNT(*) FROM ${table.descriptor.name}) = ?`,
+      `NOT EXISTS (SELECT ${columns} FROM ${table.descriptor.name} EXCEPT SELECT ${projected} FROM json_each(?))`,
+      `NOT EXISTS (SELECT ${projected} FROM json_each(?) EXCEPT SELECT ${columns} FROM ${table.descriptor.name})`,
+    ].join(" AND "),
+    values: [table.payload.rows.length, rowsJson, rowsJson],
+  };
+}
+
+export function validateSelectiveRestoreCandidate(
+  policy: SelectiveRestorePolicyResult,
+  fullPayloads: ReadonlyMap<PortalBackupDomain, FullBackupDomainPayload>,
+): void {
+  if (!policy
+      || !Array.isArray(policy.selectedDomains)
+      || !Array.isArray(policy.physicalDomains)
+      || policy.physicalDomains.includes("audit")
+      || policy.physicalDomains.includes("rbac")) fail();
+  const tables = restoreTables(policy, fullPayloads);
+  if (policy.selectedDomains.includes("local-auth")) requireActiveAdministrator(tables);
+}
+
 export function buildSelectiveRestoreStatements(
   db: D1Database,
   guardValue: SelectiveRestoreStageGuard,
   policy: SelectiveRestorePolicyResult,
-  fullPayloads: ReadonlyMap<PortalBackupDomain, FullBackupDomainPayload>,
+  sourcePayloads: ReadonlyMap<PortalBackupDomain, FullBackupDomainPayload>,
+  expectedCurrentPayloads: ReadonlyMap<PortalBackupDomain, FullBackupDomainPayload>,
   auditValue: SelectiveRestoreAuditRow,
 ): D1PreparedStatement[] {
   const guard = validateGuard(guardValue);
   const audit = validateAudit(auditValue);
-  if (!policy || !Array.isArray(policy.physicalDomains) || policy.physicalDomains.includes("audit") || policy.physicalDomains.includes("rbac")) fail();
-  const tables = restoreTables(policy, fullPayloads);
-  if (policy.selectedDomains.includes("local-auth")) requireActiveAdministrator(tables);
+  validateSelectiveRestoreCandidate(policy, sourcePayloads);
+  const sourceTables = restoreTables(policy, sourcePayloads);
+  const currentTables = restoreTables(policy, expectedCurrentPayloads);
+  if (sourceTables.length !== currentTables.length
+      || sourceTables.some((item, index) => item.descriptor.name !== currentTables[index].descriptor.name)) fail();
 
-  const statements: D1PreparedStatement[] = [];
-  statements.push(prepared(
-    db,
+  const claimGuards = currentTables.map(currentStateGuard);
+  const claimSql = [
     "UPDATE portal_backup_restore_stages SET status = 'committing', completed_at = ? WHERE id = ? AND actor_identity = ? AND stage_secret_hash = ? AND status = 'prepared' AND expires_at > ?",
-    [guard.now, guard.id, guard.actorIdentity, guard.stageSecretHash, guard.now],
-  ));
+    ...claimGuards.map((item) => `AND ${item.sql}`),
+  ].join(" ");
+  const claimValues = [
+    guard.now,
+    guard.id,
+    guard.actorIdentity,
+    guard.stageSecretHash,
+    guard.now,
+    ...claimGuards.flatMap((item) => item.values),
+  ];
 
-  for (const item of [...tables].reverse()) {
+  const statements: D1PreparedStatement[] = [prepared(db, claimSql, claimValues)];
+
+  for (const item of [...sourceTables].reverse()) {
     statements.push(prepared(
       db,
       `DELETE FROM ${item.descriptor.name} WHERE EXISTS (${guardedStage})`,
@@ -175,16 +223,13 @@ export function buildSelectiveRestoreStatements(
     ));
   }
 
-  for (const item of tables) {
-    if (item.descriptor.name === "portal_sessions") continue;
-    const placeholders = item.descriptor.columns.map(() => "?").join(", ");
-    for (const row of item.payload.rows) {
-      statements.push(prepared(
-        db,
-        `INSERT INTO ${item.descriptor.name} (${item.descriptor.columns.join(", ")}) SELECT ${placeholders} WHERE EXISTS (${guardedStage})`,
-        [...row, ...guardValues(guard)],
-      ));
-    }
+  for (const item of sourceTables) {
+    if (item.descriptor.name === "portal_sessions" || item.payload.rows.length === 0) continue;
+    statements.push(prepared(
+      db,
+      `INSERT INTO ${item.descriptor.name} (${item.descriptor.columns.join(", ")}) SELECT ${rowProjection(item.descriptor, "value")} FROM json_each(?) WHERE EXISTS (${guardedStage})`,
+      [canonicalBackupJson(item.payload.rows), ...guardValues(guard)],
+    ));
   }
 
   statements.push(prepared(

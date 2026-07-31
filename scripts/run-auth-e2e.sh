@@ -35,11 +35,6 @@ collect_startup_diagnostics() {
     echo "=== dashboard startup diagnostics ==="
     echo "--- health response ---"
     curl --silent --show-error --include --max-time 5 "$BASE_URL/api/integrations/health" || true
-    echo
-    echo "--- dashboard processes ---"
-    compose exec -T dashboard ps -ef || true
-    echo "--- wrangler log ---"
-    compose exec -T dashboard sh -c 'test ! -f /tmp/freeipa-dashboard-wrangler.log || tail -n 200 /tmp/freeipa-dashboard-wrangler.log' || true
   } >>"$ARTIFACT_ROOT/compose.log" 2>&1
 }
 

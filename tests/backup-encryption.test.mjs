@@ -11,42 +11,25 @@ import {
   deriveBackupKey,
   encryptBackupPayload,
   validateBackupPassword,
+  validateEncryptedDocumentBytes,
   validateEncryptedEnvelope,
 } from "../backup-encryption.ts";
 
-const context = {
-  format: "freeipa-admin-dashboard-backup",
-  version: 1,
-  schemaVersion: 1,
-  domain: "settings",
-  path: "domains/settings.json",
-};
+const context = { format: "freeipa-admin-dashboard-backup", version: 1, schemaVersion: 1, domain: "settings", path: "domains/settings.json" };
+const fixedRandom = (...chunks) => { let index = 0; return { randomBytes(length) { const chunk = chunks[index++]; assert.equal(chunk.length, length); return Uint8Array.from(chunk); } }; };
+function expectCode(fn, code) { assert.throws(fn, (error) => error instanceof BackupEncryptionError && error.code === code); }
 
-const fixedRandom = (...chunks) => {
-  let index = 0;
-  return { randomBytes(length) {
-    const chunk = chunks[index++];
-    assert.equal(chunk.length, length);
-    return Uint8Array.from(chunk);
-  } };
-};
-
-function expectCode(fn, code) {
-  assert.throws(fn, (error) => error instanceof BackupEncryptionError && error.code === code);
-}
-
-test("validates password byte limits and KDF floor", () => {
+test("validates password byte limits, KDF floor and document limit", () => {
   expectCode(() => validateBackupPassword(""), "backup_password_invalid");
   expectCode(() => validateBackupPassword("x".repeat(MAX_BACKUP_PASSWORD_BYTES + 1)), "backup_password_invalid");
   assert.equal(validateBackupPassword("сильный пароль").byteLength > 0, true);
   assert.equal(BACKUP_KDF_ITERATIONS >= 210_000, true);
+  assert.equal(validateEncryptedDocumentBytes(1024), 1024);
+  expectCode(() => validateEncryptedDocumentBytes(19 * 1024 * 1024), "backup_document_too_large");
 });
 
 test("creates strict-size random salt and IV", () => {
-  const random = fixedRandom(
-    Array.from({ length: 16 }, (_, index) => index),
-    Array.from({ length: 12 }, (_, index) => 100 + index),
-  );
+  const random = fixedRandom(Array.from({ length: 16 }, (_, index) => index), Array.from({ length: 12 }, (_, index) => 100 + index));
   const salt = createBackupSalt(random);
   const iv = createBackupIv(random);
   assert.equal(Buffer.from(salt, "base64").byteLength, 16);
@@ -76,19 +59,9 @@ test("normalizes wrong password and authenticated tampering", async () => {
   const key = await deriveBackupKey("right password", salt, 210_000);
   const wrongKey = await deriveBackupKey("wrong password", salt, 210_000);
   const envelope = await encryptBackupPayload({ key, context, payload: { secret: "inside ciphertext" }, iv });
-
-  await assert.rejects(
-    decryptBackupPayload({ key: wrongKey, context, envelope }),
-    (error) => error instanceof BackupEncryptionError && error.code === "backup_decryption_failed" && error.message === "Backup decryption failed",
-  );
-  await assert.rejects(
-    decryptBackupPayload({ key, context: { ...context, domain: "audit", path: "domains/audit.json" }, envelope }),
-    (error) => error instanceof BackupEncryptionError && error.code === "backup_decryption_failed",
-  );
+  await assert.rejects(decryptBackupPayload({ key: wrongKey, context, envelope }), (error) => error instanceof BackupEncryptionError && error.code === "backup_decryption_failed" && error.message === "Backup decryption failed");
+  await assert.rejects(decryptBackupPayload({ key, context: { ...context, domain: "audit", path: "domains/audit.json" }, envelope }), (error) => error instanceof BackupEncryptionError && error.code === "backup_decryption_failed");
   const bytes = Buffer.from(envelope.ciphertext, "base64");
   bytes[0] ^= 1;
-  await assert.rejects(
-    decryptBackupPayload({ key, context, envelope: { ...envelope, ciphertext: bytes.toString("base64") } }),
-    (error) => error instanceof BackupEncryptionError && error.code === "backup_decryption_failed",
-  );
+  await assert.rejects(decryptBackupPayload({ key, context, envelope: { ...envelope, ciphertext: bytes.toString("base64") } }), (error) => error instanceof BackupEncryptionError && error.code === "backup_decryption_failed");
 });

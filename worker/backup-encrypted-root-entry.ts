@@ -2,6 +2,7 @@ import { createAuditContext, type AuditContext } from "../audit-log.ts";
 import type { BackupExportEnv } from "../backup-export.ts";
 import { handleEncryptedBackupExportRequest } from "./backup-encrypted-export-entry.ts";
 import { handleEncryptedBackupPreviewRequest } from "./backup-encrypted-preview-entry.ts";
+import { handleIsolatedBackupRestoreRequest } from "./backup-isolated-restore-entry.ts";
 
 type PortalRole = "viewer" | "operator" | "admin";
 
@@ -21,6 +22,7 @@ export type EncryptedBackupAccess = {
 export type EncryptedBackupDispatchDependencies = {
   exportHandler?: typeof handleEncryptedBackupExportRequest;
   previewHandler?: typeof handleEncryptedBackupPreviewRequest;
+  testRestoreHandler?: typeof handleIsolatedBackupRestoreRequest;
   createContext?: (access: EncryptedBackupAccess) => AuditContext;
 };
 
@@ -78,15 +80,23 @@ export async function handleEncryptedBackupRoute(
   const pathname = new URL(request.url).pathname;
   const exportPath = "/api/admin/backups/export/encrypted";
   const previewPath = "/api/admin/backups/import/encrypted/preview";
-  if (pathname !== exportPath && pathname !== previewPath) return null;
+  const testRestorePath = "/api/admin/backups/import/encrypted/test-restore";
+  if (pathname !== exportPath && pathname !== previewPath && pathname !== testRestorePath) return null;
 
   const access = encryptedBackupAccess(request, env);
-  const requiredPermission = pathname === exportPath ? "backup.export.encrypted" : "backup.restore.preview";
+  const requiredPermission = pathname === exportPath
+    ? "backup.export.encrypted"
+    : pathname === testRestorePath
+      ? "backup.restore.test"
+      : "backup.restore.preview";
   if (access.role !== "admin") return denied(requiredPermission, access.role);
 
   const context = (dependencies.createContext ?? createAuditContext)(access);
   if (pathname === exportPath) {
     return (dependencies.exportHandler ?? handleEncryptedBackupExportRequest)(request, env, context);
+  }
+  if (pathname === testRestorePath) {
+    return (dependencies.testRestoreHandler ?? handleIsolatedBackupRestoreRequest)(request, env, context);
   }
   return (dependencies.previewHandler ?? handleEncryptedBackupPreviewRequest)(request, env, context);
 }

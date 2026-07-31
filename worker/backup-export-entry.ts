@@ -8,9 +8,9 @@ import {
 } from "../backup-export.ts";
 import { SANITIZED_BACKUP_EXPORTERS } from "../backup-export-domains.ts";
 import type { PortalBackupDomain } from "../backup-manifest.ts";
+import { inspectPortalSchema, type PortalSchemaStatus } from "../db/portal-migrations.ts";
 
 const MAX_BACKUP_EXPORT_REQUEST_BYTES = 4_096;
-const PORTAL_BACKUP_SCHEMA_VERSION = 1;
 
 type BackupExportAudit = (
   env: BackupExportEnv,
@@ -18,9 +18,12 @@ type BackupExportAudit = (
   event: AuditEventInput,
 ) => Promise<unknown>;
 
+type BackupExportSchemaInspector = (env: BackupExportEnv) => Promise<Pick<PortalSchemaStatus, "state" | "currentVersion">>;
+
 export type BackupExportRouteDependencies = {
   registry?: ReadonlyMap<PortalBackupDomain, PortalBackupDomainExporter>;
   appendAudit?: BackupExportAudit;
+  inspectSchema?: BackupExportSchemaInspector;
   now?: () => number;
 };
 
@@ -82,9 +85,18 @@ export async function handleBackupExportRequest(
 
     const parsed = parseBackupExportRequest(input);
     domains = parsed.domains;
+    if (!env.DB) {
+      throw new BackupExportError("backup_database_unavailable", 503, "Backup database is unavailable");
+    }
+
+    const schema = await (dependencies.inspectSchema ?? inspectPortalSchema)(env);
+    if (schema.state !== "ready" || !Number.isSafeInteger(schema.currentVersion) || schema.currentVersion < 1) {
+      throw new BackupExportError("backup_schema_incompatible", 409, "Backup schema is incompatible");
+    }
+
     const document = await exportSanitizedBackup(
       env,
-      { domains, schemaVersion: PORTAL_BACKUP_SCHEMA_VERSION },
+      { domains, schemaVersion: schema.currentVersion },
       dependencies.registry ?? SANITIZED_BACKUP_EXPORTERS,
     );
 

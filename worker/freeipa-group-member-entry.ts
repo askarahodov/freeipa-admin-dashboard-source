@@ -5,8 +5,9 @@ import {
   type FreeIpaDirectoryGroup,
 } from "../freeipa-group-member-query";
 import type { FreeIpaDirectoryUser } from "../freeipa-user-query";
+import { handleBackupImportPreviewRoute, type BackupPreviewAccessEnv } from "./backup-import-preview-root-entry";
 
-type RuntimeEnv = NonNullable<Parameters<typeof bulkRuntime.fetch>[1]>;
+type RuntimeEnv = NonNullable<Parameters<typeof bulkRuntime.fetch>[1]> & BackupPreviewAccessEnv;
 type RuntimeContext = Parameters<typeof bulkRuntime.fetch>[2];
 type ScheduledController = Parameters<NonNullable<typeof bulkRuntime.scheduled>>[0];
 
@@ -91,6 +92,9 @@ async function handleGroupMembers(request: Request, env: RuntimeEnv, ctx: Runtim
 const worker = {
   async fetch(request: Request, env: RuntimeEnv | undefined, ctx: RuntimeContext): Promise<Response> {
     const sourceEnv = env ?? (process.env as unknown as RuntimeEnv);
+    const previewResponse = await handleBackupImportPreviewRoute(request, sourceEnv);
+    if (previewResponse) return previewResponse;
+
     const url = new URL(request.url);
     if (request.method === "GET" && url.pathname === "/api/integrations/groups/members") {
       return handleGroupMembers(request, sourceEnv, ctx, url);

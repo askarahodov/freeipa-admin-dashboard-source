@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { canonicalBackupJson } from "../backup-manifest.ts";
+import { canonicalBackupJson, sha256Hex } from "../backup-manifest.ts";
 import { FULL_BACKUP_TABLES } from "../backup-full-domains.ts";
 import { exportEncryptedBackup } from "../backup-encrypted-export.ts";
 import {
@@ -49,7 +49,7 @@ test("validates encrypted envelope integrity before decryption", async () => {
 
   const corrupt = structuredClone(original);
   corrupt.payloads["domains/settings.json"].ciphertext = Buffer.from("changed ciphertext").toString("base64");
-  await assert.rejects(validateEncryptedBackupDocument(corrupt), (error) => expectCode(error, "backup_corrupted"));
+  await assert.rejects(validateEncryptedBackupDocument(corrupt), (error) => expectCode(error, "backup_decryption_failed"));
 
   const extra = structuredClone(original);
   extra.payloads["domains/extra.json"] = extra.payloads["domains/settings.json"];
@@ -67,6 +67,13 @@ test("decrypts once-derived key and projects plaintext immediately", async () =>
     },
   });
   assert.equal(derives, 1);
+  const badCount = structuredClone(original);
+  badCount.manifest.entries[0].records += 1;
+  badCount.summary.records += 1;
+  await assert.rejects(
+    decryptEncryptedBackupDocument(badCount, "strong password"),
+    (error) => expectCode(error, "backup_full_payload_invalid"),
+  );
   assert.deepEqual(decrypted.payloads["domains/settings.json"], { records: [{ id: "main", config: { demoMode: false }, updated_at: 10 }] });
   assert.deepEqual(decrypted.payloads["domains/local-auth.json"], { records: [{ id: "u1", username: "admin", display_name: "Admin", role: "admin", disabled: 0, created_at: 1, updated_at: 5, last_login_at: 4 }] });
   assert.doesNotMatch(JSON.stringify(decrypted), /encrypted-settings|hash|token/);

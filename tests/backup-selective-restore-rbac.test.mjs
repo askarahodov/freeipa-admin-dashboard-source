@@ -6,7 +6,7 @@ import {
   portalPermissionOrder,
   portalRolePermissions,
 } from "../portal-permissions.ts";
-import { handleEncryptedBackupRoute } from "../worker/backup-encrypted-root-entry.ts";
+import { handleSelectiveBackupRoute } from "../worker/backup-selective-restore-root-entry.ts";
 
 const paths = [
   ["/api/admin/backups/import/encrypted/prepare-commit", "backup.restore.prepare", "prepareHandler"],
@@ -43,7 +43,7 @@ test("viewer and operator are denied before selective restore handlers", async (
     for (const [path, permission] of paths) {
       let calls = 0;
       const handler = async () => { calls += 1; return new Response("unexpected"); };
-      const response = await handleEncryptedBackupRoute(
+      const response = await handleSelectiveBackupRoute(
         request(path),
         { PORTAL_DEFAULT_ROLE: role },
         {
@@ -72,7 +72,7 @@ test("admin dispatches each selective restore route exactly once", async () => {
       cancelHandler: async (...args) => { calls.push(["cancel", ...args]); return new Response("cancel"); },
       createContext: (access) => ({ correlationId: "cor_11111111111111111111", actor: access }),
     };
-    const response = await handleEncryptedBackupRoute(
+    const response = await handleSelectiveBackupRoute(
       request(path),
       { PORTAL_DEFAULT_ROLE: "admin" },
       dependencies,

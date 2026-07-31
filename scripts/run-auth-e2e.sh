@@ -29,8 +29,25 @@ compose() {
   docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"
 }
 
+collect_startup_diagnostics() {
+  {
+    echo
+    echo "=== dashboard startup diagnostics ==="
+    echo "--- health response ---"
+    curl --silent --show-error --include --max-time 5 "$BASE_URL/api/integrations/health" || true
+    echo
+    echo "--- dashboard processes ---"
+    compose exec -T dashboard ps -ef || true
+    echo "--- wrangler log ---"
+    compose exec -T dashboard sh -c 'test ! -f /tmp/freeipa-dashboard-wrangler.log || tail -n 200 /tmp/freeipa-dashboard-wrangler.log' || true
+  } >>"$ARTIFACT_ROOT/compose.log" 2>&1
+}
+
 cleanup() {
   compose logs --no-color >"$ARTIFACT_ROOT/compose.log" 2>&1 || true
+  if [[ "${ready:-false}" != "true" ]]; then
+    collect_startup_diagnostics || true
+  fi
   if [[ "${E2E_KEEP_RUNNING:-false}" != "true" ]]; then
     compose down -v --remove-orphans >/dev/null 2>&1 || true
   fi

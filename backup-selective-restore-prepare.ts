@@ -116,6 +116,7 @@ const safeErrors = new Map<string, { status: number; message: string }>([
   ["backup_restore_stale", { status: 409, message: "Backup restore preview is stale" }],
   ["backup_restore_admin_required", { status: 422, message: "Restored local authentication requires an active administrator" }],
   ["backup_restore_commit_failed", { status: 422, message: "Backup restore candidate cannot be committed" }],
+  ["backup_restore_commit_too_large", { status: 422, message: "Backup restore candidate exceeds atomic commit limits" }],
   ["backup_recovery_point_invalid", { status: 422, message: "Backup recovery point is invalid" }],
   ["backup_recovery_point_stale", { status: 409, message: "Backup recovery point is stale" }],
   ["backup_restore_stage_invalid", { status: 409, message: "Backup restore stage is invalid" }],
@@ -229,6 +230,7 @@ export async function prepareSelectiveProductionRestore(
     validateSchema(schema);
     const actor = actorIdentity(actorValue);
     const policy = validateSelectiveRestoreDomains(input.domains);
+    const validateCandidate = dependencies.validateCandidate ?? validateSelectiveRestoreCandidate;
 
     const isolated = await (dependencies.testRestore ?? testRestoreEncryptedBackupImport)(
       env,
@@ -257,7 +259,7 @@ export async function prepareSelectiveProductionRestore(
     if (!arraysEqual(source.selectedDomains, policy.selectedDomains)) {
       fail("backup_restore_stale", 409, "Backup restore preview is stale");
     }
-    (dependencies.validateCandidate ?? validateSelectiveRestoreCandidate)(policy, source.fullPayloads);
+    validateCandidate(policy, source.fullPayloads);
 
     const recovery = await (dependencies.createRecovery ?? createSelectiveRecoveryPoint)(
       env,
@@ -281,6 +283,7 @@ export async function prepareSelectiveProductionRestore(
         || !arraysEqual(verified.physicalDomains, policy.physicalDomains)) {
       fail("backup_recovery_point_invalid", 422, "Backup recovery point is invalid");
     }
+    validateCandidate(policy, verified.currentFullPayloads);
 
     const now = nowValue((dependencies.now ?? Date.now)());
     const expiresAt = now + 15 * 60 * 1000;

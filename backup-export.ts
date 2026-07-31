@@ -27,7 +27,7 @@ export type BackupExportRequest = {
 };
 
 export type BackupExportEnv = {
-  DB?: unknown;
+  DB?: D1Database;
 };
 
 export type PortalBackupDomainExporter = {

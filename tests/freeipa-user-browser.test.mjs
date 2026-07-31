@@ -29,7 +29,7 @@ test("user browser uses the shared FreeIPA action contract and exposes server qu
   assert.equal(bulkWrapper.includes("freeipa-user-query-entry"), true);
   assert.equal(topWrapper.includes("freeipa-user-bulk-entry"), true);
   assert.equal(topWrapper.includes("return bulkRuntime.fetch"), true);
-  assert.equal(selectiveRoot.includes('import rootRuntime from "./freeipa-group-member-entry"'), true);
+  assert.equal(selectiveRoot.includes('import rootRuntime from "./freeipa-group-member-entry.ts"'), true);
   assert.equal(selectiveRoot.includes("return rootRuntime.fetch"), true);
   assert.equal(serviceRoot.includes('import rootRuntime from "./backup-selective-restore-root-entry"'), true);
   assert.equal(schemaRoot.includes('import rootRuntime from "./service-admin-root-entry.ts"'), true);

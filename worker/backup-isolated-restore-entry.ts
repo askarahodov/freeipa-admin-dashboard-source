@@ -71,6 +71,13 @@ const safeErrors = new Map<string, { status: number; message: string }>([
 
 function normalizeError(error: unknown): BackupIsolatedRestoreError {
   if (error instanceof BackupIsolatedRestoreError) {
+    if (error.code === "backup_test_restore_failed") {
+      return new BackupIsolatedRestoreError(
+        error.code,
+        error.status === 422 ? 422 : 500,
+        "Backup test restore failed",
+      );
+    }
     const safe = safeErrors.get(error.code);
     return safe
       ? new BackupIsolatedRestoreError(error.code, safe.status, safe.message)

@@ -6,7 +6,7 @@ import {
   portalPermissionOrder,
   portalRolePermissions,
 } from "../portal-permissions.ts";
-import { handleSelectiveBackupRoute } from "../worker/backup-selective-restore-root-entry.ts";
+import { handleSelectiveBackupRoute } from "../worker/backup-selective-restore-dispatch.ts";
 
 const paths = [
   ["/api/admin/backups/import/encrypted/prepare-commit", "backup.restore.prepare", "prepareHandler"],

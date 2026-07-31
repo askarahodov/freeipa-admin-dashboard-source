@@ -5,7 +5,7 @@ import {
 } from "./backup-selective-restore-policy.ts";
 import type { RestoreStageOperation } from "./backup-restore-stage.ts";
 
-export type RestoreStageStatus = "prepared" | "cancelled" | "committed" | "expired";
+export type RestoreStageStatus = "prepared" | "committing" | "cancelled" | "committed" | "expired";
 
 export class BackupRestoreStageRepositoryError extends Error {
   readonly code: string;
@@ -62,7 +62,7 @@ type CancelRestoreStageInput = {
 
 const idPattern = /^restore_[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const hashPattern = /^[0-9a-f]{64}$/;
-const statuses = new Set<RestoreStageStatus>(["prepared", "cancelled", "committed", "expired"]);
+const statuses = new Set<RestoreStageStatus>(["prepared", "committing", "cancelled", "committed", "expired"]);
 const selectSql = "SELECT id, operation, actor_identity, selected_domains_json, stage_secret_hash, source_binding_hash, recovery_binding_hash, source_schema_version, current_schema_version, status, created_at, expires_at, completed_at FROM portal_backup_restore_stages WHERE id = ?";
 
 function fail(code = "backup_restore_stage_invalid", status = 409, message = "Backup restore stage is invalid"): never {
@@ -222,7 +222,7 @@ export async function cancelRestoreStage(
     if (stage.status === "cancelled") {
       fail("backup_restore_stage_cancelled", 409, "Backup restore stage was cancelled");
     }
-    if (stage.status === "committed") {
+    if (stage.status === "committed" || stage.status === "committing") {
       fail("backup_restore_stage_committed", 409, "Backup restore stage was already committed");
     }
     if (stage.status === "expired" || stage.expiresAt <= now) {

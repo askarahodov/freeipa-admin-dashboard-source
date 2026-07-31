@@ -15,7 +15,8 @@
 - согласование опасных процессов;
 - журнал операций, уведомления и append-only аудит;
 - собственная локальная база пользователей портала;
-- управление ролями `viewer`, `operator` и `admin` через UI.
+- управление ролями `viewer`, `operator` и `admin` через UI;
+- sanitized и полные зашифрованные логические резервные копии с read-only preview.
 
 ## Требования
 
@@ -94,7 +95,7 @@ PORTAL_DEFAULT_ROLE=viewer
 |---|---|
 | `viewer` | просмотр каталога, FreeIPA, операций и собственных уведомлений |
 | `operator` | права viewer, изменения FreeIPA и запуск XYOps |
-| `admin` | все права, удаление объектов, согласования, настройки, аудит и RBAC |
+| `admin` | все права, удаление объектов, согласования, настройки, аудит, RBAC и создание резервных копий |
 
 Сервер запрещает удалить, отключить или понизить последнего активного администратора.
 
@@ -187,6 +188,17 @@ PUT  /api/integrations/settings
 POST /api/integrations/settings/test
 ```
 
+### Резервные копии портала
+
+```text
+POST /api/admin/backups/export
+POST /api/admin/backups/import/preview
+POST /api/admin/backups/export/encrypted
+POST /api/admin/backups/import/encrypted/preview
+```
+
+Все четыре endpoint доступны только администратору и используют `cache-control: no-store`. Export создаёт логический документ в ответе и не сохраняет его на сервере. Preview проверяет manifest, paths, checksums, schema compatibility и conflicts, но ничего не записывает в базу.
+
 ### Recovery-диагностика схемы
 
 ```text
@@ -251,8 +263,23 @@ artifacts/local-integration/compose.log
 
 ## Резервное копирование
 
-До появления управляемого backup/restore workflow остановите контейнер и сохраните содержимое volume `dashboard-data`. В резервную копию входят локальные пользователи, роли, сессии, настройки, история операций, approvals, метаданные, migration journal и аудит.
+Портал поддерживает два логических формата:
 
-Пароли FreeIPA, ключ XYOps и другие секреты внутри базы зашифрованы ключом `CONFIG_ENCRYPTION_KEY`. Этот ключ необходимо хранить отдельно от резервной копии базы.
+1. **Sanitized export** — явные безопасные проекции без password hashes, session tokens, encrypted settings blobs и `encrypted_spec`.
+2. **Encrypted full backup** — полные portal-owned recovery-поля, зашифрованные отдельным пользовательским паролем.
 
-Canonical migration lifecycle является обязательной технической основой для управляемого backup/restore из задачи #37. Полный restore, compatibility preview и selective recovery не следует считать реализованными до завершения #57 и #37.
+Encrypted full backup использует PBKDF2-SHA-256 и AES-256-GCM. Для каждого домена создаётся отдельный случайный IV, а format/version/schema/domain/path входят в authenticated additional data. Неверный пароль и изменение salt, IV, AAD или ciphertext возвращают одинаковую безопасную ошибку.
+
+Пароль backup существует только в текущем HTTP-запросе: он не сохраняется, не возвращается, не записывается в audit и не заменяет `CONFIG_ENCRYPTION_KEY`. Сам `CONFIG_ENCRYPTION_KEY` никогда не включается в backup; его необходимо хранить отдельно.
+
+Ограничения текущего этапа:
+
+- export request — не более 16 KiB;
+- encrypted preview request — не более 20 MiB до JSON parsing;
+- сумма canonical encrypted envelopes — не более 18 MiB;
+- PBKDF2 work factor — от 210000 до 1000000 iterations;
+- backup не сохраняется сервером;
+- restore commit, DML, migrations и maintenance mode отсутствуют;
+- selective/full restore и offline recovery будут реализованы отдельными этапами #37.
+
+До появления destructive restore workflow продолжайте хранить отдельную volume-level копию `dashboard-data` и отдельно защищённый `CONFIG_ENCRYPTION_KEY`. Логические preview endpoint предназначены только для проверки совместимости и конфликтов и не изменяют данные портала.

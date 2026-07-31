@@ -7,7 +7,10 @@ import {
   portalMigrationV2Statements,
   portalMigrationV2TableStatements,
 } from "../db/portal-migration-v2.ts";
-import { portalMigrationsV2 } from "../db/portal-migrations-v2.ts";
+import {
+  normalizePortalRestoreStageSql,
+  portalMigrationsV2,
+} from "../db/portal-migrations-v2.ts";
 import { portalMigrations } from "../db/portal-migrations.ts";
 import {
   portalRestoreStageIndex,
@@ -48,6 +51,14 @@ test("defines the exact restore stage metadata columns and one operational index
     portalRestoreStageTable.sql,
     portalRestoreStageIndex.sql,
   ]);
+});
+
+test("accepts the canonical SQLite index form without IF NOT EXISTS", () => {
+  const sqliteMasterSql = portalRestoreStageIndex.sql.replace(" IF NOT EXISTS", "");
+  assert.equal(
+    normalizePortalRestoreStageSql(sqliteMasterSql),
+    normalizePortalRestoreStageSql(portalRestoreStageIndex.sql),
+  );
 });
 
 test("migration two changes schema only and production uses the version two registry", () => {

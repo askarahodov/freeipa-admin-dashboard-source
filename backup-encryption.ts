@@ -4,6 +4,8 @@ export const BACKUP_KDF_ITERATIONS = 310_000;
 export const MIN_BACKUP_KDF_ITERATIONS = 210_000;
 export const MAX_BACKUP_PASSWORD_BYTES = 1_024;
 export const MAX_ENCRYPTED_PAYLOAD_BYTES = 20 * 1024 * 1024;
+export const MAX_ENCRYPTED_BACKUP_DOCUMENT_BYTES = 18 * 1024 * 1024;
+export const MAX_BACKUP_KDF_ITERATIONS = 1_000_000;
 const BACKUP_SALT_BYTES = 16;
 const BACKUP_IV_BYTES = 12;
 const GCM_TAG_BYTES = 16;
@@ -93,7 +95,7 @@ export function createBackupIv(random: BackupCryptoRandom = defaultRandom): stri
 }
 
 function validateIterations(value: unknown): number {
-  if (!Number.isSafeInteger(value) || Number(value) < MIN_BACKUP_KDF_ITERATIONS || Number(value) > 10_000_000) {
+  if (!Number.isSafeInteger(value) || Number(value) < MIN_BACKUP_KDF_ITERATIONS || Number(value) > MAX_BACKUP_KDF_ITERATIONS) {
     throw new BackupEncryptionError("backup_encryption_unsupported", 422, "Backup encryption parameters are unsupported");
   }
   return Number(value);
@@ -105,6 +107,13 @@ function decodeSalt(value: unknown): Uint8Array {
     throw new BackupEncryptionError("backup_encryption_unsupported", 422, "Backup encryption parameters are unsupported");
   }
   return bytes;
+}
+
+export function validateEncryptedDocumentBytes(value: unknown): number {
+  if (!Number.isSafeInteger(value) || Number(value) < 0 || Number(value) > MAX_ENCRYPTED_BACKUP_DOCUMENT_BYTES) {
+    throw new BackupEncryptionError("backup_document_too_large", 413, "Encrypted backup document is too large");
+  }
+  return Number(value);
 }
 
 export function validateEncryptedEnvelope(value: unknown): EncryptedPayloadEnvelope {

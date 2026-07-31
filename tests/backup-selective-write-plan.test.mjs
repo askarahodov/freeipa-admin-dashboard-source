@@ -4,6 +4,7 @@ import test from "node:test";
 import { FULL_BACKUP_TABLES } from "../backup-full-domains.ts";
 import { validateSelectiveRestoreDomains } from "../backup-selective-restore-policy.ts";
 import {
+  MAX_SELECTIVE_RESTORE_JSON_BINDING_BYTES,
   buildSelectiveRestoreStatements,
   validateSelectiveRestoreCandidate,
 } from "../backup-selective-write-plan.ts";
@@ -113,8 +114,8 @@ test("claims the stage only while every selected production table still matches 
   assert.equal(statements.length, 9);
   assert.match(statements[0].sql, /^UPDATE portal_backup_restore_stages SET status = 'committing'/);
   assert.equal((statements[0].sql.match(/SELECT COUNT\(\*\) FROM/g) ?? []).length, 3);
-  assert.equal((statements[0].sql.match(/FROM json_each\(\?\)/g) ?? []).length, 6);
-  assert.match(statements[0].sql, /NOT EXISTS \(SELECT id, policy_json, updated_at FROM catalog_visibility_policies EXCEPT SELECT json_extract/);
+  assert.equal((statements[0].sql.match(/FROM json_each\(\?\)/g) ?? []).length, 3);
+  assert.match(statements[0].sql, /NOT EXISTS \(SELECT json_extract.*FROM json_each\(\?\) EXCEPT SELECT id, policy_json, updated_at FROM catalog_visibility_policies\)/);
   assert.deepEqual(statements[0].values.slice(0, 5), [
     guard.now,
     guard.id,
@@ -124,7 +125,7 @@ test("claims the stage only while every selected production table still matches 
   ]);
   assert.equal(statements[0].values[5], 1);
   assert.equal(statements[0].values[6], JSON.stringify(currentPoliciesPayload.tables[0].rows));
-  assert.equal(statements[0].values[7], JSON.stringify(currentPoliciesPayload.tables[0].rows));
+  assert.equal(statements[0].values[7], 1);
 });
 
 test("builds dependency-safe guarded deletes and one JSON insert per populated table", () => {
@@ -144,6 +145,48 @@ test("builds dependency-safe guarded deletes and one JSON insert per populated t
     assert.match(statement.sql, /status = 'committing'/);
     assert.equal(statement.sql.includes("SELECT *"), false);
   }
+});
+
+test("chunks large table rows below the D1 bound-value limit", () => {
+  const source = domainPayload("policies");
+  const descriptor = definitions("policies")[0];
+  const largeValue = "x".repeat(Math.floor(MAX_SELECTIVE_RESTORE_JSON_BINDING_BYTES * 0.55));
+  const first = placeholderRow(descriptor, "large-one");
+  const second = placeholderRow(descriptor, "large-two");
+  first[descriptor.columns.indexOf("policy_json")] = JSON.stringify({ value: largeValue });
+  second[descriptor.columns.indexOf("policy_json")] = JSON.stringify({ value: largeValue });
+  source.tables[0].rows = [first, second];
+
+  const db = new FakeDb();
+  const statements = buildSelectiveRestoreStatements(
+    db,
+    guard,
+    validateSelectiveRestoreDomains(["policies"]),
+    new Map([["policies", source]]),
+    new Map([["policies", structuredClone(source)]]),
+    audit,
+  );
+  const inserts = statements.filter((statement) => statement.sql.startsWith("INSERT INTO catalog_visibility_policies"));
+  assert.equal(inserts.length, 2);
+  assert.equal((statements[0].sql.match(/FROM json_each\(\?\)/g) ?? []).length, 2);
+  for (const statement of inserts) {
+    assert.equal(new TextEncoder().encode(statement.values[0]).byteLength <= MAX_SELECTIVE_RESTORE_JSON_BINDING_BYTES, true);
+  }
+});
+
+test("rejects a single row that cannot fit an atomic D1 binding", () => {
+  const source = domainPayload("policies");
+  const descriptor = definitions("policies")[0];
+  const row = placeholderRow(descriptor, "oversized");
+  row[descriptor.columns.indexOf("policy_json")] = "x".repeat(MAX_SELECTIVE_RESTORE_JSON_BINDING_BYTES);
+  source.tables[0].rows = [row];
+  assert.throws(
+    () => validateSelectiveRestoreCandidate(
+      validateSelectiveRestoreDomains(["policies"]),
+      new Map([["policies", source]]),
+    ),
+    (error) => error?.code === "backup_restore_commit_too_large",
+  );
 });
 
 test("revokes sessions and never inserts historical session rows", () => {

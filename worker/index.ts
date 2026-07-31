@@ -10,6 +10,7 @@ import { catalogEventAllowed, readCatalogPolicySet, saveCatalogPolicySet } from 
 import { approvalExecutionMatches, approvalRequirement, cancelApproval, claimApprovalExecution, createApprovalRequest, decideApproval, finishApprovalExecution, listApprovals, readApprovalPolicySet, readExecutingApproval, saveApprovalPolicySet } from "../approval-gates";
 import { appendAuditEvent, auditCorrelationFor, auditErrorCode, createAuditContext, listAuditEvents, withAuditCorrelation, type AuditContext } from "../audit-log";
 import { applyProcessPresentation, availableProcessPresentationLocales, presentationLocalePreferences, readProcessPresentationSet, resolveProcessPresentationLocale, saveProcessPresentationSet } from "../process-presentation";
+import { handleBackupExportRequest } from "./backup-export-entry";
 
 interface Env {
   ASSETS: Fetcher;
@@ -89,6 +90,12 @@ const worker = {
   async fetch(request: Request, env: Env | undefined, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     const runtimeEnv = env ?? (process.env as unknown as Env);
+
+    if (url.pathname === "/api/admin/backups/export") {
+      const denied = requirePortalPermission(request, runtimeEnv, "backup.export");
+      if (denied) return denied;
+      return handleBackupExportRequest(request, runtimeEnv, createAuditContext(portalAccess(request, runtimeEnv)));
+    }
 
     if (url.pathname.startsWith("/api/integrations/")) {
       return handleIntegrationApi(request, runtimeEnv, url);

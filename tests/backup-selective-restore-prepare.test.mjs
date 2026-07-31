@@ -117,7 +117,7 @@ function dependencies(overrides = {}) {
   };
 }
 
-test("prepares only after candidate validation and recovery verification", async () => {
+test("prepares only after candidate and recovery size validation", async () => {
   const deps = dependencies();
   const result = await prepareSelectiveProductionRestore(
     { DB: {} },
@@ -134,6 +134,7 @@ test("prepares only after candidate validation and recovery verification", async
     "validate-candidate",
     "recovery-create",
     "recovery-verify",
+    "validate-candidate",
     "secret",
     "stage-create",
   ]);

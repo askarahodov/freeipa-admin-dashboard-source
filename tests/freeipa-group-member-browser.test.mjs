@@ -26,8 +26,8 @@ test("group member browser uses direct FreeIPA actions and the paginated API", (
   assert.equal(wrapper.includes("/api/integrations/users"), true);
   assert.equal(wrapper.includes("queryFreeIpaGroupMembers"), true);
   assert.equal(selectiveRoot.includes('import rootRuntime from "./freeipa-group-member-entry.ts"'), true);
-  assert.equal(maintenanceControlRoot.includes('import rootRuntime from "./backup-selective-restore-root-entry"'), true);
-  assert.equal(serviceRoot.includes('import rootRuntime from "./maintenance-control-root-entry"'), true);
+  assert.equal(maintenanceControlRoot.includes('import rootRuntime from "./backup-selective-restore-root-entry.ts"'), true);
+  assert.equal(serviceRoot.includes('import rootRuntime from "./maintenance-control-root-entry.ts"'), true);
   assert.equal(maintenanceGate.includes('import rootRuntime from "./service-admin-root-entry.ts"'), true);
   assert.equal(schemaRoot.includes('import rootRuntime from "./maintenance-mode-root-entry.ts"'), true);
   assert.equal(layout.includes("<FreeIpaGroupMemberBrowser />"), true);

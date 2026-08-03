@@ -20,7 +20,7 @@ test("schema readiness composes the maintenance gate outside service-admin autho
 
   assert.equal(schemaRoot.includes('import rootRuntime from "./maintenance-mode-root-entry.ts"'), true);
   assert.equal(gate.includes('import rootRuntime from "./service-admin-root-entry.ts"'), true);
-  assert.equal(serviceRoot.includes('import rootRuntime from "./maintenance-control-root-entry"'), true);
+  assert.equal(serviceRoot.includes('import rootRuntime from "./maintenance-control-root-entry.ts"'), true);
   assert.equal(gate.includes("x-admin-token"), false);
   assert.equal(gate.includes("serviceAdminTokenAuthorized"), false);
   assert.equal(gate.includes("loadMaintenanceState"), true);

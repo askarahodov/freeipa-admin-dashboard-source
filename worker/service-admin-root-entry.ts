@@ -1,5 +1,5 @@
-import rootRuntime from "./backup-selective-restore-root-entry";
-import { isAdminIntegrationPath, serviceAdminTokenAuthorized } from "../admin-session-authorization";
+import rootRuntime from "./maintenance-control-root-entry.ts";
+import { isAdminIntegrationPath, serviceAdminTokenAuthorized } from "../admin-session-authorization.ts";
 
 type RuntimeEnv = NonNullable<Parameters<typeof rootRuntime.fetch>[1]> & {
   PORTAL_IDENTITY_MODE?: string;

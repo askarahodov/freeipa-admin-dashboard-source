@@ -5,6 +5,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 const entry = new URL("../worker/schema-migrations-entry.ts", import.meta.url);
+const maintenanceGate = new URL("../worker/maintenance-mode-root-entry.ts", import.meta.url);
 const helpers = new URL("../worker/schema-migrations-boundary.ts", import.meta.url);
 const vite = fs.readFileSync(new URL("../vite.config.ts", import.meta.url), "utf8");
 const testsDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -14,9 +15,11 @@ test("Vite uses the schema migration boundary as the outer worker entry", () => 
   assert.equal(vite.includes('main: "./worker/schema-migrations-entry.ts"'), true);
 });
 
-test("normal fetch and scheduled dispatch require a ready production schema", async () => {
+test("normal fetch and scheduled dispatch require a ready production schema before maintenance gating", async () => {
   const source = fs.readFileSync(entry, "utf8");
-  assert.equal(source.includes('import rootRuntime from "./service-admin-root-entry.ts"'), true);
+  const gateSource = fs.readFileSync(maintenanceGate, "utf8");
+  assert.equal(source.includes('import rootRuntime from "./maintenance-mode-root-entry.ts"'), true);
+  assert.equal(gateSource.includes('import rootRuntime from "./service-admin-root-entry.ts"'), true);
   assert.equal(source.includes('from "./schema-migrations-boundary.ts"'), true);
   assert.equal(source.includes("await ensurePortalSchema(sourceEnv)"), true);
   assert.equal(source.includes('schema.state !== "ready"'), true);

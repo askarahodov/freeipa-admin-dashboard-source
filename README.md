@@ -17,7 +17,9 @@
 - собственная локальная база пользователей портала;
 - управление ролями `viewer`, `operator` и `admin` через UI;
 - sanitized и полные зашифрованные логические резервные копии;
-- read-only preview и изолированная проверка восстановления без изменения рабочей базы.
+- read-only preview и изолированная проверка восстановления без изменения рабочей базы;
+- staged selective production restore с обязательным recovery point и optimistic concurrency;
+- persistent maintenance mode перед будущими destructive/offline recovery операциями.
 
 ## Требования
 
@@ -63,7 +65,7 @@ docker compose down
 
 Данные сохраняются в именованном томе `dashboard-data`.
 
-При запуске Worker сначала проверяет canonical schema локальной D1/SQLite-базы, применяет только additive migrations и сверяет migration journal. Обычный API и scheduled-задачи не запускаются, пока база не перейдёт в состояние `ready`. Подробности: [docs/DATABASE_MIGRATIONS.md](docs/DATABASE_MIGRATIONS.md).
+При запуске Worker сначала проверяет canonical schema локальной D1/SQLite-базы, применяет только additive migrations и сверяет migration journal. Обычный API и scheduled-задачи не запускаются, пока база не перейдёт в состояние `ready`. После schema readiness внешний maintenance gate проверяет persistent state до service-admin authorization. Подробности: [docs/DATABASE_MIGRATIONS.md](docs/DATABASE_MIGRATIONS.md) и [docs/MAINTENANCE_MODE.md](docs/MAINTENANCE_MODE.md).
 
 ## Локальная аутентификация
 
@@ -96,7 +98,7 @@ PORTAL_DEFAULT_ROLE=viewer
 |---|---|
 | `viewer` | просмотр каталога, FreeIPA, операций и собственных уведомлений |
 | `operator` | права viewer, изменения FreeIPA и запуск XYOps |
-| `admin` | все права, удаление объектов, согласования, настройки, аудит, RBAC, создание резервных копий и изолированная проверка восстановления |
+| `admin` | все права, удаление объектов, согласования, настройки, аудит, RBAC, backup/restore и управление maintenance mode через `maintenance.manage` |
 
 Сервер запрещает удалить, отключить или понизить последнего активного администратора.
 
@@ -110,7 +112,8 @@ PORTAL_DEFAULT_ROLE=viewer
 - при HTTPS cookie получает флаг `Secure`;
 - в базе хранится только SHA-256 hash session token;
 - смена пароля и блокировка пользователя отзывают его сессии;
-- изменения RBAC записываются в append-only аудит.
+- selective restore local-auth и вход в active maintenance отзывают все локальные сессии;
+- изменения RBAC и recovery transitions записываются в append-only аудит.
 
 Подробности: [docs/LOCAL_AUTH_RBAC.md](docs/LOCAL_AUTH_RBAC.md).
 
@@ -121,6 +124,7 @@ PORTAL_DEFAULT_ROLE=viewer
 - **Локальный runtime:** Wrangler/Workerd внутри контейнера;
 - **Хранилище:** локальная D1/SQLite-совместимая база в Docker volume;
 - **Migration boundary:** canonical schema, migration journal, startup lock и drift detection до запуска обычного API;
+- **Maintenance boundary:** persistent state и fail-closed gate между schema readiness и service-admin authorization;
 - **FreeIPA Gateway:** приватный Node.js-процесс `scripts/freeipa-gateway.mjs`;
 - **Интеграция XYOps:** серверный API-клиент, ключи не передаются браузеру.
 
@@ -140,6 +144,7 @@ FreeIPA Gateway запускается автоматически вместе �
 | `portal_audit_events` | append-only аудит административных действий |
 | `portal_schema_migrations` | versioned migration journal с checksum и временем применения |
 | `portal_schema_lock` | сериализация concurrent startup migrations |
+| `portal_maintenance_state` | singleton persistent maintenance state и hash controller secret |
 
 Полный canonical inventory находится в `db/portal-schema.ts`.
 
@@ -189,7 +194,7 @@ PUT  /api/integrations/settings
 POST /api/integrations/settings/test
 ```
 
-### Резервные копии портала
+### Резервные копии и selective restore
 
 ```text
 POST /api/admin/backups/export
@@ -197,6 +202,9 @@ POST /api/admin/backups/import/preview
 POST /api/admin/backups/export/encrypted
 POST /api/admin/backups/import/encrypted/preview
 POST /api/admin/backups/import/encrypted/test-restore
+POST /api/admin/backups/import/encrypted/prepare-commit
+POST /api/admin/backups/import/encrypted/commit
+POST /api/admin/backups/import/encrypted/cancel
 ```
 
 Все endpoint доступны только администратору и используют `cache-control: no-store`. Export создаёт логический документ в ответе и не сохраняет его на сервере.
@@ -204,6 +212,25 @@ POST /api/admin/backups/import/encrypted/test-restore
 Encrypted preview может проверять все домены backup или явное непустое подмножество `domains`. Он проверяет manifest, paths, checksums, schema compatibility и conflicts, а затем возвращает opaque `approvalToken`, связанный с выбранным backup, доменами, текущей схемой и текущим состоянием выбранных данных.
 
 `test-restore` повторно вычисляет token и отклоняет устаревший preview с `409 backup_restore_stale`. После этого данные расшифровываются только в памяти, копируются в новое request-scoped хранилище и проходят проверки table contract, primary keys, JSON-полей и внутренних ссылок. Endpoint всегда возвращает `productionMutated: false`; рабочая D1-база используется только для read-only fingerprint и comparison.
+
+`prepare-commit` повторно проверяет encrypted candidate, создаёт обязательный зашифрованный recovery point выбранных physical domains и сохраняет только metadata stage. `commit` требует одноразовый stage secret, точное confirmation, свежие source/recovery bindings и выполняет один guarded D1 batch. `cancel` разрешён только до claim stage. Audit содержит агрегаты и normalized outcomes, но не backup password, stage secret, approval token или строки backup.
+
+### Persistent maintenance mode
+
+```text
+GET  /api/maintenance/status
+GET  /api/admin/maintenance/status
+POST /api/admin/maintenance/prepare
+POST /api/admin/maintenance/enter
+POST /api/admin/maintenance/verification/start
+POST /api/admin/maintenance/exit
+POST /api/admin/maintenance/complete
+POST /api/admin/maintenance/cancel
+```
+
+Управление требует admin permission `maintenance.manage`; mutations дополнительно требуют same-origin. `prepare` возвращает client-held `controllerSecret` один раз, а сервер хранит только SHA-256 hash. Переход в `active` одним guarded D1 batch отзывает все локальные сессии.
+
+В `entering`, `active`, `verifying`, `exiting` и `failed` внешний gate блокирует обычный API и scheduled-задачи до service-admin authorization. Static assets, публичный status, health, schema status и bounded maintenance controls остаются доступны. Ошибка чтения persistent state работает fail-closed. Полный порядок действий: [docs/MAINTENANCE_MODE.md](docs/MAINTENANCE_MODE.md).
 
 ### Recovery-диагностика схемы
 
@@ -214,7 +241,7 @@ x-admin-token: <ADMIN_TOKEN>
 
 Endpoint доступен даже при заблокированном обычном API, но только с корректным service-admin token. Он возвращает безопасные version/drift/error metadata без SQL, credentials, encrypted values и exception bodies.
 
-Часть критичных endpoint дополнительно использует `ADMIN_TOKEN`. Он остаётся серверным секретом и не заменяет пользовательскую RBAC-проверку.
+Часть критичных endpoint дополнительно использует `ADMIN_TOKEN`. Он остаётся серверным секретом и не заменяет пользовательскую RBAC-проверку. В active maintenance `ADMIN_TOKEN` не обходит внешний gate.
 
 ## Локальная разработка
 
@@ -261,6 +288,7 @@ artifacts/local-integration/compose.log
 - [Локальная аутентификация и RBAC](docs/LOCAL_AUTH_RBAC.md)
 - [Локальные acceptance-тесты](docs/LOCAL_ACCEPTANCE_TESTS.md)
 - [Canonical schema и migration lifecycle](docs/DATABASE_MIGRATIONS.md)
+- [Persistent maintenance mode](docs/MAINTENANCE_MODE.md)
 - [Дорожная карта](docs/PRODUCT_ROADMAP.md)
 - [Контракт XYOps](docs/XYOPS_EXECUTION_OWNERSHIP.md)
 - [Инспектор XYOps](docs/XYOPS_INSPECTOR.md)
@@ -283,20 +311,25 @@ Encrypted full backup использует PBKDF2-SHA-256 и AES-256-GCM. Для
 
 - read-only preview всех или выбранных доменов;
 - optimistic concurrency token без раскрытия full current-state fingerprints;
-- constant-time token verification перед test restore;
+- constant-time token verification перед test restore и production prepare;
 - изолированное request-scoped memory staging;
 - структурные и реляционные проверки settings, local-auth, RBAC, operations и approvals;
-- безопасные aggregate results и fixed warning codes без row identifiers.
+- обязательный encrypted recovery point для selective production restore;
+- metadata-only staged commit с одноразовым secret и cancellation до claim;
+- dependency-safe guarded D1 batch и отзыв сессий при local-auth restore;
+- безопасные aggregate results и fixed warning codes без row identifiers;
+- persistent maintenance foundation для будущего destructive/offline restore.
 
 Ограничения текущего этапа:
 
 - export request — не более 16 KiB;
-- encrypted preview и test-restore request — не более 20 MiB до JSON parsing;
+- encrypted preview, test-restore и selective restore request — bounded до JSON parsing;
 - сумма canonical encrypted envelopes — не более 18 MiB;
 - PBKDF2 work factor — от 210000 до 1000000 iterations;
-- backup и approval token не сохраняются сервером;
+- backup, approval token и controller secret не сохраняются сервером;
 - test restore не расшифровывает portal secret blobs через `CONFIG_ENCRYPTION_KEY`;
-- production restore commit, DML, migrations и maintenance mode отсутствуют;
-- selective/full production restore и offline recovery будут реализованы отдельными этапами #37.
+- selective restore не выполняет destructive full-database replacement;
+- maintenance foundation не читает backup и не обращается к filesystem;
+- destructive full restore, SQLite file swap и CLI/offline recovery будут реализованы отдельным этапом #37.
 
-До появления destructive restore workflow продолжайте хранить отдельную volume-level копию `dashboard-data` и отдельно защищённый `CONFIG_ENCRYPTION_KEY`. `canCommit` из test restore является только advisory результатом и не запускает изменение рабочей базы.
+До появления destructive restore workflow продолжайте хранить отдельную volume-level копию `dashboard-data` и отдельно защищённый `CONFIG_ENCRYPTION_KEY`. `canCommit` из test restore является advisory результатом; production mutation запускается только отдельным staged selective restore flow. Persistent maintenance mode сам по себе не восстанавливает данные и не заменяет offline recovery procedure.

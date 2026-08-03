@@ -14,6 +14,7 @@ const selectiveRestorePermissions = [
   "backup.restore.commit",
   "backup.restore.cancel",
 ];
+const maintenancePermissions = ["maintenance.manage"];
 
 test("portal permission matrix matches the runtime RBAC contract", () => {
   assert.deepEqual(portalRoles, ["viewer", "operator", "admin"]);
@@ -28,6 +29,7 @@ test("portal permission matrix matches the runtime RBAC contract", () => {
     "backup.export.encrypted",
     "backup.restore.test",
     ...selectiveRestorePermissions,
+    ...maintenancePermissions,
   ]);
   assert.deepEqual(portalRolePermissions, {
     viewer: ["directory.read"],
@@ -43,6 +45,7 @@ test("portal permission matrix matches the runtime RBAC contract", () => {
       "backup.export.encrypted",
       "backup.restore.test",
       ...selectiveRestorePermissions,
+      ...maintenancePermissions,
     ],
   });
 });
@@ -59,7 +62,7 @@ test("roleHasPermission denies permissions that are not explicitly granted", () 
   assert.equal(roleHasPermission("viewer", "backup.restore.test"), false);
   assert.equal(roleHasPermission("operator", "backup.restore.test"), false);
   assert.equal(roleHasPermission("admin", "backup.restore.test"), true);
-  for (const permission of selectiveRestorePermissions) {
+  for (const permission of [...selectiveRestorePermissions, ...maintenancePermissions]) {
     assert.equal(roleHasPermission("viewer", permission), false, permission);
     assert.equal(roleHasPermission("operator", permission), false, permission);
     assert.equal(roleHasPermission("admin", permission), true, permission);

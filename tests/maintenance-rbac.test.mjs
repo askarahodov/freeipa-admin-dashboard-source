@@ -100,7 +100,7 @@ test("every maintenance control path is inside the service-admin allowlist", () 
 test("service-admin root composes the maintenance control root", () => {
   const serviceRoot = fs.readFileSync(new URL("../worker/service-admin-root-entry.ts", import.meta.url), "utf8");
   const maintenanceRoot = fs.readFileSync(new URL("../worker/maintenance-control-root-entry.ts", import.meta.url), "utf8");
-  assert.equal(serviceRoot.includes('from "./maintenance-control-root-entry"'), true);
-  assert.equal(maintenanceRoot.includes('from "./backup-selective-restore-root-entry"'), true);
+  assert.equal(serviceRoot.includes('from "./maintenance-control-root-entry.ts"'), true);
+  assert.equal(maintenanceRoot.includes('from "./backup-selective-restore-root-entry.ts"'), true);
   assert.equal(maintenanceRoot.includes("handleMaintenanceControlRoute"), true);
 });

@@ -1,6 +1,5 @@
 import {
   publicMaintenanceStatus,
-  type MaintenanceRow,
   type MaintenanceState,
   type PublicMaintenanceStatus,
 } from "../maintenance-mode.ts";
@@ -12,7 +11,6 @@ export const PUBLIC_MAINTENANCE_STATUS_PATH = "/api/maintenance/status";
 
 const HEALTH_PATH = "/api/integrations/health";
 const SCHEMA_STATUS_PATH = "/api/schema/status";
-const retryAfterSeconds = "60";
 const immediatelyAllowedApiPaths = new Set([
   ...MAINTENANCE_CONTROL_PATHS,
   SCHEMA_STATUS_PATH,
@@ -39,7 +37,6 @@ type GateDependencies = {
 };
 
 type MaintenanceRead = {
-  row: MaintenanceRow | null;
   status: PublicMaintenanceStatus;
   unavailable: boolean;
 };
@@ -70,13 +67,11 @@ async function readMaintenance(
     if (!env.DB) throw new Error("database unavailable");
     const row = await (dependencies.loadState ?? loadMaintenanceState)(env.DB);
     return {
-      row,
       status: publicMaintenanceStatus(row),
       unavailable: false,
     };
   } catch {
     return {
-      row: null,
       status: unavailableStatus(),
       unavailable: true,
     };

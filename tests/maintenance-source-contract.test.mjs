@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 
-const gatePath = new URL("../worker/maintenance-mode-root-entry.ts", import.meta.url);
+const gatePath = new URL("../worker/maintenance-mode-gate.ts", import.meta.url);
+const rootPath = new URL("../worker/maintenance-mode-root-entry.ts", import.meta.url);
 const schemaRootPath = new URL("../worker/schema-migrations-entry.ts", import.meta.url);
 const serviceRootPath = new URL("../worker/service-admin-root-entry.ts", import.meta.url);
 const repositoryPath = new URL("../maintenance-repository.ts", import.meta.url);
@@ -15,12 +16,15 @@ function source(url) {
 
 test("schema readiness composes the maintenance gate outside service-admin authorization", () => {
   const schemaRoot = source(schemaRootPath);
+  const root = source(rootPath);
   const gate = source(gatePath);
   const serviceRoot = source(serviceRootPath);
 
   assert.equal(schemaRoot.includes('import rootRuntime from "./maintenance-mode-root-entry.ts"'), true);
-  assert.equal(gate.includes('import rootRuntime from "./service-admin-root-entry.ts"'), true);
+  assert.equal(root.includes('import rootRuntime from "./service-admin-root-entry.ts"'), true);
+  assert.equal(root.includes('from "./maintenance-mode-gate.ts"'), true);
   assert.equal(serviceRoot.includes('import rootRuntime from "./maintenance-control-root-entry.ts"'), true);
+  assert.equal(gate.includes("service-admin-root-entry"), false);
   assert.equal(gate.includes("x-admin-token"), false);
   assert.equal(gate.includes("serviceAdminTokenAuthorized"), false);
   assert.equal(gate.includes("loadMaintenanceState"), true);
@@ -30,7 +34,7 @@ test("schema readiness composes the maintenance gate outside service-admin autho
 });
 
 test("maintenance production modules do not access backup crypto filesystems or encryption configuration", () => {
-  const combined = [source(gatePath), source(repositoryPath), source(controlEntryPath), source(modePath)].join("\n");
+  const combined = [source(rootPath), source(gatePath), source(repositoryPath), source(controlEntryPath), source(modePath)].join("\n");
   assert.doesNotMatch(combined, /CONFIG_ENCRYPTION_KEY/);
   assert.doesNotMatch(combined, /backup-encrypted|decryptEncrypted|validateEncryptedBackup|createSelectiveRecoveryPoint/);
   assert.doesNotMatch(combined, /node:(?:fs|path|child_process)|from\s+["']fs["']|Deno\.|Bun\.|process\.cwd/);
@@ -50,6 +54,7 @@ test("maintenance repository mutates only its singleton and session revocation a
 
 test("gate allows only bounded recovery control surfaces during maintenance", () => {
   const gate = source(gatePath);
+  const root = source(rootPath);
   for (const path of [
     "/api/maintenance/status",
     "/api/integrations/health",
@@ -57,5 +62,6 @@ test("gate allows only bounded recovery control surfaces during maintenance", ()
   ]) assert.equal(gate.includes(`"${path}"`), true, path);
   assert.equal(gate.includes("MAINTENANCE_CONTROL_PATHS"), true);
   assert.equal(gate.includes("request.method"), false, "gate must not duplicate control authorization");
-  assert.equal(gate.includes("rootRuntime.scheduled"), true);
+  assert.equal(root.includes("rootRuntime.scheduled"), true);
+  assert.equal(gate.includes("rootRuntime"), false, "pure gate must not import runtime composition");
 });

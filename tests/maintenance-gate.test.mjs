@@ -151,11 +151,12 @@ test("state read failure fails closed without exposing raw errors", async () => 
   const blocked = fixture("active", { loadError: true });
   const response = await handleMaintenanceGate(request("/api/integrations/users"), { DB: {} }, {}, blocked.dependencies);
   assert.equal(response.status, 503);
-  assert.deepEqual(await response.json(), {
+  const raw = await response.text();
+  assert.deepEqual(JSON.parse(raw), {
     error: "maintenance_state_unavailable",
     maintenance: { state: "failed", recoveryRequired: true },
   });
-  assert.equal((await response.clone().text()).includes("raw maintenance"), false);
+  assert.equal(raw.includes("raw maintenance"), false);
   assert.deepEqual(blocked.calls, ["load"]);
 
   const status = fixture("active", { loadError: true });

@@ -5,7 +5,7 @@ import {
   handleMaintenanceGate,
   handleMaintenanceScheduledGate,
   PUBLIC_MAINTENANCE_STATUS_PATH,
-} from "../worker/maintenance-mode-root-entry.ts";
+} from "../worker/maintenance-mode-gate.ts";
 
 const operationId = "maintenance_11111111-1111-4111-8111-111111111111";
 

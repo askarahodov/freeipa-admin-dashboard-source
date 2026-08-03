@@ -1,4 +1,4 @@
-import rootRuntime from "./backup-selective-restore-root-entry";
+import rootRuntime from "./maintenance-control-root-entry";
 import { isAdminIntegrationPath, serviceAdminTokenAuthorized } from "../admin-session-authorization";
 
 type RuntimeEnv = NonNullable<Parameters<typeof rootRuntime.fetch>[1]> & {

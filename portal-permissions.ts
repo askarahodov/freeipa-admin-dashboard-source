@@ -12,7 +12,8 @@ export type PortalPermission =
   | "backup.restore.test"
   | "backup.restore.prepare"
   | "backup.restore.commit"
-  | "backup.restore.cancel";
+  | "backup.restore.cancel"
+  | "maintenance.manage";
 
 export const portalRoles: PortalRole[] = ["viewer", "operator", "admin"];
 
@@ -29,6 +30,7 @@ export const portalPermissionOrder: PortalPermission[] = [
   "backup.restore.prepare",
   "backup.restore.commit",
   "backup.restore.cancel",
+  "maintenance.manage",
 ];
 
 export const portalRoleLabels: Record<PortalRole, string> = {
@@ -115,6 +117,12 @@ export const portalPermissionMetadata: Record<PortalPermission, {
     description: "Отмена ещё не применённого selective restore stage до начала транзакционного commit.",
     scope: "Portal",
   },
+  "maintenance.manage": {
+    title: "Режим обслуживания портала",
+    shortTitle: "Maintenance",
+    description: "Подготовка, вход, проверка и безопасное завершение режима обслуживания и восстановления.",
+    scope: "Portal",
+  },
 };
 
 export const portalRolePermissions: Record<PortalRole, PortalPermission[]> = {
@@ -133,6 +141,7 @@ export const portalRolePermissions: Record<PortalRole, PortalPermission[]> = {
     "backup.restore.prepare",
     "backup.restore.commit",
     "backup.restore.cancel",
+    "maintenance.manage",
   ],
 };
 

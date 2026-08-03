@@ -7,6 +7,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const schemaPath = path.join(root, "db", "portal-schema.ts");
 const restoreStageSchemaPath = path.join(root, "db", "portal-restore-stage-schema.ts");
+const maintenanceSchemaPath = path.join(root, "db", "portal-maintenance-schema.ts");
 
 function sourceFiles(directory) {
   const result = [];
@@ -31,17 +32,21 @@ function runtimeTableNames() {
 
 test("canonical schema inventories exist before runtime DDL can be adopted", async () => {
   assert.equal(fs.existsSync(schemaPath), true, "db/portal-schema.ts must define immutable migration v1 inventory");
-  assert.equal(fs.existsSync(restoreStageSchemaPath), true, "additive migrations must define explicit schema inventory");
-  const [schema, restoreStageSchema] = await Promise.all([
+  assert.equal(fs.existsSync(restoreStageSchemaPath), true, "migration v2 must define explicit restore-stage inventory");
+  assert.equal(fs.existsSync(maintenanceSchemaPath), true, "migration v3 must define explicit maintenance inventory");
+  const [schema, restoreStageSchema, maintenanceSchema] = await Promise.all([
     import(pathToFileURL(schemaPath).href),
     import(pathToFileURL(restoreStageSchemaPath).href),
+    import(pathToFileURL(maintenanceSchemaPath).href),
   ]);
   assert.ok(schema.portalSchemaTableNames instanceof Set);
   assert.equal(typeof restoreStageSchema.portalRestoreStageTable?.name, "string");
+  assert.equal(typeof maintenanceSchema.portalMaintenanceStateTable?.name, "string");
 
   const canonicalTableNames = new Set([
     ...schema.portalSchemaTableNames,
     restoreStageSchema.portalRestoreStageTable.name,
+    maintenanceSchema.portalMaintenanceStateTable.name,
   ]);
   const missing = runtimeTableNames().filter((name) => !canonicalTableNames.has(name));
   assert.deepEqual(missing, [], `runtime tables missing from canonical inventory: ${missing.join(", ")}`);

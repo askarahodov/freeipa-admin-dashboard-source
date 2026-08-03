@@ -1,4 +1,4 @@
-import rootRuntime from "./backup-selective-restore-root-entry";
+import rootRuntime from "./backup-selective-restore-root-entry.ts";
 import {
   handleMaintenanceControlRoute,
   type MaintenanceControlRuntimeEnv,

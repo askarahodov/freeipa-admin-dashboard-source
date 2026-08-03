@@ -126,7 +126,7 @@ class MaintenanceD1 {
     }
     if (sql.startsWith("UPDATE portal_maintenance_state SET state = 'inactive'")) {
       const isCancel = sql.includes("AND state = 'entering'");
-      const [updatedAt, completedAt, id, hash, ...(tail)] = values;
+      const [updatedAt, completedAt, id, hash, ...tail] = values;
       const expectedState = isCancel ? "entering" : "exiting";
       const now = tail[0];
       if (this.row?.state !== expectedState || this.row.operation_id !== id || this.row.controller_secret_hash !== hash) return result(0);
@@ -175,10 +175,7 @@ function transitionInput(action, now = 2_000, extra = {}) {
 
 function transitionDependencies() {
   return {
-    hashSecret: async (value) => {
-      assert.equal(value, secret);
-      return secretHash;
-    },
+    hashSecret: async (value) => value === secret ? secretHash : "2".repeat(64),
   };
 }
 

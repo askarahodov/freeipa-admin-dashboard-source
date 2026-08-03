@@ -1,4 +1,4 @@
-import rootRuntime from "./service-admin-root-entry.ts";
+import rootRuntime from "./maintenance-mode-root-entry.ts";
 import { serviceAdminTokenAuthorized } from "../admin-session-authorization.ts";
 import { ensurePortalSchema, type PortalSchemaStatus } from "../db/portal-migrations-hardened.ts";
 import {

@@ -47,8 +47,9 @@ function fixture(state = "inactive", overrides = {}) {
     },
     async nextFetch(req) {
       calls.push(`fetch:${new URL(req.url).pathname}`);
-      return new Response("inner", {
-        status: overrides.innerStatus ?? 200,
+      const status = overrides.innerStatus ?? 200;
+      return new Response(status === 204 ? null : "inner", {
+        status,
         headers: { "x-inner": "1", "cache-control": "public, max-age=60" },
       });
     },

@@ -4,6 +4,7 @@ import {
   type PublicMaintenanceStatus,
 } from "../maintenance-mode.ts";
 import { loadMaintenanceState } from "../maintenance-repository.ts";
+import { schemaTestBypassEnabled } from "./schema-migrations-boundary.ts";
 import rootRuntime from "./service-admin-root-entry.ts";
 import { MAINTENANCE_CONTROL_PATHS } from "./maintenance-control-entry.ts";
 
@@ -115,6 +116,7 @@ export async function handleMaintenanceGate(
 
   if (!pathname.startsWith("/api/")) return nextFetch(request, env, ctx);
   if (immediatelyAllowedApiPaths.has(pathname)) return nextFetch(request, env, ctx);
+  if (!env.DB && schemaTestBypassEnabled(env)) return nextFetch(request, env, ctx);
 
   const read = await readMaintenance(env, dependencies);
   if (pathname === PUBLIC_MAINTENANCE_STATUS_PATH) return jsonResponse(read.status);
@@ -132,11 +134,15 @@ export async function handleMaintenanceScheduledGate(
   ctx: RuntimeContext,
   dependencies: GateDependencies = {},
 ): Promise<void> {
-  const read = await readMaintenance(env, dependencies);
-  if (read.status.state !== "inactive") return;
   const nextScheduled = dependencies.nextScheduled ?? ((nextController, nextEnv, nextContext) => (
     rootRuntime.scheduled?.(nextController, nextEnv, nextContext)
   ));
+  if (!env.DB && schemaTestBypassEnabled(env)) {
+    await nextScheduled(controller, env, ctx);
+    return;
+  }
+  const read = await readMaintenance(env, dependencies);
+  if (read.status.state !== "inactive") return;
   await nextScheduled(controller, env, ctx);
 }
 

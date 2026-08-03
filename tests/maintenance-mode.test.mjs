@@ -39,10 +39,11 @@ test("creates canonical operation ids and 32-byte base64url controller secrets",
 
 test("hashes and verifies strict controller secrets without accepting malformed input", async () => {
   const secret = createMaintenanceControllerSecret();
+  const changed = `${secret.slice(0, -1)}${secret.endsWith("A") ? "B" : "A"}`;
   const hash = await hashMaintenanceControllerSecret(secret);
   assert.match(hash, /^[0-9a-f]{64}$/);
   assert.equal(await verifyMaintenanceControllerSecret(hash, secret), true);
-  assert.equal(await verifyMaintenanceControllerSecret(hash, `${secret.slice(0, -1)}A`), false);
+  assert.equal(await verifyMaintenanceControllerSecret(hash, changed), false);
   assert.equal(await verifyMaintenanceControllerSecret(hash.toUpperCase(), secret), false);
   assert.equal(await verifyMaintenanceControllerSecret(hash, "short"), false);
 });

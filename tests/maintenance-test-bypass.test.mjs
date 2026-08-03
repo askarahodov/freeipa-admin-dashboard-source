@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   handleMaintenanceGate,
   handleMaintenanceScheduledGate,
-} from "../worker/maintenance-mode-root-entry.ts";
+} from "../worker/maintenance-mode-gate.ts";
 import { markSchemaTestBypass } from "../worker/schema-migrations-boundary.ts";
 
 test("explicit process-local schema bypass delegates fetch without a database", async () => {
@@ -23,6 +23,9 @@ test("explicit process-local schema bypass delegates fetch without a database", 
         calls.push(`fetch:${new URL(request.url).pathname}`);
         return new Response("delegated");
       },
+      async nextScheduled() {
+        throw new Error("unexpected scheduled call");
+      },
     },
   );
 
@@ -39,6 +42,9 @@ test("explicit process-local schema bypass delegates scheduled work without a da
     async loadState() {
       calls.push("load");
       throw new Error("must not read maintenance state");
+    },
+    async nextFetch() {
+      throw new Error("unexpected fetch call");
     },
     async nextScheduled() {
       calls.push("scheduled");

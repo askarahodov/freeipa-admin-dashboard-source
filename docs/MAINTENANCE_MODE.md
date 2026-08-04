@@ -24,7 +24,7 @@ POST /api/admin/maintenance/complete
 POST /api/admin/maintenance/cancel
 ```
 
-Все ответы используют `cache-control: no-store`. Публичная и административная проекции не возвращают actor groups, controller secret или его hash.
+Все ответы используют `cache-control: no-store`. Ни публичная, ни административная проекция не возвращает actor groups, controller secret или его hash.
 
 `verification/smoke` доступен только через внутренний trusted service-admin marker, который создаётся после проверки `x-admin-token` и не принимается из HTTP-заголовка клиента.
 

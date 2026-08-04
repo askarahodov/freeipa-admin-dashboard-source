@@ -18,7 +18,7 @@ test("offline restore runbook documents the complete bounded lifecycle", () => {
     "rollback",
     "maintenance-recover",
   ]) {
-    assert.match(runbook, new RegExp(`recovery ${command.replace("-", "\\-")}(?: | \\\\)`, "u"));
+    assert.ok(runbook.includes(`run --rm recovery ${command}`), command);
   }
   for (const required of [
     "docker compose stop dashboard",
@@ -39,7 +39,7 @@ test("offline restore runbook documents the complete bounded lifecycle", () => {
 });
 
 test("runbook lists exactly the canonical receipt phases", () => {
-  for (const phase of RECOVERY_RECEIPT_PHASES) assert.match(runbook, new RegExp(`\\\`${phase}\\\``, "u"));
+  for (const phase of RECOVERY_RECEIPT_PHASES) assert.ok(runbook.includes(`\`${phase}\``), phase);
   assert.doesNotMatch(runbook, /`completed`|`verification_failed`/u);
 });
 

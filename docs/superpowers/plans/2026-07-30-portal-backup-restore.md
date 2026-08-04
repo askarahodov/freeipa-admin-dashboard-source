@@ -12,8 +12,10 @@ Implement issue #37 as a sequence of reviewable changes that never expose portal
 - PR #68 — encrypted full logical export and read-only encrypted preview: merged.
 - PR #69 — selected-domain preview plan and isolated in-memory test restore: merged.
 - PR #70 — selective production restore: merged.
-- PR #71 — persistent maintenance mode foundation: current.
-- Destructive full restore and CLI/offline recovery remain future isolated PRs.
+- PR #71 — persistent maintenance mode foundation: merged.
+- PR #72 — destructive full restore and CLI/offline recovery: current.
+
+PR #72 completes the local portal disaster-recovery sequence. Remote storage, retention, FreeIPA/XYOps backup and a browser restore wizard remain outside issue #37.
 
 ## Threat model
 
@@ -33,7 +35,9 @@ Primary threats:
 - partial restore leaving cross-domain references inconsistent;
 - credentials appearing in HTTP responses, logs, audit metadata or CI artifacts;
 - service-admin or scheduled work bypassing an active maintenance operation;
-- restart losing the recovery state and reopening the portal prematurely.
+- restart losing the recovery state and reopening the portal prematurely;
+- partial file replacement or a crash between SQLite rename/fsync boundaries;
+- choosing a non-canonical local SQLite file by filename or modification time.
 
 Security boundaries:
 - `CONFIG_ENCRYPTION_KEY` is never included in an archive;
@@ -41,14 +45,22 @@ Security boundaries:
 - browser APIs never return raw password/key values;
 - manifest, checksums, decryption and schema compatibility are verified before mutation;
 - optimistic concurrency tokens do not replace administrator authorization;
-- destructive restore requires maintenance mode, explicit confirmation and a pre-restore backup;
+- destructive restore requires maintenance mode, explicit confirmation and a mandatory full recovery point;
 - restore audit records contain safe aggregate outcomes only, never backup credentials, approval tokens, fingerprints or plaintext secrets;
 - maintenance is enforced before service-admin authorization and survives Worker restarts;
-- maintenance controller material is client-held and is never persisted or audited in plaintext.
+- maintenance controller material is client-held and is never persisted or audited in plaintext;
+- offline secret values are accepted only through mode-`0600` files;
+- runtime and recovery are mutually exclusive through the same kernel `flock`;
+- candidate and rollback files are bound into a canonical receipt and remain on the live filesystem;
+- receipt phases and file hashes determine crash reconciliation;
+- historical `portal_sessions` are never restored;
+- maintenance does not exit automatically on startup or timer.
 
 ## Data ownership
 
 Canonical schema and migrations own all table definitions. Backup modules may read domain data but may not create or alter schema. Selective restore writes only through fixed registry-owned DML after the migration boundary reports a compatible schema and the approved preview is still current. Maintenance state is owned by canonical migration v3 and does not grant backup modules schema ownership.
+
+Offline destructive recovery clones the stopped current SQLite, preserves migration and maintenance metadata, replaces only fixed registry-owned canonical domains and temporarily suspends only the canonical append-only audit trigger inside the candidate. It does not run request-path schema migration or accept request-controlled SQL identifiers.
 
 Initial domain allowlist:
 - settings;
@@ -125,7 +137,7 @@ Domains are explicit to prevent accidental export of new tables. Adding a domain
 - session revocation for local-auth restore;
 - no destructive full-database replacement.
 
-### PR 7 — persistent maintenance mode foundation — current
+### PR 7 — persistent maintenance mode foundation — complete
 
 - canonical additive migration v3 and singleton persistent state;
 - client-held one-time controller secret with server-side SHA-256 only;
@@ -137,34 +149,43 @@ Domains are explicit to prevent accidental export of new tables. Adding a domain
 - ordinary API and scheduled work blocked during maintenance;
 - bounded public status, health, schema diagnostics and maintenance controls remain available;
 - aggregate-only audit without controller, actor-group or backup material;
-- no filesystem access, backup decryption or destructive restore.
+- no filesystem access, backup decryption or destructive restore in the PR #71 runtime foundation.
 
-### PR 8 — destructive full restore and offline recovery
+### PR 8 — destructive full restore and offline recovery — complete
 
-- mandatory full pre-restore recovery point;
-- explicit destructive confirmation bound to the selected artifact;
-- offline process shutdown and volume-level SQLite file discovery;
-- authenticated backup decryption outside the live request path;
-- SQLite integrity, schema and administrator-access smoke before atomic file replacement;
-- fsync/rename or equivalent crash-safe replacement procedure;
-- restart smoke, failed-maintenance recovery and rollback procedure;
-- CLI/offline tooling and operator documentation;
-- Playwright/browser verification only after the portal returns to `inactive`.
+- closed offline CLI command schema: `preflight`, `backup-current`, `restore`, `status`, `verify`, `rollback`, `maintenance-recover`;
+- runtime/recovery mutual exclusion through a shared kernel `flock`;
+- canonical SQLite discovery without hardcoded Wrangler/Miniflare filenames;
+- mandatory encrypted raw-SQLite full recovery point with a password distinct from the logical backup password;
+- canonical receipt binding live path/hash, maintenance operation, backup manifest, recovery point, candidate and rollback paths;
+- complete encrypted logical backup validation and bounded source schema adapters;
+- candidate database cloned from the stopped current SQLite;
+- preservation of migration journal, schema lock and maintenance operation;
+- fixed physical restore policy, RBAC projection validation and forced historical-session removal;
+- candidate integrity, canonical schema, administrator password, settings encryption and audit checks before live mutation;
+- same-filesystem atomic rename/fsync swap with receipt-driven crash reconciliation;
+- rollback from retained original or verified encrypted recovery point;
+- trusted service-admin-only `verification/smoke` without persistent session creation;
+- bounded online health/schema/smoke and maintenance `VERIFY`, `EXIT`, `RESUME` sequence;
+- audited offline failed-maintenance recovery;
+- separate non-root recovery Docker target and opt-in Compose profile;
+- fault matrix and disposable named-volume smoke in CI;
+- operator procedure in `docs/OFFLINE_FULL_RESTORE.md`.
 
-## Current maintenance foundation acceptance gate
+## Final issue #37 acceptance gate
 
-- migration v3 is additive, immutable and included in final schema drift verification;
-- only one concurrent prepare can succeed;
-- the raw controller secret is returned once and the server persists only its hash;
-- exact state, operation, hash and confirmation guards protect every transition;
-- entering `active` and revoking sessions happen in one D1 batch;
-- state remains authoritative after a Worker/container restart;
-- malformed or unavailable state fails closed;
-- the maintenance gate executes after schema readiness and before service-admin authorization;
-- `ADMIN_TOKEN` cannot bypass maintenance;
-- ordinary API receives safe `503` and scheduled work is suppressed;
-- static assets, public status, health, schema status and bounded maintenance controls remain available;
-- no controller secret/hash, actor groups, backup material, SQL or raw D1 errors appear in responses or audit;
-- maintenance production modules contain no backup crypto, filesystem access, outbound recovery calls or `CONFIG_ENCRYPTION_KEY` access;
-- destructive full restore, SQLite file replacement and offline CLI are absent from PR #71;
-- lint, build, complete server suite and Auth E2E must pass on the final head before review readiness.
+- every backup/import/restore format is versioned and validated before mutation;
+- sanitized and encrypted exports preserve fixed domain ownership and never include `CONFIG_ENCRYPTION_KEY`;
+- selective restore is staged, concurrency-bound, transactional and recovery-point protected;
+- maintenance survives restart, blocks ordinary API/scheduled work and cannot be bypassed by `ADMIN_TOKEN`;
+- destructive restore cannot run concurrently with dashboard runtime;
+- database discovery requires exactly one canonical schema match;
+- full recovery point is created, integrity-checked, encrypted and reopened before candidate work;
+- candidate restoration uses only static registry identifiers and never restores historical sessions;
+- no live SQL mutation occurs before the verified atomic file swap;
+- every rename/fsync crash boundary is fail-closed or maps to one receipt-driven reconciliation action;
+- online verification checks schema, administrator access, settings decryption, audit write and session revocation before maintenance completion;
+- offline failed-maintenance recovery requires exact confirmation, a valid receipt/recovery point and verified administrator/config credentials;
+- secret values do not appear in argv, stdout, receipt, audit or CI artifacts;
+- no bypass flags or automatic maintenance exit exist;
+- lint, production build, complete server suite, Auth E2E, recovery image build and disposable named-volume Compose smoke pass on one final head before merge.

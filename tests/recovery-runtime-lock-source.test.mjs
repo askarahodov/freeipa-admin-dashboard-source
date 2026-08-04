@@ -23,7 +23,8 @@ test("runtime wrapper owns the exact persistent-volume lock and never invokes a 
   assert.match(wrapperSource, /--conflict-exit-code/u);
   assert.match(wrapperSource, /--no-fork/u);
   assert.match(wrapperSource, /shell:\s*false/u);
-  assert.doesNotMatch(wrapperSource, /execSync|spawnSync|\bsh\b|-c/u);
+  assert.doesNotMatch(wrapperSource, /execSync|spawnSync|\bsh\b/u);
+  assert.doesNotMatch(wrapperSource, /["']-c["']/u);
 });
 
 test("Docker startup routes Wrangler through the runtime lock wrapper", () => {

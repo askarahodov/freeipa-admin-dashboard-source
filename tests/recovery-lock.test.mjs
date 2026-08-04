@@ -32,6 +32,7 @@ function spawnHolder(lockPath) {
     "--exclusive",
     "--nonblock",
     "--conflict-exit-code", "75",
+    "--no-fork",
     lockPath,
     process.execPath,
     "-e",
@@ -41,12 +42,19 @@ function spawnHolder(lockPath) {
   });
 }
 
+async function stopHolder(holder) {
+  if (holder.exitCode !== null || holder.signalCode !== null) return;
+  const exited = once(holder, "exit");
+  holder.kill("SIGKILL");
+  await exited;
+}
+
 test("runtime and recovery cannot hold the same kernel lock", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "portal-recovery-lock-"));
   const lockPath = join(root, "exclusive.lock");
   const holder = spawnHolder(lockPath);
   t.after(async () => {
-    if (holder.exitCode === null && holder.signalCode === null) holder.kill("SIGKILL");
+    await stopHolder(holder);
     await rm(root, { recursive: true, force: true });
   });
   await waitForLine(holder.stdout, "locked");
@@ -71,8 +79,7 @@ test("the operating system releases the lock after holder termination", async (t
   t.after(() => rm(root, { recursive: true, force: true }));
   await waitForLine(holder.stdout, "locked");
 
-  holder.kill("SIGKILL");
-  await once(holder, "exit");
+  await stopHolder(holder);
   assert.deepEqual(await probeRecoveryLock(lockPath), { available: true });
 });
 

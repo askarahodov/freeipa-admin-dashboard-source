@@ -18,7 +18,7 @@ test("process entrypoint owns no SQL crypto or path traversal logic", () => {
   assert.doesNotMatch(entry, /createCipheriv|createDecipheriv|PBKDF2|AES-256-GCM/u);
   assert.doesNotMatch(entry, /realpath|relative\(|lstat|readSecretFile/u);
   assert.match(entry, /runRecoveryCli/u);
-  assert.match(entry, /createRecoveryCommandHandlers/u);
+  assert.match(entry, /createRecoveryRuntimeCommandHandlers/u);
 });
 
 test("command schema explicitly lists every public command", () => {

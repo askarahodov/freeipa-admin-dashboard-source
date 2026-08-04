@@ -24,7 +24,6 @@ const child = spawn("/usr/bin/flock", [
   "--conflict-exit-code", String(CONFLICT_EXIT_CODE),
   "--no-fork",
   lockPath,
-  "--",
   command,
   ...values,
 ], {

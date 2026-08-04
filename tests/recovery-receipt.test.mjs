@@ -5,6 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 
 import {
+  bindRecoveryCandidateReceipt,
   createRecoveryReceipt,
   loadRecoveryReceipt,
   transitionRecoveryReceipt,
@@ -35,6 +36,23 @@ function input(overrides = {}) {
       sourceIntegrity: "ok",
       encryptedRoundTrip: "ok",
       recoveryPointIntegrity: "ok",
+    },
+    ...overrides,
+  };
+}
+
+function candidateBinding(overrides = {}) {
+  return {
+    candidateRelativePath: "state/v3/d1/.candidate.sqlite",
+    candidateSha256: "d".repeat(64),
+    candidateBytes: 4096,
+    rollbackRelativePath: "state/v3/d1/.rollback.sqlite",
+    checks: {
+      candidateIntegrity: "ok",
+      candidateSchema: "ok",
+      candidateAdministrator: "ok",
+      candidateEncryption: "ok",
+      candidateAudit: "ok",
     },
     ...overrides,
   };
@@ -79,6 +97,10 @@ test("creates a frozen canonical recovery-point receipt", () => {
     recoveryPointRelativePath: input().recoveryPointRelativePath,
     recoveryPointSha256: input().recoveryPointSha256,
     recoveryPointBytes: 2048,
+    candidateRelativePath: null,
+    candidateSha256: null,
+    candidateBytes: null,
+    rollbackRelativePath: null,
     confirmation: input().confirmation,
     checks: input().checks,
   });
@@ -108,6 +130,7 @@ test("rejects unknown fields malformed hashes unsafe paths and future timestamps
     { ...receipt, recoveryPointRelativePath: "../outside.enc" },
     { ...receipt, updatedAt: "2026-08-04T10:00:00.000Z" },
     { ...receipt, checks: { checkpoint: "ok", secret: "controller-value" } },
+    { ...receipt, candidateRelativePath: "candidate.sqlite" },
   ];
   for (const candidate of cases) {
     assert.throws(
@@ -117,11 +140,18 @@ test("rejects unknown fields malformed hashes unsafe paths and future timestamps
   }
 });
 
-test("permits only explicit receipt phase transitions", () => {
+test("binds a verified candidate before swap transitions", () => {
   const ready = createRecoveryReceipt(input());
-  const candidate = transitionRecoveryReceipt(ready, "candidate_ready", laterAt);
+  assert.throws(
+    () => transitionRecoveryReceipt(ready, "candidate_ready", laterAt),
+    (error) => error.code === "recovery_receipt_phase_invalid",
+  );
+
+  const candidate = bindRecoveryCandidateReceipt(ready, candidateBinding(), laterAt);
   assert.equal(candidate.phase, "candidate_ready");
-  assert.equal(candidate.updatedAt, laterAt);
+  assert.equal(candidate.candidateSha256, "d".repeat(64));
+  assert.equal(candidate.rollbackRelativePath, "state/v3/d1/.rollback.sqlite");
+  assert.equal(candidate.checks.candidateAudit, "ok");
   assert.equal(Object.isFrozen(candidate), true);
 
   assert.throws(
@@ -136,6 +166,22 @@ test("permits only explicit receipt phase transitions", () => {
   const failed = transitionRecoveryReceipt(candidate, "failed", "2026-08-04T08:02:00.000Z");
   assert.equal(failed.phase, "failed");
   assert.equal(transitionRecoveryReceipt(failed, "rollback_started", "2026-08-04T08:03:00.000Z").phase, "rollback_started");
+});
+
+test("rejects incomplete or colliding candidate bindings", () => {
+  const ready = createRecoveryReceipt(input());
+  for (const binding of [
+    candidateBinding({ candidateSha256: "bad" }),
+    candidateBinding({ candidateBytes: 0 }),
+    candidateBinding({ candidateRelativePath: input().liveDatabaseRelativePath }),
+    candidateBinding({ rollbackRelativePath: "state/v3/d1/.candidate.sqlite" }),
+    candidateBinding({ checks: { candidateIntegrity: "ok" } }),
+  ]) {
+    assert.throws(
+      () => bindRecoveryCandidateReceipt(ready, binding, laterAt),
+      (error) => error.code === "recovery_receipt_phase_invalid" || error.code === "recovery_receipt_invalid",
+    );
+  }
 });
 
 test("rejects symlink receipt targets and insecure existing files", async (t) => {

@@ -8,8 +8,8 @@
 | --- | --- | --- | --- | --- |
 | `GET /health/live` | публичный | Только способность Worker обработать HTTP-запрос | `200` | Docker `HEALTHCHECK`, liveness probe |
 | `GET /health/ready` | внутренний | D1 binding, canonical schema, AES-GCM self-test и локальный Node Gateway | `200`; иначе `503` | readiness probe, исключение instance из балансировки |
+| `GET /health/dependencies` | внутренний/диагностический | Read-only probes FreeIPA и XYOps с краткоживущим sanitized cache | `200` для evaluated healthy/degraded; `503`, если проверку нельзя выполнить | Наблюдаемость, alerting и диагностика, но не restart probe |
 | `GET /api/integrations/health` | публичный, deprecated | Совместимый alias liveness | `200` | Только временная совместимость старых клиентов |
-| `GET /health/dependencies` | ещё не реализован | Будущая проверка FreeIPA и XYOps | — | Наблюдаемость и диагностика, не liveness |
 
 `/health/live` не читает D1, не использует ключ шифрования, не вызывает Gateway и не выполняет внешние сетевые запросы. Endpoint остаётся доступным до schema, maintenance, authentication и integration gates.
 
@@ -20,9 +20,11 @@
 3. `CONFIG_ENCRYPTION_KEY` проходит локальный AES-GCM encrypt/decrypt self-test;
 4. локальный loopback Gateway отвечает на защищённый `GET /health` с текущим ephemeral bearer token.
 
-Проверка Gateway подтверждает только работоспособность локального процесса. Она не обращается к FreeIPA и не передаёт пользовательские учётные данные.
+Проверка Gateway внутри readiness подтверждает только работоспособность локального процесса. Она не обращается к FreeIPA и не передаёт пользовательские учётные данные.
 
-## Response contract
+`/health/dependencies` сначала требует доступные D1 и canonical schema, затем читает effective integration settings через read-only `SELECT`. Для FreeIPA выполняется ограниченный `user_find` через тот же authenticated loopback Gateway, который используется рабочими операциями. Для XYOps выполняется read-only `GET /api/app/get_events/v1`. Endpoint ничего не создаёт, не изменяет, не удаляет, не запускает и не отменяет.
+
+## Live and ready response contract
 
 Ответы live/ready используют версионированную безопасную форму:
 
@@ -48,14 +50,97 @@
 }
 ```
 
-Все ответы содержат `Cache-Control: no-store`. Failure payload возвращает только фиксированные коды и безопасные числовые версии schema. В ответах запрещены:
+Deprecated alias дополнительно возвращает `Deprecation: true` и `Link: </health/live>; rel="successor-version"`, сохраняя точный body `{ "ok": true }` для старых клиентов.
 
-- URL и имена внешних систем;
-- логины, пароли, cookies, токены и ключи;
-- SQL, checksums, migration drift details;
+## Dependency response contract
+
+Успешно выполненная диагностика возвращает HTTP `200`, даже когда одна из внешних систем недоступна. Это отделяет состояние dependency от состояния самого процесса:
+
+```json
+{
+  "contractVersion": "1",
+  "service": "freeipa-admin-dashboard",
+  "check": "dependencies",
+  "state": "degraded",
+  "code": "dependencies_degraded",
+  "ok": false,
+  "metadata": {
+    "buildVersion": "unknown",
+    "schemaVersion": 3,
+    "latestSchemaVersion": 3,
+    "observedAt": 1785859200000,
+    "cache": {
+      "source": "fresh",
+      "ageMs": 0,
+      "ttlMs": 30000
+    }
+  },
+  "dependencies": [
+    {
+      "name": "freeipa",
+      "state": "degraded",
+      "category": "timeout",
+      "code": "freeipa_timeout",
+      "latencyMs": 8000,
+      "lastSuccessAt": 1785859100000
+    },
+    {
+      "name": "xyops",
+      "state": "healthy",
+      "category": "ok",
+      "code": "xyops_ready",
+      "latencyMs": 42,
+      "lastSuccessAt": 1785859200000
+    }
+  ]
+}
+```
+
+HTTP `503` используется только когда dependency evaluation нельзя безопасно выполнить: отсутствует D1 binding, canonical schema не ready или effective settings нельзя прочитать/расшифровать. В этом случае внешние probes не запускаются.
+
+### Dependency states and categories
+
+- `healthy` — read-only probe завершён успешно;
+- `degraded` — система настроена, но probe завершился безопасно классифицированной ошибкой;
+- `unconfigured` — обязательные параметры отсутствуют;
+- `configuration` — отсутствует или некорректна конфигурация;
+- `dns` — имя FreeIPA не разрешилось;
+- `tls` — TLS-проверка FreeIPA не прошла;
+- `timeout` — bounded probe превысил лимит времени;
+- `authentication` — credentials/API key отклонены;
+- `rate_limited` — XYOps вернул HTTP `429`;
+- `upstream` — upstream вернул server-side failure;
+- `protocol` — ответ не соответствует ожидаемому безопасному контракту;
+- `network` — соединение не установлено или было разорвано;
+- `disabled` — XYOps отключён режимом demo.
+
+Коды ответа фиксированы и пригодны для alert rules. Текст upstream exception или response body в API не возвращается.
+
+## Cache and concurrency policy
+
+Dependency probes используют process-local cache с TTL 30 секунд:
+
+- кэш содержит только sanitized results, `latencyMs`, `observedAt` и `lastSuccessAt`;
+- URLs, usernames, passwords, API keys, Gateway tokens, cookies, encrypted settings и raw errors не сохраняются;
+- одновременные stale-запросы объединяются в один probe run;
+- healthy и degraded результаты кэшируются одинаково, чтобы outage не создавал request storm;
+- после неуспешного probe сохраняется timestamp последнего успешного результата;
+- restart процесса очищает cache, что допустимо: это не persistent monitoring storage;
+- изменение settings может быть видно с задержкой не более TTL.
+
+`portal_settings_revisions.health_json` не используется как runtime cache: это данные revision lifecycle. Persistent health history, metrics и diagnostics UI должны иметь отдельного владельца данных.
+
+## Response sanitization
+
+Все health responses содержат `Cache-Control: no-store`. В ответах запрещены:
+
+- URL и hostnames внешних систем;
+- логины, пароли, cookies, bearer tokens, API keys и encryption keys;
+- encrypted settings blobs;
+- SQL, checksums и migration drift details;
 - raw exception messages и upstream response bodies.
 
-Deprecated alias дополнительно возвращает `Deprecation: true` и `Link: </health/live>; rel="successor-version"`, сохраняя поле `ok: true` для старых клиентов.
+Разрешены только allowlisted service names, states, categories, codes, bounded latency, timestamps и числовые schema versions.
 
 ## Probe configuration
 
@@ -85,7 +170,9 @@ readinessProbe:
     port: 3001
 ```
 
-Readiness failure исключает instance из трафика, но не должен автоматически означать повреждение процесса. Для production ingress ограничьте `/health/ready` внутренней сетью или политикой маршрутизации.
+Readiness failure исключает instance из трафика, но не должен автоматически означать повреждение процесса. Для production ingress ограничьте `/health/ready` и `/health/dependencies` внутренней сетью или политикой маршрутизации.
+
+`/health/dependencies` вызывается системой мониторинга с периодом, который не меньше cache TTL. Его нельзя назначать `livenessProbe`, `readinessProbe` или Docker `HEALTHCHECK`.
 
 ## Operational interpretation
 
@@ -95,5 +182,10 @@ Readiness failure исключает instance из трафика, но не д�
 - `health_encryption_unavailable`: ключ конфигурации отсутствует, имеет неверный формат или crypto self-test не прошёл.
 - `health_gateway_unavailable`: локальный Gateway не запущен, token mismatch или loopback request не прошёл.
 - `health_ready`: портал готов принимать рабочий трафик.
+- `dependencies_healthy`: оба read-only integration probes успешны.
+- `dependencies_degraded`: evaluation выполнена, но FreeIPA или XYOps degraded/unconfigured.
+- `dependency_database_unavailable`: dependency evaluation невозможно без D1.
+- `dependency_schema_unready`: dependency evaluation остановлена schema boundary.
+- `dependency_configuration_unavailable`: effective settings нельзя безопасно прочитать или расшифровать.
 
-Состояние FreeIPA и XYOps будет вынесено в отдельный dependency contract следующего checkpoint задачи #58. Оно предназначено для диагностики и alerting, а не для рестартов контейнера.
+При `dependencies_degraded` проверяйте `dependencies[].category`, `code`, `latencyMs` и `lastSuccessAt`. Не перезапускайте контейнер только из-за этого состояния.

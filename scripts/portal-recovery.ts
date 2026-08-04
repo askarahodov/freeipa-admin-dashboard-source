@@ -6,12 +6,12 @@ import {
   parseRecoveryCli,
   runRecoveryCli,
 } from "../recovery-cli.ts";
-import { createRecoveryCommandHandlers } from "../recovery-command-handlers.ts";
 import {
   canonicalRecoveryResult,
   safeRecoveryFailure,
 } from "../recovery-errors.ts";
 import { runWithRecoveryLock } from "../recovery-lock.ts";
+import { createRecoveryRuntimeCommandHandlers } from "../recovery-runtime-command-handlers.ts";
 
 function writeLine(stream: NodeJS.WriteStream, value: unknown): void {
   stream.write(`${JSON.stringify(canonicalRecoveryResult(value))}\n`);
@@ -25,7 +25,7 @@ async function main(): Promise<number> {
   } catch {
     const result = await runRecoveryCli(
       argv,
-      createRecoveryCliRuntimeDependencies(createRecoveryCommandHandlers()),
+      createRecoveryCliRuntimeDependencies(createRecoveryRuntimeCommandHandlers()),
     );
     if (result.stdout) process.stdout.write(result.stdout);
     if (result.stderr) process.stderr.write(result.stderr);
@@ -63,7 +63,7 @@ async function main(): Promise<number> {
 
   const result = await runRecoveryCli(
     argv,
-    createRecoveryCliRuntimeDependencies(createRecoveryCommandHandlers()),
+    createRecoveryCliRuntimeDependencies(createRecoveryRuntimeCommandHandlers()),
   );
   if (result.stdout) process.stdout.write(result.stdout);
   if (result.stderr) process.stderr.write(result.stderr);

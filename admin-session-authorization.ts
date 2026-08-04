@@ -12,6 +12,7 @@ const ADMIN_INTEGRATION_PATHS = new Set([
   "/api/admin/maintenance/prepare",
   "/api/admin/maintenance/enter",
   "/api/admin/maintenance/verification/start",
+  "/api/admin/maintenance/verification/smoke",
   "/api/admin/maintenance/exit",
   "/api/admin/maintenance/complete",
   "/api/admin/maintenance/cancel",

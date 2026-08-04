@@ -23,10 +23,11 @@ function request(body, options = {}) {
     ...(options.headers ?? {}),
   });
   if (options.noOrigin) headers.delete("origin");
+  const method = options.method ?? "POST";
   return new Request(`https://portal.example${MAINTENANCE_VERIFICATION_SMOKE_PATH}`, {
-    method: options.method ?? "POST",
+    method,
     headers,
-    body: typeof body === "string" ? body : JSON.stringify(body),
+    body: ["GET", "HEAD"].includes(method) ? undefined : typeof body === "string" ? body : JSON.stringify(body),
   });
 }
 

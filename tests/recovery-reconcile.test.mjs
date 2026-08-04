@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  bindRecoveryCandidateReceipt,
   createRecoveryReceipt,
   transitionRecoveryReceipt,
 } from "../recovery-receipt.ts";
@@ -37,14 +38,21 @@ function candidateReadyReceipt() {
       sourceIntegrity: "ok",
       encryptedRoundTrip: "ok",
       recoveryPointIntegrity: "ok",
+    },
+  });
+  return bindRecoveryCandidateReceipt(base, {
+    candidateRelativePath: "state/v3/d1/candidate.sqlite",
+    candidateSha256: candidateHash,
+    candidateBytes: 100,
+    rollbackRelativePath: "state/v3/d1/rollback.sqlite",
+    checks: {
       candidateIntegrity: "ok",
       candidateSchema: "ok",
       candidateAdministrator: "ok",
       candidateEncryption: "ok",
       candidateAudit: "ok",
     },
-  });
-  return transitionRecoveryReceipt(base, "candidate_ready", "2026-08-04T08:01:00.000Z");
+  }, "2026-08-04T08:01:00.000Z");
 }
 
 function swapStartedReceipt() {

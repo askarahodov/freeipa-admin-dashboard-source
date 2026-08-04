@@ -113,7 +113,7 @@ test("parses bounded schema and maintenance query output", async () => {
   const scripts = [];
   const sqlite = async (input) => {
     scripts.push(input.script);
-    if (input.script.includes("portal_maintenance_state")) {
+    if (input.script.includes("FROM portal_maintenance_state")) {
       return { stdout: `active|maintenance_22222222-2222-4222-8222-222222222222|${"a".repeat(64)}\n` };
     }
     return { stdout: "3|5\n" };

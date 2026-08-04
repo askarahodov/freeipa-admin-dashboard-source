@@ -12,6 +12,13 @@ function recoveryService(source) {
   return match[1];
 }
 
+function dockerTarget(source, marker) {
+  const start = source.indexOf(marker);
+  assert.notEqual(start, -1, `${marker} must exist`);
+  const next = source.indexOf("\nFROM ", start + marker.length);
+  return source.slice(start, next === -1 ? source.length : next);
+}
+
 test("Dockerfile contains a dedicated non-root recovery target", () => {
   assert.match(dockerfile, /FROM dependencies AS recovery/u);
   assert.match(dockerfile, /apt-get install[^\n]*sqlite3[^\n]*util-linux[^\n]*ca-certificates/u);
@@ -19,7 +26,7 @@ test("Dockerfile contains a dedicated non-root recovery target", () => {
   assert.match(dockerfile, /mkdir -p \/portal-data \/recovery \/run\/portal-recovery-secrets/u);
   assert.match(dockerfile, /USER recovery/u);
   assert.match(dockerfile, /ENTRYPOINT \["node", "--experimental-strip-types", "scripts\/portal-recovery\.ts"\]/u);
-  const target = dockerfile.slice(dockerfile.indexOf("FROM dependencies AS recovery"));
+  const target = dockerTarget(dockerfile, "FROM dependencies AS recovery");
   assert.doesNotMatch(target, /CMD \["npm", "run", "start:docker"\]/u);
   assert.doesNotMatch(target, /ENV[^\n]*(?:ADMIN_TOKEN|CONFIG_ENCRYPTION_KEY|PASSWORD)/u);
 });

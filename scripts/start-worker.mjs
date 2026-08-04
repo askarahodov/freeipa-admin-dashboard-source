@@ -55,7 +55,12 @@ chmodSync(envFile, 0o600);
 const host = process.env.HOST || "0.0.0.0";
 const port = process.env.PORT || "3001";
 const wrangler = resolve("node_modules/wrangler/bin/wrangler.js");
+const runtimeWrapper = resolve("scripts/run-portal-runtime.mjs");
+const runtimeLock = resolve(".wrangler/.portal-exclusive.lock");
 const child = spawn(process.execPath, [
+  runtimeWrapper,
+  runtimeLock,
+  process.execPath,
   wrangler,
   "dev",
   "--config", "dist/server/wrangler.json",

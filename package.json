@@ -14,6 +14,7 @@
     "recovery": "node --experimental-strip-types scripts/portal-recovery.ts",
     "test": "npm run build && node --experimental-strip-types --test tests/*.test.mjs",
     "test:recovery": "node --experimental-strip-types --test tests/recovery-*.test.mjs",
+    "test:recovery:compose": "node scripts/recovery-compose-smoke.mjs",
     "test:integration:smoke": "node scripts/local-integration-smoke.mjs",
     "test:local": "bash scripts/run-local-integration.sh",
     "test:local-auth:acceptance": "node scripts/local-auth-acceptance.mjs",
@@ -28,7 +29,7 @@
     "drizzle-orm": "0.45.2",
     "next": "16.2.12",
     "react": "19.2.6",
-    "react-dom": "19.2.6"
+    "react-dom": "19.2.3"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.46.0",

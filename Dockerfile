@@ -12,12 +12,13 @@ ENV NODE_ENV=production \
     PORT=3001 \
     HOST=0.0.0.0
 WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends util-linux && rm -rf /var/lib/apt/lists/*
 RUN useradd --system --uid 10001 dashboard && mkdir -p /app/.wrangler && chown dashboard:dashboard /app/.wrangler
 COPY --from=build --chown=dashboard:dashboard /app/package.json /app/package-lock.json ./
 COPY --from=build --chown=dashboard:dashboard /app/node_modules ./node_modules
 COPY --from=build --chown=dashboard:dashboard /app/dist ./dist
 COPY --from=build --chown=dashboard:dashboard /app/.openai ./.openai
-COPY --from=build --chown=dashboard:dashboard /app/scripts/start-worker.mjs /app/scripts/freeipa-gateway.mjs ./scripts/
+COPY --from=build --chown=dashboard:dashboard /app/scripts/start-worker.mjs /app/scripts/freeipa-gateway.mjs /app/scripts/run-portal-runtime.mjs ./scripts/
 USER dashboard
 EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \

@@ -77,7 +77,6 @@ function healthPayload(input: {
   code: string;
   metadata: HealthMetadata;
   checks: HealthCheck[];
-  extras?: Record<string, unknown>;
 }): Record<string, unknown> {
   return {
     contractVersion,
@@ -88,32 +87,28 @@ function healthPayload(input: {
     ok: input.state === "healthy",
     metadata: input.metadata,
     checks: input.checks,
-    ...(input.extras ?? {}),
   };
 }
 
-function livenessResponse(env: HealthEnv, legacy = false): Response {
-  const extras = legacy
-    ? { deprecated: true, successor: livePath }
-    : undefined;
-  const headers = legacy
-    ? {
-        deprecation: "true",
-        link: `<${livePath}>; rel="successor-version"`,
-        warning: `299 - "Deprecated health endpoint; use ${livePath}"`,
-      }
-    : undefined;
+function livenessResponse(env: HealthEnv): Response {
+  return jsonResponse(200, healthPayload({
+    check: "liveness",
+    state: "healthy",
+    code: "health_live",
+    metadata: metadata(env),
+    checks: [],
+  }));
+}
+
+function legacyLivenessResponse(): Response {
   return jsonResponse(
     200,
-    healthPayload({
-      check: "liveness",
-      state: "healthy",
-      code: "health_live",
-      metadata: metadata(env),
-      checks: [],
-      extras,
-    }),
-    headers,
+    { ok: true },
+    {
+      deprecation: "true",
+      link: `<${livePath}>; rel="successor-version"`,
+      warning: `299 - "Deprecated health endpoint; use ${livePath}"`,
+    },
   );
 }
 
@@ -269,6 +264,6 @@ export async function handleHealthRequest(
     return jsonResponse(405, { ok: false, code: "health_method_not_allowed" }, { allow: "GET" });
   }
   if (pathname === livePath) return livenessResponse(env);
-  if (pathname === legacyPath) return livenessResponse(env, true);
+  if (pathname === legacyPath) return legacyLivenessResponse();
   return await readinessResponse(env, dependencies);
 }

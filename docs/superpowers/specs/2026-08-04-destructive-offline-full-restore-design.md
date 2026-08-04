@@ -22,8 +22,8 @@ The restore targets the local Wrangler/Miniflare persistence volume mounted at `
 
 ### In scope
 
-- a dedicated recovery container/Compose profile;
-- an exclusive runtime/recovery lease in the persistent volume;
+- a dedicated recovery container and Compose profile;
+- an OS-enforced exclusive runtime/recovery lock in the persistent volume;
 - discovery of the live SQLite file without depending on a hashed Miniflare filename;
 - validation and decryption of the current `EncryptedBackupDocument` format;
 - rejection of partial-domain documents for destructive full restore;
@@ -48,14 +48,14 @@ The restore targets the local Wrangler/Miniflare persistence volume mounted at `
 - importing a raw SQLite file supplied by a user;
 - automatic maintenance exit;
 - automatic use of `CONFIG_ENCRYPTION_KEY` from a backup;
-- bypassing a fresh runtime/recovery lease;
+- bypassing a held runtime/recovery lock;
 - recovering a host compromised by an attacker with root access.
 
 ## 3. Security and threat model
 
 The recovery workflow assumes the operator controls the Docker host and the recovery directory. It protects against:
 
-- accidental restore while the portal is running;
+- accidental restore while the portal is running or paused;
 - corrupted, truncated or wrong-password backup documents;
 - path traversal and symlink substitution;
 - ambiguous SQLite discovery;
@@ -92,8 +92,11 @@ The Dockerfile gains a dedicated `recovery` target. It contains:
 
 - Node.js 22;
 - project dependencies and the TypeScript modules required by the recovery CLI;
-- the `sqlite3` command-line tool;
+- `sqlite3`;
+- `flock` from `util-linux`;
 - no dashboard process entrypoint.
+
+The normal runtime image also contains `flock`, because the dashboard must hold the same advisory lock for its entire lifetime.
 
 The recovery CLI runs with Node strip-types support and imports the existing backup/schema/auth modules directly. SQLite file operations are delegated to a bounded `sqlite3` subprocess wrapper. SQL is passed only through stdin with `.echo off` and `.bail on`; SQL or row contents are never placed in argv or logs.
 
@@ -122,18 +125,27 @@ recovery:
 
 The operator creates the bind directories with restrictive ownership and mode before use. `/recovery` must resolve outside `/portal-data`; the CLI rejects nested or identical roots.
 
-## 6. Exclusive lease protocol
+## 6. Exclusive lock protocol
 
-A single lock directory inside the persistent volume coordinates the dashboard runtime and all mutating recovery commands.
-
-### 6.1 Location and contents
+A single advisory lock file inside the persistent volume coordinates the dashboard runtime and all mutating recovery commands:
 
 ```text
-/portal-data/.portal-exclusive-lock/
-  owner.json
+/portal-data/.portal-exclusive.lock
+/portal-data/.portal-exclusive.owner.json
 ```
 
-`owner.json` contains only:
+### 6.1 Authority
+
+- The kernel-held exclusive `flock` is authoritative.
+- The dashboard acquires the lock before starting Wrangler and holds the file descriptor until the Worker and gateway have exited.
+- `backup-current`, `restore`, `rollback` and `maintenance-recover` acquire the same exclusive lock.
+- A running, paused or hung process keeps its lock; heartbeat age never permits bypass.
+- The operating system releases the lock automatically on process exit or crash.
+- File existence alone does not indicate ownership and is never used as permission to proceed.
+
+### 6.2 Diagnostic owner record
+
+While holding the lock, the owner atomically updates `.portal-exclusive.owner.json` with:
 
 - format version;
 - random lease ID;
@@ -143,19 +155,9 @@ A single lock directory inside the persistent volume coordinates the dashboard r
 - start time;
 - heartbeat time.
 
-No secret or database path is stored.
+The heartbeat is diagnostic only. It may explain who holds the lock, but it cannot override a successful or failed `flock` acquisition. The owner record contains no secret or database path.
 
-### 6.2 Acquisition
-
-- Acquisition uses atomic directory creation.
-- The dashboard acquires a `runtime` lease before starting Wrangler and refreshes it every five seconds.
-- `backup-current`, `restore`, `rollback` and `maintenance-recover` acquire a `recovery` lease.
-- A fresh lease is never bypassed.
-- A stale lease can be reclaimed only after the configured safety window, default 30 seconds.
-- Reclaim renames the stale directory to a unique tombstone before attempting a new atomic create. Only one contender can succeed.
-- Release removes the directory only when the lease ID still matches.
-
-The dashboard refuses to start while a fresh recovery lease exists. Recovery mutation refuses to start while a fresh runtime lease exists. Read-only `preflight` may inspect state but reports a blocking fresh runtime lease.
+The dashboard refuses to start when recovery holds the lock. Recovery mutation refuses to run when runtime holds the lock. Read-only `preflight` attempts a non-blocking lock and reports `recovery_runtime_active` when the lock is held.
 
 ## 7. CLI contract
 
@@ -187,9 +189,10 @@ Secret values are accepted only from regular files:
 - maintenance controller-secret file;
 - administrator password file;
 - configuration-encryption-key file;
-- service-admin token file for online verification.
+- service-admin token file for online verification;
+- destructive confirmation file.
 
-The CLI rejects symlinks, non-regular files, oversized files and group/world-readable secret files. Secret values are trimmed only according to the exact secret contract; arbitrary whitespace normalization is prohibited. Secret paths may appear in argv, but secret values may not.
+The CLI rejects symlinks, non-regular files, oversized files and group/world-readable secret files. Secret values are normalized only according to the exact secret contract; arbitrary whitespace normalization is prohibited. Secret-file paths may appear in argv, but secret values may not.
 
 ### 7.2 Non-secret inputs
 
@@ -216,16 +219,17 @@ Zero matches returns `recovery_database_not_found`. More than one match returns 
 `preflight` performs no database mutation. It validates:
 
 - roots and permissions;
-- exclusive-lease state;
+- exclusive-lock state;
 - unique SQLite discovery;
 - current schema readiness;
 - maintenance state and operation ID;
-- encrypted backup structure, checksums and password;
+- controller secret against the stored maintenance hash when supplied;
+- encrypted backup structure, checksums and decryption;
 - complete canonical domain set;
 - explicit source-schema adapter availability;
 - administrator username/password against decrypted backup local-auth data;
 - at least one enabled, non-locked administrator;
-- `CONFIG_ENCRYPTION_KEY` compatibility for all encrypted settings, replay and approval payloads included in the backup;
+- `CONFIG_ENCRYPTION_KEY` compatibility for encrypted settings, replay and approval payloads included in the backup;
 - free disk space.
 
 Space requirements are computed from actual live-database and backup sizes. The volume must have room for candidate plus retained rollback file; the recovery root must have room for plaintext staging during encrypted recovery-point creation plus the encrypted artifact. Preflight never leaves plaintext artifacts behind.
@@ -242,9 +246,17 @@ The candidate always retains the current database migration journal and current 
 
 `backup-current` is a required stage before `restore`.
 
-### 11.1 Source stabilization
+### 11.1 Preconditions and source stabilization
 
-With the dashboard stopped and the recovery lease held, the command:
+The command requires:
+
+- the dashboard stopped and the recovery lock held;
+- maintenance state `active` or `verifying`;
+- a matching maintenance operation ID;
+- a valid controller secret;
+- a successful fresh preflight.
+
+It then:
 
 1. opens the discovered database;
 2. performs and verifies a WAL checkpoint;
@@ -294,9 +306,9 @@ It contains no password, key, controller secret, hash of a supplied secret, decr
 - the same encrypted backup document used by `backup-current`;
 - a matching maintenance operation ID and controller secret;
 - maintenance state `active` or `verifying`;
-- a stale/absent runtime lease and an acquired recovery lease;
+- an acquired recovery lock;
 - an unchanged live database size and SHA-256;
-- an exact confirmation read from a confirmation file;
+- an exact confirmation read from a mode-0600 confirmation file;
 - a successful fresh preflight.
 
 The challenge format is operation-bound, for example:
@@ -305,13 +317,13 @@ The challenge format is operation-bound, for example:
 RESTORE PORTAL DATABASE <operationId>
 ```
 
-A receipt older than the bounded operation window or referring to a changed live database is rejected. The command never provides a `--skip-recovery-point`, `--force-running` or `--ignore-checksum` option.
+A receipt older than the bounded operation window or referring to a changed live database is rejected. The command never provides a `--skip-recovery-point`, `--force-running`, `--ignore-lock`, `--ignore-schema` or `--ignore-checksum` option.
 
 ## 13. Candidate database construction
 
 ### 13.1 Clone current database
 
-The candidate is created in the same directory/filesystem as the live database using SQLite backup semantics. This preserves:
+The candidate is created in the same directory and filesystem as the live database using SQLite backup semantics. This preserves:
 
 - Miniflare/D1 internal tables;
 - the current migration journal;
@@ -360,8 +372,8 @@ Before swap, all of the following must pass:
 - zero unfinished restore stages;
 - at least one enabled and non-locked administrator;
 - supplied administrator password verification;
-- decryption/validation of settings secrets;
-- decryption/validation of operation replay and approval encrypted specs;
+- decryption and validation of settings secrets;
+- decryption and validation of operation replay and approval encrypted specs;
 - audit append/readback smoke;
 - no unexpected schema objects created by the restore planner.
 
@@ -372,7 +384,7 @@ The candidate is checkpointed, closed and fsynced before swap.
 The swap operates only after all candidate checks pass:
 
 1. verify source database hash again;
-2. verify no fresh runtime lease appeared;
+2. confirm the recovery process still owns the advisory lock;
 3. verify candidate and live files are on the same filesystem;
 4. checkpoint and close the live database;
 5. reject unexpected non-empty WAL/SHM state;
@@ -385,24 +397,24 @@ The swap operates only after all candidate checks pass:
 
 If the second rename or final fsync fails, the command immediately attempts the reverse rename and records a safe failure phase. The retained rollback file is never overwritten.
 
-Test-only fault injection points cover every boundary before and after each rename/fsync. Production builds do not accept arbitrary fault-injection environment variables.
+Test-only fault injection points cover every boundary before and after each rename and fsync. Production builds do not accept arbitrary fault-injection environment variables.
 
 ## 15. Restart and online verification
 
-After a successful swap, the recovery lease is released and the operator starts the dashboard. Persistent maintenance remains active.
+After a successful swap, the recovery lock is released and the operator starts the dashboard. Persistent maintenance remains active.
 
 `verify` uses loopback HTTP and the service-admin token file. It verifies:
 
 - integration health;
 - schema readiness;
-- maintenance operation ID/state;
+- maintenance operation ID and state;
 - a new bounded maintenance verification-smoke endpoint;
 - administrator credential validity without issuing a persistent session;
 - settings decryption using the runtime `CONFIG_ENCRYPTION_KEY`;
 - audit append/readback;
 - zero active sessions before completion.
 
-The verification-smoke endpoint is available only during the matching maintenance operation, requires service-admin authorization plus operation ID/controller secret, accepts bounded credential input, never returns a secret, and emits aggregate audit only.
+The verification-smoke endpoint is available only during the matching maintenance operation, requires service-admin authorization plus operation ID and controller secret, accepts bounded credential input, never returns a secret, and emits aggregate audit only.
 
 On success, `verify` performs the existing transitions:
 
@@ -416,7 +428,7 @@ On full success, the receipt becomes `verified`. The same-filesystem rollback fi
 
 ## 16. Rollback
 
-`rollback` requires the dashboard to be stopped and a recovery lease to be acquired.
+`rollback` requires the dashboard to be stopped and the recovery lock to be acquired.
 
 Preferred source:
 
@@ -433,11 +445,11 @@ The receipt records `rolled_back` only after the original source hash and canoni
 
 It requires:
 
-- dashboard stopped and recovery lease held;
+- dashboard stopped and recovery lock held;
 - a newly created and verified encrypted recovery point of the current database;
 - SQLite integrity and canonical schema success;
 - supplied credentials for an enabled, non-locked administrator;
-- successful settings/encrypted-payload checks with the supplied configuration key;
+- successful settings and encrypted-payload checks with the supplied configuration key;
 - exact operation-bound destructive confirmation;
 - an appendable audit table.
 
@@ -449,14 +461,13 @@ Representative stable codes:
 
 - `recovery_runtime_active`;
 - `recovery_lock_active`;
-- `recovery_lock_stale_unrecoverable`;
 - `recovery_database_not_found`;
 - `recovery_database_ambiguous`;
 - `recovery_path_invalid`;
 - `recovery_secret_file_invalid`;
 - `recovery_backup_incomplete`;
 - `recovery_backup_invalid`;
-- `recovery_backup_password_invalid`;
+- `recovery_backup_decryption_failed`;
 - `recovery_schema_adapter_unavailable`;
 - `recovery_maintenance_required`;
 - `recovery_controller_invalid`;
@@ -470,6 +481,8 @@ Representative stable codes:
 - `recovery_swap_failed`;
 - `recovery_verification_failed`;
 - `recovery_rollback_failed`.
+
+Wrong password, corrupted ciphertext and authentication-tag failure are intentionally normalized to `recovery_backup_decryption_failed`.
 
 Unexpected errors are normalized to a safe code. Debug logs may contain operation IDs and phases, but never raw database errors, SQL, backup payloads or credentials.
 
@@ -488,30 +501,31 @@ Each mutating command is receipt-driven.
 
 ### Unit and contract tests
 
-- lease acquisition, heartbeat, stale reclaim and owner verification;
+- advisory lock acquisition, ownership and release-on-process-exit;
+- runtime/recovery mutual exclusion, including a paused lock holder;
 - safe-path and secret-file validation;
 - backup completeness and schema-adapter selection;
 - receipt validation and phase transitions;
-- SQL literal/statement generation without logging values;
+- SQL literal and statement generation without logging values;
 - table dependency ordering and physical restore policy;
 - RBAC projection consistency;
-- session/stage invalidation;
+- session and stage invalidation;
 - normalized error mapping;
-- source contracts that prohibit secret argv and force options.
+- source contracts that prohibit secret argv values and force options.
 
 ### SQLite integration tests
 
 Using real temporary SQLite files and the recovery image tooling:
 
 - unique discovery by canonical schema;
-- zero/multiple candidates;
+- zero and multiple candidates;
 - WAL checkpoint and backup round trip;
 - encrypted recovery-point round trip;
 - corrupted ciphertext, wrong password and truncated files;
 - full candidate restore and record counts;
 - v2-to-v3 supported adapter;
 - unavailable adapter rejection;
-- administrator lock/disable/password failures;
+- administrator lock, disable and password failures;
 - wrong configuration key;
 - foreign-key and trigger drift;
 - audit restore and append-only trigger recreation;
@@ -537,7 +551,7 @@ Every case must end in either the original verified database or the candidate ve
 - real named `dashboard-data` volume;
 - dashboard enters maintenance and sessions are revoked;
 - dashboard is stopped;
-- offline backup-current and restore run in the recovery profile;
+- offline `backup-current` and `restore` run in the recovery profile;
 - dashboard restarts in maintenance;
 - verification-smoke, exit and complete succeed;
 - real administrator login/logout succeeds;
@@ -551,7 +565,7 @@ The PR updates:
 - `docs/MAINTENANCE_MODE.md` with the complete destructive workflow;
 - a dedicated `docs/OFFLINE_RECOVERY.md` runbook;
 - Compose setup and required directory permissions;
-- backup/recovery secret handling;
+- backup and recovery secret handling;
 - normal restore, rollback and emergency maintenance recovery;
 - crash-state decision table;
 - `README.md`, product roadmap and issue #37 status.
@@ -562,15 +576,15 @@ Examples use secret files and never place credentials directly in command lines.
 
 Implementation remains modular:
 
-- `portal-recovery-lock.ts` — exclusive lease only;
-- `portal-recovery-paths.ts` — path/secret validation only;
+- `portal-recovery-lock.ts` — advisory lock ownership only;
+- `portal-recovery-paths.ts` — path and secret validation only;
 - `portal-recovery-sqlite.ts` — bounded sqlite3 subprocess and discovery only;
 - `portal-recovery-envelope.ts` — streaming raw-SQLite encryption only;
 - `portal-recovery-receipt.ts` — receipt schema and atomic phases only;
 - `portal-recovery-backup.ts` — encrypted logical backup validation only;
-- `portal-recovery-plan.ts` — physical table policy/order only;
-- `portal-recovery-candidate.ts` — candidate mutation/checks only;
-- `portal-recovery-swap.ts` — atomic replacement/reconciliation only;
+- `portal-recovery-plan.ts` — physical table policy and order only;
+- `portal-recovery-candidate.ts` — candidate mutation and checks only;
+- `portal-recovery-swap.ts` — atomic replacement and reconciliation only;
 - `portal-recovery-online.ts` — loopback verification only;
 - `scripts/portal-recovery.ts` — CLI composition only.
 
@@ -580,7 +594,7 @@ No module combines backup cryptography, SQLite mutation, online HTTP and filesys
 
 PR #72 is ready only when:
 
-- restore cannot run with a fresh runtime lease;
+- restore cannot run while the runtime holds the advisory lock, even if the runtime heartbeat is stale;
 - restore cannot run without a verified encrypted recovery point;
 - partial, corrupted, wrong-password or incompatible backups fail before live mutation;
 - only a unique canonical SQLite database can be selected;
@@ -591,6 +605,6 @@ PR #72 is ready only when:
 - restart verification proves administrator access, settings decryption and audit consistency;
 - rollback works from both the retained file and encrypted recovery point;
 - emergency maintenance recovery is offline, audited and cannot alter business data;
-- no secret appears in argv values, responses, receipts, logs, audit or test artifacts;
+- no secret value appears in argv, responses, receipts, logs, audit or test artifacts;
 - lint, production build, full server suite, recovery integration and relevant Playwright E2E are green;
 - operations documentation matches effective behavior.

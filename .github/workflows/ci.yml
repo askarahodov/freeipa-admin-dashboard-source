@@ -92,6 +92,35 @@ jobs:
       - name: Run complete test suite
         run: node --experimental-strip-types --test --test-concurrency=1 tests/*.test.mjs
 
+  recovery-compose:
+    name: Test recovery container and volume
+    needs: [build, test-suite]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          show-progress: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run recovery contracts
+        run: node --experimental-strip-types --test tests/recovery-container-contract.test.mjs tests/recovery-compose-smoke.test.mjs tests/recovery-fault-matrix.test.mjs
+
+      - name: Build isolated recovery image
+        run: docker build --target recovery -t portal-recovery-ci .
+
+      - name: Run disposable named-volume smoke
+        run: npm run test:recovery:compose
+
   test:
     name: Test ${{ matrix.test }}
     needs: [discover-tests, build]

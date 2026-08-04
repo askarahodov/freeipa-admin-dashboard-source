@@ -7,6 +7,17 @@ FROM dependencies AS build
 COPY . .
 RUN npm run build
 
+FROM dependencies AS recovery
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends sqlite3 util-linux ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+RUN useradd --system --uid 10001 recovery \
+ && mkdir -p /portal-data /recovery /run/portal-recovery-secrets \
+ && chown -R recovery:recovery /portal-data /recovery /run/portal-recovery-secrets
+COPY --chown=recovery:recovery . .
+USER recovery
+ENTRYPOINT ["node", "--experimental-strip-types", "scripts/portal-recovery.ts"]
+
 FROM node:22-bookworm-slim AS runtime
 ENV NODE_ENV=production \
     PORT=3001 \

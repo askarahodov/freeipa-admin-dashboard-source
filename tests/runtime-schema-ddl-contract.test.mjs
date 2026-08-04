@@ -20,6 +20,7 @@ const ddlOwners = new Set([
   "db/portal-migrations-v2.ts",
   "db/portal-migrations-v3.ts",
   "db/portal-maintenance-schema.ts",
+  "db/portal-recovery-schema-statements.ts",
   "db/portal-restore-stage-schema.ts",
   "db/portal-schema.ts",
 ]);

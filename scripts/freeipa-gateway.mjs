@@ -91,8 +91,14 @@ export function createFreeIpaGateway({ token, fetchImpl = fetch }) {
   if (!token) throw new Error("FreeIPA Gateway token is required");
   return createServer((request, response) => {
     void (async () => {
-      if (request.method !== "POST" || request.url !== "/rpc") return jsonResponse(response, 404, { error: "Not found" });
       const provided = request.headers.authorization?.replace(/^Bearer\s+/i, "") || "";
+      if (request.method === "GET" && request.url === "/health") {
+        if (!safeEqual(provided, token)) {
+          return jsonResponse(response, 401, { ok: false, code: "gateway_authorization_required" });
+        }
+        return jsonResponse(response, 200, { ok: true, code: "gateway_ready" });
+      }
+      if (request.method !== "POST" || request.url !== "/rpc") return jsonResponse(response, 404, { error: "Not found" });
       if (!safeEqual(provided, token)) return jsonResponse(response, 401, { error: "Unauthorized" });
       const chunks = [];
       let size = 0;

@@ -67,6 +67,8 @@ docker compose down
 
 При запуске Worker сначала проверяет canonical schema локальной D1/SQLite-базы, применяет только additive migrations и сверяет migration journal. Обычный API и scheduled-задачи не запускаются, пока база не перейдёт в состояние `ready`. После schema readiness внешний maintenance gate проверяет persistent state до service-admin authorization. Подробности: [docs/DATABASE_MIGRATIONS.md](docs/DATABASE_MIGRATIONS.md) и [docs/MAINTENANCE_MODE.md](docs/MAINTENANCE_MODE.md).
 
+Docker проверяет только `/health/live`; readiness обязательного локального runtime доступна через `/health/ready`. Сбои FreeIPA и XYOps не должны вызывать restart loop. Полный контракт и примеры probe’ов: [docs/HEALTH_CONTRACTS.md](docs/HEALTH_CONTRACTS.md).
+
 ## Локальная аутентификация
 
 Основной режим:
@@ -90,7 +92,7 @@ PORTAL_DEFAULT_ROLE=viewer
 - локальная SQLite-база хранит пользователей административного портала;
 - совпадение логина не связывает учётные записи;
 - группы FreeIPA не назначают роли портала;
-- удаление пользователя в одной системе не удаляет его в другой.
+- удаление пользователя в одной системе не удаляет его из другой.
 
 ## Роли и права
 
@@ -184,15 +186,19 @@ POST /api/integrations/runs/:id/cancel
 POST /api/integrations/runs/:id/rerun
 ```
 
-### Состояние и настройки
+### Health, состояние и настройки
 
 ```text
-GET  /api/integrations/health
+GET  /health/live
+GET  /health/ready
+GET  /api/integrations/health   # deprecated compatibility alias для /health/live
 GET  /api/integrations/status
 GET  /api/integrations/settings
 PUT  /api/integrations/settings
 POST /api/integrations/settings/test
 ```
+
+`/health/live` публичен и не обращается к D1 или сети. `/health/ready` проверяет D1/schema, локальный crypto self-test и loopback FreeIPA Gateway; endpoint предназначен для внутренней readiness-проверки. Подробности и безопасные response codes: [docs/HEALTH_CONTRACTS.md](docs/HEALTH_CONTRACTS.md).
 
 ### Резервные копии и selective restore
 
@@ -289,6 +295,7 @@ artifacts/local-integration/compose.log
 - [Локальные acceptance-тесты](docs/LOCAL_ACCEPTANCE_TESTS.md)
 - [Canonical schema и migration lifecycle](docs/DATABASE_MIGRATIONS.md)
 - [Persistent maintenance mode](docs/MAINTENANCE_MODE.md)
+- [Health contracts и probe policy](docs/HEALTH_CONTRACTS.md)
 - [Дорожная карта](docs/PRODUCT_ROADMAP.md)
 - [Контракт XYOps](docs/XYOPS_EXECUTION_OWNERSHIP.md)
 - [Инспектор XYOps](docs/XYOPS_INSPECTOR.md)

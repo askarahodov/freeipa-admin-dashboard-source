@@ -20,5 +20,26 @@ services:
     cap_drop:
       - ALL
 
+  recovery:
+    profiles: ["recovery"]
+    build:
+      context: .
+      target: recovery
+    image: freeipa-admin-dashboard-recovery:local
+    network_mode: host
+    user: "${PORTAL_RECOVERY_UID:-10001}:${PORTAL_RECOVERY_GID:-10001}"
+    working_dir: /app
+    volumes:
+      - dashboard-data:/portal-data
+      - ${PORTAL_RECOVERY_DIR:-./recovery}:/recovery
+      - ${PORTAL_RECOVERY_SECRETS_DIR:-./recovery-secrets}:/run/portal-recovery-secrets:ro
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
 volumes:
   dashboard-data:

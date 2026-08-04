@@ -2,151 +2,155 @@
 
 ## Назначение
 
-Persistent maintenance mode — внешний safety boundary портала перед service-admin authorization и обычным Worker API. Он нужен для будущих offline/destructive recovery операций, которым требуется гарантированно остановить пользовательские запросы и scheduled-задачи до изменения файлов базы.
+Persistent maintenance mode — внешний safety boundary портала перед service-admin authorization и обычным Worker API. Он гарантирует остановку пользовательских запросов и scheduled-задач во время selective restore и destructive offline full restore.
 
-Этот этап создаёт только устойчивый режим обслуживания и его state machine. Он не выполняет destructive full restore, не расшифровывает backup и не заменяет SQLite-файл.
+Состояние хранится в `portal_maintenance_state`, сохраняется после перезапуска и работает fail-closed при повреждении или недоступности строки.
 
-## Доступ и permission
+Полная file-level процедура: [OFFLINE_FULL_RESTORE.md](OFFLINE_FULL_RESTORE.md).
 
-Управление доступно только роли `admin` с permission `maintenance.manage`. Все изменяющие запросы требуют same-origin. `ADMIN_TOKEN` не обходит maintenance gate: обычные service-admin endpoint блокируются так же, как пользовательский API.
+## Доступ и endpoints
 
-Публичный безопасный статус:
-
-```text
-GET /api/maintenance/status
-```
-
-Административные endpoint:
+Управление доступно только роли `admin` с permission `maintenance.manage`. Mutations требуют same-origin. В local identity mode service-admin запрос дополнительно требует корректный `x-admin-token`; сам `ADMIN_TOKEN` не отключает внешний gate.
 
 ```text
+GET  /api/maintenance/status
 GET  /api/admin/maintenance/status
 POST /api/admin/maintenance/prepare
 POST /api/admin/maintenance/enter
+POST /api/admin/maintenance/verification/smoke
 POST /api/admin/maintenance/verification/start
 POST /api/admin/maintenance/exit
 POST /api/admin/maintenance/complete
 POST /api/admin/maintenance/cancel
 ```
 
-Все ответы control API используют `cache-control: no-store`. Публичная и административная проекции не содержат actor identity, групп, controller secret или его hash.
+Все ответы используют `cache-control: no-store`. Публичная и административная проекции не возвращают actor groups, controller secret или его hash.
+
+`verification/smoke` доступен только через внутренний trusted service-admin marker, который создаётся после проверки `x-admin-token` и не принимается из HTTP-заголовка клиента.
 
 ## Состояния
 
 | Состояние | Значение |
 |---|---|
 | `inactive` | портал работает обычно |
-| `entering` | операция подготовлена, ожидается точное подтверждение входа |
+| `entering` | операция подготовлена, ожидается exact confirmation |
 | `active` | обычный API и scheduled-задачи заблокированы |
-| `verifying` | выполняется внешняя проверка восстановленного состояния |
-| `exiting` | проверки приняты, ожидается точное подтверждение завершения |
-| `failed` | состояние нельзя считать безопасным; gate остаётся fail-closed |
+| `verifying` | выполняется bounded проверка восстановленного состояния |
+| `exiting` | проверки приняты, ожидается completion confirmation |
+| `failed` | состояние нельзя считать безопасным; gate остаётся закрытым |
 
-Состояние хранится в singleton-строке `portal_maintenance_state` и сохраняется после перезапуска Worker или контейнера. Отсутствующая строка трактуется как `inactive`; повреждённая строка или ошибка чтения переводит внешний gate в безопасное fail-closed поведение.
+Отсутствующая singleton-строка трактуется как `inactive` только при корректной schema. Повреждённая строка или ошибка чтения дают fail-closed response.
 
 ## Controller secret
 
-`prepare` создаёт одноразовый 32-байтный base64url `controllerSecret`. Он возвращается клиенту только один раз. Сервер хранит только SHA-256 hash и сравнивает секрет фиксированным byte loop.
+`prepare` создаёт одноразовый 32-byte base64url `controllerSecret` и возвращает его один раз. Сервер хранит только SHA-256 hash и сравнивает значения фиксированным byte loop.
 
-`controllerSecret` не восстанавливается сервером. Его нельзя получить из status API, audit или базы в исходном виде. Потеря секрета требует следовать recovery-процедуре следующего offline этапа, а не отключать gate вручную.
+Потерянный secret нельзя получить из status, audit или DB в исходном виде. Для доказанного случая потери используется offline failed maintenance recovery из runbook, а не ручное изменение таблицы.
 
-## Порядок штатной операции
+## Штатная последовательность
 
-### 1. Проверить текущий статус
+1. `GET /api/admin/maintenance/status` — продолжать только из `inactive`.
+2. `POST /api/admin/maintenance/prepare` — сохранить `operationId`, `controllerSecret` и challenge.
+3. `POST /api/admin/maintenance/enter` — exact `ENTER:<operationId>`; guarded batch переводит state в `active` и отзывает локальные sessions.
+4. Остановить `dashboard` и выполнить offline `preflight`, `backup-current`, `restore` по [OFFLINE_FULL_RESTORE.md](OFFLINE_FULL_RESTORE.md).
+5. Запустить `dashboard`.
+6. Recovery CLI вызывает `verification/smoke`, затем `verification/start`, `exit` и `complete`.
+7. Только успешный online verifier возвращает state в `inactive`; startup и таймер этого не делают.
 
-```text
-GET /api/admin/maintenance/status
-```
+### Verification smoke
 
-Продолжать можно только из `inactive`.
+Bounded smoke выполняет:
 
-### 2. Подготовить операцию
+- проверку matching operation/controller;
+- read-only проверку password активного локального администратора без создания `portal_sessions` и без изменения lockout counters;
+- расшифровку active settings действующим `CONFIG_ENCRYPTION_KEY`;
+- append/readback aggregate audit event;
+- подтверждение нулевого числа старых sessions.
 
-```text
-POST /api/admin/maintenance/prepare
-```
+Ответ содержит только `operationId` и агрегированные `ok` checks. Username, hashes, settings, audit row, SQL и exception bodies не возвращаются.
 
-Сохраните полученные `operationId`, `controllerSecret` и confirmation challenge в защищённом оперативном контексте. Не помещайте их в логи, tickets или постоянное хранилище.
+### Exit verification object
 
-### 3. Войти в maintenance
+`POST /api/admin/maintenance/exit` принимает только bounded checks:
 
-```text
-POST /api/admin/maintenance/enter
-```
+- `integrity`;
+- `schema`;
+- `administratorAccess`;
+- `settingsDecryption`;
+- `auditWrite`.
 
-Запрос передаёт `operationId`, `controllerSecret` и точное confirmation значение. Guarded D1 batch переводит состояние в `active` и отзывает все активные сессии портала. После этого операторы и администраторы должны будут войти заново после штатного выхода.
+Raw SQL, строки таблиц, credentials, ciphertext и произвольные поля отклоняются.
 
-### 4. Выполнить внешнюю recovery-операцию
+### Cancel
 
-В PR #71 такой операции нет. Будущий offline workflow будет отвечать за full recovery point, остановку процесса, проверку SQLite и атомарную замену файла.
+`POST /api/admin/maintenance/cancel` разрешён только в `entering`. После перехода в `active` используется штатный verify/complete либо offline recovery.
 
-### 5. Начать verification
+## Gate behaviour
 
-```text
-POST /api/admin/maintenance/verification/start
-```
-
-Переход фиксирует начало проверок. Пока состояние не вернулось в `inactive`, обычные API остаются закрыты.
-
-### 6. Передать агрегированные проверки
-
-```text
-POST /api/admin/maintenance/exit
-```
-
-Принимается только точный bounded verification object: integrity, schema, administrator access, settings decryption и audit write. Raw SQL, строки таблиц, секреты и exception bodies не принимаются и не записываются в audit.
-
-### 7. Завершить операцию
-
-```text
-POST /api/admin/maintenance/complete
-```
-
-После точного confirmation состояние возвращается в `inactive`; operation credentials и actor metadata очищаются.
-
-### Отмена до входа
-
-```text
-POST /api/admin/maintenance/cancel
-```
-
-Отмена разрешена только для действующей операции в `entering`. Уже активный или failed maintenance нельзя снять этим endpoint.
-
-## Поведение gate
-
-В состояниях `entering`, `active`, `verifying`, `exiting` и `failed`:
+В `entering`, `active`, `verifying`, `exiting` и `failed`:
 
 - обычный `/api/*` получает безопасный `503` и `Retry-After: 60`;
-- `ADMIN_TOKEN` не создаёт обход;
 - scheduled-задачи не запускаются;
 - static assets и страницы остаются доступны;
-- `/api/maintenance/status` остаётся доступен публично;
-- `/api/integrations/health` остаётся доступен и получает `x-portal-maintenance-state`;
-- `/api/schema/status` и административные maintenance controls остаются доступны для recovery.
+- `/api/maintenance/status`, health и schema status доступны;
+- bounded maintenance controls и verification smoke доступны recovery workflow;
+- `ADMIN_TOKEN` не создаёт общего обхода.
 
-Ошибка чтения maintenance state блокирует обычный API и scheduled-задачи fail-closed. Она не раскрывает D1 exception или внутреннюю строку состояния.
+Ошибка чтения state не раскрывает D1 exception и блокирует обычный API fail-closed.
+
+## Offline destructive restore
+
+Recovery profile:
+
+```bash
+docker compose --profile recovery run --rm recovery <command> ...
+```
+
+Поддерживаемые команды:
+
+```text
+preflight
+backup-current
+restore
+status
+verify
+rollback
+maintenance-recover
+```
+
+Mutating offline commands используют общий kernel `flock`. Candidate строится из остановленной текущей DB, сохраняет migration journal и maintenance operation, не восстанавливает historical sessions и проходит integrity/schema/admin/encryption/audit checks до atomic swap.
+
+Mandatory raw-SQLite recovery point хранится вне live volume path и шифруется отдельным password. Receipt связывает live hash/path, backup manifest, maintenance operation, recovery point, candidate и rollback paths.
+
+## Offline failed maintenance recovery
+
+`maintenance-recover` разрешён только при остановленном runtime, валидном receipt/recovery point, корректной integrity/schema, действующем admin password/config key и exact confirmation:
+
+```text
+RECOVER FAILED MAINTENANCE <operationId>
+```
+
+Maintenance reset, session purge и audit event выполняются одной SQLite transaction. Команда не обходит повреждённую DB и не заменяет rollback.
 
 ## Аудит и секреты
 
-Audit содержит только разрешённые агрегаты: transition, state, duration, verification outcomes и normalized error code. В audit, ответах и логах запрещены:
+Audit содержит только transition, state, duration, aggregate verification outcomes и normalized error codes. Запрещены:
 
 - `controllerSecret` и его hash;
-- actor groups и внутренний token material;
-- backup password;
+- password, `ADMIN_TOKEN` и `CONFIG_ENCRYPTION_KEY`;
 - backup plaintext/ciphertext;
-- current-state fingerprints;
-- SQL и raw D1 errors.
+- recovery-point password;
+- raw fingerprints в HTTP output;
+- SQL и raw D1/SQLite errors.
 
-## Что не входит в этот этап
+Secret values передаются recovery CLI только через mode-`0600` files. Bypass flags, interactive prompts и environment fallback для recovery secrets не поддерживаются.
 
-PR #71:
+## Эксплуатационные запреты
 
-- не выполняет destructive full restore;
-- не заменяет SQLite-файл;
-- не ищет Wrangler/D1 файлы на volume;
-- не выполняет filesystem rename/fsync;
-- не создаёт offline CLI;
-- не читает `CONFIG_ENCRYPTION_KEY`;
-- не расшифровывает backup;
-- не создаёт автоматический выход из maintenance.
-
-Следующий изолированный этап issue #37 должен реализовать mandatory full recovery point, offline file-level restore, SQLite integrity/schema smoke и процедуру возврата из failed maintenance.
+- не удалять `portal_maintenance_state` вручную;
+- не копировать live SQLite вместе с `-wal`/`-shm`;
+- не выбирать DB по имени или времени изменения;
+- не переносить candidate на другой filesystem перед swap;
+- не редактировать receipt;
+- не удалять retained original/recovery point до успешного `verified` или подтверждённого rollback;
+- не ожидать автоматического выхода из maintenance после restart.

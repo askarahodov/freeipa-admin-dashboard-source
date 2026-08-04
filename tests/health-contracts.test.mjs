@@ -60,7 +60,7 @@ test("liveness does not access schema, encryption or network dependencies", asyn
   });
 });
 
-test("legacy health remains compatible and advertises its successor", async () => {
+test("legacy health preserves its exact response and advertises its successor", async () => {
   const response = await handleHealthRequest(
     new Request("https://portal.test/api/integrations/health"),
     {},
@@ -71,11 +71,7 @@ test("legacy health remains compatible and advertises its successor", async () =
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("deprecation"), "true");
   assert.match(response.headers.get("link") ?? "", /<\/health\/live>; rel="successor-version"/);
-  const body = await payload(response);
-  assert.equal(body.ok, true);
-  assert.equal(body.deprecated, true);
-  assert.equal(body.successor, "/health/live");
-  assert.equal(body.check, "liveness");
+  assert.deepEqual(await payload(response), { ok: true });
 });
 
 test("readiness rejects a missing migration-capable database before other checks", async () => {

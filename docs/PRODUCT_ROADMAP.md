@@ -106,8 +106,8 @@ FreeIPA отвечает за доменные учётные записи, гр
 - [x] #37 PR #69: selected-domain preview plan, optimistic concurrency token и isolated in-memory test restore без production mutation.
 - [x] #37 PR #70: selective production restore с staged/transactional commit, cancellation, pre-restore recovery point и aggregate rollback evidence.
 - [x] #37 PR #71: persistent maintenance mode foundation, session revocation, global API gate и scheduled-work suppression.
-- [ ] #37: destructive full restore с explicit confirmation и обязательным full recovery point.
-- [ ] #37: CLI/offline recovery, volume-level procedure и restore smoke после перезапуска.
+- [x] #37 PR #72: destructive full restore с explicit confirmation и обязательным full recovery point.
+- [x] #37 PR #72: CLI/offline recovery, volume-level procedure, atomic swap/rollback и restore smoke после перезапуска.
 
 ### P0 — эксплуатационная проверка
 
@@ -180,6 +180,6 @@ FreeIPA отвечает за доменные учётные записи, гр
 
 Администратор разворачивает портал локально одной командой Docker Compose, входит под внутренней учётной записью, управляет ролями и сессиями через UI и не зависит от FreeIPA для аутентификации.
 
-Оператор выполняет разрешённые операции FreeIPA и XYOps, viewer не может изменять данные, а admin управляет настройками, согласованиями, аудитом, диагностикой, RBAC, резервными копиями, selective restore и persistent maintenance mode.
+Оператор выполняет разрешённые операции FreeIPA и XYOps, viewer не может изменять данные, а admin управляет настройками, согласованиями, аудитом, диагностикой, RBAC, резервными копиями, selective restore, persistent maintenance mode и offline destructive recovery.
 
 После перезапуска контейнеров сохраняются пользователи, password hashes, роли, настройки, операции, approvals, metadata, аудит и maintenance state. Секреты не возвращаются браузеру и не попадают в журналы или тестовые отчёты.

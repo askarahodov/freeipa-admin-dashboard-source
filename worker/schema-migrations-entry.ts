@@ -1,6 +1,7 @@
 import rootRuntime from "./maintenance-mode-root-entry.ts";
 import { serviceAdminTokenAuthorized } from "../admin-session-authorization.ts";
 import { ensurePortalSchema, type PortalSchemaStatus } from "../db/portal-migrations-hardened.ts";
+import { handleDependencyHealthRequest } from "./dependency-health.ts";
 import { handleHealthRequest } from "./health-contracts.ts";
 import {
   migrationCapableDatabase,
@@ -14,8 +15,14 @@ type RuntimeEnv = NonNullable<Parameters<typeof rootRuntime.fetch>[1]> & {
   DB?: D1Database;
   ADMIN_TOKEN?: string;
   CONFIG_ENCRYPTION_KEY?: string;
+  DEMO_MODE?: string;
+  IPA_URL?: string;
+  IPA_USERNAME?: string;
+  IPA_PASSWORD?: string;
   IPA_NODE_GATEWAY_URL?: string;
   IPA_NODE_GATEWAY_TOKEN?: string;
+  XYOPS_URL?: string;
+  XYOPS_API_KEY?: string;
   PORTAL_BUILD_VERSION?: string;
 };
 type RuntimeContext = Parameters<typeof rootRuntime.fetch>[2];
@@ -35,6 +42,12 @@ const worker = {
       fetchImpl: fetch,
     });
     if (healthResponse) return healthResponse;
+
+    const dependencyHealthResponse = await handleDependencyHealthRequest(request, sourceEnv, {
+      portalSchema: async (dependencyEnv) => await portalSchema(dependencyEnv as RuntimeEnv),
+      fetchImpl: fetch,
+    });
+    if (dependencyHealthResponse) return dependencyHealthResponse;
 
     if (url.pathname === "/api/schema/status") {
       if (!await serviceAdminTokenAuthorized(request, sourceEnv.ADMIN_TOKEN)) return schemaAuthorizationResponse();

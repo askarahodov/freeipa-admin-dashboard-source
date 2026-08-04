@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, relative } from "node:path";
+import { dirname, join, relative } from "node:path";
 import test from "node:test";
 
 import {
@@ -16,7 +16,7 @@ async function fixture() {
 }
 
 async function sqliteFile(path, suffix = "fixture") {
-  await mkdir(join(path, ".."), { recursive: true });
+  await mkdir(dirname(path), { recursive: true });
   await writeFile(path, Buffer.concat([sqliteHeader, Buffer.from(suffix)]), { mode: 0o600 });
 }
 

@@ -9,6 +9,7 @@
 | `GET /health/live` | публичный | Только способность Worker обработать HTTP-запрос | `200` | Docker `HEALTHCHECK`, liveness probe |
 | `GET /health/ready` | внутренний | D1 binding, canonical schema, AES-GCM self-test и локальный Node Gateway | `200`; иначе `503` | readiness probe, исключение instance из балансировки |
 | `GET /health/dependencies` | внутренний/диагностический | Read-only probes FreeIPA и XYOps с краткоживущим sanitized cache | `200` для evaluated healthy/degraded; `503`, если проверку нельзя выполнить | Наблюдаемость, alerting и диагностика, но не restart probe |
+| `GET /diagnostics/health` | операторский UI | Визуализирует только sanitized live/ready/dependency contracts | HTML `200` | Incident response и безопасная передача снимка состояния |
 | `GET /api/integrations/health` | публичный, deprecated | Совместимый alias liveness | `200` | Только временная совместимость старых клиентов |
 
 `/health/live` не читает D1, не использует ключ шифрования, не вызывает Gateway и не выполняет внешние сетевые запросы. Endpoint остаётся доступным до schema, maintenance, authentication и integration gates.
@@ -128,7 +129,33 @@ Dependency probes используют process-local cache с TTL 30 секун�
 - restart процесса очищает cache, что допустимо: это не persistent monitoring storage;
 - изменение settings может быть видно с задержкой не более TTL.
 
-`portal_settings_revisions.health_json` не используется как runtime cache: это данные revision lifecycle. Persistent health history, metrics и diagnostics UI должны иметь отдельного владельца данных.
+`portal_settings_revisions.health_json` не используется как runtime cache: это данные revision lifecycle. Persistent health history и metrics должны иметь отдельного владельца данных.
+
+## Operator diagnostics UI
+
+Страница `GET /diagnostics/health` предназначена для оператора во время инцидента. Она обслуживается внешним Worker boundary после health JSON handlers, но до schema, maintenance и authentication gates. Поэтому HTML, JavaScript и CSS остаются доступны даже когда D1 отсутствует, schema не ready или обычный портал закрыт maintenance mode.
+
+Страница:
+
+- параллельно запрашивает только same-origin `/health/live`, `/health/ready` и `/health/dependencies`;
+- показывает allowlisted state, code, category, latency и `lastSuccessAt`;
+- формирует действия по фиксированным кодам DNS, TLS, timeout, authentication, schema, encryption и Gateway;
+- позволяет вручную обновить данные и скопировать только sanitized JSON snapshot;
+- не использует automatic refresh, чтобы не создавать probe storm;
+- не хранит данные в browser storage и не читает cookies;
+- не показывает URL, hostname, username, password, token, API key, raw exception или upstream body;
+- не выполняет mutations, connection reconfiguration, restart или maintenance transition.
+
+UI использует отдельные same-origin assets, `Cache-Control: no-store`, строгий CSP без inline script/style, `frame-ancestors 'none'`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer` и `X-Content-Type-Options: nosniff`. Rendering выполняется через `textContent` и фиксированные DOM nodes.
+
+### Operator interpretation
+
+1. Если liveness не `healthy`, проверьте процесс и container logs. Это единственная категория UI, которая может указывать на необходимость restart после подтверждения фактического crash.
+2. Если readiness `unready`, исключите instance из рабочего трафика и устраните локальную DB/schema/encryption/Gateway проблему. Не создавайте бесконечный restart loop.
+3. Если dependencies `degraded`, портал продолжает работать. Используйте category/code, latency и `lastSuccessAt`; не перезапускайте портал только из-за внешней системы.
+4. Перед передачей результата в support используйте кнопку копирования: она формирует новый sanitized snapshot из уже проверенных allowlisted полей.
+
+Для production ingress ограничьте `/diagnostics/health`, `/health/ready` и `/health/dependencies` внутренней сетью или policy. UI сам не выполняет аутентификацию и намеренно остаётся recovery-доступным; его данные безопасны, но относятся к операционной диагностике.
 
 ## Response sanitization
 
@@ -152,7 +179,7 @@ Runtime image использует:
 GET http://127.0.0.1:3001/health/live
 ```
 
-Нельзя менять Docker probe на readiness или dependency health: временная ошибка D1/Gateway/FreeIPA/XYOps не должна вызывать restart loop.
+Нельзя менять Docker probe на readiness, dependency health или diagnostics UI: временная ошибка D1/Gateway/FreeIPA/XYOps не должна вызывать restart loop.
 
 ### Kubernetes or another orchestrator
 
@@ -170,7 +197,7 @@ readinessProbe:
     port: 3001
 ```
 
-Readiness failure исключает instance из трафика, но не должен автоматически означать повреждение процесса. Для production ingress ограничьте `/health/ready` и `/health/dependencies` внутренней сетью или политикой маршрутизации.
+Readiness failure исключает instance из трафика, но не должен автоматически означать повреждение процесса. Для production ingress ограничьте `/health/ready`, `/health/dependencies` и `/diagnostics/health` внутренней сетью или политикой маршрутизации.
 
 `/health/dependencies` вызывается системой мониторинга с периодом, который не меньше cache TTL. Его нельзя назначать `livenessProbe`, `readinessProbe` или Docker `HEALTHCHECK`.
 

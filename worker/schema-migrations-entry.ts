@@ -2,6 +2,7 @@ import rootRuntime from "./maintenance-mode-root-entry.ts";
 import { serviceAdminTokenAuthorized } from "../admin-session-authorization.ts";
 import { ensurePortalSchema, type PortalSchemaStatus } from "../db/portal-migrations-hardened.ts";
 import { handleDependencyHealthRequest } from "./dependency-health.ts";
+import { handleHealthDiagnosticsRequest } from "./health-diagnostics-ui.ts";
 import { handleHealthRequest } from "./health-contracts.ts";
 import {
   migrationCapableDatabase,
@@ -48,6 +49,9 @@ const worker = {
       fetchImpl: fetch,
     });
     if (dependencyHealthResponse) return dependencyHealthResponse;
+
+    const diagnosticsResponse = await handleHealthDiagnosticsRequest(request);
+    if (diagnosticsResponse) return diagnosticsResponse;
 
     if (url.pathname === "/api/schema/status") {
       if (!await serviceAdminTokenAuthorized(request, sourceEnv.ADMIN_TOKEN)) return schemaAuthorizationResponse();

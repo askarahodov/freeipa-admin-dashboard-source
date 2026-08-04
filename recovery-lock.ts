@@ -6,7 +6,6 @@ import { RecoveryError } from "./recovery-errors.ts";
 export type RecoveryLockMode = "runtime" | "recovery";
 export type RecoveryLockStdio = "inherit" | "pipe";
 
-const FLOCK_PATH = "/usr/bin/flock";
 const TRUE_PATH = "/usr/bin/true";
 const CONFLICT_EXIT_CODE = 75;
 const MAX_PATH_BYTES = 4_096;
@@ -97,7 +96,6 @@ export async function runWithRecoveryLock(input: {
       "--conflict-exit-code", String(CONFLICT_EXIT_CODE),
       "--no-fork",
       lockPath,
-      "--",
       command,
       ...args,
     ], {
@@ -159,5 +157,3 @@ export async function probeRecoveryLock(lockPath: string): Promise<{ available: 
     throw error;
   }
 }
-
-void FLOCK_PATH;

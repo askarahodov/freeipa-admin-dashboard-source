@@ -6,6 +6,7 @@ import {
 import { loadMaintenanceState } from "../maintenance-repository.ts";
 import { schemaTestBypassEnabled } from "./schema-migrations-boundary.ts";
 import { MAINTENANCE_CONTROL_PATHS } from "./maintenance-control-entry.ts";
+import { MAINTENANCE_VERIFICATION_SMOKE_PATH } from "./maintenance-verification-smoke-entry.ts";
 
 export const PUBLIC_MAINTENANCE_STATUS_PATH = "/api/maintenance/status";
 
@@ -13,6 +14,7 @@ const HEALTH_PATH = "/api/integrations/health";
 const SCHEMA_STATUS_PATH = "/api/schema/status";
 const immediatelyAllowedApiPaths = new Set([
   ...MAINTENANCE_CONTROL_PATHS,
+  MAINTENANCE_VERIFICATION_SMOKE_PATH,
   SCHEMA_STATUS_PATH,
 ]);
 

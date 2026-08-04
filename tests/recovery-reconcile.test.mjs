@@ -2,6 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  createRecoveryReceipt,
+  transitionRecoveryReceipt,
+} from "../recovery-receipt.ts";
+import {
   classifyRecoveryFilesystem,
   reconcileRecoveryReceipt,
 } from "../recovery-reconcile.ts";
@@ -13,6 +17,39 @@ function file(sha256) {
   return { exists: true, regular: true, sha256, bytes: 100, dev: 7 };
 }
 const missing = { exists: false };
+
+function candidateReadyReceipt() {
+  const base = createRecoveryReceipt({
+    operationId: "recovery_11111111-1111-4111-8111-111111111111",
+    createdAt: "2026-08-04T08:00:00.000Z",
+    liveDatabaseRelativePath: "state/v3/d1/live.sqlite",
+    liveDatabaseSha256: originalHash,
+    liveDatabaseBytes: 100,
+    schemaVersion: 3,
+    maintenanceOperationId: "maintenance_22222222-2222-4222-8222-222222222222",
+    backupManifestSha256: "d".repeat(64),
+    recoveryPointRelativePath: "points/original.sqlite.enc",
+    recoveryPointSha256: "c".repeat(64),
+    recoveryPointBytes: 200,
+    confirmation: "RESTORE PORTAL DATABASE recovery_11111111-1111-4111-8111-111111111111",
+    checks: {
+      checkpoint: "ok",
+      sourceIntegrity: "ok",
+      encryptedRoundTrip: "ok",
+      recoveryPointIntegrity: "ok",
+      candidateIntegrity: "ok",
+      candidateSchema: "ok",
+      candidateAdministrator: "ok",
+      candidateEncryption: "ok",
+      candidateAudit: "ok",
+    },
+  });
+  return transitionRecoveryReceipt(base, "candidate_ready", "2026-08-04T08:01:00.000Z");
+}
+
+function swapStartedReceipt() {
+  return transitionRecoveryReceipt(candidateReadyReceipt(), "swap_started", "2026-08-04T08:02:00.000Z");
+}
 
 test("classifies every supported swap filesystem state without timestamps", () => {
   assert.equal(classifyRecoveryFilesystem({
@@ -82,7 +119,7 @@ test("finishes an interrupted second rename and fsyncs the directory", async () 
     candidate: file(candidateHash),
     rollback: file(originalHash),
   };
-  let receipt = { phase: "swap_started", updatedAt: "2026-08-04T08:02:00.000Z", checks: {} };
+  let receipt = swapStartedReceipt();
   const result = await reconcileRecoveryReceipt({
     receiptPath: "/artifacts/receipt.json",
     livePath: "/data/live.sqlite",
@@ -128,7 +165,7 @@ test("finishes an interrupted second rename and fsyncs the directory", async () 
 test("reverses the first rename when the candidate disappeared", async () => {
   const operations = [];
   const state = { live: missing, candidate: missing, rollback: file(originalHash) };
-  let receipt = { phase: "swap_started", updatedAt: "2026-08-04T08:02:00.000Z", checks: {} };
+  let receipt = swapStartedReceipt();
   const result = await reconcileRecoveryReceipt({
     receiptPath: "/artifacts/receipt.json",
     livePath: "/data/live.sqlite",

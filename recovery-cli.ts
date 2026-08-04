@@ -30,7 +30,7 @@ export type RecoveryCommandHandler = (input: RecoveryCommandInput) => Promise<un
 export type RecoveryCommandHandlers = Partial<Record<RecoveryCliCommand, RecoveryCommandHandler>>;
 
 export type RecoveryCliDependencies = {
-  readSecret(flag: string, path: string): Promise<string>;
+  readSecret(flag: string, path: string, options: RecoveryCliOptions): Promise<string>;
   withLock<T>(lockPath: string, callback: () => Promise<T>): Promise<T>;
   handlers: RecoveryCommandHandlers;
 };
@@ -72,6 +72,7 @@ const commandFlags: Readonly<Record<RecoveryCliCommand, readonly string[]>> = Ob
   status: Object.freeze(["receipt"]),
   verify: Object.freeze([
     "receipt",
+    "secrets-root",
     "controller-secret-file",
     "admin-username",
     "admin-password-file",
@@ -140,6 +141,10 @@ function validArgument(value: unknown): value is string {
     && byteLength(value) <= MAX_ARGUMENT_BYTES;
 }
 
+export function isMutatingRecoveryCommand(command: RecoveryCliCommand): boolean {
+  return mutatingOfflineCommands.has(command);
+}
+
 export function parseRecoveryCli(argv: readonly string[]): ParsedRecoveryCli {
   if (!Array.isArray(argv)
       || argv.length < 1
@@ -187,7 +192,7 @@ async function hydrateSecretFiles(
   for (const flag of secretFlags) {
     const target = secretFileTargets[flag as keyof typeof secretFileTargets];
     const path = options[flag];
-    const value = await dependencies.readSecret(flag, path);
+    const value = await dependencies.readSecret(flag, path, parsed.options);
     if (typeof value !== "string" || !value.length || value.includes("\0")) {
       fail("recovery_secret_invalid", "Recovery secret is invalid");
     }

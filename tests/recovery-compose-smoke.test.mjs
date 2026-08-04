@@ -34,7 +34,7 @@ test("compose smoke dry-run is deterministic and shell-free", async () => {
   }
   assert.ok(plan.commands.some((command) => command.includes("build") && command.includes("recovery")));
   assert.ok(plan.commands.some((command) => command.includes("sqlite3")));
-  assert.ok(plan.commands.some((command) => command.includes("recovery-discovery.ts")));
+  assert.ok(plan.commands.some((command) => command.some((value) => value.includes("recovery-discovery.ts"))));
   assert.ok(plan.holder.includes("flock"));
   assert.ok(plan.contender.includes("-xn"));
   assert.ok(plan.cleanup.includes("--volumes"));

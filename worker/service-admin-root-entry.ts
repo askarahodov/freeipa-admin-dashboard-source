@@ -7,6 +7,7 @@ type RuntimeEnv = NonNullable<Parameters<typeof rootRuntime.fetch>[1]> & {
   PORTAL_STATIC_NAME?: string;
   PORTAL_DEFAULT_ROLE?: string;
   PORTAL_RBAC_JSON?: string;
+  PORTAL_SERVICE_ADMIN_AUTHORIZED?: string;
   ADMIN_TOKEN?: string;
 };
 type RuntimeContext = Parameters<typeof rootRuntime.fetch>[2];
@@ -25,6 +26,7 @@ function serviceAdminEnv(env: RuntimeEnv): RuntimeEnv {
     PORTAL_STATIC_NAME: "Service administrator",
     PORTAL_DEFAULT_ROLE: "admin",
     PORTAL_RBAC_JSON: JSON.stringify({ [identity]: "admin" }),
+    PORTAL_SERVICE_ADMIN_AUTHORIZED: "1",
   };
 }
 

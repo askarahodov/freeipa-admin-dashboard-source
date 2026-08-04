@@ -67,7 +67,7 @@ docker compose down
 
 При запуске Worker сначала проверяет canonical schema локальной D1/SQLite-базы, применяет только additive migrations и сверяет migration journal. Обычный API и scheduled-задачи не запускаются, пока база не перейдёт в состояние `ready`. После schema readiness внешний maintenance gate проверяет persistent state до service-admin authorization. Подробности: [docs/DATABASE_MIGRATIONS.md](docs/DATABASE_MIGRATIONS.md) и [docs/MAINTENANCE_MODE.md](docs/MAINTENANCE_MODE.md).
 
-Docker проверяет только `/health/live`; readiness обязательного локального runtime доступна через `/health/ready`. Диагностический `/health/dependencies` выполняет cached read-only probes FreeIPA и XYOps, но никогда не используется как restart signal. Сбои внешних систем не должны вызывать restart loop. Полный контракт и примеры probe’ов: [docs/HEALTH_CONTRACTS.md](docs/HEALTH_CONTRACTS.md).
+Docker проверяет только `/health/live`; readiness обязательного локального runtime доступна через `/health/ready`. Диагностический `/health/dependencies` выполняет cached read-only probes FreeIPA и XYOps, но никогда не используется как restart signal. Операторская страница `/diagnostics/health` отображает только sanitized state/code/category/latency/last-success данные и остаётся доступной при DB/schema/maintenance проблемах. Сбои внешних систем не должны вызывать restart loop. Полный контракт и runbook: [docs/HEALTH_CONTRACTS.md](docs/HEALTH_CONTRACTS.md).
 
 ## Локальная аутентификация
 
@@ -192,6 +192,7 @@ POST /api/integrations/runs/:id/rerun
 GET  /health/live
 GET  /health/ready
 GET  /health/dependencies
+GET  /diagnostics/health
 GET  /api/integrations/health   # deprecated compatibility alias для /health/live
 GET  /api/integrations/status
 GET  /api/integrations/settings
@@ -199,7 +200,7 @@ PUT  /api/integrations/settings
 POST /api/integrations/settings/test
 ```
 
-`/health/live` публичен и не обращается к D1 или сети. `/health/ready` проверяет D1/schema, локальный crypto self-test и loopback FreeIPA Gateway. `/health/dependencies` выполняет bounded read-only probes внешних систем, кэширует только sanitized status metadata на 30 секунд и предназначен для внутренней диагностики/alerting, а не для liveness или readiness. Подробности и безопасные response codes: [docs/HEALTH_CONTRACTS.md](docs/HEALTH_CONTRACTS.md).
+`/health/live` публичен и не обращается к D1 или сети. `/health/ready` проверяет D1/schema, локальный crypto self-test и loopback FreeIPA Gateway. `/health/dependencies` выполняет bounded read-only probes внешних систем и кэширует только sanitized status metadata на 30 секунд. `/diagnostics/health` визуализирует эти три контракта, предлагает allowlisted remediation и копирует только безопасный снимок; страница не выполняет mutations и не предназначена для liveness/readiness. Подробности и response codes: [docs/HEALTH_CONTRACTS.md](docs/HEALTH_CONTRACTS.md).
 
 ### Резервные копии и selective restore
 

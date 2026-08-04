@@ -23,6 +23,9 @@ const ddlOwners = new Set([
   "db/portal-restore-stage-schema.ts",
   "db/portal-schema.ts",
 ]);
+const offlineRecoveryDdlOwners = new Set([
+  "recovery-candidate.ts",
+]);
 const schemaChangingSql = /\b(?:CREATE\s+(?:UNIQUE\s+)?(?:TABLE|INDEX|TRIGGER)|ALTER\s+TABLE|DROP\s+(?:TABLE|INDEX|TRIGGER)|REINDEX)\b/gi;
 
 async function productionTypeScriptFiles(directory = root) {
@@ -45,11 +48,21 @@ test("runtime production sources do not own schema-changing SQL", async () => {
   const violations = [];
   for (const absolute of await productionTypeScriptFiles()) {
     const relative = path.relative(root, absolute).replaceAll(path.sep, "/");
-    if (ddlOwners.has(relative)) continue;
+    if (ddlOwners.has(relative) || offlineRecoveryDdlOwners.has(relative)) continue;
     const source = await readFile(absolute, "utf8");
     for (const match of source.matchAll(schemaChangingSql)) {
       violations.push(`${relative}:${lineNumber(source, match.index ?? 0)}:${match[0].replace(/\s+/g, " ")}`);
     }
   }
   assert.deepEqual(violations, [], `Schema-changing SQL is owned only by canonical migrations:\n${violations.join("\n")}`);
+});
+
+test("offline recovery owns only bounded trigger suspension", async () => {
+  for (const relative of offlineRecoveryDdlOwners) {
+    const source = await readFile(path.join(root, relative), "utf8");
+    const matches = [...source.matchAll(schemaChangingSql)].map((match) => match[0].replace(/\s+/g, " ").toUpperCase());
+    assert.deepEqual(matches, ["DROP TRIGGER"]);
+    assert.match(source, /portalSchemaTriggers\.map/u);
+    assert.doesNotMatch(source, /\b(?:CREATE\s+(?:UNIQUE\s+)?(?:TABLE|INDEX)|ALTER\s+TABLE|DROP\s+(?:TABLE|INDEX)|REINDEX)\b/iu);
+  }
 });

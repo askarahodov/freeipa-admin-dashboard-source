@@ -1,0 +1,24 @@
+services:
+  recovery:
+    profiles: ["recovery-test"]
+    build:
+      context: .
+      target: recovery
+    image: freeipa-admin-dashboard-recovery:test
+    network_mode: host
+    user: "10001:10001"
+    working_dir: /app
+    volumes:
+      - dashboard-recovery-test-data:/portal-data
+      - ${PORTAL_RECOVERY_TEST_DIR}:/recovery
+      - ${PORTAL_RECOVERY_TEST_SECRETS_DIR}:/run/portal-recovery-secrets:ro
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+volumes:
+  dashboard-recovery-test-data:

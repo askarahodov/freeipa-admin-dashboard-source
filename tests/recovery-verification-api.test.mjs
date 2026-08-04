@@ -3,8 +3,8 @@ import test from "node:test";
 
 import {
   MAINTENANCE_VERIFICATION_SMOKE_PATH,
-  handleMaintenanceControlRequest,
-} from "../worker/maintenance-control-entry.ts";
+  handleMaintenanceVerificationSmokeRequest,
+} from "../worker/maintenance-verification-smoke-entry.ts";
 import { handleMaintenanceControlRoute } from "../worker/maintenance-control-dispatch.ts";
 import { runMaintenanceVerificationSmoke } from "../maintenance-verification-smoke.ts";
 
@@ -60,7 +60,7 @@ function row(state = "active") {
 test("verification smoke validates controller admin settings audit and zero sessions", async () => {
   const calls = [];
   const result = await runMaintenanceVerificationSmoke({
-    db: {},
+    db: { prepare() {}, batch() {} },
     configEncryptionKey: "2".repeat(64),
     operationId,
     controllerSecret,
@@ -117,7 +117,7 @@ test("verification smoke rejects wrong state operation and controller before cre
     let credentialWork = false;
     await assert.rejects(
       runMaintenanceVerificationSmoke({
-        db: {}, configEncryptionKey: "2".repeat(64), operationId, controllerSecret,
+        db: { prepare() {}, batch() {} }, configEncryptionKey: "2".repeat(64), operationId, controllerSecret,
         administratorUsername: "admin", administratorPassword: "password", auditContext: context,
       }, {
         async loadState() { return { ...row(state), operationId: rowOperation }; },
@@ -132,14 +132,14 @@ test("verification smoke rejects wrong state operation and controller before cre
   }
 });
 
-test("api returns aggregate no-store smoke result and never creates normal transition audit", async () => {
+test("api returns aggregate no-store smoke result", async () => {
   const calls = [];
-  const response = await handleMaintenanceControlRequest(
+  const response = await handleMaintenanceVerificationSmokeRequest(
     request(body()),
-    { DB: {}, CONFIG_ENCRYPTION_KEY: "2".repeat(64) },
+    { DB: { prepare() {}, batch() {} }, CONFIG_ENCRYPTION_KEY: "2".repeat(64) },
     context,
     {
-      async smoke(_input) {
+      async smoke() {
         calls.push("smoke");
         return {
           operationId,
@@ -151,7 +151,6 @@ test("api returns aggregate no-store smoke result and never creates normal trans
           },
         };
       },
-      async appendAudit() { calls.push("unexpected-audit"); },
     },
   );
   assert.equal(response.status, 200);
@@ -178,7 +177,7 @@ test("api enforces same-origin exact body and bounded credentials", async () => 
   ];
   for (const [req, status, code] of cases) {
     let called = false;
-    const response = await handleMaintenanceControlRequest(req, { DB: {} }, context, {
+    const response = await handleMaintenanceVerificationSmokeRequest(req, { DB: { prepare() {}, batch() {} } }, context, {
       async smoke() { called = true; throw new Error("unreachable"); },
     });
     assert.equal(response.status, status);
@@ -198,7 +197,7 @@ test("dispatch permits verification smoke only through trusted service-admin mar
       PORTAL_DEFAULT_ROLE: "admin",
     }, {
       createContext() { return context; },
-      async handler() {
+      async smokeHandler() {
         handled = true;
         return new Response(JSON.stringify({ ok: true }), { status: 200 });
       },

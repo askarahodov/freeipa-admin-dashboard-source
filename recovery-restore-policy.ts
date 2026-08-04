@@ -9,7 +9,7 @@ export const RECOVERY_VALIDATE_ONLY_TABLES = Object.freeze([
 
 export const RECOVERY_PRESERVE_TABLES = Object.freeze([
   "portal_schema_migrations",
-  "portal_schema_migration_lock",
+  "portal_schema_lock",
   "portal_maintenance_state",
 ] as const);
 

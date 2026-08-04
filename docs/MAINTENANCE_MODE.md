@@ -57,6 +57,8 @@ POST /api/admin/maintenance/cancel
 6. Recovery CLI вызывает `verification/smoke`, затем `verification/start`, `exit` и `complete`.
 7. Только успешный online verifier возвращает state в `inactive`; startup и таймер этого не делают.
 
+Maintenance не выключается автоматически после restart или по таймеру.
+
 ### Verification smoke
 
 Bounded smoke выполняет:

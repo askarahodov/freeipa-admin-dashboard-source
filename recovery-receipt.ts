@@ -1,7 +1,7 @@
+import { randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import { lstat, open, readFile, realpath, rename, rm } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join } from "node:path";
-import { randomUUID } from "node:crypto";
 
 import { RecoveryError } from "./recovery-errors.ts";
 
@@ -35,11 +35,39 @@ export type RecoveryReceipt = Readonly<{
   recoveryPointRelativePath: string;
   recoveryPointSha256: string;
   recoveryPointBytes: number;
+  candidateRelativePath: string | null;
+  candidateSha256: string | null;
+  candidateBytes: number | null;
+  rollbackRelativePath: string | null;
   confirmation: string;
   checks: Readonly<Record<string, "ok">>;
 }>;
 
-export type RecoveryReceiptInput = Omit<RecoveryReceipt, "format" | "version" | "updatedAt" | "phase">;
+export type RecoveryReceiptInput = Omit<
+  RecoveryReceipt,
+  | "format"
+  | "version"
+  | "updatedAt"
+  | "phase"
+  | "candidateRelativePath"
+  | "candidateSha256"
+  | "candidateBytes"
+  | "rollbackRelativePath"
+>;
+
+export type RecoveryCandidateReceiptBinding = Readonly<{
+  candidateRelativePath: string;
+  candidateSha256: string;
+  candidateBytes: number;
+  rollbackRelativePath: string;
+  checks: Readonly<{
+    candidateIntegrity: "ok";
+    candidateSchema: "ok";
+    candidateAdministrator: "ok";
+    candidateEncryption: "ok";
+    candidateAudit: "ok";
+  }>;
+}>;
 
 export type RecoveryReceiptWriteDependencies = {
   rename?: typeof rename;
@@ -61,6 +89,10 @@ const receiptKeys = [
   "recoveryPointRelativePath",
   "recoveryPointSha256",
   "recoveryPointBytes",
+  "candidateRelativePath",
+  "candidateSha256",
+  "candidateBytes",
+  "rollbackRelativePath",
   "confirmation",
   "checks",
 ].sort();
@@ -80,6 +112,16 @@ const allowedChecks = new Set([
   "swap",
   "onlineVerification",
   "rollback",
+]);
+
+const candidateRequiredPhases = new Set<RecoveryReceiptPhase>([
+  "candidate_ready",
+  "swap_started",
+  "swapped",
+  "verified",
+  "rollback_started",
+  "rolled_back",
+  "post_complete_failed",
 ]);
 
 const phaseTransitions: Readonly<Record<RecoveryReceiptPhase, readonly RecoveryReceiptPhase[]>> = {
@@ -147,6 +189,27 @@ function validateChecks(value: unknown): Readonly<Record<string, "ok">> {
   return Object.freeze(checks);
 }
 
+function candidateBindingState(value: Record<string, unknown>): "absent" | "present" | "invalid" {
+  const values = [
+    value.candidateRelativePath,
+    value.candidateSha256,
+    value.candidateBytes,
+    value.rollbackRelativePath,
+  ];
+  if (values.every((item) => item === null)) return "absent";
+  if (validRelativePath(value.candidateRelativePath)
+      && validHash(value.candidateSha256)
+      && Number.isSafeInteger(value.candidateBytes)
+      && Number(value.candidateBytes) > 0
+      && validRelativePath(value.rollbackRelativePath)
+      && value.candidateRelativePath !== value.liveDatabaseRelativePath
+      && value.rollbackRelativePath !== value.liveDatabaseRelativePath
+      && value.rollbackRelativePath !== value.candidateRelativePath) {
+    return "present";
+  }
+  return "invalid";
+}
+
 function deepFreezeReceipt(value: Omit<RecoveryReceipt, "checks"> & { checks: Readonly<Record<string, "ok">> }): RecoveryReceipt {
   return Object.freeze({ ...value, checks: Object.freeze({ ...value.checks }) });
 }
@@ -181,7 +244,21 @@ export function validateRecoveryReceipt(
       || value.confirmation !== `RESTORE PORTAL DATABASE ${value.operationId}`) {
     fail("recovery_receipt_invalid", "Recovery receipt is invalid");
   }
+  const bindingState = candidateBindingState(value);
+  if (bindingState === "invalid"
+      || (candidateRequiredPhases.has(value.phase as RecoveryReceiptPhase) && bindingState !== "present")) {
+    fail("recovery_receipt_invalid", "Recovery receipt is invalid");
+  }
   const checks = validateChecks(value.checks);
+  if (bindingState === "present" && [
+    "candidateIntegrity",
+    "candidateSchema",
+    "candidateAdministrator",
+    "candidateEncryption",
+    "candidateAudit",
+  ].some((key) => checks[key] !== "ok")) {
+    fail("recovery_receipt_invalid", "Recovery receipt is invalid");
+  }
   return deepFreezeReceipt({
     format: "portal-offline-recovery-receipt",
     version: 1,
@@ -198,6 +275,10 @@ export function validateRecoveryReceipt(
     recoveryPointRelativePath: value.recoveryPointRelativePath,
     recoveryPointSha256: value.recoveryPointSha256,
     recoveryPointBytes: Number(value.recoveryPointBytes),
+    candidateRelativePath: bindingState === "present" ? value.candidateRelativePath : null,
+    candidateSha256: bindingState === "present" ? value.candidateSha256 : null,
+    candidateBytes: bindingState === "present" ? Number(value.candidateBytes) : null,
+    rollbackRelativePath: bindingState === "present" ? value.rollbackRelativePath : null,
     confirmation: value.confirmation,
     checks,
   });
@@ -209,9 +290,52 @@ export function createRecoveryReceipt(input: RecoveryReceiptInput): RecoveryRece
     format: "portal-offline-recovery-receipt",
     version: 1,
     ...input,
+    candidateRelativePath: null,
+    candidateSha256: null,
+    candidateBytes: null,
+    rollbackRelativePath: null,
     updatedAt: input.createdAt,
     phase: "recovery_point_ready",
   }, { now: Date.parse(input.createdAt as string) });
+}
+
+export function bindRecoveryCandidateReceipt(
+  receiptValue: unknown,
+  binding: RecoveryCandidateReceiptBinding,
+  updatedAt: string,
+): RecoveryReceipt {
+  const now = Date.parse(updatedAt);
+  const receipt = validateRecoveryReceipt(receiptValue, { now });
+  if (receipt.phase !== "recovery_point_ready"
+      || !plainObject(binding)
+      || !plainObject(binding.checks)
+      || !validRelativePath(binding.candidateRelativePath)
+      || !validHash(binding.candidateSha256)
+      || !Number.isSafeInteger(binding.candidateBytes)
+      || binding.candidateBytes < 1
+      || !validRelativePath(binding.rollbackRelativePath)
+      || !validTimestamp(updatedAt, now)
+      || Date.parse(updatedAt) <= Date.parse(receipt.updatedAt)) {
+    fail("recovery_receipt_phase_invalid", "Recovery receipt phase transition is invalid");
+  }
+  const checks = {
+    ...receipt.checks,
+    candidateIntegrity: binding.checks.candidateIntegrity,
+    candidateSchema: binding.checks.candidateSchema,
+    candidateAdministrator: binding.checks.candidateAdministrator,
+    candidateEncryption: binding.checks.candidateEncryption,
+    candidateAudit: binding.checks.candidateAudit,
+  };
+  return validateRecoveryReceipt({
+    ...receipt,
+    phase: "candidate_ready",
+    updatedAt,
+    candidateRelativePath: binding.candidateRelativePath,
+    candidateSha256: binding.candidateSha256,
+    candidateBytes: binding.candidateBytes,
+    rollbackRelativePath: binding.rollbackRelativePath,
+    checks,
+  }, { now });
 }
 
 export function transitionRecoveryReceipt(
@@ -221,7 +345,8 @@ export function transitionRecoveryReceipt(
 ): RecoveryReceipt {
   const now = Date.parse(updatedAt);
   const receipt = validateRecoveryReceipt(receiptValue, { now });
-  if (!RECOVERY_RECEIPT_PHASES.includes(phase)
+  if (phase === "candidate_ready"
+      || !RECOVERY_RECEIPT_PHASES.includes(phase)
       || !phaseTransitions[receipt.phase].includes(phase)
       || !validTimestamp(updatedAt, now)
       || Date.parse(updatedAt) <= Date.parse(receipt.updatedAt)) {

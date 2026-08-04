@@ -15,6 +15,18 @@ const allowedMethods = new Set([
   "group_remove_member",
 ]);
 
+class FreeIpaGatewayError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = "FreeIpaGatewayError";
+    this.gatewayCode = code;
+  }
+}
+
+function gatewayError(code, message) {
+  return new FreeIpaGatewayError(code, message);
+}
+
 function jsonResponse(response, status, payload) {
   response.writeHead(status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
   response.end(JSON.stringify(payload));
@@ -39,11 +51,23 @@ function requestError(error, stage) {
   const cause = error && typeof error === "object" && "cause" in error ? error.cause : null;
   const rawCode = cause && typeof cause === "object" && "code" in cause ? cause.code : error && typeof error === "object" && "code" in error ? error.code : "";
   const code = typeof rawCode === "string" && /^[A-Z0-9_]+$/.test(rawCode) ? rawCode : "";
-  if (["ETIMEDOUT", "UND_ERR_CONNECT_TIMEOUT"].includes(code) || error?.name === "TimeoutError" || error?.name === "AbortError") return `Таймаут подключения к FreeIPA на этапе «${stage}»`;
-  if (["SELF_SIGNED_CERT_IN_CHAIN", "DEPTH_ZERO_SELF_SIGNED_CERT", "UNABLE_TO_VERIFY_LEAF_SIGNATURE", "CERT_HAS_EXPIRED", "ERR_TLS_CERT_ALTNAME_INVALID"].includes(code)) return `TLS-сертификат FreeIPA не принят Node Gateway (${code})`;
-  if (["ENOTFOUND", "EAI_AGAIN"].includes(code)) return `DNS-имя FreeIPA не разрешается из Node Gateway (${code})`;
-  if (["ECONNREFUSED", "ECONNRESET"].includes(code)) return `FreeIPA разорвал или отклонил соединение на этапе «${stage}» (${code})`;
-  return `Node Gateway не смог подключиться к FreeIPA на этапе «${stage}»`;
+  if (["ETIMEDOUT", "UND_ERR_CONNECT_TIMEOUT"].includes(code) || error?.name === "TimeoutError" || error?.name === "AbortError") {
+    return gatewayError("freeipa_timeout", `Таймаут подключения к FreeIPA на этапе «${stage}»`);
+  }
+  if (["SELF_SIGNED_CERT_IN_CHAIN", "DEPTH_ZERO_SELF_SIGNED_CERT", "UNABLE_TO_VERIFY_LEAF_SIGNATURE", "CERT_HAS_EXPIRED", "ERR_TLS_CERT_ALTNAME_INVALID"].includes(code)) {
+    return gatewayError("freeipa_tls_failed", `TLS-сертификат FreeIPA не принят Node Gateway (${code})`);
+  }
+  if (["ENOTFOUND", "EAI_AGAIN"].includes(code)) {
+    return gatewayError("freeipa_dns_failed", `DNS-имя FreeIPA не разрешается из Node Gateway (${code})`);
+  }
+  if (["ECONNREFUSED", "ECONNRESET"].includes(code)) {
+    return gatewayError("freeipa_unavailable", `FreeIPA разорвал или отклонил соединение на этапе «${stage}» (${code})`);
+  }
+  return gatewayError("freeipa_unavailable", `Node Gateway не смог подключиться к FreeIPA на этапе «${stage}»`);
+}
+
+function protocolError(message) {
+  return gatewayError("freeipa_protocol_failed", message);
 }
 
 export async function runFreeIpaRpc(input, fetchImpl = fetch) {
@@ -53,7 +77,9 @@ export async function runFreeIpaRpc(input, fetchImpl = fetch) {
   const method = typeof input?.method === "string" ? input.method : "";
   const args = Array.isArray(input?.args) ? input.args : [""];
   const options = input?.options && typeof input.options === "object" && !Array.isArray(input.options) ? input.options : {};
-  if (!ipaUrl || !username || !password || username.length > 256 || password.length > 4096 || !allowedMethods.has(method)) throw new Error("Некорректный запрос к локальному FreeIPA Gateway");
+  if (!ipaUrl || !username || !password || username.length > 256 || password.length > 4096 || !allowedMethods.has(method)) {
+    throw protocolError("Некорректный запрос к локальному FreeIPA Gateway");
+  }
 
   let login;
   try {
@@ -64,12 +90,15 @@ export async function runFreeIpaRpc(input, fetchImpl = fetch) {
       body: new URLSearchParams({ user: username, password }),
       signal: AbortSignal.timeout(10000),
     });
-  } catch (error) { throw new Error(requestError(error, "вход")); }
-  if (login.status >= 300 && login.status < 400) throw new Error(`FreeIPA перенаправляет endpoint входа (HTTP ${login.status})`);
-  if (login.status === 401 || login.status === 403) throw new Error(`FreeIPA отклонил учётные данные (HTTP ${login.status})`);
-  if (!login.ok) throw new Error(`Endpoint входа FreeIPA вернул HTTP ${login.status}`);
+  } catch (error) { throw requestError(error, "вход"); }
+  if (login.status >= 300 && login.status < 400) throw protocolError(`FreeIPA перенаправляет endpoint входа (HTTP ${login.status})`);
+  if (login.status === 401 || login.status === 403) throw gatewayError("freeipa_auth_rejected", `FreeIPA отклонил учётные данные (HTTP ${login.status})`);
+  if (!login.ok) {
+    const code = login.status >= 500 ? "freeipa_unavailable" : "freeipa_protocol_failed";
+    throw gatewayError(code, `Endpoint входа FreeIPA вернул HTTP ${login.status}`);
+  }
   const cookie = login.headers.get("set-cookie")?.split(";")[0];
-  if (!cookie) throw new Error("FreeIPA не вернул session cookie");
+  if (!cookie) throw protocolError("FreeIPA не вернул session cookie");
 
   let rpc;
   try {
@@ -80,10 +109,15 @@ export async function runFreeIpaRpc(input, fetchImpl = fetch) {
       body: JSON.stringify({ method, params: [args, options], id: 0 }),
       signal: AbortSignal.timeout(20000),
     });
-  } catch (error) { throw new Error(requestError(error, "JSON-RPC")); }
-  if (rpc.status >= 300 && rpc.status < 400) throw new Error(`FreeIPA перенаправляет JSON-RPC endpoint (HTTP ${rpc.status})`);
-  const payload = await rpc.json().catch(() => { throw new Error(`JSON-RPC FreeIPA вернул не-JSON ответ (HTTP ${rpc.status})`); });
-  if (!rpc.ok || payload?.error) throw new Error(payload?.error?.message || `${method} failed`);
+  } catch (error) { throw requestError(error, "JSON-RPC"); }
+  if (rpc.status >= 300 && rpc.status < 400) throw protocolError(`FreeIPA перенаправляет JSON-RPC endpoint (HTTP ${rpc.status})`);
+  if (rpc.status === 401 || rpc.status === 403) throw gatewayError("freeipa_auth_rejected", `FreeIPA отклонил JSON-RPC сессию (HTTP ${rpc.status})`);
+  const payload = await rpc.json().catch(() => { throw protocolError(`JSON-RPC FreeIPA вернул не-JSON ответ (HTTP ${rpc.status})`); });
+  if (!rpc.ok) {
+    const code = rpc.status >= 500 ? "freeipa_unavailable" : "freeipa_protocol_failed";
+    throw gatewayError(code, `JSON-RPC FreeIPA вернул HTTP ${rpc.status}`);
+  }
+  if (payload?.error) throw protocolError(payload.error.message || `${method} failed`);
   return Array.isArray(payload?.result?.result) ? payload.result.result : [];
 }
 
@@ -111,7 +145,12 @@ export function createFreeIpaGateway({ token, fetchImpl = fetch }) {
       try { input = JSON.parse(Buffer.concat(chunks).toString("utf8")); }
       catch { return jsonResponse(response, 400, { error: "Invalid JSON" }); }
       try { return jsonResponse(response, 200, { result: await runFreeIpaRpc(input, fetchImpl) }); }
-      catch (error) { return jsonResponse(response, 502, { error: error instanceof Error ? error.message : "FreeIPA Gateway request failed" }); }
-    })().catch(() => jsonResponse(response, 500, { error: "FreeIPA Gateway internal error" }));
+      catch (error) {
+        return jsonResponse(response, 502, {
+          error: error instanceof Error ? error.message : "FreeIPA Gateway request failed",
+          code: error instanceof FreeIpaGatewayError ? error.gatewayCode : "freeipa_protocol_failed",
+        });
+      }
+    })().catch(() => jsonResponse(response, 500, { error: "FreeIPA Gateway internal error", code: "freeipa_protocol_failed" }));
   });
 }

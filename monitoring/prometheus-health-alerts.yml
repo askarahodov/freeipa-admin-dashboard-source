@@ -1,0 +1,58 @@
+groups:
+  - name: portal-health
+    interval: 30s
+    rules:
+      - alert: PortalHealthMetricsMissing
+        expr: absent(portal_health_live)
+        for: 2m
+        labels:
+          severity: critical
+          component: portal
+        annotations:
+          summary: Portal health metrics are missing
+          description: The monitoring system has not received the portal liveness series for two minutes. Check scrape reachability and the portal process.
+          runbook_url: /docs/HEALTH_CONTRACTS.md#probe-configuration
+
+      - alert: PortalNotReady
+        expr: portal_health_ready == 0
+        for: 5m
+        labels:
+          severity: critical
+          component: portal
+        annotations:
+          summary: Portal is not ready
+          description: A mandatory local component has remained unready for five minutes. Inspect the fixed readiness check gauges and the health runbook.
+          runbook_url: /docs/HEALTH_CONTRACTS.md#operational-interpretation
+
+      - alert: PortalSchemaLagging
+        expr: portal_health_schema_lag > 0
+        for: 5m
+        labels:
+          severity: warning
+          component: schema
+        annotations:
+          summary: Portal schema version is behind
+          description: The current canonical schema version has remained behind the latest known version for five minutes.
+          runbook_url: /docs/HEALTH_CONTRACTS.md#operational-interpretation
+
+      - alert: PortalEncryptionUnavailable
+        expr: portal_health_readiness_check{check="encryption"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          component: encryption
+        annotations:
+          summary: Portal encryption self-test is unavailable
+          description: The mandatory local encryption self-test has failed or cannot be evaluated for five minutes.
+          runbook_url: /docs/HEALTH_CONTRACTS.md#operational-interpretation
+
+      - alert: PortalGatewayUnavailable
+        expr: portal_health_readiness_check{check="gateway"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          component: gateway
+        annotations:
+          summary: Portal local gateway is unavailable
+          description: The mandatory local gateway readiness check has failed for five minutes. Inspect the local process boundary and configuration coordination.
+          runbook_url: /docs/HEALTH_CONTRACTS.md#operational-interpretation

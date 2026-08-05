@@ -3,6 +3,7 @@ import { serviceAdminTokenAuthorized } from "../admin-session-authorization.ts";
 import { ensurePortalSchema, type PortalSchemaStatus } from "../db/portal-migrations-hardened.ts";
 import { handleDependencyHealthRequest } from "./dependency-health.ts";
 import { handleHealthDiagnosticsRequest } from "./health-diagnostics-ui.ts";
+import { handleHealthMetricsRequest } from "./health-metrics.ts";
 import { handleHealthRequest } from "./health-contracts.ts";
 import {
   migrationCapableDatabase,
@@ -52,6 +53,14 @@ const worker = {
 
     const diagnosticsResponse = await handleHealthDiagnosticsRequest(request);
     if (diagnosticsResponse) return diagnosticsResponse;
+
+    const metricsResponse = await handleHealthMetricsRequest(request, sourceEnv, {
+      healthHandler: async (healthRequest) => await handleHealthRequest(healthRequest, sourceEnv, {
+        portalSchema: async (healthEnv) => await portalSchema(healthEnv as RuntimeEnv),
+        fetchImpl: fetch,
+      }),
+    });
+    if (metricsResponse) return metricsResponse;
 
     if (url.pathname === "/api/schema/status") {
       if (!await serviceAdminTokenAuthorized(request, sourceEnv.ADMIN_TOKEN)) return schemaAuthorizationResponse();

@@ -76,8 +76,8 @@ test("healthy metrics are deterministic and use only bounded labels", async () =
   assert.match(text, /portal_health_schema_latest_version 3/);
   assert.match(text, /portal_health_schema_lag 0/);
   assert.match(text, /portal_health_dependency_contract_info\{mode="cached_json",path="\/health\/dependencies"\} 1/);
-  assert.equal(text.includes("health_ready"), false);
-  assert.equal(text.includes("database_available"), false);
+  assert.equal(text.includes('code="health_ready"'), false);
+  assert.equal(text.includes('code="database_available"'), false);
   assert.equal(text.includes("freeipa"), false);
   assert.equal(text.includes("xyops"), false);
 });

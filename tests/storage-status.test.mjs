@@ -128,7 +128,7 @@ test("partial local failures produce degraded fixed codes without raw details", 
     {
       query,
       inspectSchema: async () => readySchema({
-        state: "pending",
+        state: "busy",
         pendingVersions: [4],
         compatibleDrift: ["table:internal_safe_addition"],
         incompatibleDrift: ["table:portal_users:raw-secret-sentinel"],
@@ -143,11 +143,11 @@ test("partial local failures produce degraded fixed codes without raw details", 
   assert.equal(report.database.available, true);
   assert.equal(report.database.logicalBytes, null);
   assert.equal(report.database.code, "storage_size_unavailable");
-  assert.equal(report.schema.state, "pending");
+  assert.equal(report.schema.state, "busy");
   assert.deepEqual(report.schema.pendingVersions, [4]);
   assert.equal(report.schema.compatibleDriftCount, 1);
   assert.equal(report.schema.incompatibleDriftCount, 1);
-  assert.equal(report.schema.errorCode, "schema_pending_https_db.internal.example_database-password-sentinel".slice(0, 80));
+  assert.equal(report.schema.errorCode, "schema_unready");
   assert.equal(report.encryption.state, "unavailable");
   assert.equal(report.lifecycle.code, "storage_lifecycle_unavailable");
   assert.equal(report.domains.find((domain) => domain.name === "identity")?.code, "storage_domain_partial");

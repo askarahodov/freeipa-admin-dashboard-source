@@ -1,6 +1,9 @@
+import { STORAGE_STATUS_PATH } from "./storage-status-contract.ts";
+
 export const LOCAL_ADMIN_SESSION_MARKER = "__local_admin_session__";
 
 const ADMIN_INTEGRATION_PATHS = new Set([
+  STORAGE_STATUS_PATH,
   "/api/admin/backups/export/encrypted",
   "/api/admin/backups/import/encrypted/preview",
   "/api/admin/backups/import/encrypted/test-restore",

@@ -179,7 +179,9 @@ function validIndexes(value: unknown): value is JsonObject {
   const missing = value.missing as number;
   const mismatched = value.mismatched as number;
   const unexpected = value.unexpected as number;
-  if (value.code === "storage_indexes_unavailable") return true;
+  if (value.code === "storage_indexes_unavailable") {
+    return present === 0 && missing === 0 && mismatched === 0 && unexpected === 0;
+  }
   if (present > expected || missing > expected || present + missing !== expected || mismatched > present) return false;
 
   if (value.code === "storage_indexes_ready") {

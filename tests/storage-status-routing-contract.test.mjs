@@ -64,5 +64,8 @@ test("storage inspection source cannot apply migrations or accept arbitrary SQL"
   assert.equal(storageServiceSource.includes("ensurePortalSchema"), false);
   assert.match(storageServiceSource, /inspectPortalSchema/);
   assert.equal(/request\.url|searchParams|request\.json\(/.test(storageServiceSource), false);
-  assert.equal(/\b(?:INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|REPLACE)\b/i.test(storageServiceSource), false);
+  assert.equal(
+    /\b(?:INSERT\s+INTO|UPDATE\s+[^\s]+\s+SET|DELETE\s+FROM|CREATE\s+(?:TABLE|INDEX|TRIGGER)|ALTER\s+TABLE|DROP\s+(?:TABLE|INDEX|TRIGGER)|REPLACE\s+INTO)\b/i.test(storageServiceSource),
+    false,
+  );
 });

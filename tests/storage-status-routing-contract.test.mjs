@@ -20,20 +20,22 @@ const [
   readFile(new URL("../storage-status.ts", import.meta.url), "utf8"),
 ]);
 
-const storageRootSource = await readFile(
-  new URL("../worker/storage-status-root-entry.ts", import.meta.url),
-  "utf8",
-);
+test("storage route is dispatched only after the existing local-session boundary", () => {
+  assert.match(localSecureSource, /import secureRuntime from ["']\.\/settings-input-normalizer-entry(?:\.ts)?["']/);
+  assert.match(localSecureSource, /import \{ handleStorageStatusRequest \} from ["']\.\/storage-status-entry\.ts["']/);
+  assert.match(localSecureSource, /const session = await resolveLocalSession\(sourceEnv, request\)/);
+  assert.match(localSecureSource, /const delegatedRequest = new Request\(request, \{ headers \}\)/);
+  assert.match(localSecureSource, /handleStorageStatusRequest\(delegatedRequest, delegated\)/);
 
-test("storage route is composed below local-session authorization", () => {
-  assert.match(localSecureSource, /import secureRuntime from ["']\.\/storage-status-root-entry(?:\.ts)?["']/);
-  assert.match(storageRootSource, /import rootRuntime from ["']\.\/settings-input-normalizer-entry(?:\.ts)?["']/);
-  assert.match(storageRootSource, /handleStorageStatusRequest\(request, sourceEnv\)/);
+  const sessionIndex = localSecureSource.indexOf("const session = await resolveLocalSession(sourceEnv, request)");
+  const delegatedRequestIndex = localSecureSource.indexOf("const delegatedRequest = new Request(request, { headers })");
+  const sessionHandlerIndex = localSecureSource.indexOf("handleStorageStatusRequest(delegatedRequest, delegated)");
+  assert.ok(sessionIndex >= 0 && delegatedRequestIndex > sessionIndex && sessionHandlerIndex > delegatedRequestIndex);
 
-  const handlerIndex = storageRootSource.indexOf("handleStorageStatusRequest(request, sourceEnv)");
-  const delegateIndex = storageRootSource.indexOf("rootRuntime.fetch(request, sourceEnv, ctx)");
-  assert.ok(handlerIndex >= 0 && delegateIndex > handlerIndex);
-  assert.match(storageRootSource, /rootRuntime\.scheduled\?\.\(controller, env, ctx\)/);
+  const tokenCheckIndex = localSecureSource.indexOf("serviceAdminTokenAuthorized(request, sourceEnv.ADMIN_TOKEN)");
+  const serviceHandlerIndex = localSecureSource.indexOf("handleStorageStatusRequest(request, delegated)");
+  assert.ok(tokenCheckIndex >= 0 && serviceHandlerIndex > tokenCheckIndex);
+  assert.match(localSecureSource, /secureRuntime\.scheduled\?\.\(controller, env, ctx\)/);
 });
 
 test("storage route is explicit for service-admin and recovery gates", () => {
@@ -53,8 +55,9 @@ test("storage route is explicit for service-admin and recovery gates", () => {
   assert.ok(immediateAllowlist >= 0 && maintenanceRead > immediateAllowlist);
 });
 
-test("existing service-admin and health contracts remain unchanged", () => {
+test("existing service-admin, settings and health contracts remain unchanged", () => {
   assert.match(serviceAdminSource, /import rootRuntime from ["']\.\/maintenance-control-root-entry(?:\.ts)?["']/);
+  assert.match(localSecureSource, /import secureRuntime from ["']\.\/settings-input-normalizer-entry(?:\.ts)?["']/);
   assert.match(dockerfileSource, /\/health\/live/);
   assert.equal(dockerfileSource.includes("/api/admin/storage/status"), false);
   assert.equal(dockerfileSource.includes("/metrics/health"), false);

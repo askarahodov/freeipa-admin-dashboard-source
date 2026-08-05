@@ -1,5 +1,5 @@
 groups:
-  - name: freeipa-admin-dashboard-health
+  - name: portal-health
     interval: 30s
     rules:
       - alert: PortalHealthMetricsMissing

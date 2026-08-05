@@ -207,7 +207,7 @@ async function handleAuthApi(request: Request, env: RuntimeEnv, url: URL): Promi
         outcome: "success",
         metadata: { username: user.username, role: user.role, disabled: user.disabled },
       }).catch(() => {});
-      return json({ user }, 200);
+      return json({ user });
     } catch (error) {
       return json({ error: error instanceof Error ? error.message : "Не удалось обновить пользователя" }, 400);
     }

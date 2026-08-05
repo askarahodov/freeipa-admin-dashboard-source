@@ -205,7 +205,7 @@ test("degraded integrity remains HTTP 200 and unavailable integrity is HTTP 503"
   }
 });
 
-test("unexpected evaluator failure returns fixed unavailable payload without raw details", async () => {
+test("unexpected evaluator failure returns the full fixed unavailable contract without raw details", async () => {
   const secret = "file:///var/lib/private.sqlite CREATE INDEX private_secret bearer-token-sentinel";
   const audits = [];
   const response = await handleStorageIntegrityRequest(
@@ -226,13 +226,26 @@ test("unexpected evaluator failure returns fixed unavailable payload without raw
   assert.deepEqual(payload, {
     contractVersion: "1",
     generatedAt: 1_754_400_000_500,
+    durationMs: 0,
     state: "unavailable",
-    code: "storage_integrity_unavailable",
+    quickCheck: {
+      state: "unavailable",
+      code: "storage_quick_check_unavailable",
+    },
+    indexes: {
+      expected: 19,
+      present: 0,
+      missing: 0,
+      mismatched: 0,
+      unexpected: 0,
+      code: "storage_indexes_unavailable",
+    },
     correlationId: context.correlationId,
   });
   assert.equal(audits.length, 1);
   assert.equal(audits[0].outcome, "failure");
   assert.equal(audits[0].errorCode, "storage_integrity_unavailable");
+  assert.equal(audits[0].metadata.expected, 19);
   const serialized = JSON.stringify({ payload, audits });
   for (const forbidden of ["private.sqlite", "CREATE INDEX", "private_secret", "bearer-token-sentinel"]) {
     assert.equal(serialized.includes(forbidden), false);

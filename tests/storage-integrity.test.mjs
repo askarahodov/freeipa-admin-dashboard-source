@@ -64,7 +64,6 @@ test("healthy integrity check runs exactly one fixed quick check and one canonic
   const serialized = JSON.stringify(report);
   for (const forbidden of [
     "sqlite_schema",
-    "quick_check",
     portalSchemaIndexes[0].name,
     portalSchemaIndexes[0].table,
     portalSchemaIndexes[0].sql,

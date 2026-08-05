@@ -3,6 +3,7 @@ import { serviceAdminTokenAuthorized } from "../admin-session-authorization.ts";
 import { ensurePortalSchema, type PortalSchemaStatus } from "../db/portal-migrations-hardened.ts";
 import { handleDependencyHealthRequest } from "./dependency-health.ts";
 import { handleHealthDiagnosticsRequest } from "./health-diagnostics-ui.ts";
+import { handleHealthMetricsRequest } from "./health-metrics.ts";
 import { handleHealthRequest } from "./health-contracts.ts";
 import {
   migrationCapableDatabase,
@@ -33,15 +34,20 @@ async function portalSchema(sourceEnv: RuntimeEnv): Promise<PortalSchemaStatus> 
   return await ensurePortalSchema(sourceEnv);
 }
 
+function healthHandler(sourceEnv: RuntimeEnv) {
+  return async (healthRequest: Request): Promise<Response | null> => await handleHealthRequest(healthRequest, sourceEnv, {
+    portalSchema: async (healthEnv) => await portalSchema(healthEnv as RuntimeEnv),
+    fetchImpl: fetch,
+  });
+}
+
 const worker = {
   async fetch(request: Request, env: RuntimeEnv | undefined, ctx: RuntimeContext): Promise<Response> {
     const sourceEnv = env ?? (process.env as unknown as RuntimeEnv);
     const url = new URL(request.url);
+    const localHealthHandler = healthHandler(sourceEnv);
 
-    const healthResponse = await handleHealthRequest(request, sourceEnv, {
-      portalSchema: async (healthEnv) => await portalSchema(healthEnv as RuntimeEnv),
-      fetchImpl: fetch,
-    });
+    const healthResponse = await localHealthHandler(request);
     if (healthResponse) return healthResponse;
 
     const dependencyHealthResponse = await handleDependencyHealthRequest(request, sourceEnv, {
@@ -52,6 +58,11 @@ const worker = {
 
     const diagnosticsResponse = await handleHealthDiagnosticsRequest(request);
     if (diagnosticsResponse) return diagnosticsResponse;
+
+    const metricsResponse = await handleHealthMetricsRequest(request, sourceEnv, {
+      healthHandler: localHealthHandler,
+    });
+    if (metricsResponse) return metricsResponse;
 
     if (url.pathname === "/api/schema/status") {
       if (!await serviceAdminTokenAuthorized(request, sourceEnv.ADMIN_TOKEN)) return schemaAuthorizationResponse();

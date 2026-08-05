@@ -69,11 +69,14 @@ function unavailableIndexes(): StorageIntegrityIndexes {
   };
 }
 
-function unavailableReport(generatedAt: number, durationMs: number): StorageIntegrityReport {
+export function unavailableStorageIntegrityReport(
+  generatedAt: number,
+  durationMs: number,
+): StorageIntegrityReport {
   return {
     contractVersion: "1",
-    generatedAt,
-    durationMs,
+    generatedAt: safeInteger(generatedAt, Number.MAX_SAFE_INTEGER),
+    durationMs: safeInteger(durationMs, MAX_PUBLIC_DURATION_MS),
     state: "unavailable",
     quickCheck: {
       state: "unavailable",
@@ -203,13 +206,13 @@ async function evaluateStorageIntegrity(
 ): Promise<StorageIntegrityReport> {
   const now = dependencies.now ?? Date.now;
   const generatedAt = safeInteger(now(), Number.MAX_SAFE_INTEGER);
-  if (!env.DB) return unavailableReport(generatedAt, 0);
+  if (!env.DB) return unavailableStorageIntegrityReport(generatedAt, 0);
 
   let query: StorageIntegrityQuery;
   try {
     query = dependencies.query ?? defaultQuery(env);
   } catch {
-    return unavailableReport(generatedAt, 0);
+    return unavailableStorageIntegrityReport(generatedAt, 0);
   }
 
   const quickCheck = await inspectQuickCheck(query);

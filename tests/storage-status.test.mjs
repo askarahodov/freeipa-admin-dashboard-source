@@ -108,6 +108,13 @@ test("healthy storage status aggregates only fixed domains and bounded metadata"
   assert.equal(report.domains.reduce((sum, domain) => sum + domain.records, 0), canonicalTables.length * 2);
   assert.ok(report.domains.every((domain) => domain.code === "storage_domain_counted"));
 
+  const lifecycleQuery = calls.find((sql) => sql.includes("last_backup_at"));
+  assert.ok(lifecycleQuery);
+  assert.match(lifecycleQuery, /backup\.%export%\.completed/);
+  assert.match(lifecycleQuery, /backup\.restore\.%/);
+  assert.equal(lifecycleQuery.includes("action LIKE 'backup.%'"), false);
+  assert.equal(lifecycleQuery.includes("action LIKE 'restore.%'"), false);
+
   const serialized = JSON.stringify(report);
   for (const forbidden of ["portal_users", "portal_sessions", "sqlite_master", "CONFIG_ENCRYPTION_KEY", "aaaaaaaaaaaaaaaa"]) {
     assert.equal(serialized.includes(forbidden), false);

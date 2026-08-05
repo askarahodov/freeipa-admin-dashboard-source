@@ -230,9 +230,10 @@ export function inspectStorageIntegrity(
 ): Promise<StorageIntegrityReport> {
   if (inFlight) return inFlight;
   const evaluation = evaluateStorageIntegrity(env, dependencies);
-  inFlight = evaluation.finally(() => {
-    if (inFlight === evaluation || inFlight === wrapped) inFlight = null;
+  let wrapped: Promise<StorageIntegrityReport>;
+  wrapped = evaluation.finally(() => {
+    if (inFlight === wrapped) inFlight = null;
   });
-  const wrapped = inFlight;
+  inFlight = wrapped;
   return wrapped;
 }

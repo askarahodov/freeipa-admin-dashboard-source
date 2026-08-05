@@ -54,5 +54,5 @@ groups:
           component: gateway
         annotations:
           summary: Portal local gateway is unavailable
-          description: The mandatory local gateway readiness check has failed for five minutes. Inspect the local process boundary and token coordination.
+          description: The mandatory local gateway readiness check has failed for five minutes. Inspect the local process boundary and configuration coordination.
           runbook_url: /docs/HEALTH_CONTRACTS.md#operational-interpretation

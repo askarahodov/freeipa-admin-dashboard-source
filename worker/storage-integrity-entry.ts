@@ -8,7 +8,10 @@ import {
   STORAGE_INTEGRITY_PATH,
   type StorageIntegrityReport,
 } from "../storage-integrity-contract.ts";
-import { inspectStorageIntegrity } from "../storage-integrity.ts";
+import {
+  inspectStorageIntegrity,
+  unavailableStorageIntegrityReport,
+} from "../storage-integrity.ts";
 import { encryptedBackupAccess } from "./backup-encrypted-root-entry.ts";
 
 type StorageIntegrityEnv = {
@@ -79,16 +82,6 @@ function auditEvent(report: StorageIntegrityReport, durationMs: number): AuditEv
   };
 }
 
-function unexpectedFailurePayload(generatedAt: number, correlationId: string) {
-  return {
-    contractVersion: "1",
-    generatedAt,
-    state: "unavailable",
-    code: "storage_integrity_unavailable",
-    correlationId,
-  } as const;
-}
-
 export async function handleStorageIntegrityRequest(
   request: Request,
   env: StorageIntegrityEnv,
@@ -138,29 +131,14 @@ export async function handleStorageIntegrityRequest(
   } catch {
     const generatedAt = now();
     const durationMs = boundedDuration(startedAt, generatedAt);
+    const report = unavailableStorageIntegrityReport(generatedAt, durationMs);
     try {
-      await appendAudit(env, context, {
-        action: "storage.integrity.check",
-        resourceType: "portal-storage",
-        outcome: "failure",
-        errorCode: "storage_integrity_unavailable",
-        metadata: {
-          state: "unavailable",
-          durationMs,
-          quickCheckCode: "storage_quick_check_unavailable",
-          indexCode: "storage_indexes_unavailable",
-          expected: 0,
-          present: 0,
-          missing: 0,
-          mismatched: 0,
-          unexpected: 0,
-        },
-      });
+      await appendAudit(env, context, auditEvent(report, durationMs));
     } catch {
       // Never replace the fixed safe response with an audit persistence failure.
     }
     return json(
-      unexpectedFailurePayload(generatedAt, context.correlationId),
+      { ...report, correlationId: context.correlationId },
       503,
       context.correlationId,
     );

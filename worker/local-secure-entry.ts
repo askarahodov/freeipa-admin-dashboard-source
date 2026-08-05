@@ -23,6 +23,7 @@ import {
   type LocalAuthEnv,
   type LocalSession,
 } from "../local-auth";
+import { handleStorageStatusRequest } from "./storage-status-entry.ts";
 
 type RuntimeEnv = NonNullable<Parameters<typeof secureRuntime.fetch>[1]> & LocalAuthEnv & {
   PORTAL_IDENTITY_MODE?: string;
@@ -236,7 +237,11 @@ const worker = {
   async fetch(request: Request, env: RuntimeEnv | undefined, ctx: RuntimeContext): Promise<Response> {
     const sourceEnv = env ?? (process.env as unknown as RuntimeEnv);
     const url = new URL(request.url);
-    if (!localMode(sourceEnv)) return secureRuntime.fetch(request, sourceEnv, ctx);
+    if (!localMode(sourceEnv)) {
+      const storageResponse = await handleStorageStatusRequest(request, sourceEnv);
+      if (storageResponse) return storageResponse;
+      return secureRuntime.fetch(request, sourceEnv, ctx);
+    }
 
     if (url.pathname.startsWith("/api/auth/")) return handleAuthApi(request, sourceEnv, url);
     if (url.pathname === "/api/integrations/health") return secureRuntime.fetch(request, sourceEnv, ctx);
@@ -244,7 +249,10 @@ const worker = {
     const session = await resolveLocalSession(sourceEnv, request);
     if (!session) {
       if (isAdminIntegrationPath(url.pathname) && await serviceAdminTokenAuthorized(request, sourceEnv.ADMIN_TOKEN)) {
-        return secureRuntime.fetch(request, serviceAdminEnv(sourceEnv), ctx);
+        const delegated = serviceAdminEnv(sourceEnv);
+        const storageResponse = await handleStorageStatusRequest(request, delegated);
+        if (storageResponse) return storageResponse;
+        return secureRuntime.fetch(request, delegated, ctx);
       }
       if (url.pathname.startsWith("/api/")) return json({ error: "Требуется вход в портал" }, 401);
       if (request.method === "GET" && request.headers.get("accept")?.includes("text/html") && url.pathname !== "/login") {
@@ -267,7 +275,10 @@ const worker = {
       delegated = delegatedEnv(sourceEnv, session, internalToken);
     }
 
-    return secureRuntime.fetch(new Request(request, { headers }), delegated, ctx);
+    const delegatedRequest = new Request(request, { headers });
+    const storageResponse = await handleStorageStatusRequest(delegatedRequest, delegated);
+    if (storageResponse) return storageResponse;
+    return secureRuntime.fetch(delegatedRequest, delegated, ctx);
   },
 
   async scheduled(controller: ScheduledController, env: RuntimeEnv | undefined, ctx: RuntimeContext): Promise<void> {

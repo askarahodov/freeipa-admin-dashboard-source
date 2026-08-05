@@ -19,7 +19,8 @@
 - sanitized и полные зашифрованные логические резервные копии;
 - read-only preview и изолированная проверка восстановления без изменения рабочей базы;
 - staged selective production restore с обязательным recovery point и optimistic concurrency;
-- persistent maintenance mode перед будущими destructive/offline recovery операциями.
+- persistent maintenance mode перед будущими destructive/offline recovery операциями;
+- bounded read-only storage status для schema, logical size, domain counts, encryption и backup/restore lifecycle.
 
 ## Требования
 
@@ -68,6 +69,8 @@ docker compose down
 При запуске Worker сначала проверяет canonical schema локальной D1/SQLite-базы, применяет только additive migrations и сверяет migration journal. Обычный API и scheduled-задачи не запускаются, пока база не перейдёт в состояние `ready`. После schema readiness внешний maintenance gate проверяет persistent state до service-admin authorization. Подробности: [docs/DATABASE_MIGRATIONS.md](docs/DATABASE_MIGRATIONS.md) и [docs/MAINTENANCE_MODE.md](docs/MAINTENANCE_MODE.md).
 
 Docker проверяет только `/health/live`; readiness обязательного локального runtime доступна через `/health/ready`. Диагностический `/health/dependencies` выполняет cached read-only probes FreeIPA и XYOps, но никогда не используется как restart signal. Операторская страница `/diagnostics/health` отображает только sanitized state/code/category/latency/last-success данные и остаётся доступной при DB/schema/maintenance проблемах. Сбои внешних систем не должны вызывать restart loop. Полный контракт и runbook: [docs/HEALTH_CONTRACTS.md](docs/HEALTH_CONTRACTS.md).
+
+Администраторский `GET /api/admin/storage/status` остаётся доступным через recovery gates, но не обходит local-session или service-admin authorization. Он выполняет только bounded read-only queries и возвращает sanitized schema/size/domain/lifecycle metadata. При недоступном UI тот же контракт читается командой `npm run inspect:storage`; токен принимается только из `ADMIN_TOKEN`. Подробности: [docs/STORAGE_STATUS.md](docs/STORAGE_STATUS.md).
 
 ## Локальная аутентификация
 
@@ -193,6 +196,7 @@ GET  /health/live
 GET  /health/ready
 GET  /health/dependencies
 GET  /diagnostics/health
+GET  /api/admin/storage/status
 GET  /api/integrations/health   # deprecated compatibility alias для /health/live
 GET  /api/integrations/status
 GET  /api/integrations/settings
@@ -201,6 +205,8 @@ POST /api/integrations/settings/test
 ```
 
 `/health/live` публичен и не обращается к D1 или сети. `/health/ready` проверяет D1/schema, локальный crypto self-test и loopback FreeIPA Gateway. `/health/dependencies` выполняет bounded read-only probes внешних систем и кэширует только sanitized status metadata на 30 секунд. `/diagnostics/health` визуализирует эти три контракта, предлагает allowlisted remediation и копирует только безопасный снимок; страница не выполняет mutations и не предназначена для liveness/readiness. Подробности и response codes: [docs/HEALTH_CONTRACTS.md](docs/HEALTH_CONTRACTS.md).
+
+`/api/admin/storage/status` проверяет canonical schema через read-only inspector, best-effort logical size, fixed domain counts, encryption self-test и последние matching backup/restore audit timestamps. Endpoint не принимает SQL/table input и не является migration, integrity repair или restart probe. Контракт и CLI: [docs/STORAGE_STATUS.md](docs/STORAGE_STATUS.md).
 
 ### Резервные копии и selective restore
 
@@ -266,6 +272,7 @@ npm run lint
 npm run build
 npm test
 npm run inspect:xyops
+npm run inspect:storage
 npm run test:local
 ```
 
@@ -298,6 +305,7 @@ artifacts/local-integration/compose.log
 - [Canonical schema и migration lifecycle](docs/DATABASE_MIGRATIONS.md)
 - [Persistent maintenance mode](docs/MAINTENANCE_MODE.md)
 - [Health contracts и probe policy](docs/HEALTH_CONTRACTS.md)
+- [Read-only storage status и CLI](docs/STORAGE_STATUS.md)
 - [Дорожная карта](docs/PRODUCT_ROADMAP.md)
 - [Контракт XYOps](docs/XYOPS_EXECUTION_OWNERSHIP.md)
 - [Инспектор XYOps](docs/XYOPS_INSPECTOR.md)

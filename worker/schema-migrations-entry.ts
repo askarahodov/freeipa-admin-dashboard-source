@@ -34,20 +34,15 @@ async function portalSchema(sourceEnv: RuntimeEnv): Promise<PortalSchemaStatus> 
   return await ensurePortalSchema(sourceEnv);
 }
 
-function healthHandler(sourceEnv: RuntimeEnv) {
-  return async (healthRequest: Request): Promise<Response | null> => await handleHealthRequest(healthRequest, sourceEnv, {
-    portalSchema: async (healthEnv) => await portalSchema(healthEnv as RuntimeEnv),
-    fetchImpl: fetch,
-  });
-}
-
 const worker = {
   async fetch(request: Request, env: RuntimeEnv | undefined, ctx: RuntimeContext): Promise<Response> {
     const sourceEnv = env ?? (process.env as unknown as RuntimeEnv);
     const url = new URL(request.url);
-    const localHealthHandler = healthHandler(sourceEnv);
 
-    const healthResponse = await localHealthHandler(request);
+    const healthResponse = await handleHealthRequest(request, sourceEnv, {
+      portalSchema: async (healthEnv) => await portalSchema(healthEnv as RuntimeEnv),
+      fetchImpl: fetch,
+    });
     if (healthResponse) return healthResponse;
 
     const dependencyHealthResponse = await handleDependencyHealthRequest(request, sourceEnv, {
@@ -60,7 +55,10 @@ const worker = {
     if (diagnosticsResponse) return diagnosticsResponse;
 
     const metricsResponse = await handleHealthMetricsRequest(request, sourceEnv, {
-      healthHandler: localHealthHandler,
+      healthHandler: async (healthRequest) => await handleHealthRequest(healthRequest, sourceEnv, {
+        portalSchema: async (healthEnv) => await portalSchema(healthEnv as RuntimeEnv),
+        fetchImpl: fetch,
+      }),
     });
     if (metricsResponse) return metricsResponse;
 

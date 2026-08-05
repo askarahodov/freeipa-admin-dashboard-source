@@ -23,6 +23,8 @@ import {
   type LocalAuthEnv,
   type LocalSession,
 } from "../local-auth";
+import { STORAGE_INTEGRITY_PATH } from "../storage-integrity-contract.ts";
+import { handleStorageIntegrityRequest } from "./storage-integrity-entry.ts";
 import { handleStorageStatusRequest } from "./storage-status-entry.ts";
 
 type RuntimeEnv = NonNullable<Parameters<typeof secureRuntime.fetch>[1]> & LocalAuthEnv & {
@@ -238,6 +240,14 @@ const worker = {
     const sourceEnv = env ?? (process.env as unknown as RuntimeEnv);
     const url = new URL(request.url);
     if (!localMode(sourceEnv)) {
+      if (url.pathname === STORAGE_INTEGRITY_PATH) {
+        if (!await serviceAdminTokenAuthorized(request, sourceEnv.ADMIN_TOKEN)) {
+          return json({ error: "Требуется токен администратора" }, 401);
+        }
+        const delegated = serviceAdminEnv(sourceEnv);
+        const integrityResponse = await handleStorageIntegrityRequest(request, delegated);
+        if (integrityResponse) return integrityResponse;
+      }
       const storageResponse = await handleStorageStatusRequest(request, sourceEnv);
       if (storageResponse) return storageResponse;
       return secureRuntime.fetch(request, sourceEnv, ctx);
@@ -250,6 +260,8 @@ const worker = {
     if (!session) {
       if (isAdminIntegrationPath(url.pathname) && await serviceAdminTokenAuthorized(request, sourceEnv.ADMIN_TOKEN)) {
         const delegated = serviceAdminEnv(sourceEnv);
+        const integrityResponse = await handleStorageIntegrityRequest(request, delegated);
+        if (integrityResponse) return integrityResponse;
         const storageResponse = await handleStorageStatusRequest(request, delegated);
         if (storageResponse) return storageResponse;
         return secureRuntime.fetch(request, delegated, ctx);
@@ -276,6 +288,8 @@ const worker = {
     }
 
     const delegatedRequest = new Request(request, { headers });
+    const integrityResponse = await handleStorageIntegrityRequest(delegatedRequest, delegated);
+    if (integrityResponse) return integrityResponse;
     const storageResponse = await handleStorageStatusRequest(delegatedRequest, delegated);
     if (storageResponse) return storageResponse;
     return secureRuntime.fetch(delegatedRequest, delegated, ctx);

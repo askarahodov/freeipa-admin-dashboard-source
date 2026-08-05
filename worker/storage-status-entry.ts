@@ -4,6 +4,7 @@ import {
   type AuditContext,
   type AuditEventInput,
 } from "../audit-log.ts";
+import { STORAGE_STATUS_PATH } from "../storage-status-contract.ts";
 import {
   inspectStorageStatus,
   type StorageStatusReport,
@@ -32,8 +33,6 @@ type StorageStatusDependencies = {
   appendAudit?: typeof appendAuditEvent;
   now?: () => number;
 };
-
-const storageStatusPath = "/api/admin/storage/status";
 
 function json(
   value: unknown,
@@ -94,7 +93,7 @@ export async function handleStorageStatusRequest(
   dependencies: StorageStatusDependencies = {},
 ): Promise<Response | null> {
   const url = new URL(request.url);
-  if (url.pathname !== storageStatusPath) return null;
+  if (url.pathname !== STORAGE_STATUS_PATH) return null;
   if (request.method !== "GET") {
     return json(
       { ok: false, code: "storage_status_method_not_allowed" },

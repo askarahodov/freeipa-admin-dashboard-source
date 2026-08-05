@@ -60,7 +60,7 @@ export type StorageStatusReport = {
 };
 
 type StorageStatusEnv = {
-  DB?: D1Database | unknown;
+  DB?: D1Database;
   CONFIG_ENCRYPTION_KEY?: string;
 };
 
@@ -111,13 +111,15 @@ const canonicalTables: readonly CanonicalTable[] = [...new Set([
   .sort((left, right) => left.localeCompare(right))
   .map((name) => ({ name, domain: domainForTable(name) }));
 
-function emptyDomains(): StorageDomainStatus[] {
+function emptyDomains(
+  code: StorageDomainStatus["code"] = "storage_domain_partial",
+): StorageDomainStatus[] {
   return domainOrder.map((name) => ({
     name,
     expectedTables: canonicalTables.filter((table) => table.domain === name).length,
     presentTables: 0,
     records: 0,
-    code: "storage_domain_partial",
+    code,
   }));
 }
 
@@ -185,7 +187,7 @@ function quoteCanonicalIdentifier(name: string): string {
 }
 
 function defaultQuery(env: StorageStatusEnv): StorageQuery {
-  const db = env.DB as D1Database;
+  const db = env.DB!;
   return {
     async all<T extends Record<string, unknown>>(sql: string): Promise<T[]> {
       const result = await db.prepare(sql).all<T>();
@@ -197,7 +199,10 @@ function defaultQuery(env: StorageStatusEnv): StorageQuery {
   };
 }
 
-function unavailableReport(generatedAt: number, code: "storage_database_unavailable" | "storage_inventory_unavailable"): StorageStatusReport {
+function unavailableReport(
+  generatedAt: number,
+  code: "storage_database_unavailable" | "storage_inventory_unavailable",
+): StorageStatusReport {
   return {
     contractVersion,
     generatedAt,
@@ -216,7 +221,10 @@ async function readDatabaseSize(query: StorageQuery): Promise<StorageStatusRepor
     const pageSizeRow = await query.first<{ page_size?: unknown }>("PRAGMA page_size");
     const pageCount = safeInteger(pageCountRow?.page_count);
     const pageSize = safeInteger(pageSizeRow?.page_size);
-    const logicalBytes = pageCount !== null && pageSize !== null && pageCount <= Math.floor(Number.MAX_SAFE_INTEGER / Math.max(pageSize, 1))
+    const logicalBytes = pageCount !== null
+      && pageSize !== null
+      && pageSize > 0
+      && pageCount <= Math.floor(Number.MAX_SAFE_INTEGER / pageSize)
       ? pageCount * pageSize
       : null;
     if (pageCount === null || pageSize === null || logicalBytes === null) {
@@ -228,7 +236,10 @@ async function readDatabaseSize(query: StorageQuery): Promise<StorageStatusRepor
   }
 }
 
-async function readLifecycle(query: StorageQuery, presentTables: ReadonlySet<string>): Promise<StorageStatusReport["lifecycle"]> {
+async function readLifecycle(
+  query: StorageQuery,
+  presentTables: ReadonlySet<string>,
+): Promise<StorageStatusReport["lifecycle"]> {
   if (!presentTables.has("portal_audit_events")) {
     return { lastBackupAt: null, lastRestoreAt: null, lastCleanupAt: null, code: "storage_lifecycle_unavailable" };
   }
@@ -250,15 +261,20 @@ async function readLifecycle(query: StorageQuery, presentTables: ReadonlySet<str
   }
 }
 
-async function readDomains(query: StorageQuery, presentTables: ReadonlySet<string>): Promise<StorageDomainStatus[]> {
-  const domains = emptyDomains();
+async function readDomains(
+  query: StorageQuery,
+  presentTables: ReadonlySet<string>,
+): Promise<StorageDomainStatus[]> {
+  const domains = emptyDomains("storage_domain_counted");
   const byName = new Map(domains.map((domain) => [domain.name, domain]));
   for (const table of canonicalTables) {
     if (!presentTables.has(table.name)) continue;
     const domain = byName.get(table.domain)!;
     domain.presentTables += 1;
     try {
-      const row = await query.first<{ count?: unknown }>(`SELECT COUNT(*) AS count FROM ${quoteCanonicalIdentifier(table.name)}`);
+      const row = await query.first<{ count?: unknown }>(
+        `SELECT COUNT(*) AS count FROM ${quoteCanonicalIdentifier(table.name)}`,
+      );
       const count = safeInteger(row?.count);
       if (count === null) throw new Error("invalid_count");
       domain.records += count;
@@ -267,14 +283,7 @@ async function readDomains(query: StorageQuery, presentTables: ReadonlySet<strin
     }
   }
   for (const domain of domains) {
-    if (domain.code !== "storage_domain_partial" && domain.presentTables === domain.expectedTables) {
-      domain.code = "storage_domain_counted";
-    } else if (domain.presentTables === domain.expectedTables) {
-      const failedCount = canonicalTables
-        .filter((table) => table.domain === domain.name && presentTables.has(table.name))
-        .some(() => false);
-      if (!failedCount && domain.expectedTables === 0) domain.code = "storage_domain_counted";
-    }
+    if (domain.presentTables !== domain.expectedTables) domain.code = "storage_domain_partial";
   }
   return domains;
 }
@@ -284,7 +293,8 @@ export async function inspectStorageStatus(
   dependencies: StorageStatusDependencies = {},
 ): Promise<StorageStatusReport> {
   const generatedAt = safeInteger((dependencies.now ?? Date.now)()) ?? 0;
-  if (!env.DB || typeof (env.DB as { prepare?: unknown }).prepare !== "function" && !dependencies.query) {
+  if (!env.DB) return unavailableReport(generatedAt, "storage_database_unavailable");
+  if (!dependencies.query && typeof env.DB.prepare !== "function") {
     return unavailableReport(generatedAt, "storage_database_unavailable");
   }
 
@@ -295,7 +305,9 @@ export async function inspectStorageStatus(
       "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
     );
     const canonicalNames = new Set(canonicalTables.map((table) => table.name));
-    presentTables = new Set(rows.map((row) => String(row.name ?? "")).filter((name) => canonicalNames.has(name)));
+    presentTables = new Set(
+      rows.map((row) => String(row.name ?? "")).filter((name) => canonicalNames.has(name)),
+    );
   } catch {
     return unavailableReport(generatedAt, "storage_inventory_unavailable");
   }

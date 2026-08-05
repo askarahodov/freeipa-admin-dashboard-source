@@ -134,6 +134,19 @@ test("degraded is inspectable while unavailable produces support exit code 2", a
   }
 });
 
+test("unavailable inventory rejects nonzero observed index counts", async () => {
+  const payload = validPayload("unavailable");
+  payload.indexes.present = 1;
+  const result = await runStorageIntegrityInspectCli(
+    { portalUrl: "https://portal.test", adminToken: "env-token", timeoutMs: 1000 },
+    { fetchImpl: async () => jsonResponse(payload, 503) },
+  );
+
+  assert.equal(result.exitCode, 5);
+  assert.equal(result.stdout, "");
+  assert.equal(result.stderr, `${JSON.stringify({ ok: false, code: "storage_integrity_inspect_protocol_error" })}\n`);
+});
+
 test("invalid integrity contracts are rejected without printing raw payload fields", async () => {
   const invalidPayloads = [
     { contractVersion: "2", state: "healthy" },

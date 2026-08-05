@@ -24,6 +24,7 @@
     "lint": "bash scripts/sites-env.sh -- eslint . --ignore-pattern dist --ignore-pattern .next",
     "inspect:xyops": "node scripts/xyops-inspect.mjs",
     "inspect:storage": "node --experimental-strip-types scripts/storage-inspect.ts",
+    "inspect:storage-integrity": "node --experimental-strip-types scripts/storage-integrity-inspect.ts",
     "db:generate": "bash scripts/sites-env.sh -- drizzle-kit generate"
   },
   "dependencies": {

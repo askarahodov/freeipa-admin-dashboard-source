@@ -13,13 +13,16 @@ import { encryptedBackupAccess } from "./backup-encrypted-root-entry.ts";
 type StorageStatusEnv = {
   DB?: D1Database;
   CONFIG_ENCRYPTION_KEY?: string;
+  PORTAL_IDENTITY_MODE?: string;
+  PORTAL_STATIC_IDENTITY?: string;
+  PORTAL_DEFAULT_ROLE?: string;
+  PORTAL_RBAC_JSON?: string;
 };
 
 type StorageAccess = {
   role: string;
   identity: string;
   groups: string[];
-  permissions: string[];
 };
 
 type StorageStatusDependencies = {
@@ -101,7 +104,9 @@ export async function handleStorageStatusRequest(
     );
   }
 
-  const currentAccess = (dependencies.access ?? encryptedBackupAccess)(request, env);
+  const currentAccess = dependencies.access
+    ? dependencies.access(request, env)
+    : encryptedBackupAccess(request, env);
   if (currentAccess.role !== "admin") {
     return json({
       ok: false,

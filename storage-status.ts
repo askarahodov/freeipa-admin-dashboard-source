@@ -246,8 +246,8 @@ async function readLifecycle(
   try {
     const row = await query.first<{ last_backup_at?: unknown; last_restore_at?: unknown }>(`
       SELECT
-        MAX(CASE WHEN action LIKE 'backup.%' AND outcome = 'success' THEN created_at END) AS last_backup_at,
-        MAX(CASE WHEN action LIKE 'restore.%' AND outcome = 'success' THEN created_at END) AS last_restore_at
+        MAX(CASE WHEN action LIKE 'backup.%export%.completed' AND outcome = 'success' THEN created_at END) AS last_backup_at,
+        MAX(CASE WHEN action LIKE 'backup.restore.%' AND outcome = 'success' THEN created_at END) AS last_restore_at
       FROM portal_audit_events
     `);
     return {

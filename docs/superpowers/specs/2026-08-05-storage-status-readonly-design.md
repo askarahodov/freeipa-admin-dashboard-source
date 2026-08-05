@@ -17,11 +17,19 @@ The response contains only bounded, sanitized metadata:
 - canonical schema state, current/latest version, applied/pending versions, drift counts, and a safe schema error code;
 - fixed domain aggregates with expected/present table counts and total record counts;
 - AES-GCM configuration self-test state without key, hash, ciphertext, or fragments;
-- last successful backup and restore timestamps derived from append-only audit metadata;
+- last successful backup export and production restore timestamps derived from append-only audit metadata;
 - cleanup timestamp as `null` until #42 provides the lifecycle contract;
 - generation timestamp and a correlation ID.
 
 The API never returns database paths, SQL text, table names, row contents, usernames, session values, integration configuration, raw exceptions, or raw schema drift identifiers.
+
+## Runtime routing
+
+The exact storage path is delegated through schema and maintenance recovery gates before those gates inspect a possibly broken database. This does not authorize the request.
+
+`worker/local-secure-entry.ts` remains directly composed with the established settings runtime. It resolves a local session or validates the explicit service-administrator token first, constructs the existing delegated static identity, and only then invokes the storage handler. Viewer/operator sessions reach the handler with their real delegated role and receive `403` before database inspection.
+
+This placement preserves the existing settings source contracts, scheduled delegation, service-admin explicit-path model, and Docker health policy. There is no storage-specific authorization shortcut and no wildcard admin route.
 
 ## Query bounds
 
@@ -40,6 +48,8 @@ The inspector imports the canonical table registry and assigns every table to on
 It reads `sqlite_master` once, counts only present canonical tables, and executes at most one `COUNT(*)` query per canonical table. Table identifiers are never accepted from request input. Size inspection uses only `PRAGMA page_count` and `PRAGMA page_size`; unsupported pragmas produce `null` values and a safe code rather than failing the endpoint.
 
 Schema inspection calls `inspectPortalSchema` from the hardened canonical migration layer. It must never call `ensurePortalSchema`, so inspection cannot apply migrations.
+
+Lifecycle aggregation distinguishes successful backup export actions (`backup.%export%.completed`) from successful production restore actions (`backup.restore.%`). Restore commits therefore do not overwrite the last-backup timestamp.
 
 ## State calculation
 
@@ -70,7 +80,7 @@ Configuration:
 - `ADMIN_TOKEN` is read only from the environment and sent as `x-admin-token`;
 - `--timeout-ms` is bounded between 500 and 30000 milliseconds;
 - output is the exact sanitized JSON response;
-- token values, request headers, and raw response bodies from invalid content types are never printed.
+- token values, request headers, redirects, and raw response bodies from invalid content types are never printed.
 
 The token is intentionally not accepted as a command-line argument to avoid process-list exposure.
 
@@ -87,9 +97,11 @@ Behavior tests cover:
 - pending/failed/drift schema states;
 - unsupported size pragmas;
 - bounded canonical table counting and absence of request-controlled SQL;
+- separation of backup-export and production-restore audit families;
 - secret/raw error redaction;
 - admin/service-admin access and viewer/operator denial before queries;
 - audit metadata bounds;
 - route ordering before ordinary schema gates without bypassing authorization;
+- preservation of the existing settings/local-session composition;
 - CLI URL/timeout parsing, environment-only token handling, non-JSON failures, and exit codes;
 - unchanged `/health/live`, `/health/ready`, and Docker healthcheck behavior.

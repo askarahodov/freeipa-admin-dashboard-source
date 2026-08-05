@@ -1,6 +1,7 @@
 import rootRuntime from "./maintenance-mode-root-entry.ts";
 import { serviceAdminTokenAuthorized } from "../admin-session-authorization.ts";
 import { ensurePortalSchema, type PortalSchemaStatus } from "../db/portal-migrations-hardened.ts";
+import { STORAGE_STATUS_PATH } from "../storage-status-contract.ts";
 import { handleDependencyHealthRequest } from "./dependency-health.ts";
 import { handleHealthDiagnosticsRequest } from "./health-diagnostics-ui.ts";
 import { handleHealthMetricsRequest } from "./health-metrics.ts";
@@ -61,6 +62,10 @@ const worker = {
       }),
     });
     if (metricsResponse) return metricsResponse;
+
+    if (url.pathname === STORAGE_STATUS_PATH) {
+      return rootRuntime.fetch(request, sourceEnv, ctx);
+    }
 
     if (url.pathname === "/api/schema/status") {
       if (!await serviceAdminTokenAuthorized(request, sourceEnv.ADMIN_TOKEN)) return schemaAuthorizationResponse();

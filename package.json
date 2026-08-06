@@ -25,6 +25,7 @@
     "inspect:xyops": "node scripts/xyops-inspect.mjs",
     "inspect:storage": "node --experimental-strip-types scripts/storage-inspect.ts",
     "inspect:storage-integrity": "node --experimental-strip-types scripts/storage-integrity-inspect.ts",
+    "inspect:storage-migration-preflight": "node --experimental-strip-types scripts/storage-migration-preflight-inspect.ts",
     "db:generate": "bash scripts/sites-env.sh -- drizzle-kit generate"
   },
   "dependencies": {

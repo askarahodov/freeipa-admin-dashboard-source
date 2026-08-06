@@ -21,7 +21,7 @@ export type StorageMigrationApplyInput = {
   confirmation: string;
 };
 
-export tye StorageMigrationApplyContext = {
+export type StorageMigrationApplyContext = {
   correlationId: string;
   actor: { identity: string; role: string; groups: string[] };
 };

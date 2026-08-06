@@ -10,6 +10,7 @@ const [
   authorizationSource,
   dockerfileSource,
   integrityServiceSource,
+  quickCheckSource,
 ] = await Promise.all([
   readFile(new URL("../worker/local-secure-entry.ts", import.meta.url), "utf8"),
   readFile(new URL("../worker/schema-migrations-entry.ts", import.meta.url), "utf8"),
@@ -18,6 +19,7 @@ const [
   readFile(new URL("../admin-session-authorization.ts", import.meta.url), "utf8"),
   readFile(new URL("../Dockerfile", import.meta.url), "utf8"),
   readFile(new URL("../storage-integrity.ts", import.meta.url), "utf8"),
+  readFile(new URL("../storage-quick-check.ts", import.meta.url), "utf8"),
 ]);
 
 test("integrity route is dispatched only after local session and same-origin mutation boundaries", () => {
@@ -70,10 +72,12 @@ test("existing service-admin settings health and storage-status contracts remain
 
 test("integrity inspection source is fixed read-only SQL without request-controlled identifiers", () => {
   assert.equal(/request\.url|searchParams|request\.json\(/.test(integrityServiceSource), false);
-  assert.match(integrityServiceSource, /PRAGMA quick_check\(1\)/);
+  assert.match(integrityServiceSource, /inspectStorageQuickCheck/);
+  assert.match(quickCheckSource, /PRAGMA quick_check\(1\)/);
   assert.match(integrityServiceSource, /FROM sqlite_schema WHERE type = 'index'/);
+  const readOnlySource = `${integrityServiceSource}\n${quickCheckSource}`;
   assert.equal(
-    /\b(?:INSERT\s+INTO|UPDATE\s+[^\s]+\s+SET|DELETE\s+FROM|CREATE\s+(?:TABLE|INDEX|TRIGGER)|ALTER\s+TABLE|DROP\s+(?:TABLE|INDEX|TRIGGER)|REPLACE\s+INTO|REINDEX|VACUUM|ANALYZE|PRAGMA\s+optimize)\b/i.test(integrityServiceSource),
+    /\b(?:INSERT\s+INTO|UPDATE\s+[^\s]+\s+SET|DELETE\s+FROM|CREATE\s+(?:TABLE|INDEX|TRIGGER)|ALTER\s+TABLE|DROP\s+(?:TABLE|INDEX|TRIGGER)|REPLACE\s+INTO|REINDEX|VACUUM|ANALYZE|PRAGMA\s+optimize)\b/i.test(readOnlySource),
     false,
   );
 });

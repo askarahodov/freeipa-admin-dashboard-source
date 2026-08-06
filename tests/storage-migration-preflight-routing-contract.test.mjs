@@ -10,14 +10,12 @@ const [
   schemaEntrySource,
   maintenanceGateSource,
   authorizationSource,
-  integrityRoutingSource,
   preflightSource,
 ] = await Promise.all([
   readFile(new URL("../worker/local-secure-entry.ts", import.meta.url), "utf8"),
   readFile(new URL("../worker/schema-migrations-entry.ts", import.meta.url), "utf8"),
   readFile(new URL("../worker/maintenance-mode-gate.ts", import.meta.url), "utf8"),
   readFile(new URL("../admin-session-authorization.ts", import.meta.url), "utf8"),
-  readFile(new URL("./storage-integrity-routing-contract.test.mjs", import.meta.url), "utf8"),
   readFile(new URL("../storage-migration-preflight.ts", import.meta.url), "utf8"),
 ]);
 
@@ -72,7 +70,7 @@ test("existing storage integrity status health and scheduled composition remains
   assert.match(schemaEntrySource, /STORAGE_INTEGRITY_PATH/);
   assert.match(maintenanceGateSource, /STORAGE_STATUS_PATH/);
   assert.match(maintenanceGateSource, /STORAGE_INTEGRITY_PATH/);
-  assert.match(integrityRoutingSource, /secureRuntime\.scheduled/);
+  assert.match(localSecureSource, /secureRuntime\.scheduled\?\.\(controller, env, ctx\)/);
 });
 
 test("preflight evaluator remains read-only and cannot acquire the migration lock", () => {

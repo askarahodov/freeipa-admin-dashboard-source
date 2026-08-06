@@ -6,112 +6,90 @@ Branch: `agent/storage-migration-controlled-apply`
 
 ## Summary
 
-Add a server-controlled migration application workflow for canonical portal migrations. The workflow must require an active maintenance operation, a fresh recovery point, a healthy database, a valid canonical journal and schema, and an owner-scoped migration lock before any migration SQL is executed.
+Add a server-controlled workflow for applying canonical portal migrations. Mutation is allowed only while maintenance is active, after the shared migration lock is acquired and the complete safety preflight is rerun under that owner lease.
 
 This is the fourth isolated checkpoint for #44 after storage status, read-only integrity diagnostics, and read-only migration preflight.
 
-The checkpoint also changes startup migration semantics. Bootstrap migrations remain automatic, but future product migrations are explicitly marked `controlled` and can be applied only through the administrative workflow described here.
+The checkpoint also changes startup behavior: bootstrap migrations remain automatic, while future product migrations are explicitly `controlled` and cannot be applied by normal startup.
 
 ## Problem
 
-The current startup path applies every pending canonical migration. A public administrative apply endpoint would therefore be ineffective: pending migrations could already have been executed during normal startup before an operator entered maintenance mode or verified a current backup.
+The current startup path applies every pending canonical migration. Adding an administrative `/apply` route without changing startup would not enforce backup or maintenance requirements because startup could execute the migration first.
 
-The existing read-only preflight deliberately does not acquire a lock and is advisory. A controlled apply cannot trust an earlier preflight response because backup age, lock state, journal contents, and schema state can change between requests.
+The public preflight is intentionally advisory and read-only. Its result cannot authorize later mutation because journal, schema, backup age, integrity, and lock state may change between requests.
 
-The new workflow must therefore:
+The controlled workflow must therefore:
 
-- distinguish automatic bootstrap migrations from controlled product migrations;
-- prevent startup from applying controlled migrations;
-- block normal application traffic while a controlled migration is pending;
+- separate automatic bootstrap migrations from controlled product migrations;
+- stop startup before the first controlled migration;
+- block normal application traffic while controlled migrations are pending;
 - require an active maintenance controller;
-- acquire the shared lock and rerun all safety checks under that lock;
-- persist bounded operation state before and during execution;
+- acquire the shared lock and rerun safety checks under that lock;
+- persist bounded operation state and audit evidence;
 - apply only the compile-time contiguous controlled suffix;
 - fail closed after interruption or partial application;
-- support safe status and reconciliation when the original request disappears;
-- never accept SQL, migration names, checksums, lock parameters, force flags, backup bypasses, or an arbitrary target version.
+- provide status and explicit reconciliation without executing repair SQL;
+- reject arbitrary SQL, target versions, migration selection, force, and bypass controls.
 
 ## Goals
 
-1. Make future schema changes operator-controlled without breaking clean installation and bootstrap.
-2. Reuse the canonical migration registry, shared lock implementation, applied-prefix schema inspector, quick check, backup evidence, audit, and maintenance controller.
-3. Ensure every mutating decision is recomputed under an acquired owner-scoped lock.
-4. Persist enough bounded state to diagnose success, failure, and interruption without exposing SQL or internal object names.
-5. Provide strict HTTP and CLI recovery paths when the browser UI is unavailable.
-6. Keep this checkpoint independent of the future Storage Center UI.
+1. Preserve automatic clean-install bootstrap.
+2. Make future product schema upgrades operator-controlled.
+3. Reuse the canonical registry, applied-prefix inspector, quick check, backup evidence, maintenance controller, audit log, and shared lock.
+4. Ensure every mutating decision is recomputed under an owner-scoped lease.
+5. Persist enough bounded state to diagnose success, failure, and interruption without exposing migration internals.
+6. Support strict HTTP CLIs when the browser UI is unavailable.
 
 ## Non-goals
 
 - Storage Center UI;
+- a real production controlled migration version 5;
 - arbitrary SQL or uploaded migration files;
-- client-selected target versions or migration subsets;
+- client-selected targets or migration subsets;
 - destructive migrations;
 - rollback or restore execution;
 - automatic continuation after partial application;
-- background queues, asynchronous jobs, polling workers, or webhooks;
-- changing the existing backup payload format;
-- a real controlled business migration in production registry version 5;
-- automatic exit from maintenance after apply;
-- repair of invalid journals, drift, or partially applied migration objects.
+- background jobs, queues, polling workers, or webhooks;
+- automatic maintenance exit;
+- journal, drift, or schema repair.
 
-Tests may inject a controlled migration registry to exercise the engine. The production registry ends at automatic foundation migration version 4 in this checkpoint.
+Tests may inject controlled migrations to exercise the engine. Production ends at automatic foundation version 4 in this checkpoint.
 
-## Considered approaches
+## Selected architecture
 
-### A. Automatic bootstrap prefix plus controlled suffix — selected
-
-Each migration declares `mode: "automatic" | "controlled"`. Automatic migrations form one contiguous registry prefix. Startup may apply only that prefix. Once the registry contains the first controlled migration, every later migration must also be controlled.
-
-Advantages:
-
-- clean installations continue to bootstrap without operator intervention;
-- future product upgrades require explicit maintenance and backup checks;
-- startup cannot silently skip a controlled migration and apply a later automatic migration;
-- one compile-time registry remains authoritative.
-
-Cost:
-
-- schema status and gates gain an explicit pending-controlled state;
-- migration registry definitions and tests must enforce the prefix invariant.
-
-### B. Disable all automatic migration application — rejected
-
-This is safe but makes clean installation and disaster recovery depend on a separate administrative workflow before authentication and maintenance infrastructure necessarily exist.
-
-### C. Keep automatic startup application and add an apply endpoint — rejected
-
-The endpoint would be advisory rather than authoritative because startup could execute the same migrations first. Backup and maintenance requirements would not be enforceable.
-
-## Canonical migration modes
-
-Extend `PortalMigration` with a required mode:
+Each canonical migration declares:
 
 ```ts
 mode: "automatic" | "controlled";
 ```
 
-Registry rules:
+Automatic migrations form a strict contiguous prefix. Once the first controlled migration appears, every later migration must also be controlled. This prevents startup from skipping a controlled migration and applying a later automatic one.
 
-1. versions remain strictly increasing and contiguous;
-2. versions 1 through 3 are updated to `automatic` without changing their names, statements, snapshots, or checksums;
-3. version 4 is an automatic foundation migration introduced by this checkpoint;
-4. automatic migrations must form a contiguous prefix;
-5. after the first controlled migration, no automatic migration is allowed;
-6. every controlled migration must provide a deterministic snapshot;
-7. request data can never add, remove, reorder, rename, or select migrations.
+Versions 1–3 become `automatic` metadata-only updates. Their names, statements, snapshots, and checksum material do not change. Version 4 is a new automatic foundation migration that creates bounded operation state required by the controlled workflow.
 
-Changing only the new `mode` metadata must not change historical checksums. Checksum material remains version, name, and statements.
+Disabling all automatic migrations was rejected because authentication, maintenance, and operation infrastructure must exist on clean install. Keeping current automatic application was rejected because it would bypass the new safety workflow.
+
+## Registry invariants
+
+The registry must enforce:
+
+1. strictly increasing contiguous versions;
+2. an automatic prefix followed by an optional controlled suffix;
+3. no automatic migration after a controlled migration;
+4. a deterministic snapshot for every controlled migration;
+5. checksum material remains only version, name, and statements;
+6. request data cannot add, remove, reorder, rename, or select migrations.
+
+Registry invariant failure is a fixed fail-closed error and never applies SQL.
 
 ## Foundation migration version 4
 
-Version 4 creates one bounded operation-state table and its fixed index if needed.
+Version 4 creates `portal_migration_operations` with one canonical row identified by `id = "main"`.
 
-Table: `portal_migration_operations`.
+Stored fields:
 
-The table stores one canonical row with `id = "main"`:
-
-- `operation_id` — generated server-side as `migration_<uuid>`;
-- `maintenance_operation_id` — the active maintenance controller operation;
+- `operation_id`, generated server-side as `migration_<uuid>`;
+- `maintenance_operation_id`;
 - `from_version`;
 - `target_version`;
 - `total_count`;
@@ -123,79 +101,80 @@ The table stores one canonical row with `id = "main"`:
 - `completed_at`;
 - `failure_code`.
 
-No actor identity, groups, controller secret or hash, token, SQL, checksum, migration name, object name, backup metadata, raw error, stack trace, database path, or lock owner is stored.
+Stored states:
 
-Allowed states:
+- `running` — mandatory start evidence and operation row were committed atomically while the lock was owned;
+- `succeeded` — final journal, schema, quick check, operation state, and completion audit were committed successfully;
+- `failed` — deterministic failure or ambiguous post-mutation state requires operator action;
+- `interrupted` — reconciliation proved no controlled migration was journaled and no pending-owned object appeared;
+- `reconciled` — reconciliation proved the complete target is valid.
 
-- `prepared` — durable operation created before mutation;
-- `running` — start audit succeeded and the lock was acquired;
-- `succeeded` — target journal and schema verified after application;
-- `failed` — deterministic safety or execution failure requires operator action;
-- `interrupted` — an earlier `prepared` or `running` operation no longer has a valid owner lease and must be reconciled;
-- `reconciled` — reconciliation proved the target is fully applied and valid.
+`idle` is a public projection when no row exists, not a stored state.
+
+The table never stores actor identity, groups, controller secret or hash, admin token, SQL, checksums, migration names, object names, backup metadata, raw errors, database paths, request bodies, or lock owners.
 
 The single-row design bounds persistent operational state. Historical evidence remains in the append-only audit log.
 
-Version 4 is automatic because the operation table must exist before a controlled migration can be managed. It introduces no product-domain schema change.
+## Startup and schema status
 
-## Startup and schema status semantics
+Startup changes as follows:
 
-Startup continues to call the hardened schema ensure path, but that path changes as follows:
-
-1. validate the complete journal against the compile-time registry;
-2. validate the schema snapshot for the applied prefix;
-3. apply pending automatic migrations in order under the existing shared lock;
+1. validate the journal against the compile-time registry;
+2. validate the cumulative snapshot for the applied prefix;
+3. apply pending automatic migrations in order using the existing owner-scoped lock;
 4. stop before the first pending controlled migration;
-5. return a new schema state `pending` with safe code `schema_migration_pending` when controlled migrations remain;
-6. never acquire a lock solely to report a controlled pending suffix after all automatic migrations are applied.
+5. return new schema state `pending` with code `schema_migration_pending` when a controlled suffix remains;
+6. never acquire a lock merely to report that controlled migrations are pending.
 
 `PortalSchemaState` gains `pending`.
 
-For `pending` status:
+For pending state:
 
-- `currentVersion` is the last applied version;
+- `currentVersion` is the last journaled version;
 - `latestVersion` is the registry latest version;
 - `pendingVersions` contains the controlled suffix;
-- public output contains versions and fixed codes only;
-- no migration names, checksums, SQL, object names, or raw drift are returned.
+- only versions, counts, and fixed codes are public;
+- names, checksums, SQL, object names, and raw drift remain internal.
 
-Normal API traffic and scheduled work are blocked while schema state is `pending`. The following exact recovery paths remain reachable but retain their own authentication and authorization:
+The normal API and scheduled work are blocked while state is pending. Exact recovery routes remain reachable but retain their own authorization:
 
 - health and schema status;
-- storage status;
-- storage integrity;
+- storage status and integrity;
 - migration preflight;
-- maintenance control paths;
-- migration apply;
-- migration apply status;
-- migration reconcile.
+- maintenance control;
+- controlled apply;
+- apply status;
+- reconcile.
 
-Readiness reports the fixed pending code. Liveness remains unaffected.
+Readiness reports `schema_migration_pending`; liveness remains unaffected.
 
-## Maintenance requirement
+The hardened schema inspector must validate the applied-prefix snapshot when controlled migrations are pending, rather than incorrectly requiring latest controlled objects before they are applied.
 
-Controlled apply requires the existing maintenance state to be `active`.
+## Maintenance controller requirement
 
-The apply handler verifies server-side:
+Apply and reconcile require the existing maintenance state machine.
 
-- the maintenance row exists and is structurally valid;
-- state is exactly `active`;
-- request `maintenanceOperationId` matches the active row;
-- controller secret matches the stored hash using the existing constant-time verifier;
-- the maintenance operation is not expired;
-- the confirmation string matches the server-computed current and target versions.
+Server-side checks:
 
-The apply workflow never prepares, enters, verifies, exits, completes, or cancels maintenance automatically.
+- maintenance row exists and is structurally valid;
+- state is exactly `active` for apply;
+- reconcile accepts only `active` or `failed` for the same operation;
+- request maintenance operation ID matches the row;
+- controller secret passes the existing constant-time hash verifier;
+- operation is not expired;
+- confirmation matches the server-computed current and target versions.
 
-On apply failure or interruption, maintenance remains active or is moved to `failed` using a fixed failure code. It never returns to `inactive` automatically.
+The migration workflow never prepares, enters, verifies, exits, completes, or cancels maintenance automatically.
+
+After success, maintenance remains active for the existing verification and exit process. After failure or ambiguity it remains recovery-required and may be moved to the fixed `failed` state.
 
 ## Public API
 
-### Apply route
+### Apply
 
 `POST /api/admin/storage/migrations/apply`
 
-Exact request body:
+Exact body, maximum 4 KiB:
 
 ```json
 {
@@ -205,59 +184,41 @@ Exact request body:
 }
 ```
 
-The current and target versions are not separate request fields. They are computed from the journal and compile-time registry and embedded only in the exact confirmation string:
+The current and target versions are not separate fields. The server computes them from the valid journal and registry and requires:
 
 ```text
 APPLY:<maintenanceOperationId>:<currentVersion>:<latestVersion>
 ```
 
-Unknown fields, missing fields, arrays, null, malformed JSON, duplicate semantic values, and bodies over 4 KiB are rejected.
+Unknown or missing fields, arrays, null, malformed JSON, and oversized streaming bodies are rejected.
 
-The endpoint never accepts:
+The endpoint never accepts migration names, IDs, versions, arrays, SQL, object identifiers, lock settings, backup identifiers, force, bypass, dry-run, or arbitrary target fields.
 
-- migration IDs, names, versions, arrays, or target version fields;
-- SQL or object identifiers;
-- lock TTL, owner, retry, or force settings;
-- backup identifiers or bypass flags;
-- maintenance-state overrides;
-- dry-run flags;
-- arbitrary environment or header forwarding.
-
-### Apply status route
+### Status
 
 `GET /api/admin/storage/migrations/apply/status`
 
-Returns the sanitized canonical operation row:
+Returns only the sanitized canonical operation projection:
 
-```json
-{
-  "contractVersion": "1",
-  "state": "running",
-  "operationId": "migration_...",
-  "fromVersion": 4,
-  "currentVersion": 4,
-  "targetVersion": 5,
-  "appliedCount": 0,
-  "totalCount": 1,
-  "createdAt": 1786000000000,
-  "startedAt": 1786000000100,
-  "updatedAt": 1786000000100,
-  "completedAt": null,
-  "failureCode": null,
-  "recoveryRequired": true,
-  "correlationId": "cor_..."
-}
-```
+- contract version;
+- state;
+- operation ID;
+- from/current/target versions;
+- applied/total counts;
+- bounded timestamps;
+- fixed failure code;
+- recovery-required flag;
+- correlation ID.
 
-When no operation exists, return a fixed `idle` projection with null identifiers/timestamps and zero counts.
+Status is read-only. It never changes operation state, deletes a stale lock, changes maintenance, applies SQL, or performs reconciliation.
 
-Status is read-only and never deletes stale locks, modifies maintenance, or changes operation state.
+When no row exists, return fixed `idle` with null identifiers/timestamps and zero counts.
 
-### Reconcile route
+### Reconcile
 
 `POST /api/admin/storage/migrations/apply/reconcile`
 
-Exact request body:
+Exact body, maximum 4 KiB:
 
 ```json
 {
@@ -267,154 +228,211 @@ Exact request body:
 }
 ```
 
-Reconcile validates the maintenance controller, acquires the shared lock, and performs read-only journal/schema/integrity classification plus bounded operation-state updates and audit. It never executes migration SQL, deletes schema objects, repairs the journal, restores a backup, or exits maintenance.
+Reconcile verifies the maintenance controller, acquires the shared lock, classifies journal/schema/integrity state, updates the bounded operation row, and appends audit evidence. It never executes migration SQL, repairs the journal, deletes schema objects, restores data, or exits maintenance.
 
 ## Authorization and routing
 
-All routes are admin-only.
+All three routes are admin-only.
 
 Local mode:
 
-- resolve the authenticated local session first;
-- viewer, operator, anonymous, and expired sessions are rejected before request-body parsing or D1 work;
-- apply and reconcile require the existing same-origin administrative mutation boundary;
-- status GET does not require same-origin mutation validation but still requires admin authentication.
+- resolve the local session before body parsing or D1 work;
+- reject viewer, operator, anonymous, disabled, and expired sessions;
+- apply and reconcile require the existing same-origin mutation boundary;
+- status GET still requires admin authentication but not mutation-origin validation.
 
 Service administration:
 
-- require the existing constant-time `ADMIN_TOKEN` boundary on the exact paths;
+- require the existing constant-time `ADMIN_TOKEN` check on the exact paths;
 - reject missing or invalid tokens before body parsing or D1 work;
 - strip untrusted forwarded administrative headers before delegation.
 
-Schema and maintenance recovery gates may route the exact paths, but never bypass authorization.
+Schema and maintenance recovery gates route exact paths only and never bypass authorization. Near-match paths and subpaths remain rejected.
 
-Near-match paths and subpaths return the normal not-found behavior.
+## Controlled apply sequence
 
-## Controlled apply execution
-
-The implementation is synchronous within one request. No background work is promised or scheduled.
+The implementation is synchronous within one request. No work continues in the background after the request ends.
 
 Execution order:
 
 1. authorize admin and validate exact bounded body;
-2. load and verify active maintenance controller;
-3. load journal and compile-time registry;
-4. compute contiguous pending controlled suffix and exact confirmation;
-5. reject no-pending, automatic-pending, registry invariant failure, or an unreconciled prior operation;
-6. write canonical operation state `prepared`;
-7. append mandatory audit event `storage.migration.apply.started`;
-8. if the start audit fails, mark the operation `failed` with `migration_apply_audit_unavailable` and execute no migration SQL;
-9. acquire the shared migration lock with server-fixed bounded options;
-10. mark operation `running`;
-11. renew the owner lease and rerun the complete preflight under lock;
-12. the locked preflight repeats journal, applied-prefix schema, partial-future, quick-check, and qualifying-backup checks;
-13. instead of inspecting the public lock state, the locked preflight proves ownership by owner-scoped renewal;
-14. apply each pending controlled migration in registry order using compile-time statements only;
-15. after each migration, verify the journal entry and cumulative schema snapshot, update `applied_count`, update `updated_at`, and renew the lock;
-16. after the final migration, verify latest journal, latest canonical schema, and sanitized `PRAGMA quick_check(1)`;
-17. mark the operation `succeeded` and append `storage.migration.apply.completed`;
-18. release the lock by owner in `finally`;
-19. leave maintenance active for the existing verification and exit workflow.
+2. verify active maintenance controller;
+3. validate registry and journal and compute the controlled suffix and confirmation;
+4. reject no-pending, automatic-pending, invalid registry, or an unreconciled prior operation;
+5. acquire the shared migration lock with server-fixed bounded options;
+6. rerun complete preflight under the acquired owner lease;
+7. atomically write operation state `running` and mandatory audit event `storage.migration.apply.started` in one D1 batch;
+8. if that batch fails, execute no migration SQL;
+9. apply controlled migrations in registry order using compile-time statements only;
+10. for each migration, commit its journal entry, operation progress, and progress audit in the same terminal migration batch;
+11. renew the owner lease before and after every mutation stage;
+12. verify final journal, latest canonical schema, and sanitized `PRAGMA quick_check(1)`;
+13. atomically commit operation state `succeeded` and audit event `storage.migration.apply.completed` in one D1 batch;
+14. release the lock by owner in `finally`;
+15. leave maintenance active.
 
-A previous public preflight response is never accepted as proof or as a lease. The internal locked preflight shares the same decisions but receives no request-controlled override.
+There is no process-local request coalescing. Every request authenticates independently, and the shared database lock is the sole concurrency authority. Completed results are never cached.
 
-## Migration execution boundary
+## Atomic audit integration
 
-Only migrations satisfying all of these conditions are eligible:
+The current audit module inserts one sanitized audit row. Extract an internal helper that prepares the fixed audit insert statement without exposing unsanitized values.
 
-- present in the compile-time registry;
-- mode is `controlled`;
-- version belongs to the contiguous pending suffix;
-- all earlier registry versions are journaled and valid;
-- deterministic snapshot is present;
-- preflight under lock returns allow;
-- no previous unreconciled operation blocks execution.
+Use it only with server-built safe metadata so these boundaries can be atomic:
 
-The engine never evaluates request-provided SQL or identifiers.
+- operation `running` plus start audit;
+- journal entry plus progress count plus progress audit;
+- operation `succeeded` plus completion audit;
+- operation failure transition plus failure audit when the database remains writable;
+- reconciliation transition plus reconciliation audit.
 
-Each migration keeps the existing hardened execution behavior:
+A clean success state must never be committed without matching terminal audit evidence. If a post-mutation terminal batch fails, leave the operation non-terminal/recovery-required and let reconcile determine actual journal/schema state.
 
-- table statements are applied in a bounded batch;
-- owner lease is renewed before and after mutation stages;
-- table structure is verified before secondary objects;
-- secondary objects and journal entry are committed in the existing bounded batch;
-- journal checksum is calculated from compile-time material;
-- final cumulative schema inspection uses the canonical inspector.
-
-If execution stops after table creation but before the journal entry, future preflight detects partial future objects and blocks. Reconcile does not automatically continue that migration.
+If the database is unavailable and failure state cannot be persisted, return a fixed safe failure; the stale/non-terminal row and lock age provide recovery evidence later.
 
 ## Locked preflight
 
-Extract a shared internal evaluator from the read-only preflight implementation.
+Refactor the read-only preflight into a shared internal evaluator with two modes.
 
-Public preflight mode:
+Public mode:
 
 - read-only lock inspection;
-- `held` blocks;
+- held lock blocks;
 - stale lock is reported but not deleted.
 
-Controlled apply mode:
+Controlled mode:
 
-- called only after acquisition;
-- requires an opaque internal owner value supplied by the apply service, never the request;
-- verifies lease ownership using `renewPortalMigrationLock`;
-- skips the public lock inspection query;
-- otherwise executes the same journal, schema, partial-future, quick-check, and backup decisions;
-- any lease-renew failure returns fixed block `migration_apply_lock_lost` before further mutation.
+- callable only after lock acquisition;
+- receives an opaque internal owner value, never request data;
+- proves ownership using owner-scoped renewal;
+- skips public lock inspection;
+- reruns the same journal, applied-prefix schema, partial-future, quick-check, and backup decisions;
+- returns fixed `migration_apply_lock_lost` if renewal fails before mutation.
 
-No owner value is returned, audited, or stored in the operation table.
+No owner value is returned, stored, audited, or printed.
+
+A previous public preflight result is never accepted as authorization, lease, cache entry, or request input.
+
+## Eligible migrations
+
+A migration is eligible only when it is:
+
+- in the compile-time registry;
+- marked `controlled`;
+- part of the contiguous pending suffix;
+- preceded by a valid complete applied prefix;
+- backed by a deterministic snapshot;
+- allowed by locked preflight;
+- not blocked by an unreconciled prior operation.
+
+The engine never evaluates request-provided SQL or identifiers.
+
+Execution retains hardened migration behavior:
+
+- table statements use a bounded batch;
+- lease renewal surrounds mutation stages;
+- table structure is verified before secondary objects;
+- secondary objects, journal row, progress update, and progress audit use one bounded batch;
+- checksum comes from compile-time material;
+- cumulative canonical schema is inspected after each journaled migration.
+
+If interruption occurs after table creation but before journal commit, future preflight detects pending-owned objects without a journal entry. Reconcile marks restore-required and never auto-continues.
 
 ## Backup requirement
 
-The locked preflight requires the same qualifying backup as public preflight:
+Locked preflight requires the same recovery point as public preflight:
 
-- exact completed encrypted-export audit action;
-- successful outcome;
+- action exactly `backup.encrypted.export.completed`;
+- outcome `success`;
 - resource type `portal-backup`;
-- all backup domains exactly once;
+- every backup domain exactly once;
 - schema version equal to the current applied version before migration;
 - age no greater than 24 hours;
-- fixed newest-20 lookup bound.
+- newest 20 candidates maximum.
 
-A backup created for a newer, older, partial, duplicated, malformed, or unknown domain set does not qualify.
+Wrong-version, stale, partial, duplicate-domain, malformed, or unavailable evidence blocks apply.
 
-The audit record proves export generation completed. The runbook must continue to state that durable external storage is an operator responsibility.
+Audit evidence proves export generation, not durable external custody. The runbook must preserve that warning.
 
-## Audit semantics
+## Operation and concurrency rules
 
-Apply is not allowed to begin SQL mutation unless the start audit event is durably appended.
+The lock is the mutation authority.
 
-Actions:
+- concurrent apply requests cannot both acquire it;
+- a loser returns `migration_apply_busy` and does not create or overwrite an operation row;
+- renewal is required between stages;
+- owner-scoped release cannot remove another lease;
+- progress counts only journaled migrations;
+- succeeded/reconciled targets cannot be reapplied;
+- running, failed, or interrupted state requires reconciliation before replacement unless failure is proven pre-mutation and the row is atomically replaced under a new owned lock;
+- a stale confirmation cannot authorize a changed suffix because current/latest versions are recomputed after lock acquisition.
 
-- `storage.migration.apply.started`;
-- `storage.migration.apply.progress` after each successfully journaled migration;
-- `storage.migration.apply.completed`;
-- `storage.migration.apply.failed`;
-- `storage.migration.reconcile.started`;
-- `storage.migration.reconcile.completed`;
-- `storage.migration.reconcile.failed`.
+The operation row uses optimistic expected-state updates. Unexpected row state or operation ID fails closed.
 
-Safe metadata only:
+## Failure behavior
 
-- operation state;
-- from/current/target versions;
-- applied and total counts;
-- fixed preflight and failure codes;
-- bounded duration and timestamps;
-- maintenance state;
-- whether recovery is required.
+Before SQL mutation:
 
-Never audit controller secret or hash, admin token, request headers/body, SQL, migration name, checksum, lock owner, object name, raw drift, quick-check output, backup metadata, path, actor-provided free text, exception text, or stack trace.
+- invalid auth, origin, body, maintenance controller, confirmation, registry, journal, schema, integrity, backup, lock, or start-audit batch applies nothing;
+- lock is owner-released when acquired;
+- no arbitrary retry or fallback occurs.
 
-If a progress or terminal audit fails after SQL mutation, the operation is marked `failed` with `migration_apply_audit_incomplete`, maintenance remains recovery-required, and reconcile must establish the actual journal/schema result. The system never claims clean success without terminal durable evidence.
+During migration:
 
-## Safe failure codes
+- lease loss stops before the next mutation stage;
+- D1 failure returns only a fixed code;
+- progress reflects only atomic journal/progress/audit commits;
+- partial future objects force restore-required classification;
+- maintenance never exits automatically.
 
-Public errors use fixed codes only. Initial set:
+After SQL mutation:
 
-- `migration_apply_method_not_allowed`;
+- latest journal, latest schema, and quick check must pass;
+- success state and completion audit commit atomically;
+- otherwise operation remains recovery-required for reconcile.
+
+Raw D1, crypto, parsing, and exception messages are discarded.
+
+## Reconciliation outcomes
+
+Reconcile requires the same maintenance controller and an acquired lock.
+
+### Fully applied and valid
+
+Target journal entries, names/checksums, latest canonical schema, and quick check are valid.
+
+Result: atomically mark `reconciled` and append terminal reconciliation audit. Maintenance stays active for normal verification/exit.
+
+### No controlled mutation committed
+
+Journal remains at `from_version`, no pending-owned object exists, applied-prefix schema is valid, and quick check is healthy.
+
+Result: mark `interrupted`. A later apply may replace the row only under a newly acquired lock, fresh locked preflight, and fresh exact confirmation.
+
+### Partial or ambiguous mutation
+
+Any of these is restore-required:
+
+- pending-owned table/index/trigger exists without its journal entry;
+- target suffix is only partly journaled;
+- journal gap, checksum mismatch, or future version;
+- canonical schema incompatible;
+- quick check failed or unavailable after mutation.
+
+Result: atomically mark `failed` with `migration_reconcile_restore_required` and append audit. Do not continue SQL.
+
+### Lock held
+
+Another active lease returns `409 migration_reconcile_busy` and changes nothing.
+
+Status may project that a running operation has a missing or stale lease, but only reconcile may mutate the stored state.
+
+## Safe codes
+
+Initial fixed codes include:
+
 - `migration_apply_request_invalid`;
 - `migration_apply_request_too_large`;
+- `migration_apply_method_not_allowed`;
 - `migration_apply_forbidden`;
 - `migration_apply_origin_forbidden`;
 - `migration_apply_database_unavailable`;
@@ -429,112 +447,45 @@ Public errors use fixed codes only. Initial set:
 - `migration_apply_operation_conflict`;
 - `migration_apply_partial_state`;
 - `migration_apply_audit_unavailable`;
-- `migration_apply_audit_incomplete`;
 - `migration_apply_failed`;
 - `migration_reconcile_not_required`;
 - `migration_reconcile_busy`;
 - `migration_reconcile_restore_required`;
 - `migration_reconcile_failed`.
 
-Raw D1, crypto, fetch, parsing, and exception messages are discarded.
-
-## Failure behavior
-
-Before SQL mutation:
-
-- invalid auth, origin, body, maintenance controller, confirmation, journal, schema, integrity, backup, lock, registry, or audit returns a fixed failure and applies nothing;
-- operation state is absent or terminal `failed` as appropriate;
-- maintenance remains active or is marked failed;
-- no arbitrary retry is performed.
-
-During migration:
-
-- lock-renew failure stops before the next mutation stage;
-- D1 failure marks the operation failed with a fixed code;
-- operation progress reflects only journaled migrations;
-- partial future objects without a journal force restore-required classification;
-- owner-scoped release is attempted in `finally`;
-- maintenance never exits automatically.
-
-After migration SQL:
-
-- latest journal, latest schema, and quick check must all pass;
-- terminal audit must succeed before a clean `succeeded` response;
-- otherwise the operation remains recovery-required and reconcile determines actual state.
-
-## Interruption and reconciliation
-
-An operation in `prepared` or `running` is considered potentially interrupted when:
-
-- no active matching owner lease can be proven by the new request;
-- the request that created the operation is no longer running;
-- status is read-only and therefore does not mutate it automatically.
-
-Reconcile is explicit and requires the same maintenance controller.
-
-Under the acquired lock, reconcile classifies:
-
-### Fully applied and valid
-
-- target journal versions are present with valid names/checksums;
-- latest canonical schema is valid;
-- quick check is healthy;
-- no unexpected future version exists.
-
-Result: mark `reconciled`, set completed timestamp, append terminal audit, keep maintenance active for normal verification/exit.
-
-### No controlled migration applied
-
-- journal remains at `from_version`;
-- no pending-owned objects exist;
-- applied-prefix schema and quick check are healthy.
-
-Result: mark `interrupted`; a new apply may replace the state only after a fresh locked preflight and explicit confirmation.
-
-### Partial or ambiguous mutation
-
-- pending-owned objects exist without matching journal;
-- journal is a gap, checksum mismatch, future version, or target is only partly journaled;
-- canonical schema is incompatible;
-- quick check fails or is unavailable after mutation.
-
-Result: mark `failed` with `migration_reconcile_restore_required`; keep maintenance failed/recovery-required; do not execute or continue migration SQL.
-
-### Lock held
-
-If another active owner holds the lock, return `409 migration_reconcile_busy` and do not modify operation state.
+No raw internal message is public or audited.
 
 ## HTTP semantics
 
 Apply:
 
-- `200` — controlled suffix applied and terminally verified;
-- `400` — malformed or non-exact body;
-- `401`/`403` — existing authentication/authorization and origin semantics;
-- `405` — method not allowed with `Allow: POST`;
-- `409` — maintenance/controller/operation/lock conflict or no pending controlled migration;
-- `413` — body too large;
-- `422` — confirmation mismatch or deterministic preflight block;
-- `503` — database, audit, or required safety dependency unavailable;
-- `500` — fixed unexpected apply failure after safe normalization.
+- `200` successful verified apply;
+- `400` malformed/non-exact body;
+- `401/403` authentication, authorization, or same-origin failure;
+- `405` with `Allow: POST`;
+- `409` maintenance/controller/operation/lock conflict or no pending migration;
+- `413` oversized body;
+- `422` confirmation mismatch or deterministic preflight block;
+- `503` database, audit, or required safety dependency unavailable;
+- `500` normalized unexpected post-boundary failure.
 
 Status:
 
-- `200` — exact sanitized status or idle projection;
-- `401`/`403` — authorization failure;
-- `405` — method not allowed with `Allow: GET`;
-- `503` — operation state unavailable.
+- `200` sanitized operation or idle projection;
+- `401/403` authorization failure;
+- `405` with `Allow: GET`;
+- `503` operation state unavailable.
 
 Reconcile:
 
-- `200` — reconciled, interrupted-without-mutation, or restore-required classification completed;
-- `400`, `401`, `403`, `405`, `409`, `413`, `503` — equivalent fixed boundary failures.
+- `200` reconciliation classification committed;
+- equivalent fixed `400/401/403/405/409/413/503` boundary failures.
 
-All responses use `Cache-Control: no-store`. Successful and normalized failure responses include correlation ID where an audit context exists.
+All responses use `Cache-Control: no-store`. Correlation ID is included whenever an audit context exists.
 
 ## CLI
 
-Add strict HTTP CLIs that reuse the public API:
+Add strict HTTP commands:
 
 ```bash
 PORTAL_URL=https://portal.example \
@@ -545,176 +496,146 @@ MIGRATION_APPLY_CONFIRMATION='APPLY:maintenance_...:4:5' \
 npm run apply:storage-migrations
 ```
 
-Additional commands:
+Also add:
 
 - `npm run inspect:storage-migration-apply-status`;
-- `npm run reconcile:storage-migrations` with `MIGRATION_RECONCILE_CONFIRMATION`.
+- `npm run reconcile:storage-migrations` using `MIGRATION_RECONCILE_CONFIRMATION`.
 
-CLI requirements:
+Requirements:
 
-- secrets only from environment variables;
-- reject token, cookie, authorization, controller-secret, password, and header CLI arguments;
-- root-origin `PORTAL_URL` only, without path, query, fragment, or credentials;
-- timeout bounded to 500–30000 ms;
+- secrets from environment only;
+- reject token, cookie, authorization, secret, password, and header CLI arguments;
+- root-origin `PORTAL_URL` only, without credentials/path/query/fragment;
+- timeout 500–30000 ms;
 - redirects disabled;
-- exact media type and response-contract validation;
+- exact media type and response validation;
 - print only validated sanitized JSON;
-- never print URL, token, controller secret, raw response body, redirect location, headers, exception text, SQL, migration names, checksums, or object identifiers.
+- never print URL, token, controller secret, raw body, redirect location, headers, exception text, SQL, migration names, checksums, or object names.
 
 Exit codes:
 
-- `0` — successful apply/reconcile or valid idle/succeeded status;
-- `2` — safe operational block, failed/interrupted/restore-required status, or normalized unavailable response;
-- `3` — authentication/authorization failure;
-- `4` — network or timeout failure;
-- `5` — arguments, URL, redirect, media type, response-contract, or unsafe-payload failure.
+- `0` successful apply/reconcile or valid idle/succeeded status;
+- `2` safe operational block, failed/interrupted/restore-required status, or normalized unavailable response;
+- `3` authentication/authorization failure;
+- `4` network/timeout failure;
+- `5` arguments, URL, redirect, media type, response-contract, or unsafe-payload failure.
 
-## Query and cardinality bounds
+## Bounds
 
-- registry is compile-time and bounded;
-- journal queries are bounded by registry length plus one overflow detector;
-- schema inventory is bounded by the existing 1001-row overflow detector;
-- quick check executes at most once per preflight stage and once after final apply;
-- backup evidence examines at most 20 candidates;
-- lock inspection/acquisition uses one canonical row and existing retry bounds;
-- operation state uses one canonical row;
-- request body is at most 4 KiB;
-- response cardinality is fixed;
-- one process-local in-flight apply per D1 binding coalesces duplicate identical execution attempts, but completed results are never cached;
-- no request-controlled query, identifier, pragma, limit, migration set, retry count, lock TTL, or target version.
-
-## Concurrency and idempotency
-
-The migration lock is the mutation authority.
-
-- concurrent apply requests cannot both acquire the lock;
-- a request that loses the race returns `migration_apply_busy` and cannot execute SQL;
-- owner-scoped renewal is required between stages;
-- owner-scoped release cannot remove another request's lease;
-- the operation row records only journaled progress;
-- a repeated request after `succeeded` returns not-required/conflict and does not reapply migrations;
-- a repeated request after `prepared`, `running`, `failed`, or `interrupted` requires reconcile before a new operation can replace state;
-- confirmation is recomputed from current journal and latest registry, so a stale confirmation cannot authorize a changed migration suffix.
+- compile-time registry only;
+- journal bounded by registry length plus one overflow row;
+- schema inventory bounded by the existing 1001-row detector;
+- at most one locked preflight and one final quick check;
+- at most 20 backup candidates;
+- one lock row with existing retry/TTL bounds;
+- one operation row;
+- 4 KiB request bodies;
+- fixed response cardinality;
+- no request-controlled query, identifier, pragma, limit, retry count, lock TTL, migration set, or target version;
+- no request coalescing and no completed-result cache.
 
 ## Testing strategy
 
-### Registry and startup tests
+### Registry/startup
 
-- historical checksums unchanged after mode metadata;
-- automatic prefix invariant;
+- historical checksums unchanged;
+- automatic-prefix invariant;
 - controlled migration without snapshot rejected;
-- clean install applies versions 1–4 automatically;
-- startup applies pending automatic migrations but stops before controlled suffix;
-- state is `pending` with fixed code;
-- startup never executes controlled statements;
-- normal API and scheduled gates block pending state;
-- recovery allowlists remain exact and authorized.
+- clean install applies versions 1–4;
+- startup stops before injected controlled suffix;
+- controlled statements never run at startup;
+- pending state and exact recovery gates;
+- readiness pending, liveness unchanged.
 
-### Operation repository tests
+### Operation/audit repository
 
-- version 4 schema exactness;
-- one canonical row;
-- exact state transitions and optimistic expected-state updates;
-- counts and timestamps bounded;
-- invalid stored rows fail closed;
-- secrets, SQL, checksums, names, object identifiers, actor identity, and raw errors are not stored.
+- exact v4 schema and one-row bound;
+- optimistic state transitions;
+- invalid rows fail closed;
+- sanitized prepared audit statement;
+- atomic running/start audit;
+- atomic journal/progress/audit;
+- atomic success/completion audit;
+- forbidden data never stored.
 
-### Apply service tests
+### Apply service
 
 - no pending controlled migration;
-- successful injected controlled migration;
-- multiple contiguous controlled migrations;
-- automatic migration in controlled suffix rejected;
-- maintenance inactive, wrong operation, expired controller, wrong secret, and wrong confirmation;
-- mandatory start audit failure executes no SQL;
-- lock busy, stale reclaim, exactly-at-TTL, renewal loss, owner-scoped release;
-- locked preflight reruns journal/schema/integrity/backup;
-- public preflight result is never accepted as authorization;
-- backup becomes stale or disappears between public preflight and apply;
-- journal or schema changes before acquisition;
-- progress persisted only after journal entry;
-- final schema, journal, quick check, and terminal audit validation;
-- raw errors and internal identifiers redacted;
-- no request-controlled SQL or target selection;
-- process-local single-flight and no completed cache.
+- one and multiple injected controlled migrations;
+- registry invariant failures;
+- inactive/wrong/expired maintenance controller;
+- wrong secret and stale confirmation;
+- lock busy, stale reclaim, exact TTL, lease loss, owner release;
+- locked preflight reruns every safety check;
+- public preflight cannot authorize apply;
+- backup changes between requests;
+- journal/schema changes before lock;
+- final journal/schema/quick-check verification;
+- no request-controlled SQL or target;
+- no coalescing/cache.
 
-### Failure-injection tests
+### Failure injection
 
 - failure before table batch;
-- failure after table batch but before secondary/journal batch;
-- failure after journal but before progress update;
-- failure after final verification but before terminal audit;
-- process interruption represented by persisted `running` state and expired/stale lease;
-- partial future table/index/trigger forces restore-required reconcile;
-- journal gap/checksum/future version forces restore-required reconcile;
-- fully applied target reconciles successfully;
-- no mutation reconciles to interrupted and permits a later fresh apply;
+- failure after table batch before journal batch;
+- failure during atomic journal/progress/audit batch;
+- failure after final verification before terminal batch;
+- stale running operation;
+- partial table/index/trigger;
+- journal gap/checksum/future version;
+- fully valid target reconciliation;
+- no-mutation interruption;
 - reconcile never executes migration SQL.
 
-### API and routing tests
+### API/routing
 
-- exact paths and methods;
-- strict body keys and 4 KiB streaming bound;
-- viewer/operator/anonymous rejected before body and D1;
-- local same-origin mutation enforced before body and D1;
-- service token exact boundary before body and D1;
-- status remains read-only;
-- schema-pending and maintenance gates route exact recovery paths;
-- near-match subpaths rejected;
-- fixed status/code mappings, no-store, correlation ID, and safe audit.
+- exact paths/methods;
+- exact keys and streaming size bound;
+- viewer/operator/anonymous denied before body/D1;
+- local same-origin before body/D1;
+- service token before body/D1;
+- status read-only;
+- schema-pending and maintenance recovery routing;
+- near-match rejection;
+- fixed codes, no-store, correlation ID, redacted audit.
 
-### CLI tests
+### CLI/full regression
 
-- environment-only secrets;
-- exact URL, timeout, redirect, method, headers, and body;
-- strict response validation;
-- fixed exit codes;
-- no raw-body, URL, token, controller-secret, header, SQL, name, checksum, or exception leakage.
-
-### Full regression
-
-- lint;
-- production build;
+- environment-only secrets and exact HTTP protocol;
+- strict contract/exit-code/redaction tests;
+- lint and production build;
 - complete server suite;
-- per-file test matrix;
-- Auth E2E including Chromium authentication scenarios;
-- existing storage status, integrity, preflight, backup, maintenance, schema, health, and recovery tests.
+- per-file matrix;
+- Auth E2E including Chromium scenarios;
+- existing storage, backup, maintenance, schema, health, and recovery regressions.
 
 ## Documentation
 
-Update:
+Update storage operations, migration preflight, maintenance workflow, CLI examples, startup semantics, recovery matrix, roadmap, and issue #44 evidence.
 
-- storage operations runbook;
-- migration preflight runbook;
-- maintenance workflow documentation;
-- CLI examples and exit codes;
-- schema/startup behavior;
-- recovery matrix;
-- roadmap and issue #44 checkpoint evidence.
+Runbooks must state:
 
-The runbook must explicitly state:
-
-- preflight is advisory;
+- public preflight is advisory;
 - apply reruns checks under lock;
 - maintenance remains active after success;
-- terminal audit failure requires reconcile;
-- partial or ambiguous application requires restore rather than automatic continuation;
+- success and terminal audit are atomic;
+- partial/ambiguous application requires restore, not auto-continuation;
 - backup audit proves export generation, not durable external custody;
 - no force or bypass path exists.
 
-## Checkpoint completion criteria
+## Completion criteria
 
 The checkpoint is complete when:
 
 1. migration modes and automatic-prefix invariant are enforced;
-2. production versions 1–4 bootstrap automatically and no production controlled v5 is added;
-3. startup stops before injected/future controlled migrations and returns pending state;
-4. controlled apply requires active maintenance, exact confirmation, mandatory start audit, shared lock, and locked preflight;
-5. operation progress is durable and bounded;
-6. apply cannot execute request-controlled SQL or target selection;
+2. production versions 1–4 bootstrap automatically and no production controlled v5 is introduced;
+3. startup stops before controlled migrations and returns pending;
+4. apply requires maintenance, exact confirmation, lock, and locked preflight;
+5. operation progress and required audit evidence are atomic and bounded;
+6. request-controlled SQL/target selection is impossible;
 7. interruption and partial application fail closed;
 8. reconcile classifies but never applies or repairs SQL;
 9. routes and CLIs are strict and redacted;
 10. operations documentation is updated;
-11. exact-head CI, full server suite, matrix, and Auth E2E are green;
-12. the focused PR is reviewed and merged while issue #44 remains open for the Storage Center UI and any later real controlled migration.
+11. exact-head CI, full suite, matrix, and Auth E2E are green;
+12. the focused PR is reviewed and merged while #44 remains open for the Storage Center UI and future real controlled migrations.

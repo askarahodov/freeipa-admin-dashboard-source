@@ -157,6 +157,16 @@ Contract version: `1`.
 
 `allow` is advisory. It is not an authorization token, lock lease, or guarantee that a later apply will succeed. Future controlled apply must rerun all checks under the migration lock.
 
+### No-pending behavior
+
+After a valid journal and applied-prefix schema inspection finds zero pending migrations, the evaluator returns `not_required` without executing quick check, backup lookup, or lock lookup. Their fixed response states are:
+
+- integrity: `not_required` / `migration_quick_check_not_required`;
+- backup: `not_required` / `migration_backup_not_required`, with `ageMs: null` and the fixed maximum age;
+- lock: `not_required` / `migration_lock_not_required`, with `blocking: false`, `ageMs: null`, and the shared TTL.
+
+This keeps the response shape exact while avoiding unnecessary database work when there is nothing to apply.
+
 ## Schema and journal preflight
 
 ### Registry source
@@ -257,7 +267,8 @@ States:
 - `available`: no row exists;
 - `held`: age is within TTL and blocks apply;
 - `stale`: age exceeds TTL, does not block, and indicates the future apply may atomically reclaim it;
-- `unavailable`: the lock state cannot be read and blocks apply.
+- `unavailable`: the lock state cannot be read and blocks apply;
+- `not_required`: no migrations are pending, so the lock is not queried.
 
 Preflight never deletes a stale row. Only the existing/future acquisition path may reclaim it atomically.
 
@@ -326,9 +337,9 @@ Exit codes:
 
 - journal rows bounded by compile-time registry length plus one overflow detector;
 - schema-object inventory bounded to canonical and pending-owned object classes;
-- one sanitized quick check;
+- zero or one sanitized quick check;
 - at most 20 backup audit candidates;
-- one lock row;
+- zero or one lock row;
 - fixed response cardinality;
 - no request-controlled SQL, identifiers, filters, limits, pragmas, versions, or migration selection;
 - process-local single-flight only; no completed-result cache because lock and backup age are time-sensitive.
@@ -353,6 +364,7 @@ A safety block is a valid diagnostic result and therefore uses HTTP 200; automat
 - journal gap/future version/checksum mismatch: blocked;
 - applied-schema drift: blocked;
 - future objects without journal: blocked as partial apply;
+- no pending migrations: valid `not_required`; quick check, backup, and lock queries are skipped;
 - quick check failure/unsupported: blocked;
 - missing/stale/wrong-version/partial backup: blocked;
 - active lock: blocked;
@@ -365,7 +377,7 @@ A safety block is a valid diagnostic result and therefore uses HTTP 200; automat
 ### Pure/service tests
 
 - valid applied prefix with one pending migration;
-- no pending migrations;
+- no pending migrations and proof that quick check/backup/lock queries are skipped;
 - journal gap, future version, unknown version, checksum/name mismatch, duplicate/malformed rows;
 - applied-prefix snapshot validation;
 - expected pending objects absent without false drift;

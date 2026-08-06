@@ -7,42 +7,13 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  adopt-shared-migration-lock:
-    if: github.event_name == 'pull_request' && github.head_ref == 'agent/storage-migration-preflight-readonly'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout source branch
-        uses: actions/checkout@v4
-        with:
-          ref: agent/storage-migration-preflight-readonly
-          fetch-depth: 0
-          show-progress: false
-
-      - name: Apply exact source transformation
-        run: node scripts/apply-portal-migration-lock-refactor.mjs
-
-      - name: Restore workflow and commit refactor
-        shell: bash
-        run: |
-          set -euo pipefail
-          git diff --check
-          git show HEAD^:.github/workflows/ci.yml > .github/workflows/ci.yml
-          git rm scripts/apply-portal-migration-lock-refactor.mjs
-          git rm .github/workflows/apply-portal-migration-lock-refactor.yml
-          git add db/portal-migrations.ts .github/workflows/ci.yml
-          git diff --cached --check
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "refactor: adopt shared portal migration lock"
-          git push origin "HEAD:${{ github.head_ref }}"
-
   discover-tests:
     runs-on: ubuntu-latest
     outputs:

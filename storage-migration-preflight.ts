@@ -156,9 +156,11 @@ function snapshotSchema(migrations: readonly PortalMigration[]): PortalSchemaSna
 async function schemaObjects(env: MigrationEnv): Promise<SchemaObjectRow[]> {
   if (!env.DB) throw new Error("database unavailable");
   const result = await env.DB.prepare(
-    "SELECT name, type, tbl_name, sql FROM sqlite_master WHERE type IN ('table','index','trigger') AND name NOT LIKE 'sqlite_%' ORDER BY name",
+    "SELECT name, type, tbl_name, sql FROM sqlite_master WHERE type IN ('table','index','trigger') AND name NOT LIKE 'sqlite_%' ORDER BY name LIMIT 1001",
   ).all<SchemaObjectRow>();
-  return result.results ?? [];
+  const results = result.results ?? [];
+  if (results.length > 1000) throw new Error("schema inventory overflow");
+  return results;
 }
 
 async function defaultInspectAppliedSchema(
@@ -169,6 +171,7 @@ async function defaultInspectAppliedSchema(
   if (!snapshot) return { state: "incompatible", code: "migration_registry_snapshot_required" };
   if (!env.DB) return { state: "unavailable", code: "migration_schema_unavailable" };
   try {
+    await schemaObjects(env);
     const drift = await inspectPortalSchemaSnapshot(env.DB, snapshot);
     return drift.incompatible.length
       ? { state: "incompatible", code: "migration_schema_incompatible" }

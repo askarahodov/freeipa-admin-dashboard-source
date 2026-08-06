@@ -86,13 +86,40 @@ function plainEmptyObject(value: unknown): boolean {
     && Object.keys(value as Record<string, unknown>).length === 0;
 }
 
-async function validateBody(request: Request): Promise<"ok" | "invalid" | "too_large"> {
+async function boundedBodyText(request: Request): Promise<{ state: "ok"; text: string } | { state: "invalid" | "too_large" }> {
   const declared = Number(request.headers.get("content-length") ?? 0);
-  if (Number.isFinite(declared) && declared > MAX_REQUEST_BYTES) return "too_large";
-  const text = await request.text();
-  if (new TextEncoder().encode(text).byteLength > MAX_REQUEST_BYTES) return "too_large";
+  if (Number.isFinite(declared) && declared > MAX_REQUEST_BYTES) return { state: "too_large" };
+  if (!request.body) return { state: "invalid" };
+
+  const reader = request.body.getReader();
+  const decoder = new TextDecoder();
+  let bytes = 0;
+  let text = "";
   try {
-    return plainEmptyObject(JSON.parse(text)) ? "ok" : "invalid";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > MAX_REQUEST_BYTES) {
+        await reader.cancel().catch(() => {});
+        return { state: "too_large" };
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+    text += decoder.decode();
+    return { state: "ok", text };
+  } catch {
+    return { state: "invalid" };
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+async function validateBody(request: Request): Promise<"ok" | "invalid" | "too_large"> {
+  const body = await boundedBodyText(request);
+  if (body.state !== "ok") return body.state;
+  try {
+    return plainEmptyObject(JSON.parse(body.text)) ? "ok" : "invalid";
   } catch {
     return "invalid";
   }

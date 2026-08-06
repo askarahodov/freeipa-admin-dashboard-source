@@ -68,7 +68,8 @@ test("migration preflight path is exact in admin and recovery allowlists", () =>
 test("existing storage integrity status health and scheduled composition remains unchanged", () => {
   assert.match(localSecureSource, /handleStorageIntegrityRequest\(delegatedRequest, delegated\)/);
   assert.match(localSecureSource, /handleStorageStatusRequest\(delegatedRequest, delegated\)/);
-  assert.match(schemaEntrySource, /STORAGE_STATUS_PATH \|\| url\.pathname === STORAGE_INTEGRITY_PATH/);
+  assert.match(schemaEntrySource, /STORAGE_STATUS_PATH/);
+  assert.match(schemaEntrySource, /STORAGE_INTEGRITY_PATH/);
   assert.match(maintenanceGateSource, /STORAGE_STATUS_PATH/);
   assert.match(maintenanceGateSource, /STORAGE_INTEGRITY_PATH/);
   assert.match(integrityRoutingSource, /secureRuntime\.scheduled/);

@@ -2,11 +2,11 @@ import {
   inspectPortalSchemaSnapshot,
   type PortalMigration,
   type PortalSchemaSnapshot,
-  type PortalSchemaStatus,
 } from "./portal-migrations.ts";
 import {
   ensurePortalSchemaWithManagedRegistry,
   inspectPortalSchemaWithManagedRegistry,
+  type ManagedPortalSchemaStatus,
 } from "./portal-controlled-migrations.ts";
 import {
   portalMigrationOperationsTable,
@@ -72,9 +72,9 @@ export function cumulativePortalMigrationSnapshot(registry: readonly ManagedPort
 }
 
 function incompatible(
-  status: PortalSchemaStatus,
+  status: ManagedPortalSchemaStatus,
   drift: { compatible: string[]; incompatible: string[] },
-): PortalSchemaStatus {
+): ManagedPortalSchemaStatus {
   return {
     ...status,
     state: "incompatible",
@@ -86,8 +86,8 @@ function incompatible(
 
 async function verifyV4Schema(
   env: MigrationEnv,
-  status: PortalSchemaStatus,
-): Promise<PortalSchemaStatus> {
+  status: ManagedPortalSchemaStatus,
+): Promise<ManagedPortalSchemaStatus> {
   if ((status.state !== "ready" && status.state !== "pending") || !env.DB) return status;
   const applied = new Set(status.appliedVersions);
   const snapshot = cumulativePortalMigrationSnapshot(portalMigrationsV4.filter((migration) => applied.has(migration.version)));
@@ -105,13 +105,13 @@ async function verifyV4Schema(
 export async function inspectPortalSchemaV4(
   env: MigrationEnv,
   options: MigrationOptions = {},
-): Promise<PortalSchemaStatus> {
+): Promise<ManagedPortalSchemaStatus> {
   return verifyV4Schema(env, await inspectPortalSchemaWithManagedRegistry(env, portalMigrationsV4, options));
 }
 
 export async function ensurePortalSchemaV4(
   env: MigrationEnv,
   options: MigrationOptions = {},
-): Promise<PortalSchemaStatus> {
+): Promise<ManagedPortalSchemaStatus> {
   return verifyV4Schema(env, await ensurePortalSchemaWithManagedRegistry(env, portalMigrationsV4, options));
 }

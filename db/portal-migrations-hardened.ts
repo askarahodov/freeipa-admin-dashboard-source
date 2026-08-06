@@ -3,7 +3,7 @@ import {
   inspectPortalSchemaV4 as inspectBasePortalSchema,
   portalMigrationsV4 as portalMigrations,
 } from "./portal-migrations-v4.ts";
-import type { PortalSchemaStatus } from "./portal-migrations.ts";
+import type { ManagedPortalSchemaStatus as PortalSchemaStatus } from "./portal-controlled-migrations.ts";
 import { portalMaintenanceStateTable } from "./portal-maintenance-schema.ts";
 import { portalMigrationOperationsTable } from "./portal-migration-v4.ts";
 import { portalRestoreStageTable } from "./portal-restore-stage-schema.ts";
@@ -198,4 +198,7 @@ export async function inspectPortalSchema(env: MigrationEnv): Promise<PortalSche
   return hardenReadyStatus(env, await inspectBasePortalSchema(env));
 }
 
-export type { PortalSchemaStatus } from "./portal-migrations.ts";
+export type {
+  ManagedPortalSchemaState as PortalSchemaState,
+  ManagedPortalSchemaStatus as PortalSchemaStatus,
+} from "./portal-controlled-migrations.ts";

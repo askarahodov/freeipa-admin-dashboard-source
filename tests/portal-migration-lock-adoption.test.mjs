@@ -6,7 +6,7 @@ const source = await readFile(new URL("../db/portal-migrations.ts", import.meta.
 
 test("startup migration uses only the shared portal migration lock implementation", () => {
   const sharedLockImport = source.match(
-    /import\s*\{([\s\S]*?)\}\s*from ["']\.\/portal-migration-lock\.ts["']/,
+    /import\s*\{([^}]*)\}\s*from ["']\.\/portal-migration-lock\.ts["']/,
   );
   assert.ok(sharedLockImport);
   assert.deepEqual(

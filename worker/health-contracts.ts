@@ -216,7 +216,13 @@ async function readinessResponse(
   if (schema.state !== "ready") {
     return readinessFailure(env, "health_schema_unready", [
       databaseReady,
-      { name: "schema", state: "unready", code: "schema_unready" },
+      {
+        name: "schema",
+        state: "unready",
+        code: schema.state === "pending" && schema.errorCode === "schema_migration_pending"
+          ? "schema_migration_pending"
+          : "schema_unready",
+      },
     ], schema);
   }
 

@@ -1,11 +1,13 @@
 import {
-  ensurePortalSchemaWithRegistry,
   inspectPortalSchemaSnapshot,
-  inspectPortalSchemaWithRegistry,
   type PortalMigration,
   type PortalSchemaSnapshot,
   type PortalSchemaStatus,
 } from "./portal-migrations.ts";
+import {
+  ensurePortalSchemaWithManagedRegistry,
+  inspectPortalSchemaWithManagedRegistry,
+} from "./portal-controlled-migrations.ts";
 import {
   portalMigrationOperationsTable,
   portalMigrationV4SecondaryStatements,
@@ -20,7 +22,7 @@ import {
 } from "./portal-migration-registry.ts";
 
 type MigrationEnv = { DB?: D1Database };
-type MigrationOptions = Parameters<typeof ensurePortalSchemaWithRegistry>[2];
+type MigrationOptions = Parameters<typeof ensurePortalSchemaWithManagedRegistry>[2];
 
 async function checksum(
   version: number,
@@ -53,7 +55,7 @@ export const portalMigrationsV4 = Object.freeze([
 
 validatePortalMigrationRegistry(portalMigrationsV4);
 
-function cumulativeSnapshot(registry: readonly ManagedPortalMigration[]): PortalSchemaSnapshot {
+export function cumulativePortalMigrationSnapshot(registry: readonly ManagedPortalMigration[]): PortalSchemaSnapshot {
   const tables = new Map<string, PortalSchemaSnapshot["tables"][number]>();
   const indexes = new Map<string, PortalSchemaSnapshot["indexes"][number]>();
   const triggers = new Map<string, PortalSchemaSnapshot["triggers"][number]>();
@@ -68,8 +70,6 @@ function cumulativeSnapshot(registry: readonly ManagedPortalMigration[]): Portal
     triggers: [...triggers.values()],
   };
 }
-
-const v4Snapshot = cumulativeSnapshot(portalMigrationsV4);
 
 function incompatible(
   status: PortalSchemaStatus,
@@ -88,9 +88,12 @@ async function verifyV4Schema(
   env: MigrationEnv,
   status: PortalSchemaStatus,
 ): Promise<PortalSchemaStatus> {
-  if (status.state !== "ready" || !env.DB) return status;
+  if ((status.state !== "ready" && status.state !== "pending") || !env.DB) return status;
+  const applied = new Set(status.appliedVersions);
+  const snapshot = cumulativePortalMigrationSnapshot(portalMigrationsV4.filter((migration) => applied.has(migration.version)));
+  if (!snapshot.tables.length && !snapshot.indexes.length && !snapshot.triggers.length) return status;
   try {
-    const drift = await inspectPortalSchemaSnapshot(env.DB, v4Snapshot);
+    const drift = await inspectPortalSchemaSnapshot(env.DB, snapshot);
     return drift.incompatible.length
       ? incompatible(status, drift)
       : { ...status, compatibleDrift: drift.compatible };
@@ -103,12 +106,12 @@ export async function inspectPortalSchemaV4(
   env: MigrationEnv,
   options: MigrationOptions = {},
 ): Promise<PortalSchemaStatus> {
-  return verifyV4Schema(env, await inspectPortalSchemaWithRegistry(env, portalMigrationsV4, options));
+  return verifyV4Schema(env, await inspectPortalSchemaWithManagedRegistry(env, portalMigrationsV4, options));
 }
 
 export async function ensurePortalSchemaV4(
   env: MigrationEnv,
   options: MigrationOptions = {},
 ): Promise<PortalSchemaStatus> {
-  return verifyV4Schema(env, await ensurePortalSchemaWithRegistry(env, portalMigrationsV4, options));
+  return verifyV4Schema(env, await ensurePortalSchemaWithManagedRegistry(env, portalMigrationsV4, options));
 }

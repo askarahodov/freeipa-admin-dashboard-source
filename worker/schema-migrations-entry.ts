@@ -3,6 +3,11 @@ import { serviceAdminTokenAuthorized } from "../admin-session-authorization.ts";
 import { ensurePortalSchema, type PortalSchemaStatus } from "../db/portal-migrations-hardened.ts";
 import { STORAGE_INTEGRITY_PATH } from "../storage-integrity-contract.ts";
 import { STORAGE_MIGRATION_PREFLIGHT_PATH } from "../storage-migration-preflight-contract.ts";
+import {
+  STORAGE_MIGRATION_APPLY_PATH,
+  STORAGE_MIGRATION_APPLY_STATUS_PATH,
+  STORAGE_MIGRATION_RECONCILE_PATH,
+} from "../storage-migration-apply-contract.ts";
 import { STORAGE_STATUS_PATH } from "../storage-status-contract.ts";
 import { handleDependencyHealthRequest } from "./dependency-health.ts";
 import { handleHealthDiagnosticsRequest } from "./health-diagnostics-ui.ts";
@@ -69,6 +74,9 @@ const worker = {
       url.pathname === STORAGE_STATUS_PATH
       || url.pathname === STORAGE_INTEGRITY_PATH
       || url.pathname === STORAGE_MIGRATION_PREFLIGHT_PATH
+      || url.pathname === STORAGE_MIGRATION_APPLY_PATH
+      || url.pathname === STORAGE_MIGRATION_APPLY_STATUS_PATH
+      || url.pathname === STORAGE_MIGRATION_RECONCILE_PATH
     ) {
       return rootRuntime.fetch(request, sourceEnv, ctx);
     }

@@ -8,6 +8,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const schemaPath = path.join(root, "db", "portal-schema.ts");
 const restoreStageSchemaPath = path.join(root, "db", "portal-restore-stage-schema.ts");
 const maintenanceSchemaPath = path.join(root, "db", "portal-maintenance-schema.ts");
+const controlledFoundationSchemaPath = path.join(root, "db", "portal-migration-v4.ts");
 
 function sourceFiles(directory) {
   const result = [];
@@ -34,19 +35,23 @@ test("canonical schema inventories exist before runtime DDL can be adopted", asy
   assert.equal(fs.existsSync(schemaPath), true, "db/portal-schema.ts must define immutable migration v1 inventory");
   assert.equal(fs.existsSync(restoreStageSchemaPath), true, "migration v2 must define explicit restore-stage inventory");
   assert.equal(fs.existsSync(maintenanceSchemaPath), true, "migration v3 must define explicit maintenance inventory");
-  const [schema, restoreStageSchema, maintenanceSchema] = await Promise.all([
+  assert.equal(fs.existsSync(controlledFoundationSchemaPath), true, "migration v4 must define explicit controlled-apply inventory");
+  const [schema, restoreStageSchema, maintenanceSchema, controlledFoundationSchema] = await Promise.all([
     import(pathToFileURL(schemaPath).href),
     import(pathToFileURL(restoreStageSchemaPath).href),
     import(pathToFileURL(maintenanceSchemaPath).href),
+    import(pathToFileURL(controlledFoundationSchemaPath).href),
   ]);
   assert.ok(schema.portalSchemaTableNames instanceof Set);
   assert.equal(typeof restoreStageSchema.portalRestoreStageTable?.name, "string");
   assert.equal(typeof maintenanceSchema.portalMaintenanceStateTable?.name, "string");
+  assert.equal(typeof controlledFoundationSchema.portalMigrationOperationsTable?.name, "string");
 
   const canonicalTableNames = new Set([
     ...schema.portalSchemaTableNames,
     restoreStageSchema.portalRestoreStageTable.name,
     maintenanceSchema.portalMaintenanceStateTable.name,
+    controlledFoundationSchema.portalMigrationOperationsTable.name,
   ]);
   const missing = runtimeTableNames().filter((name) => !canonicalTableNames.has(name));
   assert.deepEqual(missing, [], `runtime tables missing from canonical inventory: ${missing.join(", ")}`);

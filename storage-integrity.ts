@@ -4,6 +4,7 @@ import type {
   StorageIntegrityQuickCheck,
   StorageIntegrityReport,
 } from "./storage-integrity-contract.ts";
+import { inspectStorageQuickCheck } from "./storage-quick-check.ts";
 
 type StorageIntegrityEnv = {
   DB?: D1Database;
@@ -21,7 +22,6 @@ type StorageIntegrityDependencies = {
   now?: () => number;
 };
 
-const QUICK_CHECK_SQL = "PRAGMA quick_check(1)";
 const INDEX_INVENTORY_SQL = "SELECT name, tbl_name, sql FROM sqlite_schema WHERE type = 'index' AND name NOT LIKE 'sqlite_autoindex_%'";
 const MAX_PUBLIC_COUNT = 10_000;
 const MAX_PUBLIC_DURATION_MS = 60_000;
@@ -86,39 +86,17 @@ export function unavailableStorageIntegrityReport(
   };
 }
 
-function firstRowValue(row: StorageIntegrityRow | null): unknown {
-  if (!row) return undefined;
-  return Object.values(row)[0];
-}
-
-function unsupportedQuickCheck(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error ?? "");
-  return /(?:no such|unknown|unsupported)\s+pragma|pragma[^\n]{0,80}(?:not supported|unsupported)/i.test(message);
-}
-
 async function inspectQuickCheck(query: StorageIntegrityQuery): Promise<StorageIntegrityQuickCheck> {
-  try {
-    const value = firstRowValue(await query.first(QUICK_CHECK_SQL));
-    if (typeof value === "string" && value.trim().toLowerCase() === "ok") {
-      return {
-        state: "healthy",
-        code: "storage_quick_check_ok",
-      };
-    }
-    return {
-      state: "failed",
-      code: "storage_quick_check_failed",
-    };
-  } catch (error) {
-    return unsupportedQuickCheck(error)
-      ? {
-        state: "unsupported",
-        code: "storage_quick_check_unsupported",
-      }
-      : {
-        state: "unavailable",
-        code: "storage_quick_check_unavailable",
-      };
+  const result = await inspectStorageQuickCheck(query);
+  switch (result.state) {
+    case "healthy":
+      return { state: "healthy", code: "storage_quick_check_ok" };
+    case "failed":
+      return { state: "failed", code: "storage_quick_check_failed" };
+    case "unsupported":
+      return { state: "unsupported", code: "storage_quick_check_unsupported" };
+    case "unavailable":
+      return { state: "unavailable", code: "storage_quick_check_unavailable" };
   }
 }
 

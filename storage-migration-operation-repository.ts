@@ -137,10 +137,10 @@ export async function failMigrationOperation(
 ): Promise<void> {
   requireDb(db);
   const allowed = new Set([
-    "migration_apply_execution_failed", "migration_apply_progress_failed",
+    "migration_apply_failed", "migration_apply_execution_failed", "migration_apply_progress_failed",
     "migration_apply_verification_failed", "migration_apply_audit_failed",
     "migration_apply_lock_lost", "migration_apply_release_failed",
-    "migration_reconcile_failed", "migration_recovery_required",
+    "migration_reconcile_failed", "migration_reconcile_restore_required", "migration_recovery_required",
   ]);
   if (!allowed.has(failureCode)) fail("migration_apply_request_invalid", 400);
   const statement = db.prepare(`UPDATE portal_migration_operations

@@ -39,6 +39,7 @@ const operationIdPattern = /^migration_[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-
 const maintenanceIdPattern = /^maintenance_[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const states = new Set<StoredMigrationOperationState>(["running", "succeeded", "failed", "interrupted", "reconciled"]);
 const failureCodes = new Set([
+  "migration_apply_failed",
   "migration_apply_execution_failed",
   "migration_apply_progress_failed",
   "migration_apply_verification_failed",
@@ -46,6 +47,7 @@ const failureCodes = new Set([
   "migration_apply_lock_lost",
   "migration_apply_release_failed",
   "migration_reconcile_failed",
+  "migration_reconcile_restore_required",
   "migration_recovery_required",
 ]);
 
@@ -80,8 +82,12 @@ function safeOperationId(value: unknown): string {
   return value;
 }
 
-function safeMaintenanceId(value: unknown): string {
-  if (typeof value !== "string" || !maintenanceIdPattern.test(value)) fail();
+function safeMaintenanceId(
+  value: unknown,
+  code = "migration_operation_unavailable",
+  status = 503,
+): string {
+  if (typeof value !== "string" || !maintenanceIdPattern.test(value)) fail(code, status);
   return value;
 }
 
@@ -95,9 +101,15 @@ export function migrationApplyConfirmation(
   fromVersion: unknown,
   targetVersion: unknown,
 ): string {
-  const maintenanceId = safeMaintenanceId(maintenanceOperationId);
-  const from = safeInteger(fromVersion, 0, 1000);
-  const target = safeInteger(targetVersion, from, 1000);
+  const maintenanceId = safeMaintenanceId(maintenanceOperationId, "migration_apply_request_invalid", 400);
+  let from: number;
+  let target: number;
+  try {
+    from = safeInteger(fromVersion, 0, 1000);
+    target = safeInteger(targetVersion, from, 1000);
+  } catch {
+    fail("migration_apply_request_invalid", 400);
+  }
   return `APPLY:${maintenanceId}:${from}:${target}`;
 }
 
@@ -125,9 +137,8 @@ export function normalizeMigrationOperationRow(value: unknown): MigrationOperati
   if (state === "running" && (completedAt !== null || failureCode !== null)) fail();
   if ((state === "succeeded" || state === "reconciled") && (completedAt === null || failureCode !== null || appliedCount !== totalCount)) fail();
   if ((state === "failed" || state === "interrupted") && completedAt === null) fail();
-  return {
+  const normalized = {
     operationId,
-    maintenanceOperationId,
     fromVersion,
     targetVersion,
     totalCount,
@@ -139,7 +150,14 @@ export function normalizeMigrationOperationRow(value: unknown): MigrationOperati
     completedAt,
     failureCode,
     recoveryRequired: state === "running" || state === "failed",
-  };
+  } as MigrationOperationRow;
+  Object.defineProperty(normalized, "maintenanceOperationId", {
+    value: maintenanceOperationId,
+    enumerable: false,
+    configurable: false,
+    writable: false,
+  });
+  return normalized;
 }
 
 export function publicIdleMigrationOperation(): PublicMigrationOperation {

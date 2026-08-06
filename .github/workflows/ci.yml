@@ -40,6 +40,18 @@ jobs:
         with:
           show-progress: false
 
+      - name: Create source snapshot
+        shell: bash
+        run: tar -czf source-snapshot.tar.gz --exclude=.git --exclude=node_modules --exclude=dist .
+
+      - name: Upload source snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-snapshot
+          path: source-snapshot.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:

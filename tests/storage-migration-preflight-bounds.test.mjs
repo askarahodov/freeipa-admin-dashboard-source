@@ -4,10 +4,9 @@ import { readFile } from "node:fs/promises";
 
 import { handleStorageMigrationPreflightRequest } from "../worker/storage-migration-preflight-entry.ts";
 
-const [entrySource, preflightSource, migrationSource] = await Promise.all([
+const [entrySource, preflightSource] = await Promise.all([
   readFile(new URL("../worker/storage-migration-preflight-entry.ts", import.meta.url), "utf8"),
   readFile(new URL("../storage-migration-preflight.ts", import.meta.url), "utf8"),
-  readFile(new URL("../db/portal-migrations.ts", import.meta.url), "utf8"),
 ]);
 
 test("preflight cancels an oversized streaming body before evaluator work", async () => {
@@ -39,12 +38,11 @@ test("preflight cancels an oversized streaming body before evaluator work", asyn
   assert.equal(inspected, false);
 });
 
-test("preflight body parser and both schema inventories are explicitly bounded", () => {
+test("preflight body parser and schema inventory are explicitly bounded", () => {
   assert.equal(/request\.text\(\)/.test(entrySource), false);
   assert.match(entrySource, /request\.body\.getReader\(\)/);
   assert.match(entrySource, /reader\.cancel\(\)/);
   assert.match(preflightSource, /sqlite_master[\s\S]*LIMIT 1001/);
-  assert.match(migrationSource, /sqlite_master[\s\S]*LIMIT 1001/);
   assert.match(preflightSource, /results\.length > 1000/);
-  assert.match(migrationSource, /results\.length > 1000/);
+  assert.match(preflightSource, /await schemaObjects\(env\);[\s\S]*inspectPortalSchemaSnapshot\(env\.DB, snapshot\)/);
 });

@@ -197,9 +197,11 @@ test("stale lock is visible but non-blocking", async () => {
 });
 
 test("backup must be recent, current-version and cover every canonical domain exactly once", async () => {
+  const staleNow = 100_000_000;
   const stale = await inspectStorageMigrationPreflight({ DB: {} }, dependencies({
+    now: () => staleNow,
     readBackupCandidates: async () => [{
-      createdAt: 100_000 - 86_400_001,
+      createdAt: staleNow - 86_400_001,
       schemaVersion: 1,
       domains: ["settings", "local-auth", "rbac", "policies", "catalog", "operations", "approvals", "audit"],
     }],

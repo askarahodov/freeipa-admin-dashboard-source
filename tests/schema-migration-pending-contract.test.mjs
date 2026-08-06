@@ -39,9 +39,9 @@ test("schema gate continues to block every non-ready state and scheduled work", 
 });
 
 test("public schema type and production hardened runtime include pending and v4", () => {
-  const schemaSource = fs.readFileSync(new URL("../db/portal-migrations.ts", import.meta.url), "utf8");
+  const managedSource = fs.readFileSync(new URL("../db/portal-controlled-migrations.ts", import.meta.url), "utf8");
   const hardenedSource = fs.readFileSync(new URL("../db/portal-migrations-hardened.ts", import.meta.url), "utf8");
-  assert.match(schemaSource, /PortalSchemaState = [^;]*"pending"/);
+  assert.match(managedSource, /ManagedPortalSchemaState = [^;]*"pending"/);
   assert.equal(hardenedSource.includes("portalMigrationsV4 as portalMigrations"), true);
   assert.equal(hardenedSource.includes("ensurePortalSchemaV4"), true);
   assert.equal(hardenedSource.includes("portalMigrationOperationsTable"), true);

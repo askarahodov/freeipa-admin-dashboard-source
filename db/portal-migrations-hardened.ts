@@ -1,10 +1,11 @@
 import {
-  ensurePortalSchemaV3 as ensureBasePortalSchema,
-  inspectPortalSchemaV3 as inspectBasePortalSchema,
-  portalMigrationsV3 as portalMigrations,
-} from "./portal-migrations-v3.ts";
+  ensurePortalSchemaV4 as ensureBasePortalSchema,
+  inspectPortalSchemaV4 as inspectBasePortalSchema,
+  portalMigrationsV4 as portalMigrations,
+} from "./portal-migrations-v4.ts";
 import type { PortalSchemaStatus } from "./portal-migrations.ts";
 import { portalMaintenanceStateTable } from "./portal-maintenance-schema.ts";
+import { portalMigrationOperationsTable } from "./portal-migration-v4.ts";
 import { portalRestoreStageTable } from "./portal-restore-stage-schema.ts";
 import { portalSchemaTables, portalSchemaTriggers } from "./portal-schema.ts";
 
@@ -100,7 +101,7 @@ function restrictiveConstraintDrift(actualSql: string, expectedSql: string): str
 export function classifyAdditionalCanonicalSchemaDrift(objects: readonly SchemaObjectRow[]): string[] {
   const incompatible = new Set<string>();
   const canonicalTables = new Map(
-    [...portalSchemaTables, portalRestoreStageTable, portalMaintenanceStateTable]
+    [...portalSchemaTables, portalRestoreStageTable, portalMaintenanceStateTable, portalMigrationOperationsTable]
       .map((table) => [table.name.toLowerCase(), table]),
   );
   const canonicalTriggers = new Set(portalSchemaTriggers.map((trigger) => trigger.name.toLowerCase()));
@@ -169,7 +170,7 @@ async function additionalDrift(db: D1Database): Promise<string[]> {
 }
 
 async function hardenReadyStatus(env: MigrationEnv, schema: PortalSchemaStatus): Promise<PortalSchemaStatus> {
-  if (schema.state !== "ready" || !env.DB) return schema;
+  if ((schema.state !== "ready" && schema.state !== "pending") || !env.DB) return schema;
   try {
     const drift = await additionalDrift(env.DB);
     if (!drift.length) return schema;

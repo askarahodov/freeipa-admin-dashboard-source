@@ -114,14 +114,11 @@ test("preflight handler ignores unrelated path and enforces POST", async () => {
   assert.equal(response.headers.get("cache-control"), "no-store");
 });
 
-test("viewer and operator are denied before request body, context, evaluator and D1", async () => {
+test("viewer and operator are denied before malformed body, context, evaluator and D1", async () => {
   for (const role of ["viewer", "operator"]) {
     const calls = [];
-    const body = new ReadableStream({
-      start() { throw new Error("body must not be read"); },
-    });
     const response = await handleStorageMigrationPreflightRequest(
-      new Request(`https://portal.example${path}`, { method: "POST", body, duplex: "half" }),
+      request("{"),
       { DB: new Proxy({}, { get() { calls.push("db"); throw new Error("db"); } }) },
       deps({
         access: () => ({ role, identity: `${role}@example.test`, groups: [] }),

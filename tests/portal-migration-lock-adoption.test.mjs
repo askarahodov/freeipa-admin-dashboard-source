@@ -5,7 +5,22 @@ import { readFile } from "node:fs/promises";
 const source = await readFile(new URL("../db/portal-migrations.ts", import.meta.url), "utf8");
 
 test("startup migration uses only the shared portal migration lock implementation", () => {
-  assert.match(source, /import \{[\s\S]*acquirePortalMigrationLock[\s\S]*renewPortalMigrationLock[\s\S]*releasePortalMigrationLock[\s\S]*\} from ["']\.\/portal-migration-lock\.ts["']/);
+  const sharedLockImport = source.match(
+    /import\s*\{([\s\S]*?)\}\s*from ["']\.\/portal-migration-lock\.ts["']/,
+  );
+  assert.ok(sharedLockImport);
+  assert.deepEqual(
+    sharedLockImport[1]
+      .split(",")
+      .map((name) => name.trim())
+      .filter(Boolean)
+      .sort(),
+    [
+      "acquirePortalMigrationLock",
+      "releasePortalMigrationLock",
+      "renewPortalMigrationLock",
+    ].sort(),
+  );
   assert.equal(/async function acquireLock\(/.test(source), false);
   assert.equal(/async function renewLock\(/.test(source), false);
   assert.equal(/async function releaseLock\(/.test(source), false);

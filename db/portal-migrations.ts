@@ -12,6 +12,11 @@ import {
   portalMigrationV1Statements,
   portalMigrationV1TableStatements,
 } from "./portal-migration-v1.ts";
+import {
+  acquirePortalMigrationLock,
+  releasePortalMigrationLock,
+  renewPortalMigrationLock,
+} from "./portal-migration-lock.ts";
 
 export type PortalSchemaState = "ready" | "busy" | "unavailable" | "incompatible" | "failed";
 
@@ -51,7 +56,7 @@ type InspectOptions = {
   allowMissingSecondary?: boolean;
 };
 
-type PortalSchemaSnapshot = {
+export type PortalSchemaSnapshot = {
   tables: readonly PortalSchemaTable[];
   indexes: readonly PortalSchemaIndex[];
   triggers: readonly PortalSchemaTrigger[];
@@ -80,12 +85,6 @@ let inFlightEnsures = new WeakMap<object, Promise<PortalSchemaStatus>>();
 function safeNow(options?: MigrationOptions): number {
   const value = options?.now?.() ?? Date.now();
   return Number.isFinite(value) ? Math.trunc(value) : Date.now();
-}
-
-function resultChanges(value: unknown): number {
-  if (!value || typeof value !== "object") return 0;
-  const result = value as { meta?: { changes?: number }; changes?: number };
-  return Number(result.meta?.changes ?? result.changes ?? 0);
 }
 
 function hex(bytes: ArrayBuffer): string {
@@ -378,7 +377,7 @@ function sameIndexColumns(left: readonly IndexColumn[], right: readonly IndexCol
   ));
 }
 
-async function inspectStructure(
+export async function inspectPortalSchemaSnapshot(
   db: D1Database,
   snapshot: PortalSchemaSnapshot = canonicalSnapshot,
   options: InspectOptions = {},
@@ -581,7 +580,7 @@ export async function inspectPortalSchemaWithRegistry(
     if (invalidJournal) return invalidJournal;
     const appliedVersions = rows.map((row) => row.version).sort((left, right) => left - right);
     const currentVersion = appliedVersions.at(-1) ?? 0;
-    const drift = await inspectStructure(env.DB);
+    const drift = await inspectPortalSchemaSnapshot(env.DB);
     if (drift.incompatible.length) return driftStatus(rows, drift, registry, verifiedAt);
     return status(registry, "ready", {
       currentVersion,
@@ -601,32 +600,6 @@ export async function inspectPortalSchema(env: MigrationEnv, options: MigrationO
 async function ensureInfrastructure(db: D1Database): Promise<void> {
   await db.prepare(migrationTableSql).run();
   await db.prepare(migrationLockSql).run();
-}
-
-async function acquireLock(db: D1Database, owner: string, options: MigrationOptions): Promise<boolean> {
-  const attempts = Math.max(1, Math.min(Math.trunc(options.maxLockAttempts ?? 5), 20));
-  const ttl = Math.max(1_000, Math.min(Math.trunc(options.lockTtlMs ?? 60_000), 10 * 60_000));
-  const delay = Math.max(0, Math.min(Math.trunc(options.retryDelayMs ?? 50), 1_000));
-  const sleep = options.sleep ?? ((milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds)));
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
-    const now = safeNow(options);
-    await db.prepare("DELETE FROM portal_schema_lock WHERE id = ? AND acquired_at < ?").bind("main", now - ttl).run();
-    const inserted = await db.prepare("INSERT OR IGNORE INTO portal_schema_lock (id, owner, acquired_at) VALUES (?, ?, ?)")
-      .bind("main", owner, now).run();
-    if (resultChanges(inserted) === 1) return true;
-    if (attempt + 1 < attempts && delay > 0) await sleep(delay);
-  }
-  return false;
-}
-
-async function renewLock(db: D1Database, owner: string, options: MigrationOptions): Promise<boolean> {
-  const updated = await db.prepare("UPDATE portal_schema_lock SET acquired_at = ? WHERE id = ? AND owner = ?")
-    .bind(safeNow(options), "main", owner).run();
-  return resultChanges(updated) === 1;
-}
-
-async function releaseLock(db: D1Database, owner: string): Promise<void> {
-  await db.prepare("DELETE FROM portal_schema_lock WHERE id = ? AND owner = ?").bind("main", owner).run();
 }
 
 function lockLostStatus(registry: readonly PortalMigration[], options: MigrationOptions): PortalSchemaStatus {
@@ -655,14 +628,14 @@ async function applyMigration(
 
   if (migration.tableStatements?.length) {
     const snapshot = migration.snapshot ?? snapshotFromStatements(migration.statements);
-    if (!await renewLock(db, owner, options)) return lockLostStatus(registry, options);
+    if (!await renewPortalMigrationLock(db, owner, options)) return lockLostStatus(registry, options);
     await db.batch(migration.tableStatements.map((statement) => db.prepare(statement)));
-    if (!await renewLock(db, owner, options)) return lockLostStatus(registry, options);
-    const preflight = await inspectStructure(db, snapshot, { secondary: false, extras: false });
+    if (!await renewPortalMigrationLock(db, owner, options)) return lockLostStatus(registry, options);
+    const preflight = await inspectPortalSchemaSnapshot(db, snapshot, { secondary: false, extras: false });
     if (preflight.incompatible.length) return driftStatus(await journalRows(db), preflight, registry, safeNow(options));
 
-    if (!await renewLock(db, owner, options)) return lockLostStatus(registry, options);
-    const secondaryPreflight = await inspectStructure(db, snapshot, {
+    if (!await renewPortalMigrationLock(db, owner, options)) return lockLostStatus(registry, options);
+    const secondaryPreflight = await inspectPortalSchemaSnapshot(db, snapshot, {
       secondary: true,
       extras: false,
       allowMissingSecondary: true,
@@ -671,20 +644,20 @@ async function applyMigration(
       return driftStatus(await journalRows(db), secondaryPreflight, registry, safeNow(options));
     }
 
-    if (!await renewLock(db, owner, options)) return lockLostStatus(registry, options);
+    if (!await renewPortalMigrationLock(db, owner, options)) return lockLostStatus(registry, options);
     const journal = await journalStatement(db, migration, startedAt, options);
     await db.batch([
       ...(migration.secondaryStatements ?? []).map((statement) => db.prepare(statement)),
       journal,
     ]);
-    if (!await renewLock(db, owner, options)) return lockLostStatus(registry, options);
+    if (!await renewPortalMigrationLock(db, owner, options)) return lockLostStatus(registry, options);
     return null;
   }
 
-  if (!await renewLock(db, owner, options)) return lockLostStatus(registry, options);
+  if (!await renewPortalMigrationLock(db, owner, options)) return lockLostStatus(registry, options);
   const journal = await journalStatement(db, migration, startedAt, options);
   await db.batch([...migration.statements.map((statement) => db.prepare(statement)), journal]);
-  if (!await renewLock(db, owner, options)) return lockLostStatus(registry, options);
+  if (!await renewPortalMigrationLock(db, owner, options)) return lockLostStatus(registry, options);
   return null;
 }
 
@@ -697,7 +670,7 @@ async function runPortalSchemaEnsure(
   let acquired = false;
   try {
     await ensureInfrastructure(env.DB);
-    acquired = await acquireLock(env.DB, owner, options);
+    acquired = await acquirePortalMigrationLock(env.DB, owner, options);
     if (!acquired) return status(registry, "busy", { errorCode: "schema_migration_busy" }, safeNow(options));
 
     const rows = await journalRows(env.DB);
@@ -711,12 +684,12 @@ async function runPortalSchemaEnsure(
       applied.add(migration.version);
     }
 
-    if (!await renewLock(env.DB, owner, options)) return lockLostStatus(registry, options);
+    if (!await renewPortalMigrationLock(env.DB, owner, options)) return lockLostStatus(registry, options);
     return await inspectPortalSchemaWithRegistry(env, registry, options);
   } catch {
     return status(registry, "failed", { errorCode: "schema_migration_failed" }, safeNow(options));
   } finally {
-    if (acquired) await releaseLock(env.DB, owner).catch(() => {});
+    if (acquired) await releasePortalMigrationLock(env.DB, owner).catch(() => {});
   }
 }
 

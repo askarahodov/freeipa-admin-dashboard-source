@@ -90,7 +90,19 @@ jobs:
           path: dist
 
       - name: Run complete test suite
-        run: node --experimental-strip-types --test --test-concurrency=1 tests/*.test.mjs
+        shell: bash
+        run: |
+          set -o pipefail
+          node --experimental-strip-types --test --test-concurrency=1 tests/*.test.mjs 2>&1 | tee server-suite.tap
+
+      - name: Upload complete suite log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-suite-log
+          path: server-suite.tap
+          if-no-files-found: error
+          retention-days: 1
 
   recovery-compose:
     name: Test recovery container and volume

@@ -24,7 +24,9 @@ import {
   type LocalSession,
 } from "../local-auth";
 import { STORAGE_INTEGRITY_PATH } from "../storage-integrity-contract.ts";
+import { STORAGE_MIGRATION_PREFLIGHT_PATH } from "../storage-migration-preflight-contract.ts";
 import { handleStorageIntegrityRequest } from "./storage-integrity-entry.ts";
+import { handleStorageMigrationPreflightRequest } from "./storage-migration-preflight-entry.ts";
 import { handleStorageStatusRequest } from "./storage-status-entry.ts";
 
 type RuntimeEnv = NonNullable<Parameters<typeof secureRuntime.fetch>[1]> & LocalAuthEnv & {
@@ -240,6 +242,14 @@ const worker = {
     const sourceEnv = env ?? (process.env as unknown as RuntimeEnv);
     const url = new URL(request.url);
     if (!localMode(sourceEnv)) {
+      if (url.pathname === STORAGE_MIGRATION_PREFLIGHT_PATH) {
+        if (!await serviceAdminTokenAuthorized(request, sourceEnv.ADMIN_TOKEN)) {
+          return json({ error: "Требуется токен администратора" }, 401);
+        }
+        const delegated = serviceAdminEnv(sourceEnv);
+        const preflightResponse = await handleStorageMigrationPreflightRequest(request, delegated);
+        if (preflightResponse) return preflightResponse;
+      }
       if (url.pathname === STORAGE_INTEGRITY_PATH) {
         if (!await serviceAdminTokenAuthorized(request, sourceEnv.ADMIN_TOKEN)) {
           return json({ error: "Требуется токен администратора" }, 401);
@@ -260,6 +270,8 @@ const worker = {
     if (!session) {
       if (isAdminIntegrationPath(url.pathname) && await serviceAdminTokenAuthorized(request, sourceEnv.ADMIN_TOKEN)) {
         const delegated = serviceAdminEnv(sourceEnv);
+        const preflightResponse = await handleStorageMigrationPreflightRequest(request, delegated);
+        if (preflightResponse) return preflightResponse;
         const integrityResponse = await handleStorageIntegrityRequest(request, delegated);
         if (integrityResponse) return integrityResponse;
         const storageResponse = await handleStorageStatusRequest(request, delegated);
@@ -288,6 +300,8 @@ const worker = {
     }
 
     const delegatedRequest = new Request(request, { headers });
+    const preflightResponse = await handleStorageMigrationPreflightRequest(delegatedRequest, delegated);
+    if (preflightResponse) return preflightResponse;
     const integrityResponse = await handleStorageIntegrityRequest(delegatedRequest, delegated);
     if (integrityResponse) return integrityResponse;
     const storageResponse = await handleStorageStatusRequest(delegatedRequest, delegated);

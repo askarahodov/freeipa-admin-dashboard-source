@@ -5,6 +5,7 @@ import {
 } from "../maintenance-mode.ts";
 import { loadMaintenanceState } from "../maintenance-repository.ts";
 import { STORAGE_INTEGRITY_PATH } from "../storage-integrity-contract.ts";
+import { STORAGE_MIGRATION_PREFLIGHT_PATH } from "../storage-migration-preflight-contract.ts";
 import { STORAGE_STATUS_PATH } from "../storage-status-contract.ts";
 import { schemaTestBypassEnabled } from "./schema-migrations-boundary.ts";
 import { MAINTENANCE_CONTROL_PATHS } from "./maintenance-control-entry.ts";
@@ -20,6 +21,7 @@ const immediatelyAllowedApiPaths = new Set([
   SCHEMA_STATUS_PATH,
   STORAGE_STATUS_PATH,
   STORAGE_INTEGRITY_PATH,
+  STORAGE_MIGRATION_PREFLIGHT_PATH,
 ]);
 
 export type MaintenanceGateEnv = {

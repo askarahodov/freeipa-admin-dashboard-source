@@ -1,4 +1,5 @@
-import { publicPortalSchemaStatus, type PortalSchemaStatus } from "../db/portal-migrations.ts";
+import { publicPortalSchemaStatus, type PortalSchemaStatus as AutomaticPortalSchemaStatus } from "../db/portal-migrations.ts";
+import type { ManagedPortalSchemaStatus as PortalSchemaStatus } from "../db/portal-controlled-migrations.ts";
 
 const jsonHeaders = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
 const schemaTestBypassMarker = Symbol.for("freeipa-admin-dashboard.schema-test-bypass.v1");
@@ -30,7 +31,7 @@ export function schemaTestBypassEnabled(environment: unknown): boolean {
 }
 
 export function schemaFailureResponse(schema: PortalSchemaStatus): Response {
-  const safe = publicPortalSchemaStatus(schema);
+  const safe = publicPortalSchemaStatus(schema as AutomaticPortalSchemaStatus);
   return json({
     error: "Portal database schema is not ready",
     code: safe.errorCode || "schema_migration_failed",
@@ -39,7 +40,7 @@ export function schemaFailureResponse(schema: PortalSchemaStatus): Response {
 }
 
 export function schemaStatusResponse(schema: PortalSchemaStatus): Response {
-  return json({ schema: publicPortalSchemaStatus(schema) });
+  return json({ schema: publicPortalSchemaStatus(schema as AutomaticPortalSchemaStatus) });
 }
 
 export function schemaAuthorizationResponse(): Response {

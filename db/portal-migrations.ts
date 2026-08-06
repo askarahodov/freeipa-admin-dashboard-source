@@ -56,7 +56,7 @@ type InspectOptions = {
   allowMissingSecondary?: boolean;
 };
 
-type PortalSchemaSnapshot = {
+export type PortalSchemaSnapshot = {
   tables: readonly PortalSchemaTable[];
   indexes: readonly PortalSchemaIndex[];
   triggers: readonly PortalSchemaTrigger[];
@@ -377,7 +377,7 @@ function sameIndexColumns(left: readonly IndexColumn[], right: readonly IndexCol
   ));
 }
 
-async function inspectStructure(
+export async function inspectPortalSchemaSnapshot(
   db: D1Database,
   snapshot: PortalSchemaSnapshot = canonicalSnapshot,
   options: InspectOptions = {},
@@ -580,7 +580,7 @@ export async function inspectPortalSchemaWithRegistry(
     if (invalidJournal) return invalidJournal;
     const appliedVersions = rows.map((row) => row.version).sort((left, right) => left - right);
     const currentVersion = appliedVersions.at(-1) ?? 0;
-    const drift = await inspectStructure(env.DB);
+    const drift = await inspectPortalSchemaSnapshot(env.DB);
     if (drift.incompatible.length) return driftStatus(rows, drift, registry, verifiedAt);
     return status(registry, "ready", {
       currentVersion,
@@ -631,11 +631,11 @@ async function applyMigration(
     if (!await renewPortalMigrationLock(db, owner, options)) return lockLostStatus(registry, options);
     await db.batch(migration.tableStatements.map((statement) => db.prepare(statement)));
     if (!await renewPortalMigrationLock(db, owner, options)) return lockLostStatus(registry, options);
-    const preflight = await inspectStructure(db, snapshot, { secondary: false, extras: false });
+    const preflight = await inspectPortalSchemaSnapshot(db, snapshot, { secondary: false, extras: false });
     if (preflight.incompatible.length) return driftStatus(await journalRows(db), preflight, registry, safeNow(options));
 
     if (!await renewPortalMigrationLock(db, owner, options)) return lockLostStatus(registry, options);
-    const secondaryPreflight = await inspectStructure(db, snapshot, {
+    const secondaryPreflight = await inspectPortalSchemaSnapshot(db, snapshot, {
       secondary: true,
       extras: false,
       allowMissingSecondary: true,

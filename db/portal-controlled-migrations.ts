@@ -27,10 +27,13 @@ type EnsureDependency = (
   options?: MigrationOptions,
 ) => Promise<PortalSchemaStatus>;
 
+export type ManagedPortalSchemaState = PortalSchemaStatus["state"] | "pending";
+export type ManagedPortalSchemaStatus = Omit<PortalSchemaStatus, "state"> & { state: ManagedPortalSchemaState };
+
 type ManagedInspectDependencies = { inspect?: InspectDependency };
 type ManagedEnsureDependencies = ManagedInspectDependencies & { ensure?: EnsureDependency };
 
-function registryFailure(): PortalSchemaStatus {
+function registryFailure(): ManagedPortalSchemaStatus {
   return {
     state: "failed",
     currentVersion: 0,
@@ -47,7 +50,7 @@ function registryFailure(): PortalSchemaStatus {
 function fullRegistryStatus(
   source: PortalSchemaStatus,
   registry: readonly ManagedPortalMigration[],
-): PortalSchemaStatus {
+): ManagedPortalSchemaStatus {
   const applied = new Set(source.appliedVersions);
   return {
     ...source,
@@ -59,7 +62,7 @@ function fullRegistryStatus(
 function pendingProjection(
   source: PortalSchemaStatus,
   validated: ValidatedPortalMigrationRegistry,
-): PortalSchemaStatus {
+): ManagedPortalSchemaStatus {
   const full = fullRegistryStatus(source, validated.all);
   if (full.state !== "ready") return full;
   const automatic = automaticPendingMigrations(validated.all, full.appliedVersions);
@@ -87,7 +90,7 @@ export async function inspectPortalSchemaWithManagedRegistry(
   registry: readonly ManagedPortalMigration[],
   options: MigrationOptions = {},
   dependencies: ManagedInspectDependencies = {},
-): Promise<PortalSchemaStatus> {
+): Promise<ManagedPortalSchemaStatus> {
   const validated = validate(registry);
   if (!validated) return registryFailure();
   const inspect = dependencies.inspect ?? inspectPortalSchemaWithRegistry;
@@ -99,7 +102,7 @@ export async function ensurePortalSchemaWithManagedRegistry(
   registry: readonly ManagedPortalMigration[],
   options: MigrationOptions = {},
   dependencies: ManagedEnsureDependencies = {},
-): Promise<PortalSchemaStatus> {
+): Promise<ManagedPortalSchemaStatus> {
   const validated = validate(registry);
   if (!validated) return registryFailure();
 

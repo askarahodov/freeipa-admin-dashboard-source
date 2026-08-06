@@ -5,7 +5,11 @@ import {
   type PortalMigrationLockInspection,
 } from "./db/portal-migration-lock.ts";
 import { portalMigrationsV3 } from "./db/portal-migrations-v3.ts";
-import type { PortalMigration } from "./db/portal-migrations.ts";
+import {
+  inspectPortalSchemaSnapshot,
+  type PortalMigration,
+  type PortalSchemaSnapshot,
+} from "./db/portal-migrations.ts";
 import type { StorageMigrationPreflightReport } from "./storage-migration-preflight-contract.ts";
 import { inspectStorageQuickCheck, type StorageQuickCheckResult } from "./storage-quick-check.ts";
 
@@ -27,12 +31,6 @@ type SchemaObjectRow = {
   type?: unknown;
   tbl_name?: unknown;
   sql?: unknown;
-};
-type TableInfoRow = {
-  name?: unknown;
-  type?: unknown;
-  notnull?: unknown;
-  pk?: unknown;
 };
 type BackupAuditRow = {
   created_at?: unknown;
@@ -106,24 +104,6 @@ function normalizedIdentifier(value: unknown): string {
   return String(value ?? "").trim().replace(/^["`\[]|["`\]]$/g, "").toLowerCase();
 }
 
-function normalizedType(value: unknown): string {
-  return String(value ?? "").trim().toUpperCase().split(/\s+/)[0] ?? "";
-}
-
-function normalizedSql(value: unknown): string {
-  return String(value ?? "")
-    .replace(/\bIF\s+NOT\s+EXISTS\b/gi, "")
-    .replace(/["`\[\]]/g, "")
-    .replace(/\s+/g, " ")
-    .replace(/;\s*$/, "")
-    .trim()
-    .toLowerCase();
-}
-
-function quoteIdentifier(value: string): string {
-  return `"${value.replaceAll('"', '""')}"`;
-}
-
 function snapshotObjects(migrations: readonly PortalMigration[]): SnapshotObject[] | null {
   const byKey = new Map<string, SnapshotObject>();
   for (const migration of migrations) {
@@ -157,6 +137,22 @@ function snapshotObjects(migrations: readonly PortalMigration[]): SnapshotObject
   return [...byKey.values()];
 }
 
+function snapshotSchema(migrations: readonly PortalMigration[]): PortalSchemaSnapshot | null {
+  const objects = snapshotObjects(migrations);
+  if (!objects) return null;
+  return {
+    tables: objects
+      .filter((item) => item.type === "table")
+      .map((item) => ({ name: item.name, sql: item.sql, columns: item.columns ?? [] })),
+    indexes: objects
+      .filter((item) => item.type === "index")
+      .map((item) => ({ name: item.name, table: item.table, sql: item.sql })),
+    triggers: objects
+      .filter((item) => item.type === "trigger")
+      .map((item) => ({ name: item.name, table: item.table, sql: item.sql })),
+  };
+}
+
 async function schemaObjects(env: MigrationEnv): Promise<SchemaObjectRow[]> {
   if (!env.DB) throw new Error("database unavailable");
   const result = await env.DB.prepare(
@@ -165,55 +161,18 @@ async function schemaObjects(env: MigrationEnv): Promise<SchemaObjectRow[]> {
   return result.results ?? [];
 }
 
-async function tableStructureCompatible(
-  env: MigrationEnv,
-  expected: SnapshotObject,
-): Promise<boolean> {
-  if (!env.DB || !expected.columns) return false;
-  const result = await env.DB.prepare(`PRAGMA table_info(${quoteIdentifier(expected.name)})`).all<TableInfoRow>();
-  const actual = new Map(
-    (result.results ?? []).map((column) => [normalizedIdentifier(column.name), column]),
-  );
-  for (const required of expected.columns) {
-    const column = actual.get(normalizedIdentifier(required.name));
-    if (!column) return false;
-    if (normalizedType(column.type) !== normalizedType(required.type)) return false;
-    if ((Number(column.notnull) === 1) !== required.notNull) return false;
-    if ((Number(column.pk) > 0) !== required.primaryKey) return false;
-  }
-  return true;
-}
-
 async function defaultInspectAppliedSchema(
   env: MigrationEnv,
   applied: readonly PortalMigration[],
 ): Promise<AppliedSchemaResult> {
-  const expected = snapshotObjects(applied);
-  if (!expected) return { state: "incompatible", code: "migration_registry_snapshot_required" };
+  const snapshot = snapshotSchema(applied);
+  if (!snapshot) return { state: "incompatible", code: "migration_registry_snapshot_required" };
+  if (!env.DB) return { state: "unavailable", code: "migration_schema_unavailable" };
   try {
-    const actual = new Map(
-      (await schemaObjects(env)).map((row) => [
-        `${normalizedIdentifier(row.type)}:${normalizedIdentifier(row.name)}`,
-        row,
-      ]),
-    );
-    for (const item of expected) {
-      const row = actual.get(`${item.type}:${normalizedIdentifier(item.name)}`);
-      if (!row) return { state: "incompatible", code: "migration_schema_incompatible" };
-      if (item.type === "table") {
-        if (!await tableStructureCompatible(env, item)) {
-          return { state: "incompatible", code: "migration_schema_incompatible" };
-        }
-        continue;
-      }
-      if (normalizedIdentifier(row.tbl_name) !== normalizedIdentifier(item.table)) {
-        return { state: "incompatible", code: "migration_schema_incompatible" };
-      }
-      if (normalizedSql(row.sql) !== normalizedSql(item.sql)) {
-        return { state: "incompatible", code: "migration_schema_incompatible" };
-      }
-    }
-    return { state: "ready", code: "migration_schema_ready" };
+    const drift = await inspectPortalSchemaSnapshot(env.DB, snapshot);
+    return drift.incompatible.length
+      ? { state: "incompatible", code: "migration_schema_incompatible" }
+      : { state: "ready", code: "migration_schema_ready" };
   } catch {
     return { state: "unavailable", code: "migration_schema_unavailable" };
   }

@@ -16,7 +16,6 @@ test("preflight cancels an oversized streaming body before evaluator work", asyn
   const body = new ReadableStream({
     start(controller) {
       controller.enqueue(new Uint8Array(1025));
-      controller.close();
     },
     cancel() {
       cancelled = true;

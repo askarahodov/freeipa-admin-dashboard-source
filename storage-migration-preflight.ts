@@ -15,7 +15,6 @@ const MAX_PUBLIC_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_PUBLIC_COUNT = 10_000;
 
 type MigrationEnv = { DB?: D1Database };
-
 type JournalRow = {
   version: unknown;
   name: unknown;
@@ -23,31 +22,32 @@ type JournalRow = {
   applied_at?: unknown;
   execution_ms?: unknown;
 };
-
 type SchemaObjectRow = {
   name?: unknown;
   type?: unknown;
   tbl_name?: unknown;
   sql?: unknown;
 };
-
+type TableInfoRow = {
+  name?: unknown;
+  type?: unknown;
+  notnull?: unknown;
+  pk?: unknown;
+};
 type BackupAuditRow = {
   created_at?: unknown;
   schema_version?: unknown;
   metadata_json?: unknown;
 };
-
 type BackupCandidate = {
   createdAt: number;
   schemaVersion: number;
   domains: unknown;
 };
-
 type AppliedSchemaResult = {
   state: "ready" | "incompatible" | "unavailable";
   code: string;
 };
-
 type PreflightDependencies = {
   registry?: readonly PortalMigration[];
   now?: () => number;
@@ -64,22 +64,25 @@ type PreflightDependencies = {
   readBackupCandidates?: (env: MigrationEnv) => Promise<BackupCandidate[]>;
   inspectLock?: (env: MigrationEnv) => Promise<PortalMigrationLockInspection>;
 };
-
 type ValidJournal = {
   rows: Array<{ version: number; name: string; checksum: string }>;
   applied: readonly PortalMigration[];
   pending: readonly PortalMigration[];
 };
-
 type JournalValidation =
   | { ok: true; value: ValidJournal }
   | { ok: false; code: string; appliedCount: number };
-
 type SnapshotObject = {
   name: string;
   type: "table" | "index" | "trigger";
   table: string;
   sql: string;
+  columns?: readonly {
+    name: string;
+    type: string;
+    notNull: boolean;
+    primaryKey: boolean;
+  }[];
 };
 
 let inFlight: Promise<StorageMigrationPreflightReport> | null = null;
@@ -100,7 +103,11 @@ function safeDuration(startedAt: number, completedAt: number): number {
 }
 
 function normalizedIdentifier(value: unknown): string {
-  return String(value ?? "").trim().toLowerCase();
+  return String(value ?? "").trim().replace(/^["`\[]|["`\]]$/g, "").toLowerCase();
+}
+
+function normalizedType(value: unknown): string {
+  return String(value ?? "").trim().toUpperCase().split(/\s+/)[0] ?? "";
 }
 
 function normalizedSql(value: unknown): string {
@@ -113,6 +120,10 @@ function normalizedSql(value: unknown): string {
     .toLowerCase();
 }
 
+function quoteIdentifier(value: string): string {
+  return `"${value.replaceAll('"', '""')}"`;
+}
+
 function snapshotObjects(migrations: readonly PortalMigration[]): SnapshotObject[] | null {
   const byKey = new Map<string, SnapshotObject>();
   for (const migration of migrations) {
@@ -123,6 +134,7 @@ function snapshotObjects(migrations: readonly PortalMigration[]): SnapshotObject
         type: "table",
         table: table.name,
         sql: table.sql,
+        columns: table.columns,
       });
     }
     for (const index of migration.snapshot.indexes) {
@@ -153,6 +165,25 @@ async function schemaObjects(env: MigrationEnv): Promise<SchemaObjectRow[]> {
   return result.results ?? [];
 }
 
+async function tableStructureCompatible(
+  env: MigrationEnv,
+  expected: SnapshotObject,
+): Promise<boolean> {
+  if (!env.DB || !expected.columns) return false;
+  const result = await env.DB.prepare(`PRAGMA table_info(${quoteIdentifier(expected.name)})`).all<TableInfoRow>();
+  const actual = new Map(
+    (result.results ?? []).map((column) => [normalizedIdentifier(column.name), column]),
+  );
+  for (const required of expected.columns) {
+    const column = actual.get(normalizedIdentifier(required.name));
+    if (!column) return false;
+    if (normalizedType(column.type) !== normalizedType(required.type)) return false;
+    if ((Number(column.notnull) === 1) !== required.notNull) return false;
+    if ((Number(column.pk) > 0) !== required.primaryKey) return false;
+  }
+  return true;
+}
+
 async function defaultInspectAppliedSchema(
   env: MigrationEnv,
   applied: readonly PortalMigration[],
@@ -169,13 +200,17 @@ async function defaultInspectAppliedSchema(
     for (const item of expected) {
       const row = actual.get(`${item.type}:${normalizedIdentifier(item.name)}`);
       if (!row) return { state: "incompatible", code: "migration_schema_incompatible" };
-      if (item.type !== "table") {
-        if (normalizedIdentifier(row.tbl_name) !== normalizedIdentifier(item.table)) {
+      if (item.type === "table") {
+        if (!await tableStructureCompatible(env, item)) {
           return { state: "incompatible", code: "migration_schema_incompatible" };
         }
-        if (normalizedSql(row.sql) !== normalizedSql(item.sql)) {
-          return { state: "incompatible", code: "migration_schema_incompatible" };
-        }
+        continue;
+      }
+      if (normalizedIdentifier(row.tbl_name) !== normalizedIdentifier(item.table)) {
+        return { state: "incompatible", code: "migration_schema_incompatible" };
+      }
+      if (normalizedSql(row.sql) !== normalizedSql(item.sql)) {
+        return { state: "incompatible", code: "migration_schema_incompatible" };
       }
     }
     return { state: "ready", code: "migration_schema_ready" };
@@ -189,17 +224,13 @@ async function defaultDetectPartialFuture(
   pending: readonly PortalMigration[],
 ): Promise<boolean> {
   const expected = snapshotObjects(pending);
-  if (!expected) return true;
-  try {
-    const present = new Set(
-      (await schemaObjects(env)).map((row) => (
-        `${normalizedIdentifier(row.type)}:${normalizedIdentifier(row.name)}`
-      )),
-    );
-    return expected.some((item) => present.has(`${item.type}:${normalizedIdentifier(item.name)}`));
-  } catch {
-    throw new Error("schema inventory unavailable");
-  }
+  if (!expected) throw new Error("snapshot unavailable");
+  const present = new Set(
+    (await schemaObjects(env)).map((row) => (
+      `${normalizedIdentifier(row.type)}:${normalizedIdentifier(row.name)}`
+    )),
+  );
+  return expected.some((item) => present.has(`${item.type}:${normalizedIdentifier(item.name)}`));
 }
 
 async function defaultReadJournal(
@@ -330,8 +361,9 @@ function backupResult(
       incompatible = true;
       continue;
     }
-    const ageMs = Math.min(now - createdAt, MAX_PUBLIC_AGE_MS);
-    if (now - createdAt <= MAX_BACKUP_AGE_MS) {
+    const rawAge = now - createdAt;
+    const ageMs = Math.min(rawAge, MAX_PUBLIC_AGE_MS);
+    if (rawAge <= MAX_BACKUP_AGE_MS) {
       return {
         state: "ready",
         ageMs,
@@ -449,6 +481,39 @@ function blockedCode(
   return null;
 }
 
+function noPendingReport(
+  report: StorageMigrationPreflightReport,
+  generatedAt: number,
+  completedAt: number,
+  schema: StorageMigrationPreflightReport["schema"],
+  journal: StorageMigrationPreflightReport["journal"],
+): StorageMigrationPreflightReport {
+  return {
+    ...report,
+    state: "not_required",
+    decision: "deny",
+    code: "migration_preflight_not_required",
+    durationMs: safeDuration(generatedAt, completedAt),
+    pendingMigrationCount: 0,
+    schema,
+    journal,
+    integrity: { state: "not_required", code: "migration_quick_check_not_required" },
+    backup: {
+      state: "not_required",
+      ageMs: null,
+      maxAgeMs: MAX_BACKUP_AGE_MS,
+      code: "migration_backup_not_required",
+    },
+    lock: {
+      state: "not_required",
+      blocking: false,
+      ageMs: null,
+      ttlMs: DEFAULT_MIGRATION_LOCK_TTL_MS,
+      code: "migration_lock_not_required",
+    },
+  };
+}
+
 async function evaluateStorageMigrationPreflight(
   env: MigrationEnv,
   dependencies: PreflightDependencies,
@@ -504,20 +569,54 @@ async function evaluateStorageMigrationPreflight(
     code: "migration_journal_valid",
   };
 
-  let schema: AppliedSchemaResult;
+  let inspectedSchema: AppliedSchemaResult;
   try {
-    schema = await (dependencies.inspectAppliedSchema ?? defaultInspectAppliedSchema)(env, applied);
+    inspectedSchema = await (dependencies.inspectAppliedSchema ?? defaultInspectAppliedSchema)(env, applied);
   } catch {
-    schema = { state: "unavailable", code: "migration_schema_unavailable" };
+    inspectedSchema = { state: "unavailable", code: "migration_schema_unavailable" };
   }
-  if (schema.state !== "ready") {
+  if (inspectedSchema.state !== "ready") {
     return {
       ...report,
-      state: schema.state === "unavailable" ? "unavailable" : "blocked",
-      code: schema.code,
+      state: inspectedSchema.state === "unavailable" ? "unavailable" : "blocked",
+      code: inspectedSchema.code,
       durationMs: safeDuration(generatedAt, now()),
       pendingMigrationCount: safeInteger(pending.length, MAX_PUBLIC_COUNT),
-      schema: { state: schema.state, currentVersion, latestVersion, code: schema.code },
+      schema: {
+        state: inspectedSchema.state,
+        currentVersion,
+        latestVersion,
+        code: inspectedSchema.code,
+      },
+      journal,
+    };
+  }
+
+  const publicSchema = {
+    state: "ready" as const,
+    currentVersion,
+    latestVersion,
+    code: "migration_schema_ready",
+  };
+
+  if (pending.length === 0) {
+    return noPendingReport(report, generatedAt, now(), publicSchema, journal);
+  }
+
+  if (pending.some((migration) => !migration.snapshot)) {
+    return {
+      ...report,
+      state: "blocked",
+      decision: "deny",
+      code: "migration_registry_snapshot_required",
+      durationMs: safeDuration(generatedAt, now()),
+      pendingMigrationCount: safeInteger(pending.length, MAX_PUBLIC_COUNT),
+      schema: {
+        state: "incompatible",
+        currentVersion,
+        latestVersion,
+        code: "migration_registry_snapshot_required",
+      },
       journal,
     };
   }
@@ -545,45 +644,18 @@ async function evaluateStorageMigrationPreflight(
       code: "migration_schema_unavailable",
       durationMs: safeDuration(generatedAt, now()),
       pendingMigrationCount: safeInteger(pending.length, MAX_PUBLIC_COUNT),
-      schema: { state: "unavailable", currentVersion, latestVersion, code: "migration_schema_unavailable" },
+      schema: {
+        state: "unavailable",
+        currentVersion,
+        latestVersion,
+        code: "migration_schema_unavailable",
+      },
       journal,
     };
   }
 
-  const publicSchema = {
-    state: "ready" as const,
-    currentVersion,
-    latestVersion,
-    code: "migration_schema_ready",
-  };
-
-  if (pending.length === 0) {
-    return {
-      ...report,
-      state: "not_required",
-      code: "migration_preflight_not_required",
-      durationMs: safeDuration(generatedAt, now()),
-      pendingMigrationCount: 0,
-      schema: publicSchema,
-      journal,
-      integrity: { state: "not_required", code: "migration_quick_check_not_required" },
-      backup: {
-        state: "not_required",
-        ageMs: null,
-        maxAgeMs: MAX_BACKUP_AGE_MS,
-        code: "migration_backup_not_required",
-      },
-      lock: {
-        state: "not_required",
-        blocking: false,
-        ageMs: null,
-        ttlMs: DEFAULT_MIGRATION_LOCK_TTL_MS,
-        code: "migration_lock_not_required",
-      },
-    };
-  }
-
-  const quickCheck = await (dependencies.quickCheck ?? defaultQuickCheck)(env).catch(() => ({ state: "unavailable" as const }));
+  const quickCheck = await (dependencies.quickCheck ?? defaultQuickCheck)(env)
+    .catch(() => ({ state: "unavailable" as const }));
   const integrity = integrityResult(quickCheck);
 
   let backup: StorageMigrationPreflightReport["backup"];
@@ -608,17 +680,19 @@ async function evaluateStorageMigrationPreflight(
     ageMs: null,
     ttlMs: DEFAULT_MIGRATION_LOCK_TTL_MS,
   })));
-  const blockingCode = blockedCode(integrity, backup, lock);
+  const blocking = blockedCode(integrity, backup, lock);
 
   return {
     ...report,
-    state: blockingCode
-      ? (integrity.state === "unavailable" || backup.state === "unavailable" || lock.state === "unavailable"
+    state: blocking
+      ? (integrity.state === "unavailable"
+          || backup.state === "unavailable"
+          || lock.state === "unavailable"
           ? "unavailable"
           : "blocked")
       : "ready",
-    decision: blockingCode ? "deny" : "allow",
-    code: blockingCode ?? "migration_preflight_ready",
+    decision: blocking ? "deny" : "allow",
+    code: blocking ?? "migration_preflight_ready",
     durationMs: safeDuration(generatedAt, now()),
     pendingMigrationCount: safeInteger(pending.length, MAX_PUBLIC_COUNT),
     schema: publicSchema,

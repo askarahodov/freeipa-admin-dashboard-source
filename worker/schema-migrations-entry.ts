@@ -2,6 +2,7 @@ import rootRuntime from "./maintenance-mode-root-entry.ts";
 import { serviceAdminTokenAuthorized } from "../admin-session-authorization.ts";
 import { ensurePortalSchema, type PortalSchemaStatus } from "../db/portal-migrations-hardened.ts";
 import { STORAGE_INTEGRITY_PATH } from "../storage-integrity-contract.ts";
+import { STORAGE_MIGRATION_PREFLIGHT_PATH } from "../storage-migration-preflight-contract.ts";
 import { STORAGE_STATUS_PATH } from "../storage-status-contract.ts";
 import { handleDependencyHealthRequest } from "./dependency-health.ts";
 import { handleHealthDiagnosticsRequest } from "./health-diagnostics-ui.ts";
@@ -64,7 +65,11 @@ const worker = {
     });
     if (metricsResponse) return metricsResponse;
 
-    if (url.pathname === STORAGE_STATUS_PATH || url.pathname === STORAGE_INTEGRITY_PATH) {
+    if (
+      url.pathname === STORAGE_STATUS_PATH
+      || url.pathname === STORAGE_INTEGRITY_PATH
+      || url.pathname === STORAGE_MIGRATION_PREFLIGHT_PATH
+    ) {
       return rootRuntime.fetch(request, sourceEnv, ctx);
     }
 

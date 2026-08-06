@@ -35,45 +35,18 @@ const maxPublicCount = 10_000;
 const backupMaxAgeMs = 86_400_000;
 const lockTtlMs = 60_000;
 
-const schemaCodes = {
-  ready: "migration_schema_ready",
-  drift: "migration_schema_drift",
-  incompatible: "migration_registry_snapshot_required",
-  unavailable: "migration_schema_unavailable",
-} as const;
-
-const journalCodes = {
-  valid: "migration_journal_valid",
-  missing: "migration_journal_missing",
-  invalid: "migration_journal_invalid",
-  future: "migration_journal_future",
-  unavailable: "migration_journal_unavailable",
-} as const;
-
-const integrityCodes = {
-  healthy: "migration_quick_check_ok",
-  failed: "migration_quick_check_failed",
-  unsupported: "migration_quick_check_unsupported",
-  not_required: "migration_quick_check_not_required",
-  unavailable: "migration_quick_check_unavailable",
-} as const;
-
-const backupCodes = {
-  ready: "migration_backup_ready",
-  missing: "migration_backup_missing",
-  stale: "migration_backup_stale",
-  invalid: "migration_backup_invalid",
-  not_required: "migration_backup_not_required",
-  unavailable: "migration_backup_unavailable",
-} as const;
-
-const lockCodes = {
-  available: "migration_lock_available",
-  held: "migration_lock_held",
-  stale: "migration_lock_stale",
-  not_required: "migration_lock_not_required",
-  unavailable: "migration_lock_unavailable",
-} as const;
+const journalInvalidCodes = new Set([
+  "migration_journal_malformed",
+  "migration_journal_duplicate",
+  "migration_journal_future_version",
+  "migration_journal_gap",
+  "migration_journal_checksum_mismatch",
+]);
+const schemaIncompatibleCodes = new Set([
+  "migration_registry_snapshot_required",
+  "migration_schema_incompatible",
+  "migration_schema_partial_apply",
+]);
 
 function failure(code: string, exitCode: number): StorageMigrationPreflightInspectResult {
   return {
@@ -178,60 +151,92 @@ function nullableInteger(value: unknown, maximum: number): value is number | nul
   return value === null || safeInteger(value, maximum);
 }
 
-function stateCodeMatches<T extends Record<string, string>>(
-  value: JsonObject,
-  codes: T,
-): boolean {
-  return typeof value.state === "string"
-    && Object.prototype.hasOwnProperty.call(codes, value.state)
-    && value.code === codes[value.state as keyof T];
-}
-
 function validSchema(value: unknown): value is JsonObject {
   if (!isObject(value) || !exactKeys(value, ["state", "currentVersion", "latestVersion", "code"])) return false;
-  if (!stateCodeMatches(value, schemaCodes)) return false;
   if (!nullableInteger(value.currentVersion, maxPublicCount) || !nullableInteger(value.latestVersion, maxPublicCount)) return false;
-  if (value.state === "unavailable") return value.currentVersion === null;
-  if (typeof value.currentVersion !== "number" || typeof value.latestVersion !== "number") return false;
-  return value.currentVersion <= value.latestVersion;
+  if (
+    typeof value.currentVersion === "number"
+    && typeof value.latestVersion === "number"
+    && value.currentVersion > value.latestVersion
+  ) return false;
+
+  if (value.state === "ready") {
+    return value.code === "migration_schema_ready"
+      && typeof value.currentVersion === "number"
+      && typeof value.latestVersion === "number";
+  }
+  if (value.state === "incompatible") {
+    return typeof value.currentVersion === "number"
+      && typeof value.latestVersion === "number"
+      && typeof value.code === "string"
+      && schemaIncompatibleCodes.has(value.code);
+  }
+  return value.state === "unavailable" && value.code === "migration_schema_unavailable";
 }
 
 function validJournal(value: unknown): value is JsonObject {
   if (!isObject(value) || !exactKeys(value, ["state", "appliedCount", "pendingCount", "code"])) return false;
-  return stateCodeMatches(value, journalCodes)
-    && safeInteger(value.appliedCount, maxPublicCount)
-    && safeInteger(value.pendingCount, maxPublicCount);
+  if (!safeInteger(value.appliedCount, maxPublicCount) || !safeInteger(value.pendingCount, maxPublicCount)) return false;
+  if (value.state === "valid") return value.code === "migration_journal_valid";
+  if (value.state === "invalid") return typeof value.code === "string" && journalInvalidCodes.has(value.code);
+  return value.state === "unavailable" && value.code === "migration_journal_unavailable";
 }
 
 function validIntegrity(value: unknown): value is JsonObject {
-  return isObject(value)
-    && exactKeys(value, ["state", "code"])
-    && stateCodeMatches(value, integrityCodes);
+  if (!isObject(value) || !exactKeys(value, ["state", "code"])) return false;
+  switch (value.state) {
+    case "healthy": return value.code === "migration_quick_check_ok";
+    case "failed": return value.code === "migration_quick_check_failed";
+    case "unsupported": return value.code === "migration_quick_check_unsupported";
+    case "not_required": return value.code === "migration_quick_check_not_required";
+    case "unavailable": return value.code === "migration_quick_check_unavailable";
+    default: return false;
+  }
 }
 
 function validBackup(value: unknown): value is JsonObject {
   if (!isObject(value) || !exactKeys(value, ["state", "ageMs", "maxAgeMs", "code"])) return false;
-  if (!stateCodeMatches(value, backupCodes) || value.maxAgeMs !== backupMaxAgeMs) return false;
-  if (!nullableInteger(value.ageMs, Number.MAX_SAFE_INTEGER)) return false;
-  if (value.state === "ready" || value.state === "stale") return typeof value.ageMs === "number";
-  return value.ageMs === null;
+  if (value.maxAgeMs !== backupMaxAgeMs || !nullableInteger(value.ageMs, Number.MAX_SAFE_INTEGER)) return false;
+  switch (value.state) {
+    case "ready":
+      return value.code === "migration_backup_ready" && typeof value.ageMs === "number" && value.ageMs <= backupMaxAgeMs;
+    case "stale":
+      return value.code === "migration_backup_stale" && typeof value.ageMs === "number" && value.ageMs > backupMaxAgeMs;
+    case "missing":
+      return value.code === "migration_backup_missing" && value.ageMs === null;
+    case "incompatible":
+      return value.code === "migration_backup_incompatible" && value.ageMs === null;
+    case "not_required":
+      return value.code === "migration_backup_not_required" && value.ageMs === null;
+    case "unavailable":
+      return value.code === "migration_backup_unavailable" && value.ageMs === null;
+    default:
+      return false;
+  }
 }
 
 function validLock(value: unknown): value is JsonObject {
   if (!isObject(value) || !exactKeys(value, ["state", "blocking", "ageMs", "ttlMs", "code"])) return false;
-  if (!stateCodeMatches(value, lockCodes) || value.ttlMs !== lockTtlMs || typeof value.blocking !== "boolean") return false;
+  if (value.ttlMs !== lockTtlMs || typeof value.blocking !== "boolean") return false;
   if (!nullableInteger(value.ageMs, Number.MAX_SAFE_INTEGER)) return false;
 
   switch (value.state) {
     case "available":
-    case "not_required":
-      return value.blocking === false && value.ageMs === null;
+      return value.code === "migration_lock_available" && value.blocking === false && value.ageMs === null;
     case "held":
-      return value.blocking === true && typeof value.ageMs === "number" && value.ageMs <= lockTtlMs;
+      return value.code === "migration_lock_held"
+        && value.blocking === true
+        && typeof value.ageMs === "number"
+        && value.ageMs <= lockTtlMs;
     case "stale":
-      return value.blocking === false && typeof value.ageMs === "number" && value.ageMs > lockTtlMs;
+      return value.code === "migration_lock_stale"
+        && value.blocking === false
+        && typeof value.ageMs === "number"
+        && value.ageMs > lockTtlMs;
+    case "not_required":
+      return value.code === "migration_lock_not_required" && value.blocking === false && value.ageMs === null;
     case "unavailable":
-      return value.blocking === true && value.ageMs === null;
+      return value.code === "migration_lock_unavailable" && value.blocking === true && value.ageMs === null;
     default:
       return false;
   }
@@ -241,77 +246,141 @@ function validCorrelationId(value: unknown): value is string {
   return typeof value === "string" && /^cor_[A-Za-z0-9_-]{8,128}$/.test(value);
 }
 
-function firstBlockingCode(value: JsonObject): string | null {
-  const schema = value.schema as JsonObject;
+function isUnavailableIntegrity(value: JsonObject): boolean {
+  return value.state === "unavailable" && value.code === "migration_quick_check_unavailable";
+}
+
+function isUnavailableBackup(value: JsonObject): boolean {
+  return value.state === "unavailable"
+    && value.ageMs === null
+    && value.code === "migration_backup_unavailable";
+}
+
+function isUnavailableLock(value: JsonObject): boolean {
+  return value.state === "unavailable"
+    && value.blocking === true
+    && value.ageMs === null
+    && value.code === "migration_lock_unavailable";
+}
+
+function hasUnevaluatedRemainder(value: JsonObject): boolean {
+  return isUnavailableIntegrity(value.integrity as JsonObject)
+    && isUnavailableBackup(value.backup as JsonObject)
+    && isUnavailableLock(value.lock as JsonObject);
+}
+
+function firstDownstreamBlockingCode(value: JsonObject): string | null {
   const integrity = value.integrity as JsonObject;
   const backup = value.backup as JsonObject;
   const lock = value.lock as JsonObject;
-  if (schema.state !== "ready") return String(schema.code);
   if (integrity.state !== "healthy") return String(integrity.code);
   if (backup.state !== "ready") return String(backup.code);
   if (lock.blocking === true) return String(lock.code);
   return null;
 }
 
-function validOverallState(value: JsonObject): boolean {
-  const state = value.state;
-  const decision = value.decision;
-  const code = value.code;
-  const pending = value.pendingMigrationCount;
+function anyDownstreamUnavailable(value: JsonObject): boolean {
+  return (value.integrity as JsonObject).state === "unavailable"
+    || (value.backup as JsonObject).state === "unavailable"
+    || (value.lock as JsonObject).state === "unavailable";
+}
+
+function validBaseUnavailable(value: JsonObject): boolean {
+  const schema = value.schema as JsonObject;
+  const journal = value.journal as JsonObject;
+  return value.state === "unavailable"
+    && value.decision === "deny"
+    && value.pendingMigrationCount === 0
+    && [
+      "migration_preflight_unavailable",
+      "migration_preflight_database_unavailable",
+      "migration_journal_unavailable",
+    ].includes(String(value.code))
+    && schema.state === "unavailable"
+    && schema.currentVersion === null
+    && journal.state === "unavailable"
+    && journal.appliedCount === 0
+    && journal.pendingCount === 0
+    && hasUnevaluatedRemainder(value);
+}
+
+function validJournalBlock(value: JsonObject): boolean {
+  const schema = value.schema as JsonObject;
+  const journal = value.journal as JsonObject;
+  return value.state === "blocked"
+    && value.decision === "deny"
+    && value.pendingMigrationCount === 0
+    && journal.state === "invalid"
+    && value.code === journal.code
+    && schema.state === "unavailable"
+    && schema.currentVersion === null
+    && hasUnevaluatedRemainder(value);
+}
+
+function validSchemaStage(value: JsonObject): boolean {
+  const schema = value.schema as JsonObject;
+  const journal = value.journal as JsonObject;
+  const pending = Number(value.pendingMigrationCount);
+  if (journal.state !== "valid" || journal.pendingCount !== pending || !hasUnevaluatedRemainder(value)) return false;
+  if (schema.state === "incompatible") {
+    if (schema.code === "migration_registry_snapshot_required" || schema.code === "migration_schema_partial_apply") {
+      if (pending < 1) return false;
+    }
+    return value.state === "blocked" && value.decision === "deny" && value.code === schema.code;
+  }
+  if (schema.state === "unavailable") {
+    return value.state === "unavailable" && value.decision === "deny" && value.code === schema.code;
+  }
+  return false;
+}
+
+function validNoPending(value: JsonObject): boolean {
   const schema = value.schema as JsonObject;
   const journal = value.journal as JsonObject;
   const integrity = value.integrity as JsonObject;
   const backup = value.backup as JsonObject;
   const lock = value.lock as JsonObject;
+  return value.state === "not_required"
+    && value.decision === "deny"
+    && value.code === "migration_preflight_not_required"
+    && value.pendingMigrationCount === 0
+    && schema.state === "ready"
+    && journal.state === "valid"
+    && journal.pendingCount === 0
+    && integrity.state === "not_required"
+    && backup.state === "not_required"
+    && lock.state === "not_required"
+    && lock.blocking === false;
+}
 
-  if (journal.pendingCount !== pending) return false;
+function validDownstreamStage(value: JsonObject): boolean {
+  const schema = value.schema as JsonObject;
+  const journal = value.journal as JsonObject;
+  const pending = Number(value.pendingMigrationCount);
+  if (
+    pending < 1
+    || schema.state !== "ready"
+    || journal.state !== "valid"
+    || journal.pendingCount !== pending
+  ) return false;
 
-  if (state === "ready") {
-    return decision === "allow"
-      && code === "migration_preflight_ready"
-      && Number(pending) > 0
-      && schema.state === "ready"
-      && journal.state === "valid"
-      && integrity.state === "healthy"
-      && backup.state === "ready"
-      && (lock.state === "available" || lock.state === "stale")
-      && lock.blocking === false;
+  const blockingCode = firstDownstreamBlockingCode(value);
+  if (blockingCode === null) {
+    return value.state === "ready"
+      && value.decision === "allow"
+      && value.code === "migration_preflight_ready";
   }
+  return value.state === (anyDownstreamUnavailable(value) ? "unavailable" : "blocked")
+    && value.decision === "deny"
+    && value.code === blockingCode;
+}
 
-  if (state === "not_required") {
-    return decision === "deny"
-      && code === "migration_preflight_not_required"
-      && pending === 0
-      && schema.state === "ready"
-      && journal.state === "valid"
-      && integrity.state === "not_required"
-      && backup.state === "not_required"
-      && lock.state === "not_required"
-      && lock.blocking === false;
-  }
-
-  if (state === "blocked") {
-    const blockingCode = firstBlockingCode(value);
-    return decision === "deny"
-      && Number(pending) > 0
-      && journal.state === "valid"
-      && blockingCode !== null
-      && code === blockingCode;
-  }
-
-  if (state === "unavailable") {
-    return decision === "deny"
-      && code === "migration_preflight_unavailable"
-      && pending === 0
-      && schema.state === "unavailable"
-      && journal.state === "unavailable"
-      && integrity.state === "unavailable"
-      && backup.state === "unavailable"
-      && lock.state === "unavailable"
-      && lock.blocking === true;
-  }
-
-  return false;
+function validOverallState(value: JsonObject): boolean {
+  return validBaseUnavailable(value)
+    || validJournalBlock(value)
+    || validSchemaStage(value)
+    || validNoPending(value)
+    || validDownstreamStage(value);
 }
 
 function validPayload(value: unknown): value is JsonObject {

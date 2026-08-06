@@ -13,7 +13,7 @@ Checkpoint **не применяет migrations**, не захватывает m
 3. schema соответствует snapshot применённого prefix;
 4. объекты следующей migration отсутствуют полностью, а не созданы частично;
 5. один фиксированный `PRAGMA quick_check(1)` завершён успешно;
-6. существует свежий успешный полный encrypted backup текущей версии schema;
+6. существует свежий успешный полный encrypted backup текущей применённой версии schema;
 7. migration lock свободен либо stale по фиксированному TTL.
 
 При отсутствии pending migrations expensive checks не выполняются: ответ имеет состояние `not_required`.
@@ -134,21 +134,26 @@ Operational block не является transport failure, поэтому воз
 | `blocked` | `deny` | evaluation выполнена, но обнаружено конкретное безопасно классифицированное препятствие |
 | `unavailable` | `deny` | evaluation выполнить полностью невозможно |
 
-Для `blocked` overall `code` равен первому blocking code в порядке schema → integrity → backup → lock.
+Overall `code` выбирается в фактическом fail-closed порядке: journal → schema → integrity → backup → lock. Для unexpected handler failure используется `migration_preflight_unavailable`; отсутствие D1 классифицируется как `migration_preflight_database_unavailable`.
 
 ## Schema и journal codes
 
 | Code | Значение |
 |---|---|
 | `migration_schema_ready` | applied prefix соответствует deterministic snapshot |
-| `migration_schema_drift` | schema drift блокирует controlled apply |
+| `migration_schema_incompatible` | applied schema не соответствует canonical snapshot |
 | `migration_registry_snapshot_required` | pending migration не имеет deterministic snapshot/preflight eligibility |
+| `migration_schema_partial_apply` | обнаружен хотя бы один объект pending migration до journal commit |
 | `migration_schema_unavailable` | schema inspection недоступна |
 | `migration_journal_valid` | journal — точный ordered registry prefix |
-| `migration_journal_missing` | journal infrastructure отсутствует |
-| `migration_journal_invalid` | gap/name/checksum/prefix mismatch |
-| `migration_journal_future` | база содержит неизвестную будущую migration |
+| `migration_journal_malformed` | journal row имеет небезопасную/неполную форму |
+| `migration_journal_duplicate` | обнаружена повторная version |
+| `migration_journal_future_version` | journal содержит version вне compile-time registry |
+| `migration_journal_gap` | journal не является непрерывным ordered prefix |
+| `migration_journal_checksum_mismatch` | name/checksum не совпадает с immutable registry |
 | `migration_journal_unavailable` | journal query недоступен |
+
+При journal/schema block последующие integrity/backup/lock checks не выполняются и остаются в явном sanitized состоянии `unavailable`.
 
 ## Integrity codes
 
@@ -166,11 +171,11 @@ Raw quick-check output никогда не возвращается.
 
 Controlled apply разрешается только при наличии matching audit evidence успешного полного encrypted export:
 
-- `action=backup.export.encrypted`;
+- `action=backup.encrypted.export.completed`;
 - `outcome=success`;
-- `encrypted=true`;
-- schema version равна текущей/latest registry version;
-- selected domains точно равны canonical full backup domain set;
+- `resource_type=portal-backup`;
+- schema version равна текущей применённой migration version;
+- `metadata_json.domains` точно соответствует canonical full backup domain set;
 - возраст не больше `86400000` ms (24 часа).
 
 | Code | Значение |
@@ -178,7 +183,7 @@ Controlled apply разрешается только при наличии match
 | `migration_backup_ready` | найден свежий полный encrypted backup |
 | `migration_backup_missing` | matching backup отсутствует |
 | `migration_backup_stale` | последний matching backup старше 24 часов |
-| `migration_backup_invalid` | audit metadata malformed/несовместима |
+| `migration_backup_incompatible` | audit metadata malformed либо относится к другой schema/domain selection |
 | `migration_backup_not_required` | pending migrations отсутствуют |
 | `migration_backup_unavailable` | bounded audit query недоступен |
 
@@ -222,6 +227,7 @@ CLI:
 - ограничивает timeout диапазоном `500..30000` ms;
 - выполняет exact `POST` с body `{}` и запрещает redirects;
 - печатает только полностью валидированный contract;
+- проверяет stage ordering и fail-closed remainder, а не только JSON shape;
 - не печатает raw body, redirect location, target URL, token или exception message.
 
 Exit codes:
@@ -261,7 +267,7 @@ Audit metadata содержит только overall state/decision/code, bounde
 1. Выполнить CLI и сохранить только sanitized JSON/correlation ID.
 2. При `not_required` не запускать migration apply.
 3. При `blocked` устранить первый blocking code:
-   - schema/journal: остановить процедуру и проверить compatibility/registry;
+   - journal/schema: остановить процедуру и проверить compatibility/registry;
    - integrity: не применять migration, перейти к incident diagnosis;
    - backup: создать новый полный encrypted backup и повторить preflight;
    - lock held/unavailable: не удалять lock вручную, проверить активный startup/apply process.

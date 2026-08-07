@@ -35,12 +35,25 @@ test("maintenance runbook documents the complete recovery operating contract", (
   ]) assert.equal(runbook.includes(contract), true, contract);
 });
 
-test("README exposes maintenance and completed selective restore surfaces", () => {
+test("README exposes current recovery capabilities and links authoritative runbooks", () => {
   const readme = read("../README.md");
+
+  for (const capability of [
+    "selective production restore",
+    "persistent maintenance mode",
+    "destructive offline full restore",
+  ]) assert.equal(readme.toLowerCase().includes(capability), true, capability);
+
+  for (const ownerDocument of [
+    "docs/MAINTENANCE_MODE.md",
+    "docs/OFFLINE_FULL_RESTORE.md",
+    "docs/DATABASE_MIGRATIONS.md",
+  ]) assert.equal(readme.includes(ownerDocument), true, ownerDocument);
+
+  // Exact maintenance/restore endpoint inventories belong to their active runbooks,
+  // not to the root overview. This protects README from becoming a duplicated API reference.
+  const maintenance = read("../docs/MAINTENANCE_MODE.md");
   for (const endpoint of [
-    "/api/admin/backups/import/encrypted/prepare-commit",
-    "/api/admin/backups/import/encrypted/commit",
-    "/api/admin/backups/import/encrypted/cancel",
     "/api/admin/maintenance/status",
     "/api/admin/maintenance/prepare",
     "/api/admin/maintenance/enter",
@@ -49,13 +62,7 @@ test("README exposes maintenance and completed selective restore surfaces", () =
     "/api/admin/maintenance/complete",
     "/api/admin/maintenance/cancel",
     "/api/maintenance/status",
-  ]) assert.equal(readme.includes(endpoint), true, endpoint);
-
-  assert.equal(readme.includes("portal_maintenance_state"), true);
-  assert.equal(readme.includes("отзывает все локальные сессии"), true);
-  assert.equal(readme.includes("блокирует обычный API и scheduled-задачи"), true);
-  assert.equal(readme.includes("maintenance.manage"), true);
-  assert.equal(readme.includes("docs/MAINTENANCE_MODE.md"), true);
+  ]) assert.equal(maintenance.includes(endpoint), true, endpoint);
 });
 
 test("roadmap records the completed PR 70 through PR 72 recovery sequence", () => {

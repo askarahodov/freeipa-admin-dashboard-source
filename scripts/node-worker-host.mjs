@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 import { resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
   createExecutionContext,
@@ -123,6 +123,7 @@ async function runFromCli() {
   process.once("SIGINT", () => void stop("SIGINT"));
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === resolve(new URL(import.meta.url).pathname)) {
+const currentModulePath = fileURLToPath(import.meta.url);
+if (process.argv[1] && resolve(process.argv[1]) === resolve(currentModulePath)) {
   await runFromCli();
 }

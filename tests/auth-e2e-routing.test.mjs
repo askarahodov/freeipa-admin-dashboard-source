@@ -5,6 +5,7 @@ import test from "node:test";
 import { authE2EExactRelevantPaths, shouldRunAuthE2E } from "../scripts/auth-e2e-scope.mjs";
 
 const workflow = await readFile(new URL("../.github/workflows/e2e-auth.yml", import.meta.url), "utf8");
+const ciWorkflow = await readFile(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
 
 const relevant = [
   "local-auth.ts",
@@ -62,7 +63,19 @@ test("workflow keeps one stable auth-e2e job and gates only expensive steps", ()
   assert.match(workflow, /if: steps\.scope\.outputs\.run == 'true'/u);
 });
 
-test("workflow concurrency cancels obsolete PR runs but not main, manual, or scheduled runs", () => {
+test("Auth E2E concurrency cancels obsolete PR runs but not main, manual, or scheduled runs", () => {
   assert.match(workflow, /concurrency:/u);
   assert.match(workflow, /cancel-in-progress:.*pull_request/u);
+});
+
+test("main CI also cancels only obsolete pull-request runs", () => {
+  assert.match(ciWorkflow, /concurrency:/u);
+  assert.match(ciWorkflow, /cancel-in-progress:.*pull_request/u);
+  assert.doesNotMatch(ciWorkflow, /cancel-in-progress:\s*true/u);
+});
+
+test("main CI exposes one stable aggregate required check over all suites", () => {
+  assert.match(ciWorkflow, /\n  required:\n/u);
+  assert.match(ciWorkflow, /name:\s*Required CI/u);
+  assert.match(ciWorkflow, /needs:\s*\[discover-tests, build, test-suite, recovery-compose, test\]/u);
 });

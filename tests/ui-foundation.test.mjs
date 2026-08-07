@@ -41,6 +41,9 @@ test("shared primitives remain domain agnostic and accessible", async () => {
 
   const iconButton = await read("app/ui/IconButton.tsx");
   assert.match(iconButton, /aria-label/);
+
+  const toolbar = await read("app/ui/Toolbar.tsx");
+  assert.equal(toolbar.includes('role="toolbar"'), false, "Toolbar must not claim composite-widget semantics by default");
 });
 
 test("primitive styles consume canonical tokens and expose keyboard focus", async () => {

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
@@ -39,6 +40,21 @@ test("startup validates encryption key before creating the Gateway", () => {
   assert.notEqual(validation, -1);
   assert.notEqual(gateway, -1);
   assert.ok(validation < gateway, "encryption key validation must happen before Gateway startup");
+});
+
+test("startup exits immediately when CONFIG_ENCRYPTION_KEY is missing", () => {
+  const env = { ...process.env };
+  delete env.CONFIG_ENCRYPTION_KEY;
+  delete env.PORTAL_RUNTIME_PROFILE;
+  const result = spawnSync(process.execPath, [new URL("../scripts/start-worker.mjs", import.meta.url).pathname], {
+    cwd: new URL("..", import.meta.url),
+    env,
+    encoding: "utf8",
+    timeout: 5000,
+  });
+  assert.notEqual(result.status, 0);
+  assert.match(`${result.stderr}${result.stdout}`, /CONFIG_ENCRYPTION_KEY is not configured/u);
+  assert.doesNotMatch(`${result.stderr}${result.stdout}`, /FreeIPA Gateway did not acquire|Failed to start Worker runtime/u);
 });
 
 test("production env example documents generation but ships no usable key", () => {

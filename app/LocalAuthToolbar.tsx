@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { Button } from "./ui";
 
 type Session = {
   enabled?: boolean;
@@ -45,7 +46,7 @@ export default function LocalAuthToolbar() {
       {role === "admin" && pathname !== "/sessions" && <Link href="/sessions">Сессии</Link>}
       {role === "admin" && pathname !== "/diagnostics" && <Link href="/diagnostics">Диагностика</Link>}
       {administrativePage && <Link href="/">Портал</Link>}
-      <button onClick={() => void logout()}>Выйти</button>
+      <Button variant="ghost" onClick={() => void logout()}>Выйти</Button>
     </div>
   );
 }

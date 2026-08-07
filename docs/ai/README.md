@@ -83,13 +83,13 @@ Issue, roadmap и implementation plan не являются доказатель
 4. обновить [`reference/PERMISSIONS.md`](../reference/PERMISSIONS.md) только если реально меняется permission contract;
 5. обновить [`reference/ERROR_CODES.md`](../reference/ERROR_CODES.md), если меняются stable machine codes.
 
-Не используйте `/api/integrations/routes` как доказательство существования глобального HTTP route registry: это XYOps routing configuration. Машиночитаемый HTTP registry остаётся отдельной задачей #121.
+Не используйте `/api/integrations/routes` как глобальный HTTP registry: это XYOps routing configuration. Canonical machine-readable HTTP route metadata живёт в `portal-route-contract.ts`; runtime dispatch по-прежнему остаётся в текущих Worker handlers/wrappers.
 
 ### Permissions
 
 Canonical built-in role/permission registry — `portal-permissions.ts`. [`reference/PERMISSIONS.md`](../reference/PERMISSIONS.md) должен его отражать, но не заменять.
 
-Известный distributed/orphan RBAC drift отслеживается в #119. Не «исправляйте» route-local checks удалением или легализацией через новый документ; сначала определите корректный runtime owner и tests.
+Canonical built-in RBAC ownership консолидирован в `portal-permissions.ts`. Не создавайте route-local permission vocabulary; если route требует отсутствующий permission, изменяйте canonical registry и behavior tests явно.
 
 ### Configuration
 
@@ -127,6 +127,19 @@ agent/<short-scope>
 ```
 
 Один PR должен быть mergeable и понятен сам по себе. Большие refactor issues следует делить на slices, которые сохраняют рабочий runtime после каждого merge.
+
+### Coordination contract для PR
+
+До первого изменения агент заполняет coordination scope будущего PR и поддерживает его актуальным до merge:
+
+- `Owning issue` — Issue, который задаёт scope; если отдельного Issue действительно нет, явно указать `none` и объяснить основание в Summary;
+- `Canonical domain / contract` — существующий runtime/document owner из code, [`SOURCE_OF_TRUTH.md`](../SOURCE_OF_TRUTH.md) или профильного active-document;
+- `High-conflict paths` — ожидаемые shared/canonical paths либо явное `none`;
+- `Dependencies / merge order` — blocking/stacked PR и точный порядок merge либо явное `none`;
+- `Parallel-safe with` — известная независимая работа либо `none identified` после проверки;
+- `Explicitly out of scope` — соседние contracts, которые этот PR не меняет.
+
+Перед реализацией нужно проверить не только открытые PR, но и активные remote branches, если PR ещё не создан. Если обнаружено пересечение, агент не начинает вторую реализацию: он сужает scope, фиксирует dependency/merge order либо ждёт завершения текущего owner. Эти поля являются coordination evidence, а не новым source of truth и не дают ownership только потому, что записаны в PR.
 
 ### Shared/high-conflict files
 

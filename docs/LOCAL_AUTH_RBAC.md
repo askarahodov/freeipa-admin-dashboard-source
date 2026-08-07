@@ -4,6 +4,8 @@
 
 ## Режим работы
 
+Стандартный Docker/production deployment использует локальную аутентификацию:
+
 ```env
 PORTAL_IDENTITY_MODE=local
 PORTAL_BOOTSTRAP_ADMIN_USERNAME=admin
@@ -13,7 +15,11 @@ PORTAL_SESSION_TTL_HOURS=12
 PORTAL_DEFAULT_ROLE=viewer
 ```
 
+Перед запуском placeholder-пароль необходимо заменить. Runtime проверяет local bootstrap credentials до запуска FreeIPA Gateway/Worker и прекращает startup, если username/password отсутствуют, пароль короче 12 символов или оставлен документированный placeholder.
+
 Первый администратор создаётся только когда таблица `portal_users` пуста. После создания пользователя bootstrap-переменные больше не изменяют его пароль или роль.
+
+`static` identity не является production-режимом. Для изолированной development-машины существует отдельный `.env.dev.example` с `PORTAL_RUNTIME_PROFILE=development`. Попытка запустить static identity без явного development/test/e2e profile отклоняется startup policy.
 
 ## Хранилище
 

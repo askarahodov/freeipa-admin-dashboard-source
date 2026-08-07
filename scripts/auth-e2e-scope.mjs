@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { appendFileSync, readFileSync } from "node:fs";
 
 const exactRelevantPaths = new Set([
   ".env.example",
@@ -41,7 +41,7 @@ export function shouldRunAuthE2E(paths) {
   return Array.from(paths ?? []).some(isAuthE2ERelevantPath);
 }
 
-function runCli(argv) {
+export function runAuthE2EScopeCli(argv) {
   const args = [...argv];
   let githubOutput = "";
   if (args[0] === "--github-output") {
@@ -50,19 +50,16 @@ function runCli(argv) {
   }
   if (args.length !== 1) throw new Error("Usage: node scripts/auth-e2e-scope.mjs [--github-output PATH] CHANGED_FILES");
   const paths = readFileSync(args[0], "utf8").split(/\r?\n/u).map((value) => value.trim()).filter(Boolean);
-  const run = shouldRunAuthE2E(paths);
-  const result = `run=${run ? "true" : "false"}\n`;
-  if (githubOutput) {
-    const { appendFileSync } = await import("node:fs");
-    appendFileSync(githubOutput, result, "utf8");
-  } else {
-    process.stdout.write(result);
-  }
+  const result = `run=${shouldRunAuthE2E(paths) ? "true" : "false"}\n`;
+  if (githubOutput) appendFileSync(githubOutput, result, "utf8");
+  else process.stdout.write(result);
 }
 
 if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) {
-  runCli(process.argv.slice(2)).catch((error) => {
+  try {
+    runAuthE2EScopeCli(process.argv.slice(2));
+  } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : "Auth E2E scope failed"}\n`);
     process.exitCode = 1;
-  });
+  }
 }

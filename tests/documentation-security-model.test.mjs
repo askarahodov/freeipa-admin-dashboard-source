@@ -24,10 +24,10 @@ test("documentation navigation treats the security model as active current state
   const inventory = text("docs/DOCUMENTATION_INVENTORY.md");
   const ai = text("docs/ai/README.md");
 
-  assert.match(index, /\[SECURITY_MODEL\.md\]\(SECURITY_MODEL\.md\)/);
+  assert.match(index, /\[`SECURITY_MODEL\.md`\]\(SECURITY_MODEL\.md\)/);
   assert.doesNotMatch(index, /SECURITY_MODEL\.md` пока остаётся отдельным gap/);
   assert.match(inventory, /`docs\/SECURITY_MODEL\.md`[^\n]+`verified-active`/);
-  assert.match(ai, /\[SECURITY_MODEL\.md\]\(\.\.\/SECURITY_MODEL\.md\)/);
+  assert.match(ai, /\[`SECURITY_MODEL\.md`\]\(\.\.\/SECURITY_MODEL\.md\)/);
   assert.match(ai, /не превращать `ADMIN_TOKEN`[^\n]+generic admin bypass/);
 });
 

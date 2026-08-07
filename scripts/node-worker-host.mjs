@@ -22,6 +22,19 @@ function publicAddress(server) {
   return { host: address.address, port: address.port };
 }
 
+function validatedWorker(worker) {
+  if (!worker || typeof worker.fetch !== "function") {
+    throw new Error("Worker artifact must export a default fetch handler");
+  }
+  return worker;
+}
+
+export async function loadWorkerArtifact(artifactPath = "dist/server/index.js") {
+  const resolvedArtifactPath = resolve(artifactPath);
+  const artifact = await import(pathToFileURL(resolvedArtifactPath).href);
+  return validatedWorker(artifact.default);
+}
+
 export async function startNodeWorkerHost(options = {}) {
   const artifactPath = resolve(options.artifactPath ?? "dist/server/index.js");
   const assetsRoot = resolve(options.assetsRoot ?? "dist/client");
@@ -29,9 +42,9 @@ export async function startNodeWorkerHost(options = {}) {
   const port = Number(options.port ?? 0);
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error("port must be an integer between 0 and 65535");
 
-  const artifact = await import(pathToFileURL(artifactPath).href);
-  const worker = artifact.default;
-  if (!worker || typeof worker.fetch !== "function") throw new Error("Worker artifact must export a default fetch handler");
+  const worker = options.worker === undefined
+    ? await loadWorkerArtifact(artifactPath)
+    : validatedWorker(options.worker);
 
   const assets = createStaticAssetsFetcher(assetsRoot);
   const runtimeEnv = { ...options.env, ASSETS: assets };
@@ -84,6 +97,7 @@ export async function startNodeWorkerHost(options = {}) {
 
   return {
     server,
+    worker,
     address: publicAddress(server),
     async close() {
       if (closing) return;

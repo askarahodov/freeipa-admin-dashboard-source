@@ -80,6 +80,10 @@
 - [ ] Require Auth E2E to succeed on exact head with #141 already in base.
 - [ ] Merge only with expected head SHA after rechecking current `main` and review threads.
 
+#### Actions incident recovery note — 2026-08-07
+
+GitHub reported and resolved a platform-wide Actions incident on 2026-08-07. The incident report states that some workflow-triggering events were not processed normally and may require an explicit retrigger after recovery. The #151 pre-recovery runs remained queued without receiving a runner even for their first jobs. This documentation-only commit intentionally retriggers the pull-request `synchronize` event after GitHub reported Actions operational again; it does not alter sharding, security, recovery, or required-check behavior. The new exact-head runs are authoritative for Task 4.
+
 ### Task 5: Follow-up ownership
 
 - [ ] Keep #60 open for behavior-first test architecture work.

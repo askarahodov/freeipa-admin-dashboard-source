@@ -15,10 +15,11 @@ test("product navigation has stable grouped destinations without generated catal
   assert.equal(/[⌂⌘♙♧◷✓≣⚙]/u.test(navigation), false);
 });
 
-test("route matching keeps root exact and treats catalog descendants as catalog", async () => {
+test("route matching keeps root exact and product sections active on descendants", async () => {
   const navigation = await read("app/shell/navigation.ts");
   assert.match(navigation, /item\.id === "overview"[\s\S]*path === "\/"/);
   assert.match(navigation, /item\.id === "catalog"[\s\S]*path === "\/automation"[\s\S]*path\.startsWith\("\/automation\/"\)/);
+  assert.match(navigation, /path === item\.href \|\| path\.startsWith\(`\$\{item\.href\}\/`\)/);
 });
 
 test("AppShell remains domain agnostic and exposes accessible product navigation", async () => {

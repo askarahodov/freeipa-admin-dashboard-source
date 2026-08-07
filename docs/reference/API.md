@@ -4,7 +4,7 @@
 
 This document is the normalized **current-state HTTP API reference** for Admin Dashboard Softrust. It helps a developer or AI agent answer “does this capability already have a route, and who owns it?” before adding a new endpoint.
 
-It does **not** replace runtime routing. Current routing is distributed across the Worker wrapper chain and route-specific modules; a single machine-readable route registry is tracked by **#121**. When this document and current code disagree, verify the exact handler and its tests first.
+It does **not** replace runtime routing. `portal-route-contract.ts` is the canonical machine-readable owner for normalized route metadata such as method, path pattern, handler owner, auth boundary, canonical permission, mutation classification and local-admin same-origin classification. Existing Worker handlers/wrappers remain the runtime owners of dispatch, validation and responses. When the registry, this document and current code disagree, treat that as drift and verify the exact handler/tests before changing behavior.
 
 ## Authorization legend
 
@@ -128,9 +128,9 @@ For execution ownership and why the portal is not a second scheduler, see `XYOPS
 | Method | Path | Purpose | Boundary / permission | Owner |
 | --- | --- | --- | --- | --- |
 | route-owned | `/api/admin/backups/export` | Sanitized backup export. | `backup.export` | `worker/backup-export-entry.ts` via `worker/index.ts` |
-| route-owned | `/api/admin/backups/import/preview` | Read-only sanitized backup import preview. | route-local legacy/orphan `backup.restore.preview`; admin | `worker/backup-import-preview-root-entry.ts` |
+| route-owned | `/api/admin/backups/import/preview` | Read-only sanitized backup import preview. | canonical `backup.restore.preview`; admin | `worker/backup-import-preview-root-entry.ts` |
 | route-owned | `/api/admin/backups/export/encrypted` | Full encrypted backup export. | `backup.export.encrypted`; admin | `worker/backup-encrypted-root-entry.ts` |
-| route-owned | `/api/admin/backups/import/encrypted/preview` | Encrypted backup preview. | route-local legacy/orphan `backup.restore.preview`; admin | `worker/backup-encrypted-root-entry.ts` |
+| route-owned | `/api/admin/backups/import/encrypted/preview` | Encrypted backup preview. | canonical `backup.restore.preview`; admin | `worker/backup-encrypted-root-entry.ts` |
 | route-owned | `/api/admin/backups/import/encrypted/test-restore` | Isolated test restore. | `backup.restore.test`; admin | `worker/backup-encrypted-root-entry.ts` |
 | `POST` | `/api/admin/backups/import/encrypted/prepare-commit` | Preflight and stage selective production restore with recovery point. | `backup.restore.prepare`; admin + same-origin | `worker/backup-selective-restore-entry.ts` |
 | `POST` | `/api/admin/backups/import/encrypted/commit` | Transactional selective restore commit. | `backup.restore.commit`; admin + same-origin + stage secret/confirmation | `worker/backup-selective-restore-entry.ts` |
@@ -184,17 +184,19 @@ The exact wrapper depends on the path, but API changes must preserve these curre
 
 Do not add a new route by bypassing an existing outer gate simply because the underlying domain function is reusable.
 
-## Known route-registry limitation
+## Machine-readable route metadata
 
-There is currently no single declarative runtime registry containing every method/path/auth/permission contract. Routing is distributed between `worker/index.ts`, wrapper entry modules and route constants. Follow-up **#121** tracks a machine-readable route contract suitable for drift checks and future documentation generation.
+`portal-route-contract.ts` is the canonical declarative inventory for stable HTTP route metadata. It intentionally does **not** dispatch requests or duplicate request/response schemas: routing behavior remains distributed across the current Worker wrapper chain and domain handlers until the separate #56 refactor changes that architecture.
 
-Until #121 is resolved:
+When a route changes:
 
-- use this file as a normalized orientation reference;
-- verify the exact current handler and test before modifying a route;
-- do not use `/api/integrations/routes` as an HTTP API registry;
-- do not add a second endpoint when an existing capability can be extended;
-- when a route changes, update its handler/tests and this reference in the same PR.
+- update the runtime handler and behavior tests first;
+- update `portal-route-contract.ts` in the same PR;
+- update this normalized human reference when the operator/developer-facing contract changes;
+- do not use `/api/integrations/routes` as an HTTP API registry — it is XYOps automation-routing configuration;
+- do not add a second endpoint when an existing capability can be extended.
+
+The route contract is intended to become an input to #56 route/middleware parity checks, not a second router.
 
 ## Related references
 

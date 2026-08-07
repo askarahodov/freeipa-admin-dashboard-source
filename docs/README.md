@@ -1,104 +1,157 @@
 # Engineering documentation
 
-Этот каталог — главный индекс инженерной документации FreeIPA Admin Dashboard. Он предназначен одновременно для разработчиков, операторов, security reviewers и ИИ-агентов.
+Этот каталог — главный индекс инженерной документации проекта. Он предназначен для разработчиков, операторов, security reviewers и ИИ-агентов.
 
-Корневой `README.md` остаётся краткой входной точкой проекта. Подробные архитектурные, эксплуатационные и reference-контракты должны находиться в `docs/`.
+> Каноническое новое product/display name **Admin Dashboard Softrust** зафиксировано задачей #88. До завершения отдельного rename PR старое имя может встречаться в текущих файлах и historical artifacts.
 
-## Как пользоваться документацией
+Корневой [`README.md`](../README.md) остаётся краткой входной точкой. Подробные contracts, runbook и reference находятся в `docs/`.
 
-### Если вы впервые знакомитесь с проектом
+Текущий результат проверки документации против `main`: [`DOCUMENTATION_INVENTORY.md`](DOCUMENTATION_INVENTORY.md).
 
-1. Прочитайте корневой [`README.md`](../README.md).
-2. Прочитайте этот индекс.
-3. Для текущей реализации локальной аутентификации изучите [`LOCAL_AUTH_RBAC.md`](LOCAL_AUTH_RBAC.md).
-4. Для базы и запуска runtime изучите [`DATABASE_MIGRATIONS.md`](DATABASE_MIGRATIONS.md) и [`HEALTH_CONTRACTS.md`](HEALTH_CONTRACTS.md).
-5. Перед recovery/restore операциями обязательно изучите профильные runbook, начиная с [`MAINTENANCE_MODE.md`](MAINTENANCE_MODE.md).
+## С чего начать
 
-### Для разработчика
+### Новый разработчик
 
-Перед изменением кода:
-
-1. определить затрагиваемый домен;
-2. проверить [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md);
-3. прочитать профильный документ домена;
-4. проверить связанные tests и актуальный `main`;
-5. обновить документацию в том же PR, если изменяется контракт, архитектура, конфигурация, безопасность или эксплуатационное поведение.
+1. [`../README.md`](../README.md) — назначение, quick start и основные boundaries.
+2. [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md) — authoritative owners контрактов.
+3. [`DOCUMENTATION_INVENTORY.md`](DOCUMENTATION_INVENTORY.md) — какие документы проверены против текущего `main`.
+4. Профильный документ затрагиваемого домена.
+5. Фактический code/tests текущего ref.
 
 Правила ведения документации: [`DOCUMENTATION_POLICY.md`](DOCUMENTATION_POLICY.md).
 
-### Для оператора
-
-Основные эксплуатационные документы:
-
-- [`HEALTH_CONTRACTS.md`](HEALTH_CONTRACTS.md) — liveness, readiness и состояние внешних зависимостей;
-- [`DATABASE_MIGRATIONS.md`](DATABASE_MIGRATIONS.md) — canonical schema, migration journal, drift и startup gate;
-- [`STORAGE_STATUS.md`](STORAGE_STATUS.md) — bounded read-only storage diagnostics;
-- [`STORAGE_INTEGRITY.md`](STORAGE_INTEGRITY.md) — read-only integrity и canonical index diagnostics;
-- [`MAINTENANCE_MODE.md`](MAINTENANCE_MODE.md) — persistent maintenance boundary и recovery flow.
-
-Перед выполнением destructive или recovery операций используйте только профильные runbook и команды, описанные для текущего release.
-
-### Для security reviewer
-
-Начните с:
-
-- [`LOCAL_AUTH_RBAC.md`](LOCAL_AUTH_RBAC.md);
-- [`HEALTH_CONTRACTS.md`](HEALTH_CONTRACTS.md);
-- [`DATABASE_MIGRATIONS.md`](DATABASE_MIGRATIONS.md);
-- [`MAINTENANCE_MODE.md`](MAINTENANCE_MODE.md);
-- [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md).
-
-Общий `SECURITY_MODEL.md` пока является документальным пробелом и будет создан отдельной задачей Epic #82. До его появления security-модель необходимо восстанавливать по актуальным профильным контрактам и runtime-коду, а не по roadmap.
-
-### Для ИИ-агента
+### ИИ-агент
 
 Обязательная точка входа: [`ai/README.md`](ai/README.md).
 
-ИИ-агент не должен считать issue, implementation plan или старый PR доказательством текущего поведения. Фактический `main`, canonical code contracts и актуальные active-документы имеют приоритет.
+ИИ-агент не должен считать GitHub Issue, implementation plan, старый PR или historical design доказательством текущего поведения. При конфликте приоритет у текущего runtime/canonical source и verified active-document.
 
-## Текущие профильные документы
+### Оператор
 
-На момент создания этого индекса в `main` подтверждены следующие ключевые документы:
+Начните с:
+
+- [`HEALTH_CONTRACTS.md`](HEALTH_CONTRACTS.md)
+- [`HEALTH_METRICS.md`](HEALTH_METRICS.md)
+- [`STORAGE_STATUS.md`](STORAGE_STATUS.md)
+- [`STORAGE_INTEGRITY.md`](STORAGE_INTEGRITY.md)
+- [`DATABASE_MIGRATIONS.md`](DATABASE_MIGRATIONS.md)
+- [`MAINTENANCE_MODE.md`](MAINTENANCE_MODE.md)
+- [`OFFLINE_FULL_RESTORE.md`](OFFLINE_FULL_RESTORE.md)
+- [`CONFIG_ENCRYPTION_KEY.md`](CONFIG_ENCRYPTION_KEY.md)
+
+Для destructive/recovery операций используйте только профильный active runbook, а не команды из старого Issue/PR.
+
+### Security reviewer
+
+Основной набор:
+
+- [`LOCAL_AUTH_RBAC.md`](LOCAL_AUTH_RBAC.md)
+- [`AUDIT_LOG.md`](AUDIT_LOG.md)
+- [`CONFIG_ENCRYPTION_KEY.md`](CONFIG_ENCRYPTION_KEY.md)
+- [`DATABASE_MIGRATIONS.md`](DATABASE_MIGRATIONS.md)
+- [`MAINTENANCE_MODE.md`](MAINTENANCE_MODE.md)
+- [`OFFLINE_FULL_RESTORE.md`](OFFLINE_FULL_RESTORE.md)
+- [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md)
+
+Общий `SECURITY_MODEL.md` пока остаётся отдельным gap Epic #82.
+
+## Foundation / governance
 
 | Документ | Назначение |
 | --- | --- |
-| [`LOCAL_AUTH_RBAC.md`](LOCAL_AUTH_RBAC.md) | Локальные пользователи портала, sessions, роли и separation от FreeIPA identities |
-| [`DATABASE_MIGRATIONS.md`](DATABASE_MIGRATIONS.md) | Canonical D1/SQLite schema, migrations, journal, lock, adoption и drift |
-| [`HEALTH_CONTRACTS.md`](HEALTH_CONTRACTS.md) | Liveness, readiness, dependency diagnostics и безопасные response contracts |
-| [`STORAGE_STATUS.md`](STORAGE_STATUS.md) | Read-only storage status и browser-independent inspection |
-| [`STORAGE_INTEGRITY.md`](STORAGE_INTEGRITY.md) | Bounded integrity/index diagnostics без repair |
-| [`MAINTENANCE_MODE.md`](MAINTENANCE_MODE.md) | Persistent maintenance state и online/offline recovery boundary |
+| [`DOCUMENTATION_POLICY.md`](DOCUMENTATION_POLICY.md) | Docs-as-code, current-state vs plan, statuses, review и правила нескольких ИИ-агентов |
+| [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md) | Authoritative source registry |
+| [`DOCUMENTATION_INVENTORY.md`](DOCUMENTATION_INVENTORY.md) | Audit status документов против текущего `main` |
+| [`GLOSSARY.md`](GLOSSARY.md) | Единая терминология |
+| [`ai/README.md`](ai/README.md) | Обязательный AI-agent entrypoint |
 
-Другие существующие runbook и feature documents продолжают использоваться; их полная инвентаризация и классификация выполняется в рамках Epic #82. Не переносите и не переименовывайте существующие документы массово без migration map и проверки ссылок.
+## Authentication / access / audit
 
-## Известные пробелы
+| Документ | Назначение |
+| --- | --- |
+| [`LOCAL_AUTH_RBAC.md`](LOCAL_AUTH_RBAC.md) | Local portal users, sessions, roles и separation от FreeIPA identities |
+| [`AUDIT_LOG.md`](AUDIT_LOG.md) | Append-only audit, correlation, redaction и read API |
 
-Следующие документы нужны проекту, но их наличие или полнота не должны предполагаться до выполнения соответствующих задач:
+## Storage / schema / recovery
 
-- общий `ARCHITECTURE.md`;
-- `PROJECT_STRUCTURE.md` и module-boundary map;
-- общий `SECURITY_MODEL.md`;
-- versioned API route/permission/error-code reference;
-- supported/unsupported deployment matrix;
-- полный ADR registry;
-- единая module documentation structure;
-- automated documentation consistency checks.
+| Документ | Назначение |
+| --- | --- |
+| [`DATABASE_MIGRATIONS.md`](DATABASE_MIGRATIONS.md) | Canonical schema, automatic/controlled migrations, journal, drift и recovery semantics |
+| [`STORAGE_STATUS.md`](STORAGE_STATUS.md) | Bounded read-only storage status |
+| [`STORAGE_INTEGRITY.md`](STORAGE_INTEGRITY.md) | Read-only SQLite/index integrity diagnostics |
+| [`MAINTENANCE_MODE.md`](MAINTENANCE_MODE.md) | Persistent maintenance state machine и recovery boundary |
+| [`OFFLINE_FULL_RESTORE.md`](OFFLINE_FULL_RESTORE.md) | Destructive offline full restore, atomic swap, verify и rollback |
+| [`CONFIG_ENCRYPTION_KEY.md`](CONFIG_ENCRYPTION_KEY.md) | Production encryption-key generation/startup requirements |
 
-План закрытия этих пробелов находится в Epic #82. План не является current-state документацией.
+## Health / monitoring
+
+| Документ | Назначение |
+| --- | --- |
+| [`HEALTH_CONTRACTS.md`](HEALTH_CONTRACTS.md) | Liveness, readiness, dependency health и diagnostics |
+| [`HEALTH_METRICS.md`](HEALTH_METRICS.md) | Prometheus-compatible baseline health metrics |
+
+## XYOps / process presentation
+
+| Документ | Назначение |
+| --- | --- |
+| [`XYOPS_EXECUTION_OWNERSHIP.md`](XYOPS_EXECUTION_OWNERSHIP.md) | Разделение ответственности Portal/XYOps за execution, queue, concurrency и rate limits |
+| [`XYOPS_INSPECTOR.md`](XYOPS_INSPECTOR.md) | Safe read-only contract inspector для установленной версии XYOps |
+| [`PROCESS_PRESENTATION_METADATA.md`](PROCESS_PRESENTATION_METADATA.md) | Presentation overrides, locale/fallback и безопасные boundaries |
+
+## Testing / acceptance
+
+| Документ | Назначение |
+| --- | --- |
+| [`LOCAL_ACCEPTANCE_TESTS.md`](LOCAL_ACCEPTANCE_TESTS.md) | Ручная/интеграционная локальная acceptance-процедура |
+| [`P0_OPERATIONAL_ACCEPTANCE.md`](P0_OPERATIONAL_ACCEPTANCE.md) | Автоматический P0 local-auth/persistence runner |
+
+## Roadmap / historical material
+
+| Документ | Статус |
+| --- | --- |
+| [`PRODUCT_ROADMAP.md`](PRODUCT_ROADMAP.md) | Roadmap/snapshot; не является доказательством runtime |
+| [`OPEN_TASKS.md`](OPEN_TASKS.md) | `superseded` historical task snapshot; текущий backlog — GitHub Issues |
+| `superpowers/specs/**` | Design/historical artifacts |
+| `superpowers/plans/**` | Implementation/review plans; после merge не заменяют active docs |
 
 ## Иерархия доверия
 
-При противоречии информации используйте следующий порядок:
+При противоречии информации:
 
-1. фактический код, schema/route/permission registry и tests текущего `main`;
-2. явно указанный source of truth из [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md);
-3. active профильный contract/runbook;
-4. корневой README и обзорные документы;
-5. ADR для объяснения принятого решения;
-6. issue, implementation plan, PR description и historical notes.
+1. фактический код, canonical registries/schema и tests текущего ref;
+2. owner/source из [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md);
+3. `verified-active` профильный contract/runbook;
+4. overview/README;
+5. ADR как объяснение решения;
+6. roadmap, Issue, implementation plan, PR description и historical notes.
 
-Issue и plan могут описывать ещё не реализованное поведение и поэтому не могут переопределять runtime.
+## Когда документация должна измениться
 
-## Правило актуальности
+Documentation impact обязателен, если PR изменяет:
 
-Если изменение кода делает документ неверным, PR считается незавершённым до исправления документации. Если документ устарел и его нельзя исправить в текущем scope, это должно быть явно отмечено в PR и заведено как отдельная blocking/follow-up задача — без ложного утверждения, что старый текст остаётся актуальным.
+- route/method/auth/permission;
+- DB schema/migration/data ownership;
+- environment/configuration;
+- FreeIPA/XYOps protocol;
+- security/trust/redaction/secret handling;
+- startup/deployment/network/health;
+- backup/restore/maintenance/recovery;
+- пользовательский workflow, уже описанный в документации;
+- module boundary или source of truth.
+
+Если код делает active-document неверным, PR не считается завершённым до исправления документации либо явной регистрации blocking documentation defect.
+
+## Известные gaps Epic #82
+
+После baseline audit остаются отдельные задачи на:
+
+- `ARCHITECTURE.md`;
+- `PROJECT_STRUCTURE.md` и module-boundary map;
+- `SECURITY_MODEL.md`;
+- normalized API/permissions/error-code/configuration reference;
+- supported/unsupported deployment matrix;
+- ADR registry;
+- module-level documentation coverage;
+- automated documentation consistency CI.
+
+Эти файлы нельзя считать существующими до их реального появления в `main`.

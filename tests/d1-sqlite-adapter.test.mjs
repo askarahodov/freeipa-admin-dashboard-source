@@ -43,6 +43,17 @@ function fakeDatabase() {
   };
 }
 
+test("adapter exposes only the proven D1 surface", () => {
+  const db = createD1SqliteAdapter(fakeDatabase());
+  assert.deepEqual(Object.keys(db).sort(), ["batch", "prepare"]);
+  assert.deepEqual(
+    Object.keys(db.prepare("SELECT id FROM records")).sort(),
+    ["all", "bind", "first", "run"],
+  );
+  assert.equal("exec" in db, false);
+  assert.equal("raw" in db.prepare("SELECT id FROM records"), false);
+});
+
 test("prepare and bind are immutable and first supports row or column access", async () => {
   const driver = fakeDatabase();
   const db = createD1SqliteAdapter(driver);

@@ -2,7 +2,7 @@
 
 Этот каталог — главный индекс инженерной документации проекта. Он предназначен для разработчиков, операторов, security reviewers и ИИ-агентов.
 
-> Каноническое новое product/display name **Admin Dashboard Softrust** зафиксировано задачей #88. До завершения отдельного rename PR старое имя может встречаться в текущих файлах и historical artifacts.
+> Каноническое product/display name — **Admin Dashboard Softrust**. Historical artifacts могут сохранять прежнее название; active current-state documentation должна использовать каноническое имя.
 
 Корневой [`README.md`](../README.md) остаётся краткой входной точкой. Подробные contracts, runbook и reference находятся в `docs/`.
 

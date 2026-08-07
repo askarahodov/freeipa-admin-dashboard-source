@@ -25,7 +25,7 @@ test("diagnostics HTML is hardened, self-contained and incident-oriented", async
   assert.equal(csp.includes("unsafe-inline"), false);
 
   const html = await text(response);
-  assert.match(html, /<title>Health diagnostics · FreeIPA Admin Dashboard<\/title>/);
+  assert.match(html, /<title>Health diagnostics · Admin Dashboard Softrust<\/title>/);
   assert.match(html, /href="\/diagnostics\/health\.css"/);
   assert.match(html, /src="\/diagnostics\/health\.js"/);
   assert.match(html, /id="live-card"/);

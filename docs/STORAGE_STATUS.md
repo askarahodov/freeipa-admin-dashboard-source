@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The first Storage Center checkpoint exposes bounded, sanitized, read-only metadata for the local D1/SQLite storage used by FreeIPA Admin Dashboard.
+The first Storage Center checkpoint exposes bounded, sanitized, read-only metadata for the local D1/SQLite storage used by Admin Dashboard Softrust.
 
 It is designed for operational diagnosis when the ordinary UI, canonical schema, or maintenance state is unavailable. It does not apply migrations or repair data.
 

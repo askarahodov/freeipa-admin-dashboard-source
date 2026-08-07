@@ -49,7 +49,7 @@ export default function LoginPage() {
     <main className="local-auth-screen">
       <form className="local-auth-card" onSubmit={submit}>
         <div className="local-auth-logo">◇</div>
-        <span className="eyebrow">LOCAL ADMIN PORTAL</span>
+        <span className="eyebrow">Admin Dashboard Softrust</span>
         <h1>Вход в портал</h1>
         <p>Используйте внутреннюю учётную запись портала. Пользователи FreeIPA не используются для аутентификации.</p>
 

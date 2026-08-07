@@ -1,6 +1,6 @@
 # Health metrics contract
 
-`GET /metrics/health` предоставляет минимальный Prometheus-compatible baseline для локального состояния FreeIPA Admin Dashboard.
+`GET /metrics/health` предоставляет минимальный Prometheus-compatible baseline для локального состояния Admin Dashboard Softrust.
 
 Endpoint предназначен для внутреннего scrape и обслуживается до обычных schema, maintenance и authentication gates. Он остаётся доступным для наблюдения за incident state, но не является Docker или Kubernetes restart probe.
 

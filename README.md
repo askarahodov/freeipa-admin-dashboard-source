@@ -1,10 +1,10 @@
-# FreeIPA Admin Dashboard
+# Admin Dashboard Softrust
 
 Локальный административный портал для управления FreeIPA, запуска и контроля процессов XYOps и эксплуатации самого портала.
 
 Проект рассчитан на self-hosted запуск через Docker Compose. Портал имеет собственную локальную аутентификацию/RBAC, D1/SQLite-совместимое хранилище, audit, approvals, backup/restore, maintenance, health и storage diagnostics.
 
-> Каноническое новое product/display name **Admin Dashboard Softrust** зафиксировано задачей #88 и будет применено отдельным атомарным rename PR. Технические identifiers не переименовываются автоматически.
+> Каноническое product/display name — **Admin Dashboard Softrust**. Технические compatibility identifiers `freeipa-admin-dashboard*` не являются пользовательским брендом и не переименовываются автоматически.
 
 ## Возможности
 

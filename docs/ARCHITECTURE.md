@@ -176,9 +176,11 @@ The portal accesses XYOps server-side for catalog and execution functions. It no
 
 The frontend uses the `app/` tree with React/Vinext. `app/layout.tsx` owns the document layout and mounts several global portal interaction/enhancement components. The main product UI is still heavily concentrated in `app/page.tsx`, with additional dedicated pages such as login, access, sessions and diagnostics plus feature-specific CSS layers.
 
-A shared UI foundation is now part of current `main`: semantic design tokens live under `app/styles/`, and domain-agnostic primitives are exported from `app/ui/`. New UI work should reuse those merged owners before creating local variants. The first integration is intentionally narrow; the primary application shell/navigation is still the existing page implementation. Draft AppShell work under #94/#106 is not current runtime until it merges.
+A shared UI foundation is part of current `main`: semantic design tokens live under `app/styles/`, and domain-agnostic primitives are exported from `app/ui/`. In addition, #113 merged a reusable product shell/navigation foundation under `app/shell/`: `AppShell.tsx`, the typed grouped product-navigation model in `navigation.ts`, local typed SVG icons and shell styles are current code and should be reused instead of creating a parallel global navigation model.
 
-The concentration in `app/page.tsx` remains a current maintainability constraint. Broader UI architecture work under #92–#94 must be described as planned/in-progress unless its exact PR is present in `main`.
+The `app/shell/` foundation is **not yet the primary Home composition**. PR #113 intentionally left `app/page.tsx` untouched because it remains a large shared high-conflict surface. Targeted Home/AppShell wiring remains follow-up work under #94. Therefore current-state code owns a reusable AppShell/navigation foundation, while the rendered primary product composition is still the existing `app/page.tsx` implementation until that integration lands.
+
+The concentration in `app/page.tsx` remains a current maintainability constraint. Broader UI architecture work under #92–#94 must be described according to what is actually merged; #113 is current foundation, while unfinished Home integration remains planned/in-progress.
 
 Frontend code must not become a second authorization layer: UI visibility improves UX, while permissions remain enforced by server-side contracts.
 
@@ -237,7 +239,7 @@ Use:
 These are current-state constraints, not recommendations:
 
 1. **Large Worker wrapper chain and base entrypoint.** Request concerns are spread across many wrapper entries plus `worker/index.ts`; #56 tracks refactoring.
-2. **Frontend concentration.** Shared tokens/primitives exist in `app/styles/` and `app/ui/`, but a large amount of primary product presentation remains in `app/page.tsx` with global enhancement mounts; #92–#94 track further UI architecture work.
+2. **Frontend concentration despite reusable shell foundation.** Shared tokens/primitives exist in `app/styles/` and `app/ui/`, and `app/shell/` now owns a merged AppShell/navigation foundation, but the primary Home composition remains concentrated in `app/page.tsx` until #94 integration work lands.
 3. **Local SQLite/D1-compatible ownership.** The supported deployment persists one local `.wrangler` data directory through a Compose volume. No active current-state document establishes a horizontally scaled multi-writer database architecture.
 4. **Development-oriented Wrangler production command.** Production currently uses `wrangler dev --local`; #51 tracks replacement.
 5. **Host networking.** Current Compose uses `network_mode: host`; #52 tracks a different network model.

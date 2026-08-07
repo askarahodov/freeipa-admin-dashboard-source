@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { contrastRatio, parseHexTokens, scanSharedUiCss } from "../scripts/ui-quality-policy.mjs";
+import { contrastRatio, cssPolicyViolations, parseHexTokens, scanSharedUiCss } from "../scripts/ui-quality-policy.mjs";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
@@ -31,6 +31,24 @@ test("shared redesign CSS stays within the calm visual policy", async () => {
   const result = await scanSharedUiCss(new URL("..", import.meta.url).pathname);
   assert.ok(result.files.length > 0, "expected at least the #93 shared UI stylesheet");
   assert.deepEqual(result.violations, []);
+});
+
+test("visual policy rejects linear, radial and conic gradients", () => {
+  for (const gradient of [
+    "linear-gradient(red, blue)",
+    "radial-gradient(red, blue)",
+    "conic-gradient(red, blue)",
+  ]) {
+    assert.equal(cssPolicyViolations(`background: ${gradient};`, "fixture.css").length, 1, gradient);
+  }
+});
+
+test("visual policy rejects mixed non-canonical elevation even with the overlay token present", () => {
+  const violations = cssPolicyViolations(
+    "box-shadow: var(--ui-shadow-overlay), 0 1px 2px rgb(0 0 0 / 20%);",
+    "fixture.css",
+  );
+  assert.equal(violations.length, 1);
 });
 
 test("shared controls expose explicit keyboard focus and icon buttons require accessible names", async () => {

@@ -6,7 +6,7 @@ Dependabot updates share the same GitHub-hosted Actions capacity as human and AI
 
 The repository allows at most three open npm **version-update** pull requests at a time. Existing minor/patch development updates remain grouped as `routine-development` so routine tool maintenance does not fan out into many independent CI runs.
 
-GitHub Actions **version updates** are serialized to one open PR at a time. Action runtime changes affect CI itself, so they should be reviewed and merged deliberately before the next Actions version update is opened.
+Only one GitHub Actions **version-update PR** may be open at a time. Action runtime changes affect CI itself, so they should be reviewed and merged deliberately before the next Actions version update is opened.
 
 ## Security updates
 

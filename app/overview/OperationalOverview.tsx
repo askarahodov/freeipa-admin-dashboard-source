@@ -81,15 +81,29 @@ export function OperationalOverview(props: OperationalOverviewProps) {
             </div>
           </div>
           <div className={styles.attentionList}>
-            {model.attention.map((item) => (
-              <button className={`${styles.attentionRow} ${styles[`attention_${item.state}`]}`} key={item.id} onClick={() => props.onNavigate(item.target)}>
+            {model.attention.map((item) => {
+              const target = item.target;
+              const rowClassName = `${styles.attentionRow} ${styles[`attention_${item.state}`]} ${target ? styles.attentionAction : ""}`;
+              const content = <>
                 <span className={styles.attentionCopy}>
                   <strong>{item.title}</strong>
                   <small>{item.detail}</small>
                 </span>
-                <StatusBadge tone={item.state === "danger" ? "danger" : "warning"}>{item.state === "danger" ? "Проблема" : "Проверить"}</StatusBadge>
-              </button>
-            ))}
+                <StatusBadge tone={item.state === "danger" ? "danger" : "warning"}>
+                  {item.state === "danger" ? "Проблема" : target ? "Проверить" : "Ограничено"}
+                </StatusBadge>
+              </>;
+
+              return target ? (
+                <button className={rowClassName} key={item.id} type="button" onClick={() => props.onNavigate(target)}>
+                  {content}
+                </button>
+              ) : (
+                <div className={rowClassName} key={item.id}>
+                  {content}
+                </div>
+              );
+            })}
           </div>
         </section>
       ) : (

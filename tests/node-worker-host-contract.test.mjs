@@ -4,7 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { startNodeWorkerHost } from "../scripts/node-worker-host.mjs";
+import {
+  loadWorkerArtifact,
+  startNodeWorkerHost,
+} from "../scripts/node-worker-host.mjs";
 
 const hostSource = await readFile(new URL("../scripts/node-worker-host.mjs", import.meta.url), "utf8");
 
@@ -49,6 +52,52 @@ test("candidate host executes a Worker fetch handler over real HTTP", async () =
     const response = await fetch(`http://127.0.0.1:${runtime.address.port}/health/live`);
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), { method: "GET", value: "candidate" });
+  } finally {
+    await runtime.close();
+  }
+});
+
+test("Worker artifact loader returns the validated default Worker exactly once per explicit load", async () => {
+  const root = await mkdtemp(join(tmpdir(), "portal-worker-load-"));
+  const artifactPath = join(root, "worker.mjs");
+  await writeFile(artifactPath, `
+    globalThis.__portalWorkerLoads = (globalThis.__portalWorkerLoads || 0) + 1;
+    export default {
+      async fetch() { return new Response("ok"); },
+      async scheduled() {}
+    };
+  `, "utf8");
+
+  globalThis.__portalWorkerLoads = 0;
+  const worker = await loadWorkerArtifact(artifactPath);
+  assert.equal(typeof worker.fetch, "function");
+  assert.equal(typeof worker.scheduled, "function");
+  assert.equal(globalThis.__portalWorkerLoads, 1);
+});
+
+test("candidate host accepts a preloaded Worker without importing another artifact", async () => {
+  const root = await mkdtemp(join(tmpdir(), "portal-preloaded-worker-"));
+  const missingArtifactPath = join(root, "must-not-be-imported.mjs");
+  const worker = {
+    async fetch(request, env) {
+      return Response.json({ path: new URL(request.url).pathname, value: env.TEST_VALUE });
+    },
+    async scheduled() {},
+  };
+
+  const runtime = await startNodeWorkerHost({
+    worker,
+    artifactPath: missingArtifactPath,
+    assetsRoot: join(root, "assets"),
+    env: { TEST_VALUE: "shared" },
+    host: "127.0.0.1",
+    port: 0,
+  });
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${runtime.address.port}/health/live`);
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { path: "/health/live", value: "shared" });
   } finally {
     await runtime.close();
   }

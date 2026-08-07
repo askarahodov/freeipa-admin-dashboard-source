@@ -74,8 +74,8 @@ test("main CI also cancels only obsolete pull-request runs", () => {
   assert.doesNotMatch(ciWorkflow, /cancel-in-progress:\s*true/u);
 });
 
-test("main CI exposes one stable aggregate required check over all suites", () => {
+test("main CI exposes one stable aggregate required check over sharded tests and recovery", () => {
   assert.match(ciWorkflow, /\n  required:\n/u);
   assert.match(ciWorkflow, /name:\s*Required CI/u);
-  assert.match(ciWorkflow, /needs:\s*\[discover-tests, build, test-suite, recovery-compose, test\]/u);
+  assert.match(ciWorkflow, /needs:\s*\[discover-tests, build, recovery-compose, test\]/u);
 });

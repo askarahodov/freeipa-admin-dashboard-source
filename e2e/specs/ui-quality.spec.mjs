@@ -77,13 +77,14 @@ test.describe.serial("UI accessibility and responsive baseline", () => {
     }
   });
 
-  test("visible UI artifacts contain no credentials or known internal host fixtures", async ({ page }) => {
+  test("visible UI artifacts contain no credentials or color-only status fixtures", async ({ page }) => {
     await login(page);
     const bodyText = await page.locator("body").innerText();
     expect(bodyText).not.toContain(adminPassword);
     expect(bodyText).not.toMatch(/(?:ldap|pg\d+)\.softrust\.ru/iu);
 
     const statuses = await page.locator(".status").allTextContents();
+    expect(statuses.length).toBeGreaterThan(0);
     for (const label of statuses) expect(label.trim().length).toBeGreaterThan(0);
   });
 });

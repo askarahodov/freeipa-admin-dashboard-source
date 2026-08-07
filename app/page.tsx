@@ -4,8 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AutomationRoute as SourceAutomationRoute, CatalogEvent, RouteField } from "../automation-types";
 import { conditionFieldNames, fieldConditionMatches } from "../field-conditions";
 import { FREEIPA_DIRECTORY_CHANGED_EVENT, FREEIPA_OPEN_ACTION_EVENT, announceFreeIpaDirectoryChanged, type FreeIpaAction, type FreeIpaOperation } from "../freeipa-ui-events";
+import { buildHomePath, resolveHomeLocation, type HomePage } from "./shell/home-navigation";
 
-type Page = "overview" | "automation" | "users" | "groups" | "operations" | "approvals" | "audit" | "settings";
+type Page = HomePage;
 type AutomationRoute = SourceAutomationRoute & { enabled: boolean; targets: string[]; fields: RouteField[] };
 type RunStatus = "queued" | "running" | "success" | "failed" | "cancelled" | "unknown";
 type RunStage = { id: string; title: string; status: RunStatus; startedAt: number | null; completedAt: number | null; error: string };
@@ -46,7 +47,6 @@ const nav: { id: Page; label: string; icon: string }[] = [
   { id: "settings", label: "Настройки", icon: "⚙" },
 ];
 const roleLabels: Record<PortalRole, string> = { viewer: "Наблюдатель", operator: "Оператор", admin: "Администратор" };
-const pagePaths: Record<Page, string> = { overview: "/", automation: "/automation", users: "/users", groups: "/groups", operations: "/operations", approvals: "/approvals", audit: "/audit", settings: "/settings" };
 
 function automationSlug(value: string): string {
   const cyrillic: Record<string, string> = { а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "e", ж: "zh", з: "z", и: "i", й: "y", к: "k", л: "l", м: "m", н: "n", о: "o", п: "p", р: "r", с: "s", т: "t", у: "u", ф: "f", х: "h", ц: "ts", ч: "ch", ш: "sh", щ: "sch", ъ: "", ы: "y", ь: "", э: "e", ю: "yu", я: "ya" };
@@ -212,7 +212,6 @@ export default function Home() {
     return () => { window.clearTimeout(initial); window.clearInterval(timer); };
   }, [loadNotifications]);
 
-
   const loadApprovals = useCallback(async () => {
     setApprovalsLoading(true);
     try {
@@ -291,26 +290,19 @@ export default function Home() {
 
   const navigateTo = useCallback((nextPage: Page, category = "all", replace = false) => {
     const section = category === "all" ? null : automationSections.find((item) => item.category === category);
-    const path = nextPage === "automation" && section ? `/automation/${section.slug}` : pagePaths[nextPage];
+    const resolvedCategory = nextPage === "automation" && section ? section.category : "all";
+    const path = buildHomePath(nextPage, resolvedCategory, automationSections);
     setPage(nextPage);
-    setAutomationCategory(nextPage === "automation" && section ? section.category : "all");
+    setAutomationCategory(resolvedCategory);
     setQuery("");
     if (window.location.pathname !== path) window.history[replace ? "replaceState" : "pushState"]({}, "", path);
   }, [automationSections]);
 
   useEffect(() => {
     const applyLocation = () => {
-      const path = window.location.pathname.replace(/\/+$/, "") || "/";
-      if (path === "/automation" || path.startsWith("/automation/")) {
-        const slug = path.split("/")[2] ?? "";
-        const section = automationSections.find((item) => item.slug === slug);
-        setPage("automation");
-        setAutomationCategory(section?.category ?? "all");
-        return;
-      }
-      const match = (Object.entries(pagePaths) as Array<[Page, string]>).find(([, value]) => value === path);
-      setPage(match?.[0] ?? "overview");
-      setAutomationCategory("all");
+      const location = resolveHomeLocation(window.location.pathname, automationSections);
+      setPage(location.page);
+      setAutomationCategory(location.automationCategory);
     };
     applyLocation();
     window.addEventListener("popstate", applyLocation);
@@ -377,7 +369,6 @@ export default function Home() {
       return false;
     }
   }
-
 
   async function actOnApproval(item: ApprovalRecord, action: "approve" | "reject" | "cancel" | "execute") {
     let comment = "";
@@ -474,8 +465,6 @@ export default function Home() {
     </div>
   );
 }
-
-
 
 function Approvals({ items, pendingForMe, loading, canApprove, refresh, onAction }: { items: ApprovalRecord[]; pendingForMe: number; loading: boolean; canApprove: boolean; refresh: () => void; onAction: (item: ApprovalRecord, action: "approve" | "reject" | "cancel" | "execute") => Promise<boolean> }) {
   const labels: Record<ApprovalStatus, string> = { pending: "Ожидает", approved: "Согласовано", rejected: "Отклонено", cancelled: "Отменено", expired: "Истекло", executing: "Запускается", executed: "Выполнено", failed: "Ошибка", unknown: "Неизвестно" };
@@ -645,8 +634,6 @@ function PersistentConnectionSettings({ notify }: { notify: (message: string) =>
   </>;
 }
 
-
-
 function AuditLog() {
   const [items, setItems] = useState<AuditEvent[]>([]);
   const [loading, setLoading] = useState(false);
@@ -679,7 +666,6 @@ function AuditLog() {
     <section className="audit-list">{items.map((item) => <article className="panel audit-entry" key={item.id}><div className="audit-entry-head"><div><strong>{item.action}</strong><small>{new Date(item.createdAt).toLocaleString("ru-RU")} · {item.actorIdentity} · {item.actorRole}</small></div><Status tone={item.outcome === "success" ? "success" : item.outcome === "failure" ? "danger" : item.outcome === "pending" ? "violet" : "neutral"}>{item.outcome}</Status></div><div className="audit-links"><code>{item.correlationId}</code>{item.eventId && <span>Event: <b>{item.eventId}</b></span>}{item.schemaVersion && <span>Schema: <b>{item.schemaVersion}</b></span>}{item.approvalId && <span>Approval: <b>{item.approvalId}</b></span>}{item.runId && <span>Run: <b>{item.runId}</b></span>}{item.jobId && <span>Job: <b>{item.jobId}</b></span>}</div>{item.errorCode && <p className="audit-error">Ошибка: {item.errorCode}</p>}{Object.keys(item.metadata ?? {}).length > 0 && <details><summary>Безопасные технические данные</summary><pre>{JSON.stringify(item.metadata, null, 2)}</pre></details>}</article>)}{!items.length && <section className="panel catalog-empty"><strong>{loading ? "Загрузка журнала…" : "События не найдены"}</strong><span>Измените фильтры или выполните административную операцию.</span></section>}</section>
   </div>;
 }
-
 
 const exampleProcessPresentation: ProcessPresentationSet = {
   version: 1,
@@ -765,7 +751,6 @@ function CatalogPolicyEditor({ notify }: { notify: (message: string) => void }) 
 
   return <section className="panel policy-editor"><div className="panel-title"><div><span className="eyebrow">CATALOG ACCESS</span><h2>Видимость категорий и процессов</h2><p>Правила применяются сервером к каталогу, dynamic options, запуску и safe re-run. Deny имеет приоритет над allow.</p></div>{source && <Status tone={source === "database" ? "success" : "neutral"}>{source === "database" ? "D1" : source === "environment" ? "ENV" : "По умолчанию"}</Status>}</div><div className="policy-toolbar"><label>ADMIN_TOKEN<input type="password" value={adminToken} onChange={(event) => setAdminToken(event.target.value)} placeholder="Токен администратора" autoComplete="off" /></label><button className="secondary" disabled={!adminToken || Boolean(busy)} onClick={() => void loadPolicies()}>{busy === "load" ? "Загрузка…" : "Загрузить"}</button><button className="primary" disabled={!adminToken || Boolean(busy)} onClick={() => void savePolicies()}>{busy === "save" ? "Сохранение…" : "Сохранить политики"}</button></div><textarea className="policy-json" value={text} onChange={(event) => setText(event.target.value)} spellCheck={false} aria-label="JSON политик каталога" /><div className="policy-help"><span>Субъекты: <code>users</code>, <code>groups</code>, <code>roles</code></span><span>Ресурсы: <code>categories</code>, <code>processes</code></span><span>{updatedAt ? `Сохранено: ${new Date(updatedAt).toLocaleString("ru-RU")}` : "defaultEffect: allow сохраняет текущую доступность"}</span></div></section>;
 }
-
 
 const exampleApprovalPolicy = {
   version: 1,

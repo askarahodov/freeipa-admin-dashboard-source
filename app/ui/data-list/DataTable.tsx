@@ -2,7 +2,7 @@ import type { TableHTMLAttributes } from "react";
 import styles from "./data-list.module.css";
 
 export interface DataTableProps extends TableHTMLAttributes<HTMLTableElement> {
-  label?: string;
+  label: string;
 }
 
 export function DataTable({ label, className, ...props }: DataTableProps) {

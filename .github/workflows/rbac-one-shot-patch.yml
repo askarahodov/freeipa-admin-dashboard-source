@@ -1,22 +1,19 @@
 name: RBAC one-shot branch patch
 
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - .github/workflows/rbac-one-shot-patch.yml
+  push:
+    branches:
+      - agent/rbac-owner-consolidation
 
 permissions:
   contents: write
 
 jobs:
   patch-worker-index:
-    if: >-
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      github.event.pull_request.head.ref == 'agent/rbac-owner-consolidation'
+    if: github.ref == 'refs/heads/agent/rbac-owner-consolidation'
     runs-on: ubuntu-24.04
     steps:
-      - name: Checkout exact PR branch
+      - name: Checkout exact branch
         uses: actions/checkout@v4
         with:
           ref: agent/rbac-owner-consolidation

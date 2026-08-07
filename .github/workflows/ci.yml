@@ -96,6 +96,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Validate production dependency tree
+        run: npm ls --omit=dev
+
       - name: Lint
         run: npm run lint
 

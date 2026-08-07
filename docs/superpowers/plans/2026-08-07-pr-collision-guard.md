@@ -14,7 +14,7 @@
 - No persistent ownership registry or new npm dependency.
 - Workflow permissions remain `contents: read` and `pull-requests: read`.
 - No PR bodies, patches, source contents or credentials from other PRs in logs.
-- Do not modify `docs/ai/README.md` while #156 owns that contribution-process surface.
+- Do not modify `docs/ai/README.md`; #156 established that contribution-process coordination surface on `main`.
 - Final verification must use the post-#151 sharded/security-enabled CI topology.
 
 ## Tasks
@@ -29,20 +29,25 @@
 
 - [x] Preserve workflow-boundary RED evidence from superseded #136.
 - [x] Replay `.github/workflows/pr-collision-guard.yml` with read-only permissions.
-- [ ] Observe a real PR run against current open-PR metadata.
+- [x] Observe a real PR run against open-PR metadata — #159 first run succeeded.
 
 ### 3. Required-check documentation
 
-- [ ] Add `PR Collision Guard / ownership-collision` to the current sharding/security required-check document without removing any #151 gate.
-- [ ] Document BLOCKING vs INFO and ownership remediation.
+- [x] Add `PR Collision Guard / ownership-collision` to the current sharding/security required-check document without removing any #151 gate.
+- [x] Document BLOCKING vs INFO and ownership remediation.
 
 ### 4. Clean post-#151 verification
 
-- [ ] Compare the branch against current `main`; require only intended collision-guard files.
-- [ ] Run focused collision-guard tests in bounded sharded CI.
-- [ ] Require `CI / Required CI`, `Auth E2E / auth-e2e`, and the real collision guard to succeed on exact head.
+- [x] Confirm the PR contains only the intended six collision-guard files.
+- [x] First bounded sharded CI run succeeded on #159.
+- [x] First real Collision Guard run succeeded on #159.
+- [ ] Require a fresh `CI / Required CI`, `Auth E2E / auth-e2e`, and Collision Guard run after the latest `main` synchronization.
 - [ ] If a blocking overlap is real, resolve merge order/replay rather than weakening policy.
 - [ ] Merge with expected head SHA only after fresh review-thread and base checks.
+
+## Current-main synchronization
+
+After #159 opened, independent #122 (Node runtime phase 1), #142 (canonical RBAC ownership), and #156 (PR coordination documentation) merged into `main`. They do not modify this PR's six-file collision-guard scope, but #156 landed after the first #159 checks started. This documentation-only commit intentionally retriggers the pull-request workflows so the authoritative verification uses GitHub's current merge candidate including those merged changes; production collision policy/workflow logic is unchanged.
 
 ## Evidence lineage
 

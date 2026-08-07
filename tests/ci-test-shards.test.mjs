@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
   assertCompleteShardCoverage,
   buildTestShards,
 } from "../scripts/ci-test-shards.mjs";
+
+const ciWorkflow = await readFile(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
 
 test("builds deterministic round-robin shards from normalized sorted paths", () => {
   const shards = buildTestShards([
@@ -60,4 +63,19 @@ test("coverage validator rejects missing duplicate and unexpected shard entries"
     ]),
     /unexpected.*tests\/c\.test\.mjs/isu,
   );
+});
+
+test("CI runs one validated sharded pass instead of duplicate full-suite and per-file jobs", () => {
+  assert.doesNotMatch(ciWorkflow, /\n  test-suite:\n/u);
+  assert.match(ciWorkflow, /outputs:\s*\n\s+shards:\s*\$\{\{ steps\.list\.outputs\.shards \}\}/u);
+  assert.match(ciWorkflow, /scripts\/ci-test-shards\.mjs/u);
+  assert.match(ciWorkflow, /--max-shards\s+8/u);
+  assert.match(ciWorkflow, /name:\s*Test shard \$\{\{ matrix\.shard\.name \}\}/u);
+  assert.match(ciWorkflow, /shard:\s*\$\{\{ fromJSON\(needs\.discover-tests\.outputs\.shards\) \}\}/u);
+  assert.match(ciWorkflow, /TEST_FILES_JSON:\s*\$\{\{ toJSON\(matrix\.shard\.files\) \}\}/u);
+  assert.match(ciWorkflow, /--test-concurrency=1/u);
+  assert.match(ciWorkflow, /server-shard-\$\{SHARD_NAME\}\.tap/u);
+  assert.match(ciWorkflow, /server-shard-\$\{\{ matrix\.shard\.name \}\}-log/u);
+  assert.match(ciWorkflow, /recovery-compose:[\s\S]*?needs:\s*build/u);
+  assert.match(ciWorkflow, /needs:\s*\[discover-tests, build, recovery-compose, test\]/u);
 });

@@ -74,8 +74,11 @@ test("main CI also cancels only obsolete pull-request runs", () => {
   assert.doesNotMatch(ciWorkflow, /cancel-in-progress:\s*true/u);
 });
 
-test("main CI exposes one stable aggregate required check over all suites", () => {
+test("main CI exposes one stable aggregate required check over all mandatory suites", () => {
   assert.match(ciWorkflow, /\n  required:\n/u);
   assert.match(ciWorkflow, /name:\s*Required CI/u);
-  assert.match(ciWorkflow, /needs:\s*\[discover-tests, build, test-suite, recovery-compose, test\]/u);
+  const requiredBlock = ciWorkflow.match(/\n  required:\n([\s\S]*)$/u)?.[1] ?? "";
+  for (const job of ["discover-tests", "build", "test-suite", "recovery-compose", "test", "dependency-security", "container-security"]) {
+    assert.match(requiredBlock, new RegExp(`needs:[^\\n]*\\b${job}\\b`, "u"), job);
+  }
 });

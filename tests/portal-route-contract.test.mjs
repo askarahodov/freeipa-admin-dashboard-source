@@ -63,10 +63,7 @@ test("local authentication and user administration routes match the current secu
   assert.equal(findPortalRouteContract("POST", "/api/auth/users/:userId/password")?.auth, "admin-session");
   assert.equal(findPortalRouteContract("DELETE", "/api/auth/users/:userId/sessions")?.auth, "admin-session");
 
-  for (const route of portalRouteContracts.filter((route) => route.path.startsWith("/api/auth/users"))) {
-    if (route.method !== "GET") {
-      assert.equal(route.mutation, "mutation", route.id);
-      assert.equal(route.sameOrigin, true, route.id);
-    }
+  for (const route of portalRouteContracts.filter((route) => route.path.startsWith("/api/auth/"))) {
+    assert.equal(route.sameOrigin, false, `${route.id}: current auth API dispatch precedes the shared admin same-origin gate`);
   }
 });

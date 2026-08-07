@@ -19,6 +19,31 @@ function safeLastRowId(value) {
   return Number.isFinite(number) ? number : 0;
 }
 
+function stripLeadingComments(sql) {
+  let source = sql.trimStart();
+  while (source) {
+    if (source.startsWith("--")) {
+      const lineEnd = source.indexOf("\n");
+      source = lineEnd === -1 ? "" : source.slice(lineEnd + 1).trimStart();
+      continue;
+    }
+    if (source.startsWith("/*")) {
+      const commentEnd = source.indexOf("*/", 2);
+      if (commentEnd === -1) return "";
+      source = source.slice(commentEnd + 2).trimStart();
+      continue;
+    }
+    break;
+  }
+  return source;
+}
+
+function sqlReturnsRows(sql) {
+  const source = stripLeadingComments(sql);
+  const keyword = /^([A-Z]+)/iu.exec(source)?.[1]?.toUpperCase() ?? "";
+  return keyword === "SELECT" || keyword === "PRAGMA" || keyword === "EXPLAIN" || keyword === "VALUES";
+}
+
 export function createD1SqliteAdapter(database) {
   if (!database || typeof database.prepare !== "function" || typeof database.transaction !== "function") {
     throw new Error("SQLite driver must provide prepare() and transaction()");
@@ -26,8 +51,13 @@ export function createD1SqliteAdapter(database) {
 
   const states = new WeakMap();
 
-  function execute(state) {
-    if (state.statement.reader === true) {
+  function isReader(state) {
+    if (typeof state.statement.reader === "boolean") return state.statement.reader;
+    return sqlReturnsRows(state.sql);
+  }
+
+  function execute(state, mode = isReader(state) ? "all" : "run") {
+    if (mode === "all") {
       const rows = state.statement.all(...state.params);
       return {
         success: true,
@@ -49,34 +79,36 @@ export function createD1SqliteAdapter(database) {
     };
   }
 
-  function wrap(statement, params = []) {
+  function wrap(statement, sql, params = []) {
+    const state = { statement, sql, params: [...params] };
     const prepared = {
       bind(...values) {
-        return wrap(statement, values);
+        return wrap(statement, sql, values);
       },
       async first(columnName) {
+        if (statement.reader === false) throw new Error("first() requires a row-returning SQLite statement");
         const row = statement.get(...params);
         if (row == null) return null;
         if (columnName === undefined) return row;
         return Object.prototype.hasOwnProperty.call(row, columnName) ? row[columnName] : null;
       },
       async all() {
-        if (statement.reader !== true) throw new Error("all() requires a row-returning SQLite statement");
-        return execute({ statement, params });
+        if (statement.reader === false) throw new Error("all() requires a row-returning SQLite statement");
+        return execute(state, "all");
       },
       async run() {
         if (statement.reader === true) throw new Error("run() requires a mutating SQLite statement");
-        return execute({ statement, params });
+        return execute(state, "run");
       },
     };
-    states.set(prepared, { statement, params: [...params] });
+    states.set(prepared, state);
     return prepared;
   }
 
   return {
     prepare(sql) {
       if (typeof sql !== "string" || !sql.trim()) throw new Error("SQL statement must be a non-empty string");
-      return wrap(database.prepare(sql));
+      return wrap(database.prepare(sql), sql);
     },
     async batch(preparedStatements) {
       if (!Array.isArray(preparedStatements)) throw new Error("batch() requires an array of prepared statements");
@@ -85,7 +117,7 @@ export function createD1SqliteAdapter(database) {
         if (!state) throw new Error("batch() accepts only statements prepared by this adapter");
         return state;
       });
-      const transaction = database.transaction(() => batchStates.map(execute));
+      const transaction = database.transaction(() => batchStates.map((state) => execute(state)));
       return transaction();
     },
   };

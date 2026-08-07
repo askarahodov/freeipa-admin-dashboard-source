@@ -43,7 +43,6 @@ export function createRuntimeShutdownCoordinator(options) {
     const cleanup = shutdownPromise;
     shutdownPromise = new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error(`runtime shutdown timed out after ${timeoutMs}ms`)), timeoutMs);
-      timer.unref?.();
       cleanup.then(
         (value) => { clearTimeout(timer); resolve(value); },
         (error) => { clearTimeout(timer); reject(error); },

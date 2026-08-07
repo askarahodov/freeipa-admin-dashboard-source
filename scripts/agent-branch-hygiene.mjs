@@ -44,7 +44,12 @@ export function buildAgentBranchHygienePlan({ branches, openPullRequests, closed
 
     const closedEntries = closedByHead.get(name) ?? [];
     if (closedEntries.some((entry) => entry.merged && entry.headSha && entry.headSha === sha)) {
-      plan.push({ branch: name, action: "DELETE_MERGED", reason: "exact_merged_pr_head" });
+      plan.push({
+        branch: name,
+        action: "DELETE_MERGED",
+        reason: "exact_merged_pr_head",
+        expectedSha: sha,
+      });
       continue;
     }
 

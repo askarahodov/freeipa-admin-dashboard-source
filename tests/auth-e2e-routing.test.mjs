@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { shouldRunAuthE2E } from "../scripts/auth-e2e-scope.mjs";
+import { authE2EExactRelevantPaths, shouldRunAuthE2E } from "../scripts/auth-e2e-scope.mjs";
 
 const workflow = await readFile(new URL("../.github/workflows/e2e-auth.yml", import.meta.url), "utf8");
 
@@ -32,6 +32,12 @@ for (const path of relevant) {
     assert.equal(shouldRunAuthE2E([path]), true);
   });
 }
+
+test("every exact Auth E2E routing reference exists in the repository", async () => {
+  for (const path of authE2EExactRelevantPaths) {
+    await assert.doesNotReject(access(new URL(`../${path}`, import.meta.url)), `missing routing path: ${path}`);
+  }
+});
 
 test("Auth E2E scope ignores documentation-only changes", () => {
   assert.equal(shouldRunAuthE2E(["docs/README.md", "docs/OPERATIONS_EXPLORER.md"]), false);

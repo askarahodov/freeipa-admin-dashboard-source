@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { resolveLegacyOperationTarget } from "../operation-explorer-legacy-bridge";
 import {
   buildOperationTimeline,
   formatOperationDuration,
@@ -197,9 +198,46 @@ function statusTone(status: OperationRunStatus): string {
   return status === "success" ? "success" : status === "failed" ? "error" : status === "running" ? "violet" : status === "queued" ? "warning" : "neutral";
 }
 
-function clickLegacyRun(page: HTMLElement, jobId: string): boolean {
+function legacyRunRow(page: HTMLElement, jobId: string): HTMLElement | null {
   const rows = Array.from(page.querySelectorAll<HTMLElement>(".data-table .tr.ops-detailed:not(.th)"));
-  const row = rows.find((item) => item.querySelector(".mono")?.textContent?.trim() === jobId);
+  return rows.find((item) => item.querySelector(".mono")?.textContent?.trim() === jobId) ?? null;
+}
+
+function requestLegacyRunsRefresh(page: HTMLElement): void {
+  const refresh = page.querySelector<HTMLButtonElement>(".panel-title button.secondary");
+  if (refresh && !refresh.disabled) refresh.click();
+}
+
+function waitForLegacyRunRow(page: HTMLElement, jobId: string, timeoutMs = 5_000): Promise<HTMLElement | null> {
+  const current = legacyRunRow(page, jobId);
+  if (current) return Promise.resolve(current);
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (row: HTMLElement | null) => {
+      if (settled) return;
+      settled = true;
+      observer.disconnect();
+      window.clearTimeout(timer);
+      resolve(row);
+    };
+    const observer = new MutationObserver(() => {
+      const row = legacyRunRow(page, jobId);
+      if (row) finish(row);
+    });
+    observer.observe(page, { childList: true, subtree: true });
+    const timer = window.setTimeout(() => finish(null), timeoutMs);
+    const afterSubscribe = legacyRunRow(page, jobId);
+    if (afterSubscribe) finish(afterSubscribe);
+  });
+}
+
+async function openLegacyRun(page: HTMLElement, jobId: string): Promise<boolean> {
+  const row = await resolveLegacyOperationTarget({
+    find: () => legacyRunRow(page, jobId),
+    refresh: () => requestLegacyRunsRefresh(page),
+    wait: () => waitForLegacyRunRow(page, jobId),
+  });
   if (!row) return false;
   row.click();
   return true;
@@ -353,7 +391,14 @@ export default function OperationExplorer() {
         <div className="operation-explorer-result"><span>{result.pagination.from ? `${result.pagination.from}–${result.pagination.to} из ${result.pagination.total}` : "Операции не найдены"}</span><b>Фильтр: {result.summary.filtered} из {result.summary.total}</b></div>
         <div className="operation-explorer-table">
           <div className="operation-explorer-row head"><span>Операция</span><span>Статус</span><span>Инициатор</span><span>Начало</span><span>Длительность</span></div>
-          {result.runs.map((run) => <button className="operation-explorer-row" key={run.id} onClick={() => { if (!clickLegacyRun(mount.page, run.jobId)) setError(`Операция ${run.jobId} отсутствует в текущей legacy-таблице`); }}>
+          {result.runs.map((run) => <button className="operation-explorer-row" key={run.id} onClick={() => {
+            setError("");
+            void (async () => {
+              if (!(await openLegacyRun(mount.page, run.jobId))) {
+                setError(`Операция ${run.jobId} отсутствует в текущей legacy-таблице после обновления`);
+              }
+            })();
+          }}>
             <span><strong>{run.title}</strong><small>{run.subject || run.eventId} · {run.kind} · {run.mode.toUpperCase()}</small><code>{run.jobId}</code></span>
             <span><em className={statusTone(run.status)}>{statusLabels[run.status]}</em></span>
             <span>{run.actor || "—"}</span>

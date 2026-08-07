@@ -1,6 +1,6 @@
 "use client";
 
-import { type MouseEvent, type ReactNode, type RefObject, useEffect, useId, useRef } from "react";
+import { type KeyboardEvent, type MouseEvent, type ReactNode, type RefObject, useEffect, useId, useRef } from "react";
 import { IconButton } from "../IconButton";
 import styles from "./forms.module.css";
 
@@ -66,7 +66,7 @@ export function Dialog({
 
   if (!open) return null;
 
-  function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key === "Escape") {
       if (!closeOnEscape) return;
       event.preventDefault();

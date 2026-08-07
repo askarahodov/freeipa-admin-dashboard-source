@@ -17,7 +17,8 @@ jobs:
   discover-tests:
     runs-on: ubuntu-latest
     outputs:
-      tests: ${{ steps.list.outputs.tests }}
+      shards: ${{ steps.list.outputs.shards }}
+      count: ${{ steps.list.outputs.count }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -25,11 +26,15 @@ jobs:
           show-progress: false
 
       - id: list
-        name: Discover test files
+        name: Discover and shard test files
         shell: bash
         run: |
-          tests=$(find tests -maxdepth 1 -name '*.test.mjs' -print | sort | jq -R -s -c 'split("\n")[:-1]')
-          echo "tests=$tests" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          find tests -maxdepth 1 -name '*.test.mjs' -print | sort > "$RUNNER_TEMP/server-tests.txt"
+          node scripts/ci-test-shards.mjs \
+            --input "$RUNNER_TEMP/server-tests.txt" \
+            --github-output "$GITHUB_OUTPUT" \
+            --max-shards 8
 
   build:
     runs-on: ubuntu-latest
@@ -75,50 +80,9 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  test-suite:
-    name: Test complete server suite
-    needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          show-progress: false
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22.13.0
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Download build
-        uses: actions/download-artifact@v4
-        with:
-          name: dist
-          path: dist
-
-      - name: Run complete test suite
-        shell: bash
-        run: |
-          set -o pipefail
-          node --experimental-strip-types --test --test-concurrency=1 tests/*.test.mjs 2>&1 | tee server-suite.tap
-
-      - name: Upload complete suite log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: server-suite-log
-          path: server-suite.tap
-          if-no-files-found: error
-          retention-days: 1
-
   recovery-compose:
     name: Test recovery container and volume
-    needs: [build, test-suite]
+    needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -146,14 +110,14 @@ jobs:
         run: npm run test:recovery:compose
 
   test:
-    name: Test ${{ matrix.test }}
+    name: Test shard ${{ matrix.shard.name }}
     needs: [discover-tests, build]
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        test: ${{ fromJSON(needs.discover-tests.outputs.tests) }}
+        shard: ${{ fromJSON(needs.discover-tests.outputs.shards) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -175,13 +139,34 @@ jobs:
           name: dist
           path: dist
 
-      - name: Run test
-        run: node --experimental-strip-types --test "${{ matrix.test }}"
+      - name: Run shard
+        shell: bash
+        env:
+          SHARD_NAME: ${{ matrix.shard.name }}
+          TEST_FILES_JSON: ${{ toJSON(matrix.shard.files) }}
+        run: |
+          set -euo pipefail
+          mapfile -t test_files < <(node -e 'for (const file of JSON.parse(process.env.TEST_FILES_JSON || "[]")) console.log(file)')
+          if (( ${#test_files[@]} == 0 )); then
+            echo "Shard ${SHARD_NAME} contains no test files"
+            exit 1
+          fi
+          set -o pipefail
+          node --experimental-strip-types --test --test-concurrency=1 "${test_files[@]}" 2>&1 | tee "server-shard-${SHARD_NAME}.tap"
+
+      - name: Upload shard log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-shard-${{ matrix.shard.name }}-log
+          path: server-shard-${{ matrix.shard.name }}.tap
+          if-no-files-found: error
+          retention-days: 1
 
   required:
     name: Required CI
     if: always()
-    needs: [discover-tests, build, test-suite, recovery-compose, test]
+    needs: [discover-tests, build, recovery-compose, test]
     runs-on: ubuntu-latest
     steps:
       - name: Verify all required CI jobs succeeded
@@ -189,12 +174,11 @@ jobs:
         env:
           DISCOVER_RESULT: ${{ needs.discover-tests.result }}
           BUILD_RESULT: ${{ needs.build.result }}
-          SUITE_RESULT: ${{ needs.test-suite.result }}
           RECOVERY_RESULT: ${{ needs.recovery-compose.result }}
-          MATRIX_RESULT: ${{ needs.test.result }}
+          TEST_RESULT: ${{ needs.test.result }}
         run: |
           set -euo pipefail
-          for result in "$DISCOVER_RESULT" "$BUILD_RESULT" "$SUITE_RESULT" "$RECOVERY_RESULT" "$MATRIX_RESULT"; do
+          for result in "$DISCOVER_RESULT" "$BUILD_RESULT" "$RECOVERY_RESULT" "$TEST_RESULT"; do
             if [[ "$result" != "success" ]]; then
               echo "A required CI dependency finished with result: $result"
               exit 1

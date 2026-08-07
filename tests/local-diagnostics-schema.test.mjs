@@ -45,3 +45,12 @@ test("schema diagnostics preserve the existing admin-only local RBAC boundary", 
   assert.equal(source.includes('url.pathname === "/api/auth/diagnostics"'), true);
   assert.equal(source.includes('"cache-control": "no-store"'), true);
 });
+
+test("diagnostics expose sanitized build and dependency versions", () => {
+  assert.equal(source.includes('import packageMetadata from "../package.json"'), true);
+  assert.equal(source.includes("build: buildDiagnostics()"), true);
+  for (const key of ["version", "next", "react", "vinext", "vite", "wrangler"]) {
+    assert.equal(source.includes(`${key}:`), true, key);
+  }
+  assert.doesNotMatch(source, /buildDiagnostics[\s\S]{0,800}(password|token|secret|CONFIG_ENCRYPTION_KEY)/iu);
+});

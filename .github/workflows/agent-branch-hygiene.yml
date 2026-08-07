@@ -1,0 +1,114 @@
+name: Agent Branch Hygiene
+
+on:
+  pull_request:
+    types: [closed]
+  schedule:
+    - cron: "23 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: agent-branch-hygiene
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout trusted default branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+          show-progress: false
+
+      - name: Classify and delete proven merged agent branches
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { pathToFileURL } = await import("node:url");
+            const moduleUrl = pathToFileURL(`${process.env.GITHUB_WORKSPACE}/scripts/agent-branch-hygiene.mjs`).href;
+            const { buildAgentBranchHygienePlan, formatAgentBranchHygieneReport } = await import(moduleUrl);
+
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            const branchRows = await github.paginate(github.rest.repos.listBranches, {
+              owner,
+              repo,
+              per_page: 100,
+            });
+            const openRows = await github.paginate(github.rest.pulls.list, {
+              owner,
+              repo,
+              state: "open",
+              per_page: 100,
+            });
+            const closedRows = await github.paginate(github.rest.pulls.list, {
+              owner,
+              repo,
+              state: "closed",
+              per_page: 100,
+            });
+
+            const branches = branchRows.map((entry) => ({
+              name: entry.name,
+              sha: entry.commit.sha,
+            }));
+            const normalizePullRequest = (entry) => ({
+              number: entry.number,
+              merged: Boolean(entry.merged_at),
+              head: entry.head.ref,
+              headSha: entry.head.sha,
+              base: entry.base.ref,
+            });
+            const openPullRequests = openRows.map(normalizePullRequest);
+            const closedPullRequests = closedRows.map(normalizePullRequest);
+
+            const plan = buildAgentBranchHygienePlan({ branches, openPullRequests, closedPullRequests });
+            core.info(formatAgentBranchHygieneReport(plan).trimEnd());
+
+            for (const entry of plan) {
+              if (entry.action !== "DELETE_MERGED") continue;
+
+              const freshOpenRows = await github.paginate(github.rest.pulls.list, {
+                owner,
+                repo,
+                state: "open",
+                per_page: 100,
+              });
+              const freshOpenRefs = new Set();
+              for (const pullRequest of freshOpenRows) {
+                if (pullRequest.head.ref?.startsWith("agent/")) freshOpenRefs.add(pullRequest.head.ref);
+                if (pullRequest.base.ref?.startsWith("agent/")) freshOpenRefs.add(pullRequest.base.ref);
+              }
+              if (freshOpenRefs.has(entry.branch)) {
+                core.warning(`Skip ${entry.branch}: it became referenced by an open PR after planning.`);
+                continue;
+              }
+
+              let currentRef;
+              try {
+                currentRef = await github.rest.git.getRef({ owner, repo, ref: `heads/${entry.branch}` });
+              } catch (error) {
+                if (error?.status === 404) {
+                  core.info(`Skip ${entry.branch}: branch was already removed.`);
+                  continue;
+                }
+                throw error;
+              }
+
+              const currentSha = String(currentRef.data.object.sha ?? "").toLowerCase();
+              if (!entry.expectedSha || currentSha !== entry.expectedSha) {
+                core.warning(`Skip ${entry.branch}: branch tip changed after planning.`);
+                continue;
+              }
+
+              await github.rest.git.deleteRef({ owner, repo, ref: `heads/${entry.branch}` });
+              core.info(`Deleted merged agent branch ${entry.branch}.`);
+            }

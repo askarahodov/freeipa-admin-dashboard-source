@@ -2,7 +2,12 @@ import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { chmodSync, unlinkSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { validateProductionEncryptionKey } from "./config-encryption-key.mjs";
 import { createFreeIpaGateway } from "./freeipa-gateway.mjs";
+
+process.env.CONFIG_ENCRYPTION_KEY = validateProductionEncryptionKey(process.env.CONFIG_ENCRYPTION_KEY, {
+  profile: process.env.PORTAL_RUNTIME_PROFILE,
+});
 
 const envFile = "/tmp/freeipa-dashboard-runtime.env";
 const requestedGatewayPort = Number(process.env.IPA_GATEWAY_PORT || 0);

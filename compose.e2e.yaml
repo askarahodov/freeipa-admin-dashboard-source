@@ -52,6 +52,7 @@ services:
       NODE_ENV: production
       PORT: 3001
       HOST: 0.0.0.0
+      PORTAL_RUNTIME_PROFILE: e2e
     volumes:
       - dashboard-e2e-data:/app/.wrangler
     security_opt:

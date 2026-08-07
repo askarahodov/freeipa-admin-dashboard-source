@@ -12,9 +12,10 @@
 4. прочитать [`PROJECT_STRUCTURE.md`](../PROJECT_STRUCTURE.md) — module ownership и where-to-change routing;
 5. прочитать [`DOCUMENTATION_POLICY.md`](../DOCUMENTATION_POLICY.md);
 6. проверить [`SOURCE_OF_TRUTH.md`](../SOURCE_OF_TRUTH.md);
-7. прочитать профильный active-document затрагиваемого домена;
-8. проверить актуальный код и tests текущего `main`/целевого ref;
-9. проверить связанные открытые PR/Issues, если они влияют на ownership или параллельную работу.
+7. для security-sensitive изменения прочитать [`SECURITY_MODEL.md`](../SECURITY_MODEL.md) до проектирования нового privileged/trust boundary;
+8. прочитать профильный active-document затрагиваемого домена;
+9. проверить актуальный код и tests текущего `main`/целевого ref;
+10. проверить связанные открытые PR/Issues, если они влияют на ownership или параллельную работу.
 
 Нельзя начинать с issue и затем предполагать, что описанное в issue уже реализовано.
 
@@ -32,6 +33,8 @@
 
 Если owner неясен, это сначала architecture/documentation problem. Не создавайте второй owner только ради завершения локальной задачи.
 
+Если изменение затрагивает identity, authorization, secrets, upstream credentials, audit, approvals, maintenance/recovery, schema fail-closed behavior или diagnostic disclosure, дополнительно сверяйтесь с [`SECURITY_MODEL.md`](../SECURITY_MODEL.md) и точным профильным security/runbook owner.
+
 ## Иерархия доверия
 
 При конфликте источников:
@@ -39,7 +42,7 @@
 1. фактический код, canonical registries/schema и tests текущего ref;
 2. `SOURCE_OF_TRUTH.md` и указанный там authoritative owner;
 3. active профильный contract/runbook;
-4. `ARCHITECTURE.md`, `PROJECT_STRUCTURE.md` и overview docs;
+4. `ARCHITECTURE.md`, `PROJECT_STRUCTURE.md`, `SECURITY_MODEL.md` и overview docs;
 5. ADR как объяснение решения;
 6. issue, plan, PR description, historical notes.
 
@@ -51,6 +54,8 @@ Issue, roadmap и implementation plan не являются доказатель
 - не расширять scope незаметным рефакторингом unrelated modules;
 - не переносить authorization или security enforcement только в UI;
 - не ослаблять fail-closed gates, redaction, encryption, same-origin, approvals или audit ради упрощения tests;
+- не превращать `ADMIN_TOKEN`, maintenance/recovery credentials или integration credentials в generic admin bypass;
+- не выдавать FreeIPA/XYOps credentials, cookies/session material или private Gateway token в browser/API response;
 - сохранять backward compatibility либо документировать и тестировать migration path;
 - для security-critical fix сначала фиксировать воспроизводимое поведение test/contract там, где это возможно;
 - не использовать `any`, source-text guards или mocks как замену реальному behavior test там, где важна runtime semantics;
@@ -104,7 +109,7 @@ agent/<short-scope>
 
 Следуйте [`DOCUMENTATION_POLICY.md`](../DOCUMENTATION_POLICY.md). Не создавайте новый Markdown-файл, если существующий документ уже владеет темой.
 
-Если изменена system topology/trust boundary — актуализируйте [`ARCHITECTURE.md`](../ARCHITECTURE.md). Если изменился module/path ownership — актуализируйте [`PROJECT_STRUCTURE.md`](../PROJECT_STRUCTURE.md).
+Если изменена system topology/trust boundary — актуализируйте [`ARCHITECTURE.md`](../ARCHITECTURE.md). Если изменился module/path ownership — актуализируйте [`PROJECT_STRUCTURE.md`](../PROJECT_STRUCTURE.md). Если изменился security trust/identity/secret/authorization/recovery boundary — актуализируйте [`SECURITY_MODEL.md`](../SECURITY_MODEL.md) и профильный exact contract.
 
 ## Current state vs plan
 
@@ -133,6 +138,8 @@ agent/<short-scope>
 
 Используйте sanitized fixtures и очевидные placeholders.
 
+Для security-sensitive изменения дополнительно проверьте инварианты [`SECURITY_MODEL.md`](../SECURITY_MODEL.md): server-side authorization, upstream-secret isolation, purpose-specific privileged credentials, redaction и fail-closed recovery/schema boundaries.
+
 ## Проверка перед завершением задачи
 
 Минимальный self-review:
@@ -141,13 +148,15 @@ agent/<short-scope>
 2. не создан дублирующий owner/abstraction;
 3. изменение находится в правильном layer/path;
 4. permission/security boundaries остались server-side;
-5. failure semantics понятны и протестированы;
-6. актуальные docs обновлены;
-7. `ARCHITECTURE.md`/`PROJECT_STRUCTURE.md` обновлены, если затронуты их boundaries;
-8. superseded statements удалены;
-9. paths/links действительно существуют;
-10. test/build/lint команды выполнены настолько полно, насколько позволяет scope;
-11. PR содержит evidence и known gaps без ложного claim о полном покрытии.
+5. privileged credentials не стали generic bypass;
+6. upstream/session secrets не появились в browser/logs/diagnostics;
+7. failure semantics понятны и протестированы;
+8. актуальные docs обновлены;
+9. `ARCHITECTURE.md`/`PROJECT_STRUCTURE.md`/`SECURITY_MODEL.md` обновлены, если затронуты их boundaries;
+10. superseded statements удалены;
+11. paths/links действительно существуют;
+12. test/build/lint команды выполнены настолько полно, насколько позволяет scope;
+13. PR содержит evidence и known gaps без ложного claim о полном покрытии.
 
 ## Документальные задачи
 
@@ -165,8 +174,9 @@ agent/<short-scope>
 - [`../README.md`](../README.md) — навигация;
 - [`../ARCHITECTURE.md`](../ARCHITECTURE.md) — current runtime architecture;
 - [`../PROJECT_STRUCTURE.md`](../PROJECT_STRUCTURE.md) — current repository/module map;
+- [`../SECURITY_MODEL.md`](../SECURITY_MODEL.md) — current security/trust model;
 - [`../SOURCE_OF_TRUTH.md`](../SOURCE_OF_TRUTH.md) — authoritative owners;
 - [`../GLOSSARY.md`](../GLOSSARY.md) — терминология;
 - профильные runbook — фактические operational/security contracts.
 
-Если architecture/project map и текущий код расходятся, не выдумывайте новое boundary: проверьте current ref/canonical owner и исправьте подтверждённый documentation drift.
+Если architecture/project/security map и текущий код расходятся, не выдумывайте новое boundary: проверьте current ref/canonical owner и исправьте подтверждённый documentation drift.

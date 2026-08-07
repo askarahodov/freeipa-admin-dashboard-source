@@ -5,6 +5,7 @@ import test from "node:test";
 const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
 const lock = JSON.parse(readFileSync(new URL("../package-lock.json", import.meta.url), "utf8"));
 const ci = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
+const dockerfile = readFileSync(new URL("../Dockerfile", import.meta.url), "utf8");
 
 function versionTuple(value) {
   return String(value ?? "").replace(/^[^0-9]*/u, "").split(".").slice(0, 3).map((part) => Number(part) || 0);
@@ -30,6 +31,18 @@ test("production dependency graph uses patched Next and Sharp versions", () => {
     .map(([, metadata]) => metadata.version);
   assert.equal(productionSharp.length > 0, true, "production Sharp package is missing from lockfile");
   for (const version of productionSharp) assert.equal(versionAtLeast(version, "0.35.0"), true, `production sharp=${version}`);
+});
+
+test("production runtime keeps the verified Wrangler line while excluding build-only tooling", () => {
+  assert.equal(packageJson.dependencies.wrangler, "4.113.0");
+  assert.equal(packageJson.devDependencies.wrangler, undefined);
+  assert.equal(packageJson.devDependencies["@cloudflare/vite-plugin"], "1.46.0");
+  assert.equal(packageJson.overrides?.sharp, "0.35.3");
+  assert.equal(packageJson.overrides?.undici, "7.29.0");
+  assert.match(dockerfile, /AS production-dependencies[\s\S]*npm prune --omit=dev/u);
+  assert.match(dockerfile, /COPY --from=production-dependencies[^\n]*\/app\/node_modules \.\/node_modules/u);
+  assert.match(dockerfile, /rm -rf \/usr\/local\/lib\/node_modules\/npm/u);
+  assert.match(dockerfile, /CMD \["node", "scripts\/start-worker\.mjs"\]/u);
 });
 
 test("package scripts expose deterministic production audit and lockfile-only SBOM commands", () => {

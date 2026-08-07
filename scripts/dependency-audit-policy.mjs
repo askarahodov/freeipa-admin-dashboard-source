@@ -5,12 +5,21 @@ import { fileURLToPath } from "node:url";
 const BLOCKING_SEVERITIES = new Set(["high", "critical"]);
 const GHSA_PATTERN = /GHSA-[0-9a-z-]+/iu;
 
+function normalizeAdvisoryId(value) {
+  const raw = String(value ?? "").trim();
+  return /^GHSA-/iu.test(raw) ? raw.toLowerCase() : raw;
+}
+
 function advisoryId(via) {
   const url = String(via?.url ?? "");
-  const ghsa = url.match(GHSA_PATTERN)?.[0]?.toUpperCase();
-  if (ghsa) return ghsa;
+  const ghsa = url.match(GHSA_PATTERN)?.[0];
+  if (ghsa) return normalizeAdvisoryId(ghsa);
   if (via?.source !== undefined && via?.source !== null) return `npm:${via.source}`;
-  return url || String(via?.title ?? via?.name ?? "unknown-advisory");
+  return normalizeAdvisoryId(url || String(via?.title ?? via?.name ?? "unknown-advisory"));
+}
+
+function findingKey(packageName, id) {
+  return `${String(packageName ?? "").trim().toLowerCase()}:${normalizeAdvisoryId(id)}`;
 }
 
 function expiryInstant(value) {
@@ -37,8 +46,8 @@ export function validateAllowlist(allowlist, now = new Date()) {
     if (!owner) throw new Error(`allowlist entry ${index} requires owner`);
     if (reason.length < 20) throw new Error(`allowlist entry ${index} requires a meaningful reason`);
     if (expiryInstant(expires).getTime() < now.getTime()) throw new Error(`allowlist entry ${index} expired on ${expires}`);
-    const key = `${packageName}:${id}`;
-    if (seen.has(key)) throw new Error(`duplicate allowlist entry: ${key}`);
+    const key = findingKey(packageName, id);
+    if (seen.has(key)) throw new Error(`duplicate allowlist entry: ${packageName}:${id}`);
     seen.add(key);
   }
   return allowlist;
@@ -54,7 +63,7 @@ export function collectBlockingFindings(report) {
       if (!BLOCKING_SEVERITIES.has(severity)) continue;
       const packageName = String(via.name ?? vulnerability?.name ?? packageKey);
       const id = advisoryId(via);
-      const key = `${packageName}:${id}`;
+      const key = findingKey(packageName, id);
       if (seen.has(key)) continue;
       seen.add(key);
       findings.push({
@@ -66,19 +75,19 @@ export function collectBlockingFindings(report) {
       });
     }
   }
-  return findings.sort((left, right) => `${left.package}:${left.id}`.localeCompare(`${right.package}:${right.id}`));
+  return findings.sort((left, right) => findingKey(left.package, left.id).localeCompare(findingKey(right.package, right.id)));
 }
 
 export function evaluateAuditReport(report, allowlist, now = new Date()) {
   validateAllowlist(allowlist, now);
   const findings = collectBlockingFindings(report);
-  const entries = new Map(allowlist.entries.map((entry) => [`${entry.package}:${entry.id}`, entry]));
+  const entries = new Map(allowlist.entries.map((entry) => [findingKey(entry.package, entry.id), entry]));
   const matched = new Set();
   const blocked = [];
   const allowed = [];
 
   for (const finding of findings) {
-    const key = `${finding.package}:${finding.id}`;
+    const key = findingKey(finding.package, finding.id);
     const exception = entries.get(key);
     if (exception) {
       matched.add(key);
@@ -88,7 +97,7 @@ export function evaluateAuditReport(report, allowlist, now = new Date()) {
     }
   }
 
-  const stale = [...entries.keys()].filter((key) => !matched.has(key));
+  const stale = [...entries.entries()].filter(([key]) => !matched.has(key)).map(([, entry]) => `${entry.package}:${entry.id}`);
   if (stale.length) throw new Error(`stale allowlist entries: ${stale.join(", ")}`);
   return { blocked, allowed, findings };
 }

@@ -5,7 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 ENV_FILE="${E2E_ENV_FILE:-.env.e2e}"
-COMPOSE_FILE="${E2E_COMPOSE_FILE:-compose.e2e.yaml}"
+COMPOSE_FILE="${E2E_COMPOSE_FILE:-compose.e2e.node-probe.yaml}"
 ARTIFACT_ROOT="${E2E_ARTIFACT_DIR:-artifacts/e2e}"
 BASE_URL="${E2E_BASE_URL:-http://127.0.0.1:3001}"
 

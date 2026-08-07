@@ -1,8 +1,12 @@
 import { createAuditContext, type AuditContext } from "../audit-log.ts";
 import type { BackupExportEnv } from "../backup-export.ts";
+import {
+  resolvePortalRole,
+  roleHasPermission,
+  type PortalPermission,
+  type PortalRole,
+} from "../portal-permissions.ts";
 import { handleBackupImportPreviewRequest } from "./backup-import-preview-entry.ts";
-
-type PortalRole = "viewer" | "operator" | "admin";
 
 export type BackupPreviewAccessEnv = BackupExportEnv & {
   PORTAL_IDENTITY_MODE?: string;
@@ -15,17 +19,13 @@ export type BackupPreviewAccess = {
   identity: string;
   role: PortalRole;
   groups: string[];
-  permissions: Array<"backup.restore.preview">;
+  permissions: PortalPermission[];
 };
 
 export type BackupImportPreviewDispatchDependencies = {
   handler?: typeof handleBackupImportPreviewRequest;
   createContext?: (access: BackupPreviewAccess) => AuditContext;
 };
-
-function portalRole(value: unknown): PortalRole | null {
-  return value === "viewer" || value === "operator" || value === "admin" ? value : null;
-}
 
 function portalIdentity(request: Request, env: BackupPreviewAccessEnv): string {
   const mode = String(env.PORTAL_IDENTITY_MODE ?? "").trim().toLowerCase();
@@ -44,28 +44,13 @@ export function backupPreviewAccess(request: Request, env: BackupPreviewAccessEn
       .map((value) => value.trim().toLowerCase())
       .filter((value) => value && value.length <= 120 && !/[\r\n]/.test(value)),
   )).slice(0, 100);
-
-  let role = portalRole(String(env.PORTAL_DEFAULT_ROLE || "").trim().toLowerCase()) ?? "admin";
-  if (env.PORTAL_RBAC_JSON) {
-    try {
-      const assignments = JSON.parse(env.PORTAL_RBAC_JSON) as unknown;
-      if (assignments && typeof assignments === "object" && !Array.isArray(assignments)) {
-        const normalized = Object.fromEntries(
-          Object.entries(assignments as Record<string, unknown>)
-            .map(([key, value]) => [key.trim().toLowerCase(), value]),
-        );
-        role = portalRole(normalized[identity]) ?? portalRole(normalized["*"]) ?? role;
-      }
-    } catch {
-      // Invalid RBAC JSON never grants a role beyond the explicit default.
-    }
-  }
+  const role = resolvePortalRole(identity, env.PORTAL_DEFAULT_ROLE, env.PORTAL_RBAC_JSON, "admin");
 
   return {
     identity,
     role,
     groups,
-    permissions: role === "admin" ? ["backup.restore.preview"] : [],
+    permissions: roleHasPermission(role, "backup.restore.preview") ? ["backup.restore.preview"] : [],
   };
 }
 

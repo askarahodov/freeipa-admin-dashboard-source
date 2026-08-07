@@ -41,7 +41,13 @@ test("portal route contract preserves static security boundaries", () => {
     if (route.mutation === "read") assert.equal(route.sameOrigin, false, route.id);
     if (route.sameOrigin) assert.equal(route.mutation, "mutation", route.id);
     if (route.permission) assert.ok(canonicalPermissions.has(route.permission), route.id);
-    if (route.auth === "service-admin") assert.equal(route.permission, undefined, route.id);
+    for (const permission of route.conditionalPermissions ?? []) {
+      assert.ok(canonicalPermissions.has(permission), `${route.id}: ${permission}`);
+    }
+    if (route.auth === "service-admin") {
+      assert.equal(route.permission, undefined, route.id);
+      assert.deepEqual(route.conditionalPermissions ?? [], [], route.id);
+    }
   }
 });
 
@@ -66,4 +72,53 @@ test("local authentication and user administration routes match the current secu
   for (const route of portalRouteContracts.filter((route) => route.path.startsWith("/api/auth/"))) {
     assert.equal(route.sameOrigin, false, `${route.id}: current auth API dispatch precedes the shared admin same-origin gate`);
   }
+});
+
+test("settings lifecycle inventory preserves admin delegation, permission and origin gates", () => {
+  const expected = [
+    ["GET", "/api/integrations/settings", false],
+    ["PUT", "/api/integrations/settings", true],
+    ["POST", "/api/integrations/settings/test", true],
+    ["GET", "/api/integrations/settings/effective", false],
+    ["POST", "/api/integrations/settings/drafts", true],
+    ["GET", "/api/integrations/settings/drafts/:draftId", false],
+    ["POST", "/api/integrations/settings/drafts/:draftId/validate", true],
+    ["POST", "/api/integrations/settings/drafts/:draftId/apply", true],
+    ["POST", "/api/integrations/settings/drafts/:draftId/cancel", true],
+    ["GET", "/api/integrations/settings/revisions", false],
+    ["GET", "/api/integrations/settings/revisions/:revision", false],
+  ];
+
+  for (const [method, path, sameOrigin] of expected) {
+    const route = findPortalRouteContract(method, path);
+    assert.ok(route, `${method} ${path}`);
+    assert.equal(route.auth, "admin-or-service-admin", route.id);
+    assert.equal(route.permission, "settings.manage", route.id);
+    assert.equal(route.sameOrigin, sameOrigin, route.id);
+  }
+});
+
+test("FreeIPA inventory keeps read/write/delete capabilities distinct", () => {
+  for (const [method, path] of [
+    ["GET", "/api/integrations/users"],
+    ["GET", "/api/integrations/users/export.csv"],
+    ["GET", "/api/integrations/groups"],
+    ["GET", "/api/integrations/groups/members"],
+  ]) {
+    const route = findPortalRouteContract(method, path);
+    assert.ok(route, `${method} ${path}`);
+    assert.equal(route.auth, "local-session", route.id);
+    assert.equal(route.permission, "directory.read", route.id);
+  }
+
+  const actions = findPortalRouteContract("POST", "/api/integrations/freeipa/actions");
+  assert.equal(actions?.auth, "local-session");
+  assert.equal(actions?.permission, "freeipa.write");
+  assert.deepEqual(actions?.conditionalPermissions, ["freeipa.delete"]);
+  assert.equal(actions?.sameOrigin, false);
+
+  const bulk = findPortalRouteContract("POST", "/api/integrations/freeipa/bulk");
+  assert.equal(bulk?.auth, "local-session");
+  assert.equal(bulk?.permission, "freeipa.write");
+  assert.deepEqual(bulk?.conditionalPermissions ?? [], []);
 });

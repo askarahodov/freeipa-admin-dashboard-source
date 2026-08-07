@@ -1,0 +1,52 @@
+:root {
+  --ui-font-sans: var(--font-geist-sans), "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --ui-font-mono: var(--font-geist-mono), "SFMono-Regular", Consolas, monospace;
+
+  --ui-color-canvas: #f7f7f9;
+  --ui-color-surface: #ffffff;
+  --ui-color-surface-subtle: #f3f4f6;
+  --ui-color-text: #20222c;
+  --ui-color-muted: #667085;
+  --ui-color-border: #e4e5e9;
+  --ui-color-border-strong: #cfd2d9;
+  --ui-color-primary: #6d5bd0;
+  --ui-color-primary-hover: #5c4ac0;
+  --ui-color-primary-subtle: #f0edff;
+  --ui-color-success: #177a52;
+  --ui-color-success-subtle: #eaf7f0;
+  --ui-color-warning: #9a6700;
+  --ui-color-warning-subtle: #fff6d8;
+  --ui-color-danger: #b42318;
+  --ui-color-danger-subtle: #fff0ee;
+  --ui-color-info: #175cd3;
+  --ui-color-info-subtle: #eff4ff;
+  --ui-focus-ring: #7f6ee8;
+
+  --ui-space-1: 4px;
+  --ui-space-2: 8px;
+  --ui-space-3: 12px;
+  --ui-space-4: 16px;
+  --ui-space-5: 20px;
+  --ui-space-6: 24px;
+  --ui-space-8: 32px;
+
+  --ui-radius-sm: 4px;
+  --ui-radius-md: 6px;
+  --ui-radius-lg: 8px;
+  --ui-control-height-sm: 32px;
+  --ui-control-height: 36px;
+  --ui-control-height-lg: 40px;
+  --ui-table-row-height: 44px;
+  --ui-shadow-overlay: 0 12px 32px rgb(16 24 40 / 14%);
+
+  --ui-text-page-size: 24px;
+  --ui-text-page-line: 30px;
+  --ui-text-section-size: 16px;
+  --ui-text-section-line: 24px;
+  --ui-text-body-size: 14px;
+  --ui-text-body-line: 20px;
+  --ui-text-label-size: 13px;
+  --ui-text-label-line: 18px;
+  --ui-text-caption-size: 12px;
+  --ui-text-caption-line: 16px;
+}

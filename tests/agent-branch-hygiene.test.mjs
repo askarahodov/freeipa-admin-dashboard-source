@@ -119,3 +119,14 @@ test("workflow executes only trusted-main cleanup policy", async () => {
   assert.match(workflow, /freshOpenRefs\.has\(entry\.branch\)/u);
   assert.match(workflow, /github\.rest\.git\.deleteRef/u);
 });
+
+test("agent branch policy documents lifecycle and supersede safety", async () => {
+  const policy = await readFile(new URL("../.github/AGENT_BRANCH_POLICY.md", import.meta.url), "utf8");
+  assert.match(policy, /agent\/<short-scope>/u);
+  assert.match(policy, /open PR/u);
+  assert.match(policy, /stack/u);
+  assert.match(policy, /exact merged PR head/u);
+  assert.match(policy, /closed-unmerged/u);
+  assert.match(policy, /never.*age/isu);
+  assert.match(policy, /clean replay/u);
+});

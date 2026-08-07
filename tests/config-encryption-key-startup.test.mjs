@@ -7,6 +7,8 @@ import { validateProductionEncryptionKey } from "../scripts/config-encryption-ke
 const compose = await readFile(new URL("../compose.yaml", import.meta.url), "utf8");
 const testCompose = await readFile(new URL("../compose.test.yaml", import.meta.url), "utf8");
 const e2eCompose = await readFile(new URL("../compose.e2e.yaml", import.meta.url), "utf8");
+const startup = await readFile(new URL("../scripts/start-worker.mjs", import.meta.url), "utf8");
+const envExample = await readFile(new URL("../.env.example", import.meta.url), "utf8");
 
 const publishedComposeKey = "d0ee92e4c9b6b9e1282d4808ff08e03de28087b1b0b3b5f44198f7bdbe782ec5";
 const validHex = "7f6a5d4c3b2a1908ffeeddccbbaa99887766554433221100a1b2c3d4e5f60718";
@@ -29,6 +31,20 @@ test("production Compose requires CONFIG_ENCRYPTION_KEY from external configurat
 test("test and E2E Compose explicitly opt into isolated encryption-key profiles", () => {
   assert.match(dashboardService(testCompose), /PORTAL_RUNTIME_PROFILE:\s*test/u);
   assert.match(dashboardService(e2eCompose), /PORTAL_RUNTIME_PROFILE:\s*e2e/u);
+});
+
+test("startup validates encryption key before creating the Gateway", () => {
+  const validation = startup.indexOf("process.env.CONFIG_ENCRYPTION_KEY = validateProductionEncryptionKey");
+  const gateway = startup.indexOf("const gateway = createFreeIpaGateway");
+  assert.notEqual(validation, -1);
+  assert.notEqual(gateway, -1);
+  assert.ok(validation < gateway, "encryption key validation must happen before Gateway startup");
+});
+
+test("production env example documents generation but ships no usable key", () => {
+  assert.match(envExample, /openssl rand -hex 32/u);
+  assert.match(envExample, /CONFIG_ENCRYPTION_KEY=replace-with-a-random-64-character-hex-key/u);
+  assert.throws(() => validateProductionEncryptionKey("replace-with-a-random-64-character-hex-key"), /CONFIG_ENCRYPTION_KEY/u);
 });
 
 test("production encryption key accepts exact 32-byte hex or base64", () => {

@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { createD1SqliteAdapter } from "../runtime/d1-sqlite-adapter.mjs";
 
-function fakeDatabase() {
+function fakeDatabase({ exposeReader = true } = {}) {
   const rows = new Map([
     ["alpha", { id: "alpha", value: 7 }],
     ["beta", { id: "beta", value: 9 }],
@@ -16,8 +16,7 @@ function fakeDatabase() {
     get transactionCount() { return transactionCount; },
     prepare(sql) {
       const reader = /^\s*SELECT\b/iu.test(sql);
-      return {
-        reader,
+      const statement = {
         get(...params) {
           calls.push({ kind: "get", sql, params });
           if (/WHERE id = \?/u.test(sql)) return rows.get(String(params[0]));
@@ -33,6 +32,8 @@ function fakeDatabase() {
           return { changes: 1, lastInsertRowid: 42 };
         },
       };
+      if (exposeReader) statement.reader = reader;
+      return statement;
     },
     transaction(fn) {
       return (...args) => {
@@ -96,6 +97,21 @@ test("batch executes statements once inside one driver transaction and preserves
   assert.equal(result.length, 2);
   assert.equal(result[0].meta.changes, 1);
   assert.deepEqual(result[1].results.at(-1), { id: "gamma", value: 11 });
+});
+
+test("adapter works with SQLite drivers that do not expose a reader flag", async () => {
+  const driver = fakeDatabase({ exposeReader: false });
+  const db = createD1SqliteAdapter(driver);
+
+  const rows = await db.prepare("SELECT id, value FROM records ORDER BY id").all();
+  assert.equal(rows.results.length, 2);
+
+  const result = await db.batch([
+    db.prepare("INSERT INTO records (id, value) VALUES (?, ?)").bind("gamma", 11),
+    db.prepare("SELECT id, value FROM records ORDER BY id"),
+  ]);
+  assert.equal(result[0].meta.changes, 1);
+  assert.equal(result[1].results.length, 3);
 });
 
 test("adapter rejects foreign prepared statements in batch", async () => {

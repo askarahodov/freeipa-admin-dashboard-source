@@ -31,6 +31,7 @@ test("portal route contract has unique stable identifiers and method/path pairs"
     assert.match(route.path, /^\//, route.id);
     assert.doesNotMatch(route.path, /\{[^}]+\}/, `${route.id}: dynamic segments use :name syntax`);
     assert.ok(route.owner.endsWith(".ts"), route.id);
+    if (route.requiredRole !== undefined) assert.equal(route.requiredRole, "admin", route.id);
   }
 });
 
@@ -121,4 +122,69 @@ test("FreeIPA inventory keeps read/write/delete capabilities distinct", () => {
   assert.equal(bulk?.auth, "local-session");
   assert.equal(bulk?.permission, "freeipa.write");
   assert.deepEqual(bulk?.conditionalPermissions ?? [], []);
+});
+
+test("XYOps, approvals and run inventory preserves explicit capability checks", () => {
+  for (const path of [
+    "/api/integrations/approvals",
+    "/api/integrations/notifications",
+    "/api/integrations/runs/:runId/files/:fileId",
+  ]) {
+    const route = findPortalRouteContract("GET", path);
+    assert.equal(route?.auth, "local-session", path);
+    assert.equal(route?.permission, "directory.read", path);
+  }
+  assert.equal(findPortalRouteContract("POST", "/api/integrations/notifications/read")?.permission, "directory.read");
+
+  for (const action of ["approve", "reject"]) {
+    const route = findPortalRouteContract("POST", `/api/integrations/approvals/:approvalId/${action}`);
+    assert.equal(route?.permission, "xyops.approve", action);
+  }
+  for (const action of ["cancel", "execute"]) {
+    const route = findPortalRouteContract("POST", `/api/integrations/approvals/:approvalId/${action}`);
+    assert.equal(route?.permission, "xyops.run", action);
+  }
+  for (const action of ["cancel", "rerun"]) {
+    const route = findPortalRouteContract("POST", `/api/integrations/runs/:runId/${action}`);
+    assert.equal(route?.permission, "xyops.run", action);
+  }
+
+  assert.equal(findPortalRouteContract("POST", "/api/integrations/catalog/run")?.permission, "xyops.run");
+  for (const path of [
+    "/api/integrations/catalog",
+    "/api/integrations/catalog/history",
+    "/api/integrations/catalog/options",
+    "/api/integrations/runs",
+  ]) {
+    const route = findPortalRouteContract("GET", path);
+    assert.equal(route?.auth, "local-session", path);
+    assert.equal(route?.permission, undefined, path);
+  }
+});
+
+test("XYOps administration routes stay distinct from HTTP registry metadata", () => {
+  for (const path of [
+    "/api/integrations/routes",
+    "/api/integrations/catalog/presentation",
+    "/api/integrations/catalog/policies",
+    "/api/integrations/approval/policies",
+  ]) {
+    const read = findPortalRouteContract("GET", path);
+    const write = findPortalRouteContract("PUT", path);
+    assert.equal(read?.auth, "admin-or-service-admin", path);
+    assert.equal(read?.permission, "settings.manage", path);
+    assert.equal(read?.sameOrigin, false, path);
+    assert.equal(write?.auth, "admin-or-service-admin", path);
+    assert.equal(write?.permission, "settings.manage", path);
+    assert.equal(write?.sameOrigin, true, path);
+  }
+
+  const syncRead = findPortalRouteContract("GET", "/api/integrations/catalog/sync");
+  const syncRun = findPortalRouteContract("POST", "/api/integrations/catalog/sync");
+  assert.equal(syncRead?.auth, "admin-or-service-admin");
+  assert.equal(syncRead?.requiredRole, "admin");
+  assert.equal(syncRead?.permission, undefined);
+  assert.equal(syncRun?.auth, "admin-or-service-admin");
+  assert.equal(syncRun?.requiredRole, "admin");
+  assert.equal(syncRun?.sameOrigin, true);
 });

@@ -1,6 +1,6 @@
 import { appendFileSync, readFileSync } from "node:fs";
 
-const exactRelevantPaths = new Set([
+export const authE2EExactRelevantPaths = Object.freeze([
   ".env.example",
   ".env.e2e.example",
   ".env.test.example",
@@ -18,15 +18,8 @@ const exactRelevantPaths = new Set([
   "vite.config.ts",
 ]);
 
-const relevantPrefixes = [
-  "app/",
-  "db/",
-  "e2e/",
-  "scripts/",
-  "tests/",
-  "worker/",
-];
-
+const exactRelevantPaths = new Set(authE2EExactRelevantPaths);
+const relevantPrefixes = ["app/", "db/", "e2e/", "scripts/", "tests/", "worker/"];
 const rootRuntimeSource = /^(?:freeipa|xyops|settings|storage|maintenance|backup|operation|approval|portal|integration|admin|local|health|audit)[^/]*\.(?:ts|tsx|mjs|js)$/u;
 
 export function isAuthE2ERelevantPath(value) {

@@ -22,7 +22,7 @@ const diagnosticsHtml = String.raw`<!doctype html>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
-  <title>Health diagnostics · FreeIPA Admin Dashboard</title>
+  <title>Health diagnostics · Admin Dashboard Softrust</title>
   <link rel="stylesheet" href="/diagnostics/health.css">
   <script src="/diagnostics/health.js" defer></script>
 </head>
@@ -30,7 +30,7 @@ const diagnosticsHtml = String.raw`<!doctype html>
   <main class="shell" aria-labelledby="page-title">
     <header class="page-header">
       <div>
-        <p class="eyebrow">FreeIPA Admin Dashboard</p>
+        <p class="eyebrow">Admin Dashboard Softrust</p>
         <h1 id="page-title">Диагностика состояния портала</h1>
         <p class="lead">Безопасное представление liveness, readiness и внешних зависимостей без адресов, учётных данных и необработанных ошибок.</p>
       </div>

@@ -2,6 +2,7 @@ export type PortalHealthCheckName = "database" | "schema" | "encryption" | "gate
 export type PortalHealthState = "healthy" | "unready" | "unknown";
 export type OverviewState = "healthy" | "warning" | "danger" | "unknown";
 export type OverviewTarget = "approvals" | "operations" | "settings" | "catalog" | "diagnostics";
+export type PrivilegedAttentionId = "portal-unready" | "freeipa-degraded" | "xyops-degraded";
 
 export interface PortalHealthCheck {
   name: PortalHealthCheckName;
@@ -21,6 +22,7 @@ export interface OperationalOverviewInput {
   pendingApprovals: number;
   failedOperations: number;
   catalogNeedsReview: boolean;
+  attentionTargets?: Partial<Record<PrivilegedAttentionId, OverviewTarget>>;
 }
 
 export interface OverviewHealthRow {
@@ -35,7 +37,7 @@ export interface OverviewAttentionItem {
   state: "warning" | "danger";
   title: string;
   detail: string;
-  target: OverviewTarget;
+  target?: OverviewTarget;
 }
 
 export interface OperationalOverviewModel {
@@ -91,12 +93,30 @@ export function buildOperationalOverview(input: OperationalOverviewInput): Opera
   const attention: OverviewAttentionItem[] = [];
   if (portalCore === "danger") {
     const failedChecks = input.readiness?.checks.filter((check) => check.state === "unready").length ?? 0;
-    attention.push({ id: "portal-unready", state: "danger", title: "Портал не готов к работе", detail: failedChecks ? `${failedChecks} системных проверок требуют вмешательства` : "Проверьте состояние системы", target: "diagnostics" });
+    attention.push({
+      id: "portal-unready",
+      state: "danger",
+      title: "Портал не готов к работе",
+      detail: failedChecks ? `${failedChecks} системных проверок требуют вмешательства` : "Проверьте состояние системы",
+      target: input.attentionTargets?.["portal-unready"],
+    });
   }
   if (input.failedOperations > 0) attention.push({ id: "failed-runs", state: "danger", title: "Есть неуспешные операции", detail: `${input.failedOperations} операций требуют проверки`, target: "operations" });
   if (input.pendingApprovals > 0) attention.push({ id: "pending-approvals", state: "warning", title: "Ожидаются согласования", detail: `${input.pendingApprovals} заявок ждут решения`, target: "approvals" });
-  if (input.freeipaReachable === false) attention.push({ id: "freeipa-degraded", state: "warning", title: "FreeIPA недоступен", detail: "Портал работает, но directory-операции ограничены", target: "settings" });
-  if (input.xyopsReachable === false) attention.push({ id: "xyops-degraded", state: "warning", title: "XYOps недоступен", detail: "Портал работает, но запуск автоматизаций ограничен", target: "settings" });
+  if (input.freeipaReachable === false) attention.push({
+    id: "freeipa-degraded",
+    state: "warning",
+    title: "FreeIPA недоступен",
+    detail: "Портал работает, но directory-операции ограничены",
+    target: input.attentionTargets?.["freeipa-degraded"],
+  });
+  if (input.xyopsReachable === false) attention.push({
+    id: "xyops-degraded",
+    state: "warning",
+    title: "XYOps недоступен",
+    detail: "Портал работает, но запуск автоматизаций ограничен",
+    target: input.attentionTargets?.["xyops-degraded"],
+  });
   if (input.catalogNeedsReview) attention.push({ id: "catalog-review", state: "warning", title: "Каталог требует проверки", detail: "Есть изменения или устаревший снимок каталога", target: "catalog" });
 
   return { portalCore, health, attention };

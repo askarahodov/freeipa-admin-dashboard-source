@@ -1,11 +1,12 @@
 # Required GitHub checks
 
-This repository keeps two stable branch-protection contexts for pull requests targeting `main`:
+This repository keeps three stable branch-protection contexts for pull requests targeting `main`:
 
 - `CI / Required CI` — aggregate gate over deterministic test discovery/shard validation, production dependency audit + SBOM, lint/build, runtime-image Trivy scanning, all server-test shards, and recovery-container verification.
 - `Auth E2E / auth-e2e` — always exists for pull requests. It runs a cheap routing contract on every PR and runs the full settings/schema + Chromium suite only when the change can affect runtime, authentication, RBAC, integrations, Docker/deployment, database contracts, or E2E behavior.
+- `PR Collision Guard / ownership-collision` — read-only ownership gate that compares exact changed paths with other open PRs targeting `main`; exact overlap on canonical/high-conflict ownership surfaces blocks until merge order or ownership is resolved.
 
-Branch protection for `main` should require both contexts. Dynamic shard job names should not be configured as individual required checks; `CI / Required CI` is the stable aggregate for them.
+Branch protection for `main` should require all three contexts. Dynamic shard job names should not be configured as individual required checks; `CI / Required CI` is the stable aggregate for them.
 
 ## Required CI composition
 
@@ -29,6 +30,19 @@ Each shard uploads its own short-lived TAP log. The repository does not run a se
 ## Security artifacts
 
 The dependency-security job retains the production CycloneDX SBOM for 14 days. Runtime-image Trivy JSON is also retained for 14 days. Sharding must never remove, bypass or downgrade either security gate.
+
+## PR ownership collision guard
+
+`scripts/pr-collision-guard.mjs` is the canonical policy/analyzer for the stable `PR Collision Guard / ownership-collision` check. The workflow has only `contents: read` and `pull-requests: read` permissions and evaluates open PRs targeting `main`.
+
+Collision severity is based on an **exact shared changed path**:
+
+- `BLOCKING` — the exact overlapping path is a canonical/high-conflict owner (for example `app/page.tsx`, `worker/index.ts`, package manifests, canonical security/architecture docs, `db/**`, or `.github/workflows/**`);
+- `INFO` — the exact overlap is outside the blocking policy and is surfaced for coordination without failing the check.
+
+Planning artifacts under `docs/superpowers/**` are nonblocking by themselves. Closed PRs, stacked PRs not targeting `main`, and the current PR itself are excluded.
+
+A blocking collision must be resolved by establishing explicit merge/dependency order, narrowing one PR's scope, or replaying the later PR after the owning PR merges. Do not bypass the guard by weakening the high-conflict policy merely to make CI green.
 
 ## Auth E2E routing matrix
 

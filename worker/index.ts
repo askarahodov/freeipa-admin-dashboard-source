@@ -11,6 +11,7 @@ import { approvalExecutionMatches, approvalRequirement, cancelApproval, claimApp
 import { appendAuditEvent, auditCorrelationFor, auditErrorCode, createAuditContext, listAuditEvents, withAuditCorrelation, type AuditContext } from "../audit-log";
 import { applyProcessPresentation, availableProcessPresentationLocales, presentationLocalePreferences, readProcessPresentationSet, resolveProcessPresentationLocale, saveProcessPresentationSet } from "../process-presentation";
 import { handleBackupExportRequest } from "./backup-export-entry";
+import { portalRolePermissions, resolvePortalRole, type PortalPermission, type PortalRole } from "../portal-permissions";
 
 interface Env {
   ASSETS: Fetcher;
@@ -71,15 +72,6 @@ type OperationRun = {
 type CatalogChange = { id: string; title: string; kind: "new" | "changed" | "removed" };
 type CatalogSnapshot = { events: CatalogEvent[]; syncedAt: number };
 type CatalogHistoryEntry = { id: string; syncedAt: number; changes: CatalogChange[]; processCount: number };
-type PortalRole = "viewer" | "operator" | "admin";
-type PortalPermission = "directory.read" | "freeipa.write" | "freeipa.delete" | "xyops.run" | "xyops.approve" | "settings.manage" | "backup.export";
-
-const rolePermissions: Record<PortalRole, PortalPermission[]> = {
-  viewer: ["directory.read"],
-  operator: ["directory.read", "freeipa.write", "xyops.run"],
-  admin: ["directory.read", "freeipa.write", "freeipa.delete", "xyops.run", "xyops.approve", "settings.manage", "backup.export"],
-};
-
 // Image security config. SVG sources with .svg extension auto-skip the
 // optimization endpoint on the client side (served directly, no proxy).
 // To route SVGs through the optimizer (with security headers), set
@@ -142,27 +134,11 @@ function requestActor(request: Request): string {
   return (request.headers.get("oai-authenticated-user-email") || "portal-user").slice(0, 160);
 }
 
-function portalRole(value: unknown): PortalRole | null {
-  return value === "viewer" || value === "operator" || value === "admin" ? value : null;
-}
-
 function portalAccess(request: Request, env: Env): { identity: string; role: PortalRole; groups: string[]; permissions: PortalPermission[] } {
   const identity = (request.headers.get("oai-authenticated-user-email") || "portal-user").trim().toLowerCase().slice(0, 160);
   const groups = Array.from(new Set(String(request.headers.get("oai-authenticated-user-groups") ?? "").split(",").map((value) => value.trim().toLowerCase()).filter((value) => value && value.length <= 120 && !/[\r\n]/.test(value)))).slice(0, 100);
-  let role = portalRole(String(env.PORTAL_DEFAULT_ROLE || "").trim().toLowerCase()) ?? "admin";
-  if (env.PORTAL_RBAC_JSON) {
-    try {
-      const assignments = JSON.parse(env.PORTAL_RBAC_JSON) as unknown;
-      if (assignments && typeof assignments === "object" && !Array.isArray(assignments)) {
-        const values = assignments as Record<string, unknown>;
-        const normalized = Object.fromEntries(Object.entries(values).map(([key, value]) => [key.trim().toLowerCase(), value]));
-        role = portalRole(normalized[identity]) ?? portalRole(normalized["*"]) ?? role;
-      }
-    } catch {
-      // Invalid RBAC configuration never grants more than the explicit default role.
-    }
-  }
-  return { identity, role, groups, permissions: rolePermissions[role] };
+  const role = resolvePortalRole(identity, env.PORTAL_DEFAULT_ROLE, env.PORTAL_RBAC_JSON, "admin");
+  return { identity, role, groups, permissions: portalRolePermissions[role] };
 }
 
 function requirePortalPermission(request: Request, env: Env, permission: PortalPermission): Response | null {

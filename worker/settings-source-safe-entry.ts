@@ -1,6 +1,11 @@
 import sourceRuntime from "./settings-source-entry";
 import lifecycleRuntime from "./settings-lifecycle-entry";
 import { appendAuditEvent, createAuditContext } from "../audit-log";
+import {
+  portalRolePermissions,
+  resolvePortalRole,
+  type PortalPermission,
+} from "../portal-permissions";
 
 type RuntimeEnv = NonNullable<Parameters<typeof lifecycleRuntime.fetch>[1]> & {
   DB?: D1Database;
@@ -19,17 +24,11 @@ type RuntimeEnv = NonNullable<Parameters<typeof lifecycleRuntime.fetch>[1]> & {
 type RuntimeContext = Parameters<typeof lifecycleRuntime.fetch>[2];
 type ScheduledController = Parameters<NonNullable<typeof sourceRuntime.scheduled>>[0];
 type SettingField = "demoMode" | "ipaUrl" | "ipaUsername" | "ipaPassword" | "xyopsUrl" | "xyopsApiKey";
-type PortalRole = "viewer" | "operator" | "admin";
-type SourceAccess = { identity: string; permissions: string[] };
+type SourceAccess = { identity: string; permissions: PortalPermission[] };
 type StoredSecrets = { ipaPassword: string; xyopsApiKey: string };
 type SettingsRow = { config_json: string; encrypted_secrets: string; updated_at: number };
 
 const settingFields: SettingField[] = ["demoMode", "ipaUrl", "ipaUsername", "ipaPassword", "xyopsUrl", "xyopsApiKey"];
-const rolePermissions: Record<PortalRole, string[]> = {
-  viewer: ["directory.read"],
-  operator: ["directory.read", "freeipa.write", "xyops.run"],
-  admin: ["directory.read", "freeipa.write", "freeipa.delete", "xyops.run", "xyops.approve", "settings.manage"],
-};
 const settingsSelectSql = "SELECT config_json, encrypted_secrets, updated_at FROM app_settings WHERE id = ?";
 const releaseLockSql = "DELETE FROM portal_settings_source_lock WHERE id = ? AND owner = ?";
 const jsonHeaders = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
@@ -58,24 +57,11 @@ async function secretsMatch(provided: string | null, expected: string | undefine
   return difference === 0;
 }
 
-function portalRole(value: unknown): PortalRole | null {
-  return value === "viewer" || value === "operator" || value === "admin" ? value : null;
-}
-
 function resolvedAccess(request: Request, env: RuntimeEnv): SourceAccess {
   const identity = String(env.PORTAL_STATIC_IDENTITY || request.headers.get("oai-authenticated-user-email") || "service-admin@portal.local")
     .trim().toLowerCase().slice(0, 160);
-  let role = portalRole(String(env.PORTAL_DEFAULT_ROLE || "admin").trim().toLowerCase()) ?? "admin";
-  if (env.PORTAL_RBAC_JSON) {
-    try {
-      const parsed = JSON.parse(env.PORTAL_RBAC_JSON) as unknown;
-      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        const assignments = Object.fromEntries(Object.entries(parsed as Record<string, unknown>).map(([key, value]) => [key.trim().toLowerCase(), value]));
-        role = portalRole(assignments[identity]) ?? portalRole(assignments["*"]) ?? role;
-      }
-    } catch {}
-  }
-  return { identity, permissions: rolePermissions[role] };
+  const role = resolvePortalRole(identity, env.PORTAL_DEFAULT_ROLE, env.PORTAL_RBAC_JSON, "admin");
+  return { identity, permissions: portalRolePermissions[role] };
 }
 
 async function sourceAccess(request: Request, env: RuntimeEnv): Promise<SourceAccess | null> {

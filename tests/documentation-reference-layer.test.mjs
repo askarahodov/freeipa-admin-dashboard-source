@@ -44,6 +44,23 @@ test("reference layer contains all four normalized entrypoints and limitation fo
   assert.match(errors, /#124/);
 });
 
+test("documentation navigation exposes the normalized reference layer as current state", async () => {
+  const [index, inventory, ai] = await Promise.all([
+    read("docs/README.md"),
+    read("docs/DOCUMENTATION_INVENTORY.md"),
+    read("docs/ai/README.md"),
+  ]);
+
+  for (const name of ["API", "PERMISSIONS", "CONFIGURATION", "ERROR_CODES"]) {
+    assert.match(index, new RegExp(`reference/${name}\\.md`));
+    assert.match(inventory, new RegExp(`docs/reference/${name}\\.md[^\\n]+verified-active`));
+    assert.match(ai, new RegExp(`reference/${name}\\.md`));
+  }
+
+  assert.doesNotMatch(index, /normalized API\/permissions\/error-code\/configuration reference;/);
+  assert.match(ai, /not a second runtime source of truth|не создавать второй API\/RBAC\/config\/error-code registry/iu);
+});
+
 test("permissions reference tracks the canonical built-in permission order", async () => {
   const [source, reference] = await Promise.all([
     read("portal-permissions.ts"),

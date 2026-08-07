@@ -29,10 +29,11 @@ test("data-list states are explicit and pagination is accessible", async () => {
   assert.match(pagination, /page >= totalPages/);
 });
 
-test("data-list styles stay calm and responsive", async () => {
+test("data-list styles stay calm, token-driven and responsive", async () => {
   const css = await read("app/ui/data-list/data-list.module.css");
   assert.match(css, /@import\s+["']\.\.\/\.\.\/styles\/tokens\.css["']/);
   assert.match(css, /overflow-x:\s*auto/);
+  assert.equal(/#[0-9a-f]{3,8}\b/iu.test(css), false, "shared list CSS must not introduce local hex colors");
   assert.equal(css.includes("translateY("), false);
   assert.equal(css.includes("box-shadow"), false);
   assert.equal(css.includes("position: fixed"), false);

@@ -25,7 +25,7 @@
 | Versioned schema migrations | migration registry/modules under `db/`, migration journal runtime | `DATABASE_MIGRATIONS.md` | Выпущенные migration definitions/checksums immutable |
 | Schema startup/adoption/drift behavior | schema migration runtime modules and tests | `DATABASE_MIGRATIONS.md` | Issue #57 может описывать ещё не завершённые этапы и не переопределяет runtime |
 | Local portal users and sessions | local-auth runtime + canonical DB schema | `LOCAL_AUTH_RBAC.md` | Portal user и FreeIPA user являются разными сущностями |
-| Built-in roles/permissions | runtime permission checks and auth boundary | `LOCAL_AUTH_RBAC.md`, README overview | Требуется отдельный normalized permission registry/reference в Epic #82/#39 |
+| Built-in roles/permissions | `portal-permissions.ts` | `LOCAL_AUTH_RBAC.md`, `reference/PERMISSIONS.md` | Route handlers consume canonical role/permission helpers; purpose-specific service/recovery authorization остаётся отдельным механизмом |
 | Maintenance state machine | maintenance runtime + `portal_maintenance_state` schema | `MAINTENANCE_MODE.md` | Maintenance transitions и recovery должны считаться security-sensitive contract |
 | Health semantics | health handlers/contracts in runtime | `HEALTH_CONTRACTS.md` | Liveness, readiness и dependencies нельзя взаимозаменять |
 | Storage read-only status | storage status contract/handler | `STORAGE_STATUS.md` | Endpoint не является migration или repair API |
@@ -36,7 +36,7 @@
 | Operation runs/results/replay/notifications | соответствующие runtime modules + DB schema | README overview / профильные docs | Нужна отдельная module documentation в Epic #82 |
 | Audit | audit runtime module + append-only schema/triggers | профильные security/operations docs | Нужен единый audit reference и ownership map |
 | Effective integration settings and encryption | settings lifecycle/runtime + DB schema + crypto helpers | профильные settings/security docs | Secret values никогда не должны становиться documentation/reference output |
-| HTTP/API routes | фактический Worker/router/entry chain + route tests | README содержит только high-level список | Полный declarative API inventory ещё отсутствует и является документальным gap |
+| HTTP/API route metadata | `portal-route-contract.ts` для method/path/owner/auth/permission/mutation metadata; фактические Worker handlers/tests для поведения | `reference/API.md` | Registry не является runtime router и не владеет request/response schemas; #56 может использовать его как parity inventory |
 | Authentication mechanisms | local session boundary + service-admin boundary | `LOCAL_AUTH_RBAC.md` и recovery/security runbook | Нельзя выводить auth requirements только из UI visibility |
 | Docker deployment | `compose.yaml`, `Dockerfile`, startup scripts | README | Текущая deployment architecture может изменяться задачами #49–#53; issues не являются current state |
 | Environment/configuration | `.env.example`, Compose/runtime validation and settings code | README + профильные docs | Нужен canonical configuration reference; до его появления проверять код и examples вместе |
@@ -48,7 +48,7 @@
 
 ### Routes and permissions
 
-Маршруты и permission checks распределены по Worker entry/wrapper chain. До рефакторинга #56 и отдельного route inventory нельзя вручную объявить новый Markdown-файл единственным source of truth. Documentation должна ссылаться на фактические handlers и tests.
+Built-in roles/permissions имеют единый runtime owner `portal-permissions.ts`. Stable route metadata имеет единый machine-readable owner `portal-route-contract.ts`. При этом фактический dispatch, middleware order, request validation и response behavior пока остаются распределены по Worker entry/wrapper chain и подтверждаются handler/tests. До #56 нельзя трактовать metadata registry как runtime router или переносить поведение в него.
 
 ### Configuration
 

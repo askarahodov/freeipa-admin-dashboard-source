@@ -83,13 +83,13 @@ Issue, roadmap и implementation plan не являются доказатель
 4. обновить [`reference/PERMISSIONS.md`](../reference/PERMISSIONS.md) только если реально меняется permission contract;
 5. обновить [`reference/ERROR_CODES.md`](../reference/ERROR_CODES.md), если меняются stable machine codes.
 
-Не используйте `/api/integrations/routes` как доказательство существования глобального HTTP route registry: это XYOps routing configuration. Машиночитаемый HTTP registry остаётся отдельной задачей #121.
+Не используйте `/api/integrations/routes` как глобальный HTTP registry: это XYOps routing configuration. Canonical machine-readable HTTP route metadata живёт в `portal-route-contract.ts`; runtime dispatch по-прежнему остаётся в текущих Worker handlers/wrappers.
 
 ### Permissions
 
 Canonical built-in role/permission registry — `portal-permissions.ts`. [`reference/PERMISSIONS.md`](../reference/PERMISSIONS.md) должен его отражать, но не заменять.
 
-Известный distributed/orphan RBAC drift отслеживается в #119. Не «исправляйте» route-local checks удалением или легализацией через новый документ; сначала определите корректный runtime owner и tests.
+Canonical built-in RBAC ownership консолидирован в `portal-permissions.ts`. Не создавайте route-local permission vocabulary; если route требует отсутствующий permission, изменяйте canonical registry и behavior tests явно.
 
 ### Configuration
 

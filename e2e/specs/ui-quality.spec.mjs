@@ -29,6 +29,7 @@ test.describe.serial("UI accessibility and responsive baseline", () => {
     const submit = page.getByRole("button", { name: "Войти" });
 
     await expect(username).toBeVisible();
+    await expect(submit).toBeEnabled();
     await username.focus();
     await expect(username).toBeFocused();
     await page.keyboard.press("Tab");

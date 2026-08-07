@@ -2,7 +2,7 @@
 
 Этот документ фиксирует baseline инженерной документации для задачи #85 и Epic #82: назначение, owner/source of truth и результат проверки против актуального `main`.
 
-> Каноническое новое имя продукта **Admin Dashboard Softrust** зафиксировано задачей #88. Repository-wide rename выполняется отдельным атомарным PR после merge этого baseline.
+> Каноническое product/display name — **Admin Dashboard Softrust**. Технические compatibility identifiers не переименовываются в рамках branding-only изменений.
 
 Статусы:
 

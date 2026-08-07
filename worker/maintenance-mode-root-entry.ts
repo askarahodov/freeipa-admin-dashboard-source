@@ -3,6 +3,7 @@ import {
   handleMaintenanceGate,
   handleMaintenanceScheduledGate,
 } from "./maintenance-mode-gate.ts";
+import { handleStorageMigrationApplyRequest } from "./storage-migration-apply-entry.ts";
 
 export {
   handleMaintenanceGate,
@@ -38,6 +39,8 @@ function dependencies() {
 const worker = {
   async fetch(request: Request, env: RuntimeEnv | undefined, ctx: RuntimeContext): Promise<Response> {
     const sourceEnv = env ?? (process.env as unknown as RuntimeEnv);
+    const migrationResponse = await handleStorageMigrationApplyRequest(request, sourceEnv);
+    if (migrationResponse) return migrationResponse;
     return handleMaintenanceGate(request, sourceEnv, ctx, dependencies());
   },
 

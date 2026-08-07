@@ -47,7 +47,7 @@ test("recovery status requires constant-time service token authorization and ret
   assert.equal(source.includes("serviceAdminTokenAuthorized(request, sourceEnv.ADMIN_TOKEN)"), true);
   assert.equal(source.includes("schemaStatusResponse(await portalSchema(sourceEnv))"), true);
   assert.equal(source.indexOf('url.pathname === "/api/schema/status"') < source.indexOf("if (!sourceEnv.DB)"), true);
-  assert.equal(helperSource.includes("publicPortalSchemaStatus(schema)"), true);
+  assert.match(helperSource, /publicPortalSchemaStatus\(schema(?: as AutomaticPortalSchemaStatus)?\)/);
   assert.equal(helperSource.includes("schema_authorization_required"), true);
   assert.equal(helperSource.includes('"cache-control": "no-store"'), true);
 

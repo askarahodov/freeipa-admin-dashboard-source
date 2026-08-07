@@ -61,7 +61,7 @@ test("accepts the canonical SQLite index form without IF NOT EXISTS", () => {
   );
 });
 
-test("migration two remains immutable while production advances to the version three registry", () => {
+test("migration two remains immutable while production advances to the version four registry", () => {
   const migrationSource = fs.readFileSync(new URL("../db/portal-migration-v2.ts", import.meta.url), "utf8");
   const hardenedSource = fs.readFileSync(new URL("../db/portal-migrations-hardened.ts", import.meta.url), "utf8");
   const registrySource = fs.readFileSync(new URL("../db/portal-migrations-v2.ts", import.meta.url), "utf8");
@@ -69,8 +69,8 @@ test("migration two remains immutable while production advances to the version t
 
   assert.doesNotMatch(migrationSource, /\b(?:INSERT|UPDATE|DELETE|REPLACE)\b/i);
   assert.doesNotMatch(migrationSource, /\b(?:DROP|ALTER)\b/i);
-  assert.equal(hardenedSource.includes("portalMigrationsV3 as portalMigrations"), true);
-  assert.equal(hardenedSource.includes("ensurePortalSchemaV3"), true);
+  assert.equal(hardenedSource.includes("portalMigrationsV4 as portalMigrations"), true);
+  assert.equal(hardenedSource.includes("ensurePortalSchemaV4"), true);
   assert.equal(registrySource.includes("portalRestoreStageTable"), true);
   assert.equal(registrySource.includes("backup-restore-stage-metadata"), true);
   assert.equal(schemaSource.includes("portal_backup_restore_stages"), true);

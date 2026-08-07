@@ -41,14 +41,12 @@ test("shared primitives remain domain agnostic and accessible", async () => {
 
   const iconButton = await read("app/ui/IconButton.tsx");
   assert.match(iconButton, /aria-label/);
-
-  const primitives = await read("app/styles/primitives.css");
-  assert.match(primitives, /:focus-visible/);
 });
 
-test("global stylesheet consumes the canonical UI foundation", async () => {
-  const globals = await read("app/globals.css");
-  assert.match(globals, /@import\s+["']\.\/styles\/tokens\.css["']/);
-  assert.match(globals, /@import\s+["']\.\/styles\/primitives\.css["']/);
-  assert.match(globals, /font-family:\s*var\(--ui-font-sans\)/);
+test("primitive styles consume canonical tokens and expose keyboard focus", async () => {
+  const css = await read("app/ui/ui.module.css");
+  assert.match(css, /@import\s+["']\.\.\/styles\/tokens\.css["']/);
+  assert.match(css, /font-family:\s*var\(--ui-font-sans\)/);
+  assert.match(css, /:focus-visible/);
+  assert.equal(css.includes("translateY("), false);
 });

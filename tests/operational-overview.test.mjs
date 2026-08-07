@@ -34,7 +34,9 @@ test("privileged attention destinations remain caller-owned instead of inferred 
   assert.match(model, /attentionTargets\?\.\["portal-unready"\]/u);
   assert.match(model, /attentionTargets\?\.\["freeipa-degraded"\]/u);
   assert.match(model, /attentionTargets\?\.\["xyops-degraded"\]/u);
-  assert.match(component, /item\.target \?/u);
+  assert.match(component, /const target = item\.target;/u);
+  assert.match(component, /return target \?/u);
+  assert.match(component, /props\.onNavigate\(target\)/u);
 });
 
 test("overview component does not expose diagnostics metadata, raw errors or internal URLs", async () => {

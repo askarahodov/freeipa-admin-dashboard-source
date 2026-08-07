@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
@@ -6,6 +7,8 @@ import {
   formatCollisionReport,
   isHighConflictPath,
 } from "../scripts/pr-collision-guard.mjs";
+
+const workflow = await readFile(new URL("../.github/workflows/pr-collision-guard.yml", import.meta.url), "utf8");
 
 const openMainPr = (number, title, files) => ({
   number,
@@ -170,4 +173,23 @@ test("report formatting distinguishes clean, informational and blocking results"
   });
   assert.match(blockingReport, /BLOCKING worker\/index\.ts -> #202 worker refactor/u);
   assert.match(blockingReport, /establish ordering\/dependency, narrow the PR scope, or replay after the owning PR merges/u);
+});
+
+test("workflow is a stable read-only pull-request check", () => {
+  assert.match(workflow, /^name:\s*PR Collision Guard/mu);
+  assert.match(workflow, /pull_request:\s*\n\s+branches:\s*\[main\]/u);
+  assert.match(workflow, /contents:\s*read/u);
+  assert.match(workflow, /pull-requests:\s*read/u);
+  assert.doesNotMatch(workflow, /contents:\s*write/u);
+  assert.doesNotMatch(workflow, /pull-requests:\s*write/u);
+  assert.match(workflow, /name:\s*ownership-collision/u);
+  assert.match(workflow, /actions\/github-script@v7/u);
+});
+
+test("workflow reads PR metadata through the GitHub client and delegates policy to the tested module", () => {
+  assert.match(workflow, /github\.paginate\(github\.rest\.pulls\.list/u);
+  assert.match(workflow, /github\.paginate\(github\.rest\.pulls\.listFiles/u);
+  assert.match(workflow, /analyzePullRequestCollisions/u);
+  assert.match(workflow, /formatCollisionReport/u);
+  assert.match(workflow, /core\.setFailed/u);
 });

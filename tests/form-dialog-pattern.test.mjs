@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { resolveFieldRequirement } from "../app/ui/forms/form-field-state.ts";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
@@ -12,6 +13,12 @@ test("form/dialog primitives exist and stay domain agnostic", async () => {
   for (const forbidden of ["fetch(", "/api/", "FreeIPA", "XYOps", "PortalRole", "window.confirm", "window.prompt", "portalConfirmed", "УДАЛИТЬ"]) {
     assert.equal(all.includes(forbidden), false, `domain or confirmation coupling: ${forbidden}`);
   }
+});
+
+test("FormField requirement copy stays coherent with the rendered control", () => {
+  assert.deepEqual(resolveFieldRequirement(false, true, true), { required: true, optional: false });
+  assert.deepEqual(resolveFieldRequirement(true, false, true), { required: true, optional: false });
+  assert.deepEqual(resolveFieldRequirement(false, false, true), { required: false, optional: true });
 });
 
 test("FormField associates help and errors with its control", async () => {

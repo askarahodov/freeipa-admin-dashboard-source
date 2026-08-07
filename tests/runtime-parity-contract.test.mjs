@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -9,6 +10,12 @@ import {
 test("phase-1 parity covers only DB-independent invariants", () => {
   assert.deepEqual(COMMON_PARITY_PATHS, ["/health/live", "/api/schema/status"]);
   assert.equal(COMMON_PARITY_PATHS.includes("/health/ready"), false);
+});
+
+test("candidate Node host never delegates to a development runtime", () => {
+  const source = readFileSync(new URL("../scripts/node-worker-host.mjs", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /\bwrangler\b|\bvite\b|\bdev\b/iu);
+  assert.match(source, /dist\/server\/index\.js/u);
 });
 
 test("common parity accepts equivalent liveness and auth boundaries", () => {

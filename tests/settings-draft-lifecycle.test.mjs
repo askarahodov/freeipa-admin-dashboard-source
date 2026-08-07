@@ -3,6 +3,7 @@ import fs from "node:fs";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
+import { shouldRunAuthE2E } from "../scripts/auth-e2e-scope.mjs";
 
 const lifecycleUrl = new URL("../worker/settings-lifecycle-entry.ts", import.meta.url);
 const revisionsUrl = new URL("../worker/settings-revisions-entry.ts", import.meta.url);
@@ -11,7 +12,6 @@ const safeSourceUrl = new URL("../worker/settings-source-safe-entry.ts", import.
 const sourceContextUrl = new URL("../worker/settings-source-context-entry.ts", import.meta.url);
 const normalizerEntryUrl = new URL("../worker/settings-input-normalizer-entry.ts", import.meta.url);
 const normalizerUrl = new URL("../worker/settings-input-normalizer.ts", import.meta.url);
-const workflowUrl = new URL("../.github/workflows/e2e-auth.yml", import.meta.url);
 const portalSchemaUrl = new URL("../db/portal-schema.ts", import.meta.url);
 const lifecycle = fs.readFileSync(lifecycleUrl, "utf8");
 const revisions = fs.readFileSync(revisionsUrl, "utf8");
@@ -26,7 +26,6 @@ const wizard = fs.readFileSync(new URL("../app/SettingsLifecycleWizard.tsx", imp
 const layout = fs.readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
 const styles = fs.readFileSync(new URL("../app/settings-lifecycle.css", import.meta.url), "utf8");
 const resetStyles = fs.readFileSync(new URL("../app/settings-source-resets.css", import.meta.url), "utf8");
-const workflow = fs.readFileSync(workflowUrl, "utf8");
 const portalSchema = fs.readFileSync(portalSchemaUrl, "utf8");
 const { normalizeSettingsRequestBody } = await import(normalizerUrl.href);
 
@@ -214,7 +213,7 @@ test("rollback and source reset changes trigger Auth E2E", () => {
     "tests/settings-source-runtime-safety.test.mjs",
     "app/SettingsLifecycleWizard.tsx",
     "app/settings-source-resets.css",
-  ]) assert.equal(workflow.includes(`"${path}"`), true, path);
+  ]) assert.equal(shouldRunAuthE2E([path]), true, path);
 });
 
 test("settings lifecycle TypeScript parses under the repository Node baseline", () => {

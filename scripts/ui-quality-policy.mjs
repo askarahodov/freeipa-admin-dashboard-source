@@ -57,11 +57,12 @@ export function cssPolicyViolations(source, filename = "<css>") {
   const lines = String(source).split(/\r?\n/u);
   for (const [index, line] of lines.entries()) {
     const lower = line.toLowerCase();
-    if (lower.includes("linear-gradient(")) violations.push(`${filename}:${index + 1}: gradients are not allowed in shared UI`);
+    if (lower.includes("gradient(")) violations.push(`${filename}:${index + 1}: gradients are not allowed in shared UI`);
     if (lower.includes("translatey(")) violations.push(`${filename}:${index + 1}: hover-lift translateY is not allowed in shared UI`);
     if (lower.includes("text-shadow")) violations.push(`${filename}:${index + 1}: text shadow is not allowed in shared UI`);
     if (lower.includes("drop-shadow(")) violations.push(`${filename}:${index + 1}: drop shadow is not allowed in shared UI`);
-    if (lower.includes("box-shadow") && !lower.includes("var(--ui-shadow-overlay)")) {
+    const shadow = lower.match(/box-shadow\s*:\s*([^;}]+)/u);
+    if (shadow && shadow[1].trim() !== "var(--ui-shadow-overlay)") {
       violations.push(`${filename}:${index + 1}: only canonical overlay elevation is allowed`);
     }
   }

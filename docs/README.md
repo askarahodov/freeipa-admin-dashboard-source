@@ -13,10 +13,12 @@
 ### Новый разработчик
 
 1. [`../README.md`](../README.md) — назначение, quick start и основные boundaries.
-2. [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md) — authoritative owners контрактов.
-3. [`DOCUMENTATION_INVENTORY.md`](DOCUMENTATION_INVENTORY.md) — какие документы проверены против текущего `main`.
-4. Профильный документ затрагиваемого домена.
-5. Фактический code/tests текущего ref.
+2. [`ARCHITECTURE.md`](ARCHITECTURE.md) — current runtime topology, trust/data boundaries и major ownership.
+3. [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md) — карта repository/module boundaries и куда вносить изменение.
+4. [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md) — authoritative owners контрактов.
+5. [`DOCUMENTATION_INVENTORY.md`](DOCUMENTATION_INVENTORY.md) — какие документы проверены против текущего `main`.
+6. Профильный документ затрагиваемого домена.
+7. Фактический code/tests текущего ref.
 
 Правила ведения документации: [`DOCUMENTATION_POLICY.md`](DOCUMENTATION_POLICY.md).
 
@@ -45,6 +47,7 @@
 
 Основной набор:
 
+- [`ARCHITECTURE.md`](ARCHITECTURE.md)
 - [`LOCAL_AUTH_RBAC.md`](LOCAL_AUTH_RBAC.md)
 - [`AUDIT_LOG.md`](AUDIT_LOG.md)
 - [`CONFIG_ENCRYPTION_KEY.md`](CONFIG_ENCRYPTION_KEY.md)
@@ -59,6 +62,8 @@
 
 | Документ | Назначение |
 | --- | --- |
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | Current runtime topology, request chain, trust/data/failure boundaries и подтверждённые ограничения |
+| [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md) | Repository ownership map, module boundaries и practical where-to-change routing |
 | [`DOCUMENTATION_POLICY.md`](DOCUMENTATION_POLICY.md) | Docs-as-code, current-state vs plan, statuses, review и правила нескольких ИИ-агентов |
 | [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md) | Authoritative source registry |
 | [`DOCUMENTATION_INVENTORY.md`](DOCUMENTATION_INVENTORY.md) | Audit status документов против текущего `main` |
@@ -121,7 +126,7 @@
 1. фактический код, canonical registries/schema и tests текущего ref;
 2. owner/source из [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md);
 3. `verified-active` профильный contract/runbook;
-4. overview/README;
+4. [`ARCHITECTURE.md`](ARCHITECTURE.md), [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md) и overview/README;
 5. ADR как объяснение решения;
 6. roadmap, Issue, implementation plan, PR description и historical notes.
 
@@ -143,10 +148,8 @@ Documentation impact обязателен, если PR изменяет:
 
 ## Известные gaps Epic #82
 
-После baseline audit остаются отдельные задачи на:
+После baseline audit и current architecture/module-map остаются отдельные задачи на:
 
-- `ARCHITECTURE.md`;
-- `PROJECT_STRUCTURE.md` и module-boundary map;
 - `SECURITY_MODEL.md`;
 - normalized API/permissions/error-code/configuration reference;
 - supported/unsupported deployment matrix;
@@ -154,4 +157,4 @@ Documentation impact обязателен, если PR изменяет:
 - module-level documentation coverage;
 - automated documentation consistency CI.
 
-Эти файлы нельзя считать существующими до их реального появления в `main`.
+Новые current-state файлы нельзя считать существующими до их реального появления в `main`.

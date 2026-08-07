@@ -32,9 +32,9 @@ test("production dependency graph uses patched Next and Sharp versions", () => {
   for (const version of productionSharp) assert.equal(versionAtLeast(version, "0.35.0"), true, `production sharp=${version}`);
 });
 
-test("package scripts expose deterministic production audit and SBOM commands", () => {
+test("package scripts expose deterministic production audit and lockfile-only SBOM commands", () => {
   assert.equal(packageJson.scripts?.["security:audit"], "node scripts/dependency-audit-policy.mjs");
-  assert.equal(packageJson.scripts?.["security:sbom"], "npm sbom --omit=dev --sbom-format=cyclonedx");
+  assert.equal(packageJson.scripts?.["security:sbom"], "npm sbom --omit=dev --package-lock-only --sbom-format=cyclonedx");
   assert.equal(existsSync(new URL("../scripts/dependency-audit-policy.mjs", import.meta.url)), true);
   assert.equal(existsSync(new URL("../security/audit-allowlist.json", import.meta.url)), true);
 });

@@ -47,3 +47,13 @@ test("CI makes dependency security a required aggregate gate and publishes an SB
   assert.match(ci, /needs:\s*\[[^\]]*dependency-security[^\]]*\]/u);
   assert.match(ci, /SECURITY_RESULT:\s*\$\{\{ needs\.dependency-security\.result \}\}/u);
 });
+
+test("CI scans the built runtime image with a pinned Trivy action", () => {
+  assert.match(ci, /\n  container-security:\n/u);
+  assert.match(ci, /docker build --target runtime -t portal-security-scan/u);
+  assert.match(ci, /aquasecurity\/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25/u);
+  assert.match(ci, /severity:\s*['"]?HIGH,CRITICAL['"]?/u);
+  assert.match(ci, /ignore-unfixed:\s*true/u);
+  assert.match(ci, /name:\s*runtime-image-security-scan/u);
+  assert.match(ci, /CONTAINER_RESULT:\s*\$\{\{ needs\.container-security\.result \}\}/u);
+});

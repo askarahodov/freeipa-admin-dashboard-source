@@ -10,8 +10,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event.pull_request.number || github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   discover-tests:
@@ -177,3 +177,26 @@ jobs:
 
       - name: Run test
         run: node --experimental-strip-types --test "${{ matrix.test }}"
+
+  required:
+    name: Required CI
+    if: always()
+    needs: [discover-tests, build, test-suite, recovery-compose, test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify all required CI jobs succeeded
+        shell: bash
+        env:
+          DISCOVER_RESULT: ${{ needs.discover-tests.result }}
+          BUILD_RESULT: ${{ needs.build.result }}
+          SUITE_RESULT: ${{ needs.test-suite.result }}
+          RECOVERY_RESULT: ${{ needs.recovery-compose.result }}
+          MATRIX_RESULT: ${{ needs.test.result }}
+        run: |
+          set -euo pipefail
+          for result in "$DISCOVER_RESULT" "$BUILD_RESULT" "$SUITE_RESULT" "$RECOVERY_RESULT" "$MATRIX_RESULT"; do
+            if [[ "$result" != "success" ]]; then
+              echo "A required CI dependency finished with result: $result"
+              exit 1
+            fi
+          done

@@ -110,6 +110,43 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  container-security:
+    name: Runtime image security
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          show-progress: false
+
+      - name: Build runtime image
+        run: docker build --target runtime -t portal-security-scan .
+
+      - name: Prepare security artifacts
+        run: mkdir -p artifacts/security
+
+      - name: Scan fixable runtime image vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          image-ref: portal-security-scan
+          format: json
+          output: artifacts/security/runtime-image-trivy.json
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          scanners: vuln
+          exit-code: '1'
+
+      - name: Upload runtime image scan
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-image-security-scan
+          path: artifacts/security/runtime-image-trivy.json
+          if-no-files-found: warn
+          retention-days: 14
+
   test-suite:
     name: Test complete server suite
     needs: build
@@ -216,7 +253,7 @@ jobs:
   required:
     name: Required CI
     if: always()
-    needs: [discover-tests, dependency-security, build, test-suite, recovery-compose, test]
+    needs: [discover-tests, dependency-security, build, container-security, test-suite, recovery-compose, test]
     runs-on: ubuntu-latest
     steps:
       - name: Verify all required CI jobs succeeded
@@ -225,12 +262,13 @@ jobs:
           DISCOVER_RESULT: ${{ needs.discover-tests.result }}
           SECURITY_RESULT: ${{ needs.dependency-security.result }}
           BUILD_RESULT: ${{ needs.build.result }}
+          CONTAINER_RESULT: ${{ needs.container-security.result }}
           SUITE_RESULT: ${{ needs.test-suite.result }}
           RECOVERY_RESULT: ${{ needs.recovery-compose.result }}
           MATRIX_RESULT: ${{ needs.test.result }}
         run: |
           set -euo pipefail
-          for result in "$DISCOVER_RESULT" "$SECURITY_RESULT" "$BUILD_RESULT" "$SUITE_RESULT" "$RECOVERY_RESULT" "$MATRIX_RESULT"; do
+          for result in "$DISCOVER_RESULT" "$SECURITY_RESULT" "$BUILD_RESULT" "$CONTAINER_RESULT" "$SUITE_RESULT" "$RECOVERY_RESULT" "$MATRIX_RESULT"; do
             if [[ "$result" != "success" ]]; then
               echo "A required CI dependency finished with result: $result"
               exit 1

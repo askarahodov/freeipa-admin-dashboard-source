@@ -307,6 +307,7 @@ artifacts/local-integration/compose.log
 
 ## Документация
 
+- [Главный индекс инженерной документации](docs/README.md)
 - [Локальная аутентификация и RBAC](docs/LOCAL_AUTH_RBAC.md)
 - [Локальные acceptance-тесты](docs/LOCAL_ACCEPTANCE_TESTS.md)
 - [Canonical schema и migration lifecycle](docs/DATABASE_MIGRATIONS.md)

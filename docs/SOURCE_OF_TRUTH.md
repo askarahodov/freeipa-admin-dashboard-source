@@ -1,0 +1,78 @@
+# Source of truth registry
+
+Этот документ определяет, где находится authoritative source для ключевых контрактов проекта. Его задача — не дублировать содержимое этих источников, а предотвращать расхождение между кодом, README, issues и профильными документами.
+
+Если указанный здесь source и другой документ расходятся, сначала проверяйте текущий `main` и canonical source. Несоответствующий документ должен быть исправлен в том же PR или отдельной follow-up задаче.
+
+## Общие правила
+
+- GitHub Issue описывает работу и критерии, но не доказывает, что поведение уже реализовано.
+- PR description описывает изменение, но после merge не заменяет current-state documentation.
+- README — навигационная и обзорная точка, а не единственный authoritative reference.
+- Tests подтверждают поведение, но не всегда являются удобным пользовательским contract; их следует читать вместе с owner-code и профильной документацией.
+
+## Registry
+
+| Область | Текущий authoritative source | Документация | Примечание |
+| --- | --- | --- | --- |
+| Назначение продукта и quick start | `README.md`, production configuration files | `README.md` | README должен оставаться кратким; подробные contracts живут в `docs/` |
+| Runtime/package versions | `package.json`, lockfile, image/build configuration | `README.md` только для минимальных требований | Не копировать версии по нескольким документам без необходимости |
+| Canonical database schema | `db/portal-schema.ts` | `DATABASE_MIGRATIONS.md` | Итоговый inventory должен определяться кодом, а не вручную переписанной таблицей в docs |
+| Versioned schema migrations | migration registry/modules under `db/`, migration journal runtime | `DATABASE_MIGRATIONS.md` | Выпущенные migration definitions/checksums immutable |
+| Schema startup/adoption/drift behavior | schema migration runtime modules and tests | `DATABASE_MIGRATIONS.md` | Issue #57 может описывать ещё не завершённые этапы и не переопределяет runtime |
+| Local portal users and sessions | local-auth runtime + canonical DB schema | `LOCAL_AUTH_RBAC.md` | Portal user и FreeIPA user являются разными сущностями |
+| Built-in roles/permissions | runtime permission checks and auth boundary | `LOCAL_AUTH_RBAC.md`, README overview | Требуется отдельный normalized permission registry/reference в Epic #82/#39 |
+| Maintenance state machine | maintenance runtime + `portal_maintenance_state` schema | `MAINTENANCE_MODE.md` | Maintenance transitions и recovery должны считаться security-sensitive contract |
+| Health semantics | health handlers/contracts in runtime | `HEALTH_CONTRACTS.md` | Liveness, readiness и dependencies нельзя взаимозаменять |
+| Storage read-only status | storage status contract/handler | `STORAGE_STATUS.md` | Endpoint не является migration или repair API |
+| Storage integrity | integrity contract/handler and canonical index registry | `STORAGE_INTEGRITY.md` | Read-only diagnostics не должны превращаться в arbitrary SQL/repair surface |
+| Backup/restore | backup/restore runtime contracts and recovery scripts | профильные backup/restore/recovery runbook | Полный owner-map будет добавлен отдельной задачей Epic #82 |
+| FreeIPA integration | Worker integration boundary + `scripts/freeipa-gateway.mjs` + effective settings | README и профильные integration docs, где они существуют | Gateway credentials/session data являются server-only; нужен единый module reference |
+| XYOps integration | server-side XYOps client/catalog/run implementation + effective settings | README и профильные integration docs, где они существуют | XYOps остаётся источником process execution contract; issue не заменяет runtime |
+| Operation runs/results/replay/notifications | соответствующие runtime modules + DB schema | README overview / профильные docs | Нужна отдельная module documentation в Epic #82 |
+| Audit | audit runtime module + append-only schema/triggers | профильные security/operations docs | Нужен единый audit reference и ownership map |
+| Effective integration settings and encryption | settings lifecycle/runtime + DB schema + crypto helpers | профильные settings/security docs | Secret values никогда не должны становиться documentation/reference output |
+| HTTP/API routes | фактический Worker/router/entry chain + route tests | README содержит только high-level список | Полный declarative API inventory ещё отсутствует и является документальным gap |
+| Authentication mechanisms | local session boundary + service-admin boundary | `LOCAL_AUTH_RBAC.md` и recovery/security runbook | Нельзя выводить auth requirements только из UI visibility |
+| Docker deployment | `compose.yaml`, `Dockerfile`, startup scripts | README | Текущая deployment architecture может изменяться задачами #49–#53; issues не являются current state |
+| Environment/configuration | `.env.example`, Compose/runtime validation and settings code | README + профильные docs | Нужен canonical configuration reference; до его появления проверять код и examples вместе |
+| Roadmap / planned work | GitHub Issues/Epics | roadmap docs, если существуют | План не является подтверждением реализации |
+
+## Области с известной неоднозначностью
+
+Следующие области пока не имеют одного удобного typed registry, поэтому агент обязан проверять несколько фактических источников:
+
+### Routes and permissions
+
+Маршруты и permission checks распределены по Worker entry/wrapper chain. До рефакторинга #56 и отдельного route inventory нельзя вручную объявить новый Markdown-файл единственным source of truth. Documentation должна ссылаться на фактические handlers и tests.
+
+### Configuration
+
+ENV, Compose и persistent settings используются одновременно. До создания canonical configuration registry нельзя считать `.env.example` полным описанием всех effective values.
+
+### Module ownership
+
+Код исторически развивался через root/shared modules и Worker wrappers. Полная ownership/boundary map будет создана в `PROJECT_STRUCTURE.md`/architecture tasks Epic #82. До этого новый модуль не должен вводиться только ради документационной симметрии.
+
+## Как добавлять новую запись
+
+При появлении нового stable contract:
+
+1. определить единственный canonical owner в коде или data model;
+2. определить аудиторию и owner-document;
+3. добавить запись в этот registry;
+4. не копировать большие machine-readable структуры в Markdown, если их можно валидировать или генерировать;
+5. добавить tests/CI consistency check, если расхождение можно обнаружить автоматически.
+
+## Что не является source of truth
+
+Следующие источники сами по себе никогда не должны использоваться как доказательство текущего runtime:
+
+- текст открытого Issue;
+- implementation plan;
+- старый PR description;
+- чат с ИИ;
+- screenshot;
+- пользовательская память о предыдущей версии;
+- пример конфигурации без проверки runtime validation;
+- устаревшая копия документа из другой ветки.

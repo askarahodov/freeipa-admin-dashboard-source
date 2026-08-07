@@ -128,6 +128,19 @@ agent/<short-scope>
 
 Один PR должен быть mergeable и понятен сам по себе. Большие refactor issues следует делить на slices, которые сохраняют рабочий runtime после каждого merge.
 
+### Coordination contract для PR
+
+До первого изменения агент заполняет coordination scope будущего PR и поддерживает его актуальным до merge:
+
+- `Owning issue` — Issue, который задаёт scope; если отдельного Issue действительно нет, явно указать `none` и объяснить основание в Summary;
+- `Canonical domain / contract` — существующий runtime/document owner из code, [`SOURCE_OF_TRUTH.md`](../SOURCE_OF_TRUTH.md) или профильного active-document;
+- `High-conflict paths` — ожидаемые shared/canonical paths либо явное `none`;
+- `Dependencies / merge order` — blocking/stacked PR и точный порядок merge либо явное `none`;
+- `Parallel-safe with` — известная независимая работа либо `none identified` после проверки;
+- `Explicitly out of scope` — соседние contracts, которые этот PR не меняет.
+
+Перед реализацией нужно проверить не только открытые PR, но и активные remote branches, если PR ещё не создан. Если обнаружено пересечение, агент не начинает вторую реализацию: он сужает scope, фиксирует dependency/merge order либо ждёт завершения текущего owner. Эти поля являются coordination evidence, а не новым source of truth и не дают ownership только потому, что записаны в PR.
+
 ### Shared/high-conflict files
 
 Перед изменением `app/page.tsx`, `worker/index.ts`, canonical schema/migrations, auth/RBAC owners, CI workflows или documentation-governance файлов обязательно проверить активные PR. Если другой PR сдвинул `main`, финальная verification должна выполняться на обновлённом exact candidate head.

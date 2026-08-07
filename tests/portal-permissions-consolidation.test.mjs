@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
@@ -8,6 +9,7 @@ import {
 } from "../portal-permissions.ts";
 import { backupPreviewAccess } from "../worker/backup-import-preview-root-entry.ts";
 
+const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 const previewPermission = "backup.restore.preview";
 const request = () => new Request("https://dashboard.test/api/admin/backups/import/preview", {
   method: "POST",
@@ -53,4 +55,27 @@ test("backup preview access exposes only canonical permissions", () => {
   for (const permission of admin.permissions) {
     assert.ok(portalPermissionOrder.includes(permission));
   }
+});
+
+test("runtime route owners do not maintain duplicate portal permission registries", async () => {
+  const [workerIndex, settingsSource, previewRoot, encryptedRoot] = await Promise.all([
+    read("worker/index.ts"),
+    read("worker/settings-source-safe-entry.ts"),
+    read("worker/backup-import-preview-root-entry.ts"),
+    read("worker/backup-encrypted-root-entry.ts"),
+  ]);
+
+  for (const [path, source] of [
+    ["worker/index.ts", workerIndex],
+    ["worker/settings-source-safe-entry.ts", settingsSource],
+  ]) {
+    assert.doesNotMatch(source, /const\s+rolePermissions\s*:/, `${path} must not own a second built-in role map`);
+    assert.doesNotMatch(source, /type\s+PortalPermission\s*=\s*"/, `${path} must import the canonical permission vocabulary`);
+    assert.match(source, /portalRolePermissions|roleHasPermission/, `${path} must consume canonical permission helpers`);
+  }
+
+  assert.match(previewRoot, /resolvePortalRole/);
+  assert.match(previewRoot, /roleHasPermission\(role, "backup\.restore\.preview"\)/);
+  assert.match(encryptedRoot, /resolvePortalRole/);
+  assert.match(encryptedRoot, /roleHasPermission\(access\.role, requiredPermission\)/);
 });

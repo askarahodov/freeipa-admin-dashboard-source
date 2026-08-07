@@ -28,14 +28,15 @@ XYOPS_URL=<тестовый XYOps>
 XYOPS_API_KEY=<тестовый API key>
 ```
 
-Запустите чистый контур:
+Для полностью чистого **disposable acceptance-контура** удалите контейнеры и Compose-owned volumes через сам Compose, а не по вычисленному имени Docker volume:
 
 ```bash
-docker compose down
-docker volume rm freeipa-admin-dashboard-source_dashboard-data 2>/dev/null || true
+docker compose down -v
 docker compose up -d --build
 docker compose ps
 ```
+
+`docker compose down -v` удаляет данные текущего Compose project. Не выполняйте эту команду против рабочего или единственного экземпляра портала. Для проверки существующего persistent экземпляра используйте отдельный checkout/project name и отдельный volume.
 
 ## 2. Первый вход
 

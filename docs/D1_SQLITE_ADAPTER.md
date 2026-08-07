@@ -64,6 +64,12 @@ Domain/application modules must never import the concrete SQLite driver directly
 
 The companion runtime-store contract uses `/data/portal.sqlite` by default. `/data` is the persistent writable boundary; source/build output remains read-only and `/tmp` is temporary state. SQLite pragmas and lifecycle/close behavior are owned by the runtime infrastructure layer, not domain code.
 
+## Coordination ownership
+
+While the #51 storage migration is active, the D1 compatibility contract is a single-owner surface. The active adapter PR owns `runtime/d1-sqlite-adapter.mjs`, `tests/d1-sqlite-adapter.test.mjs`, and this document. Parallel work that needs to change any of these paths must depend on that PR or wait until it merges; it must not introduce a second D1/SQLite adapter path.
+
+The repository PR collision guard is the mechanical backstop for missed overlaps. A collision should be resolved by merge order, dependency ordering, or narrowing scope rather than weakening the collision policy.
+
 ## Change policy
 
 Do not expand the adapter for convenience or theoretical D1 completeness. A new method requires:

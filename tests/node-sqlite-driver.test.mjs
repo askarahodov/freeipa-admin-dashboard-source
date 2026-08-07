@@ -24,7 +24,9 @@ test("node:sqlite driver persists data across close and reopen", async () => {
     first.close();
 
     const second = openNodeSqliteDriver(path);
-    assert.deepEqual(second.prepare("SELECT id, value FROM records WHERE id = ?").get("alpha"), { id: "alpha", value: 7 });
+    const row = second.prepare("SELECT id, value FROM records WHERE id = ?").get("alpha");
+    assert.equal(row.id, "alpha");
+    assert.equal(row.value, 7);
     second.close();
   });
 });

@@ -1,0 +1,94 @@
+services:
+  freeipa-mock:
+    image: node:22-alpine
+    network_mode: host
+    env_file:
+      - .env.e2e
+    command: ["node", "/mock/freeipa-mock.mjs"]
+    volumes:
+      - ./e2e/freeipa-mock.mjs:/mock/freeipa-mock.mjs:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:3901/health"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  xyops-mock:
+    image: node:22-alpine
+    network_mode: host
+    env_file:
+      - .env.e2e
+    command: ["node", "/mock/xyops-mock.mjs"]
+    volumes:
+      - ./e2e/xyops-mock.mjs:/mock/xyops-mock.mjs:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - \"$${XYOPS_URL}/health\""]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: e2e/Dockerfile.node-runtime
+    image: freeipa-admin-dashboard:node-e2e-probe
+    restart: unless-stopped
+    network_mode: host
+    depends_on:
+      freeipa-mock:
+        condition: service_healthy
+      xyops-mock:
+        condition: service_healthy
+    env_file:
+      - .env.e2e
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      HOST: 0.0.0.0
+      PORTAL_RUNTIME_PROFILE: e2e
+      PORTAL_DATA_DIR: /data
+      PORTAL_DATABASE_PATH: /data/portal.sqlite
+    volumes:
+      - dashboard-e2e-node-data:/data
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  playwright:
+    build:
+      context: .
+      dockerfile: e2e/Dockerfile
+    image: freeipa-admin-dashboard-playwright:e2e
+    network_mode: host
+    ipc: host
+    env_file:
+      - .env.e2e
+    environment:
+      E2E_BASE_URL: http://127.0.0.1:3001
+      E2E_ADMIN_USERNAME: ${PORTAL_BOOTSTRAP_ADMIN_USERNAME}
+      E2E_ADMIN_PASSWORD: ${PORTAL_BOOTSTRAP_ADMIN_PASSWORD}
+      CI: ${CI:-false}
+    command:
+      - npx
+      - playwright
+      - test
+      - --config=playwright.config.mjs
+      - specs/auth.spec.mjs
+      - specs/rbac-user.spec.mjs
+      - specs/role-restrictions.spec.mjs
+      - specs/xyops-lifecycle.spec.mjs
+    volumes:
+      - ./artifacts/e2e/playwright-report:/work/playwright-report
+      - ./artifacts/e2e/test-results:/work/test-results
+
+volumes:
+  dashboard-e2e-node-data:

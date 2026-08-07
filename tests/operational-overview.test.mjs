@@ -26,6 +26,17 @@ test("integration degradation is modeled separately from portal-core readiness",
   assert.match(source, /portalCore/);
 });
 
+test("privileged attention destinations remain caller-owned instead of inferred from health", async () => {
+  const model = await read("app/overview/operational-overview-model.ts");
+  const component = await read("app/overview/OperationalOverview.tsx");
+  assert.match(model, /attentionTargets\?:/u);
+  assert.match(model, /target\?: OverviewTarget/u);
+  assert.match(model, /attentionTargets\?\.\["portal-unready"\]/u);
+  assert.match(model, /attentionTargets\?\.\["freeipa-degraded"\]/u);
+  assert.match(model, /attentionTargets\?\.\["xyops-degraded"\]/u);
+  assert.match(component, /item\.target \?/u);
+});
+
 test("overview component does not expose diagnostics metadata, raw errors or internal URLs", async () => {
   const source = await read("app/overview/OperationalOverview.tsx");
   for (const forbidden of ["buildVersion", "schemaVersion", "latestSchemaVersion", "rawError", "internalUrl", "fetch(", "/api/"]) {

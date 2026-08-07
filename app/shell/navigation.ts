@@ -66,5 +66,5 @@ export function isProductNavItemActive(item: ProductNavItem, currentPath: string
   const path = normalizeProductPath(currentPath);
   if (item.id === "overview") return path === "/";
   if (item.id === "catalog") return path === "/automation" || path.startsWith("/automation/");
-  return path === item.href;
+  return path === item.href || path.startsWith(`${item.href}/`);
 }

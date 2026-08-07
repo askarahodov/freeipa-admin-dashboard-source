@@ -122,5 +122,5 @@ test("error reference has no duplicate table-row machine codes", async () => {
     "settings_revision_conflict",
   ]) assert.ok(errors.includes(`\`${code}\``), `missing stable machine code: ${code}`);
 
-  assert.match(errors, /audit action names.*not.*API error codes/is);
+  assert.match(errors, /Audit `action` values[\s\S]{0,160}\*\*not\*\* API error codes/);
 });

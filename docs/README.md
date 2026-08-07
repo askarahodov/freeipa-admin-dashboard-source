@@ -48,6 +48,7 @@
 Основной набор:
 
 - [`ARCHITECTURE.md`](ARCHITECTURE.md)
+- [`SECURITY_MODEL.md`](SECURITY_MODEL.md)
 - [`LOCAL_AUTH_RBAC.md`](LOCAL_AUTH_RBAC.md)
 - [`AUDIT_LOG.md`](AUDIT_LOG.md)
 - [`CONFIG_ENCRYPTION_KEY.md`](CONFIG_ENCRYPTION_KEY.md)
@@ -56,7 +57,7 @@
 - [`OFFLINE_FULL_RESTORE.md`](OFFLINE_FULL_RESTORE.md)
 - [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md)
 
-Общий `SECURITY_MODEL.md` пока остаётся отдельным gap Epic #82.
+`SECURITY_MODEL.md` связывает current trust/identity/secret/recovery boundaries, а точные permissions, поля, команды и state transitions остаются в профильных active documents/runbooks.
 
 ## Foundation / governance
 
@@ -74,6 +75,7 @@
 
 | Документ | Назначение |
 | --- | --- |
+| [`SECURITY_MODEL.md`](SECURITY_MODEL.md) | Current trust boundaries, identity classes, secret ownership, authorization/recovery invariants и fail-closed/degraded behavior |
 | [`LOCAL_AUTH_RBAC.md`](LOCAL_AUTH_RBAC.md) | Local portal users, sessions, roles и separation от FreeIPA identities |
 | [`AUDIT_LOG.md`](AUDIT_LOG.md) | Append-only audit, correlation, redaction и read API |
 
@@ -126,7 +128,7 @@
 1. фактический код, canonical registries/schema и tests текущего ref;
 2. owner/source из [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md);
 3. `verified-active` профильный contract/runbook;
-4. [`ARCHITECTURE.md`](ARCHITECTURE.md), [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md) и overview/README;
+4. [`ARCHITECTURE.md`](ARCHITECTURE.md), [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md), [`SECURITY_MODEL.md`](SECURITY_MODEL.md) и overview/README;
 5. ADR как объяснение решения;
 6. roadmap, Issue, implementation plan, PR description и historical notes.
 
@@ -148,9 +150,8 @@ Documentation impact обязателен, если PR изменяет:
 
 ## Известные gaps Epic #82
 
-После baseline audit и current architecture/module-map остаются отдельные задачи на:
+После baseline audit, current architecture/module-map и security model остаются отдельные задачи на:
 
-- `SECURITY_MODEL.md`;
 - normalized API/permissions/error-code/configuration reference;
 - supported/unsupported deployment matrix;
 - ADR registry;

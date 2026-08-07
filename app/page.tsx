@@ -447,7 +447,7 @@ export default function Home() {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <div className="brand"><span className="brand-mark">◇</span><div><strong>FreeIPA Admin</strong><small>XYOps</small></div></div>
+        <div className="brand"><span className="brand-mark">◇</span><div><strong>Admin Dashboard Softrust</strong><small>FreeIPA · XYOps</small></div></div>
         <nav>{visibleNav.map((item) => <div className="nav-entry" key={item.id}><button className={page === item.id && (item.id !== "automation" || automationCategory === "all") ? "active" : ""} onClick={() => navigateTo(item.id)}><span>{item.icon}</span>{item.label}{item.id === "approvals" && approvalPendingForMe > 0 && <b className="nav-count">{approvalPendingForMe}</b>}</button>{item.id === "automation" && automationSections.length > 0 && <div className="generated-nav">{automationSections.map((section) => <button key={section.category} className={page === "automation" && automationCategory === section.category ? "active" : ""} onClick={() => navigateTo("automation", section.category)} title={`${section.events} Events · ${section.workflows} Workflows`}><i /> <span>{section.category}</span><b>{section.count}</b></button>)}</div>}</div>)}</nav>
         <div className="sidebar-bottom"><div className="system-ok"><i className={integration.freeipa.reachable ? "" : "warning"} /> <div><strong>{integration.freeipa.reachable ? "FreeIPA готов" : "Требуется настройка"}</strong><small>{integration.xyops.reachable ? "XYOps также подключён" : "XYOps подключается отдельно"}</small></div></div><p>© 2026 Admin Portal</p></div>
       </aside>
@@ -904,7 +904,7 @@ function conditionMatches(field: RouteField, values: Record<string, unknown>) {
 }
 
 function GeneratedFields({ fields, eventId, preset = {} }: { fields: RouteField[]; eventId: string; preset?: Record<string, string> }) {
-  const [values, setValues] = useState<Record<string, unknown>>(() => Object.fromEntries(fields.map((field) => [field.key, preset[field.key] ?? field.default ?? (field.type === "boolean" ? false : "")])));
+  const [values, setValues] = useState<Record<string, unknown>>(() => Object.fromEntries(fields.map((field) => [field.key, preset[field.key] ?? field.default ?? (field.type === "boolean" ? false : "")] )));
   const visibleFields = [...fields].sort((left, right) => (left.order ?? 0) - (right.order ?? 0)).filter((field) => conditionMatches(field, values));
   const tree: FieldGroupNode = { title: "", fields: [], children: [] };
   for (const field of visibleFields) {

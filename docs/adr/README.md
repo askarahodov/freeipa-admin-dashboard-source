@@ -4,6 +4,6 @@ Architecture Decision Records (ADRs) capture accepted or proposed architectural 
 
 ## Records
 
-- [ADR-0001: Replace Wrangler development mode with a standalone Node production runtime](./ADR-0001-production-runtime.md) — proposed for #51.
+- [ADR-0001: Replace Wrangler development mode with a standalone Node production runtime](./ADR-0001-production-runtime.md) — **accepted** for #51 on 2026-08-07; implementation is tracked separately and is not implied complete by ADR acceptance.
 
 ADRs describe decisions and trade-offs. Current operational procedures remain in their owning runbooks; implementation status remains in the linked issue/PR until the decision is implemented and verified.

@@ -42,7 +42,7 @@ test("package scripts expose deterministic production audit and lockfile-only SB
 test("CI makes dependency security a required aggregate gate, validates the installed graph and publishes an SBOM", () => {
   assert.match(ci, /\n  dependency-security:\n/u);
   assert.match(ci, /npm run security:audit/u);
-  assert.match(ci, /npm run security:sbom/u);
+  assert.match(ci, /npm run(?:\s+--silent)?\s+security:sbom/u);
   assert.match(ci, /name:\s*npm-production-sbom/u);
   assert.match(ci, /name:\s*Validate production dependency tree[\s\S]{0,120}npm ls --omit=dev/u);
   assert.match(ci, /needs:\s*\[[^\]]*dependency-security[^\]]*\]/u);

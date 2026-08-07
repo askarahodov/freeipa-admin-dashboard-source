@@ -35,7 +35,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "FreeIPA Admin — XYOps",
+  title: "Admin Dashboard Softrust",
   description: "Локальная панель управления FreeIPA и автоматизациями XYOps.",
   other: {
     "codex-preview": "development",

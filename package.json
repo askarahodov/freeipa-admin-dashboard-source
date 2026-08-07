@@ -21,6 +21,8 @@
     "test:p0:acceptance": "node scripts/p0-operational-acceptance.mjs",
     "test:e2e:auth": "bash scripts/run-auth-e2e.sh",
     "validate:artifact": "bash scripts/validate-artifact.sh",
+    "security:audit": "node scripts/dependency-audit-policy.mjs",
+    "security:sbom": "npm sbom --omit=dev --package-lock-only --sbom-format=cyclonedx",
     "lint": "bash scripts/sites-env.sh -- eslint . --ignore-pattern dist --ignore-pattern .next",
     "inspect:xyops": "node scripts/xyops-inspect.mjs",
     "inspect:storage": "node --experimental-strip-types scripts/storage-inspect.ts",

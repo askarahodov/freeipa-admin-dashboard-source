@@ -1,12 +1,12 @@
 # Documentation inventory and audit status
 
-Этот документ фиксирует baseline инженерной документации для задачи #85 и Epic #82: назначение, owner/source of truth и результат проверки против актуального `main`.
+Этот документ фиксирует baseline инженерной документации для задачи #85 и Epic #82: назначение, owner/source of truth и результат проверки против актуального `main`/целевого stacked ref.
 
 > Каноническое product/display name — **Admin Dashboard Softrust**. Технические compatibility identifiers не переименовываются в рамках branding-only изменений.
 
 Статусы:
 
-- `verified-active` — проверен против текущего `main`; подтверждённого drift не найдено;
+- `verified-active` — проверен против текущего `main`/целевого ref; подтверждённого drift не найдено;
 - `plan` — roadmap/task planning, не доказательство runtime;
 - `superseded` — заменён другим source of truth;
 - `design/historical` — исторический design/implementation artifact, не active runbook.
@@ -29,6 +29,7 @@
 
 | Path | Тип | Owner / source of truth | Status | Примечание |
 | --- | --- | --- | --- | --- |
+| `docs/SECURITY_MODEL.md` | security/current-state overview | current auth/session/service-admin/integration/recovery owners + active security runbooks/tests | `verified-active` | Trust/identity/secret/authorization/recovery/fail-closed model; не заменяет exact security/runbook owners |
 | `docs/LOCAL_AUTH_RBAC.md` | security/reference | `local-auth.ts` + local session boundary + DB schema | `verified-active` | PBKDF2, lockout и session semantics проверены |
 | `docs/DATABASE_MIGRATIONS.md` | operations/runbook | canonical migration registry/runtime/tests | `verified-active` | Automatic/controlled lifecycle, preflight/apply/status/reconcile и v4 foundation |
 | `docs/MAINTENANCE_MODE.md` | security/runbook | maintenance runtime + `portal_maintenance_state` | `verified-active` | Persistent maintenance boundary |
@@ -68,31 +69,34 @@
 - **DOC-005:** `LOCAL_ACCEPTANCE_TESTS.md` больше не вычисляет Docker volume из имени repository/project directory.
 - **DOC-006:** `CONFIG_ENCRYPTION_KEY.md` и external-only production key contract добавлены в inventory/index.
 - **DOC-007:** добавлены `ARCHITECTURE.md` и `PROJECT_STRUCTURE.md`; docs index/AI entrypoint больше не утверждают, что эти current-state документы отсутствуют.
+- **DOC-008:** добавлен `SECURITY_MODEL.md`; security reviewer/AI flow теперь имеет единый current-state trust/identity/secret/recovery overview без создания второго runtime owner.
 
 ## Проверенные группы
 
 - Architecture/topology — Compose, Dockerfile, startup scripts, Worker entry chain, merged UI foundation and current constraints.
 - Repository/module boundaries — `app/`, `app/styles/`, `app/ui/`, `worker/`, `db/`, root domain modules, scripts, tests/e2e, docs, CI/deployment files.
-- Auth/RBAC — `local-auth.ts` и local session boundary.
-- Health/storage — #74–#79 и current contracts.
+- Security model — `local-auth.ts`, `admin-session-authorization.ts`, `scripts/freeipa-gateway.mjs`, active auth/audit/encryption/maintenance/recovery/schema/health docs and representative security tests/log evidence.
+- Auth/RBAC — local auth/session boundary, password/session hashing, lockout, cookie semantics and last-active-admin protection.
+- Service-admin/mutation boundary — exact admin integration path set, constant-time token comparison and same-origin mutation guard.
+- FreeIPA isolation — server-side Gateway method allowlist, loopback token authorization, upstream cookie confinement and bounded request/error handling.
+- Health/storage — #74–#79 and current contracts.
 - Production encryption key — #86, `compose.yaml`, startup validator.
-- Offline recovery — #72 и active runbook.
-- Audit — `audit-log.ts` и Worker route.
+- Offline recovery — #72 and active runbook.
+- Audit — `audit-log.ts` and Worker route.
 - XYOps ownership/inspector/presentation — current runtime/scripts.
 - P0 automated acceptance — script/package/Compose entrypoints.
-- Schema/migrations — canonical registry, v4 automatic foundation, controlled-suffix semantics и storage migration contracts.
+- Schema/migrations — canonical registry, v4 automatic foundation, controlled-suffix semantics and storage migration contracts.
 
 ## Ограничения inventory
 
 Этот baseline перечисляет active/current инженерные документы и отдельно классифицирует `docs/superpowers/specs/**` / `plans/**` как historical implementation artifacts. Historical plans не перечисляются по одному, потому что они не являются current contracts и их authoritative owner — соответствующий merged implementation + active documentation.
 
-`verified-active` для `ARCHITECTURE.md` и `PROJECT_STRUCTURE.md` означает проверку current-state утверждений против ветки, созданной от актуального `main` после merge #90/#99; если параллельный runtime/UI PR меняет описанный boundary до merge этой ветки, документы должны быть синхронизированы и повторно проверены перед финальным merge.
+`verified-active` для architecture/project/security overview означает проверку current-state утверждений против целевого ref и canonical owners. Если параллельный runtime/UI/security PR меняет описанный boundary до merge соответствующей документационной ветки, документы должны быть синхронизированы и повторно проверены на exact merge candidate.
 
 ## Следующие gaps Epic #82
 
-Baseline актуализирован, architecture и module ownership map добавлены. Остаются отдельные current-state задачи:
+Baseline актуализирован, architecture/module ownership map и security model добавлены. Остаются отдельные current-state задачи:
 
-- `SECURITY_MODEL.md`;
 - normalized API / permissions / error codes / configuration reference;
 - supported/unsupported deployment matrix;
 - ADR registry;

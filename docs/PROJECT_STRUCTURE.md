@@ -13,6 +13,7 @@ For system behavior and trust/data flows, read [`ARCHITECTURE.md`](ARCHITECTURE.
 | `app/` | Browser UI, route-level presentation, login/access/session/diagnostics screens and product interactions | `app/layout.tsx`, `app/page.tsx`, route/page modules | React/Vinext, shared UI primitives, portal HTTP APIs | UI/source contracts, Auth E2E where relevant | server authorization, direct FreeIPA credentials, raw DB ownership |
 | `app/styles/` | Shared design tokens and global visual foundation | semantic token files merged under #93 | CSS variables/global styles | UI foundation tests + build | feature-specific business logic or one-off duplicate tokens |
 | `app/ui/` | Domain-agnostic reusable UI primitives | explicit exports from `app/ui/index.ts` | tokens/styles only; caller-owned behavior | `tests/ui-foundation.test.mjs` and consumers | FreeIPA/XYOps fetches, route ownership, RBAC decisions |
+| `app/shell/` | Reusable product shell and stable global navigation foundation | `app/shell/AppShell.tsx`, `app/shell/navigation.ts`, exports from `app/shell/index.ts` | React, shared tokens/styles, caller-supplied visibility/badges/navigation callback | `tests/app-shell.test.mjs` + build | server authorization, generated XYOps catalog structure, page-specific data fetching, a second global navigation model |
 | `worker/` | Server request entry chain, API handlers, security/runtime gates, integration-facing portal behavior | `worker/schema-migrations-entry.ts` through wrapper chain to `worker/index.ts` | auth, DB, settings, audit, integrations, recovery modules | server test suite and route/domain contracts | browser-only UX state or a second frontend data model |
 | `db/` | Canonical portal schema, versioned migrations, schema lifecycle helpers | `db/portal-schema.ts`, migration registry/runtime | D1/SQLite-compatible storage | migration/schema/storage tests | UI concerns, upstream FreeIPA/XYOps ownership |
 | root `*.ts` domain modules | Shared domain logic used by Worker/runtime such as auth, audit, automation, presentation, backup/recovery helpers | existing module that already owns the contract | Worker + DB + bounded domain helpers | matching `tests/*.test.mjs` | a duplicate service/client for an already-owned contract |
@@ -30,9 +31,11 @@ For system behavior and trust/data flows, read [`ARCHITECTURE.md`](ARCHITECTURE.
 
 ### Frontend presentation
 
-`app/page.tsx` still contains a large part of the primary product presentation. Shared tokens and reusable primitives now exist under `app/styles/` and `app/ui/`; new UI work should reuse those owners instead of introducing another local design system.
+`app/page.tsx` still contains a large part of the primary product presentation. Shared tokens and reusable primitives exist under `app/styles/` and `app/ui/`.
 
-The AppShell/navigation work tracked under #94/#106 is not part of current runtime until its PR is merged. Do not structure current-state documentation around draft files as though they were active owners.
+The reusable AppShell/navigation foundation is now current code under `app/shell/` after #113. `AppShell.tsx` owns the domain-agnostic shell composition, `navigation.ts` owns the typed stable product navigation model, and the local icon/styles files own shell presentation. New global-navigation work should extend/reuse these owners rather than creating another sidebar/navigation registry.
+
+That foundation is not yet wired into the Home composition: #113 intentionally left `app/page.tsx` untouched. Targeted Home/AppShell integration remains follow-up work under #94, so current-state documentation must distinguish the merged reusable owner from the not-yet-integrated primary page.
 
 ### Server request handling
 
@@ -72,9 +75,9 @@ Backup, selective restore, maintenance mode, migration operations and offline fu
 
 ### UI presentation, page layout or reusable controls
 
-1. Check `app/ui/` and `app/styles/` first.
-2. Reuse an existing primitive/token when the semantic role already exists.
-3. Feature composition belongs in the relevant `app/` page/component layer.
+1. Check `app/shell/`, `app/ui/` and `app/styles/` first according to the change: global shell/navigation, reusable control, or token/style foundation.
+2. Reuse an existing shell/navigation owner, primitive or token when the semantic role already exists.
+3. Feature composition belongs in the relevant `app/` page/component layer; `app/page.tsx` remains the current Home composition until #94 integration lands.
 4. If behavior requires new server data or mutation, add/change the server contract separately; do not hide it inside JSX.
 
 ### Authentication, sessions, roles or permissions
@@ -160,7 +163,7 @@ Before modifying shared files such as `app/page.tsx`, `worker/index.ts`, canonic
 The project structure intentionally documents present reality:
 
 - `worker/index.ts` plus the wrapper chain are still broad and complex;
-- much product UI remains concentrated in `app/page.tsx` despite the new shared UI foundation;
+- reusable tokens/primitives and the `app/shell/` foundation now exist, but the primary Home composition remains concentrated in `app/page.tsx` until its targeted shell integration lands;
 - API/permission/reference ownership is still distributed across handlers/tests/docs rather than a single generated registry;
 - production currently persists local Wrangler/D1-compatible state under the mounted `.wrangler` directory;
 - current Compose topology still uses host networking and the current production command still starts local Wrangler development mode.

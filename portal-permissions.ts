@@ -165,7 +165,7 @@ export function resolvePortalRole(
   fallbackRole: PortalRole = "admin",
 ): PortalRole {
   const normalizedDefault = String(defaultRole ?? "").trim().toLowerCase();
-  let role = isPortalRole(normalizedDefault) ? normalizedDefault : fallbackRole;
+  const role = isPortalRole(normalizedDefault) ? normalizedDefault : fallbackRole;
   if (!assignmentsJson) return role;
 
   try {

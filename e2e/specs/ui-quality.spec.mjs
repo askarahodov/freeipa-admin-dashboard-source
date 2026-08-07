@@ -56,6 +56,9 @@ test.describe.serial("UI accessibility and responsive baseline", () => {
 
   test("authenticated overview remains usable across the viewport matrix", async ({ page }) => {
     await login(page);
+    const heading = page.getByRole("heading", { name: "Обзор инфраструктуры" });
+    await expect(heading).toBeVisible();
+
     const viewports = [
       { name: "desktop", width: 1440, height: 900 },
       { name: "tablet", width: 1024, height: 768 },
@@ -64,8 +67,6 @@ test.describe.serial("UI accessibility and responsive baseline", () => {
 
     for (const viewport of viewports) {
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
-      await page.goto("/");
-      const heading = page.getByRole("heading", { name: "Обзор инфраструктуры" });
       await expect(heading).toBeVisible();
       await expect(page.locator(".local-auth-toolbar")).toBeVisible();
       const viewportMeta = await page.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight }));

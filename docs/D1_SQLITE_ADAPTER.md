@@ -6,7 +6,7 @@ This document defines the self-hosted production database compatibility boundary
 
 The portal application was built around a Cloudflare D1-shaped binding. The standalone Node runtime must preserve the database calling conventions used by the existing domain and migration code without carrying Wrangler/Miniflare into production and without reimplementing the complete Cloudflare D1 API.
 
-The adapter is therefore intentionally narrow. It translates the D1 methods that are actually used by this repository to one owned SQLite driver.
+The adapter is therefore intentionally narrow. It translates only the D1 methods actually used by this repository to one owned SQLite driver.
 
 ## Supported public surface
 
@@ -33,9 +33,9 @@ The adapter does **not** expose `exec()`, `raw()`, dump/export helpers, driver h
 
 ### Reads
 
-`first()` returns one row or `null`. `first(columnName)` returns that column value or `null` when no row/column exists.
+`first()` returns one plain row object or `null`. `first(columnName)` returns that column value or `null` when no row/column exists.
 
-`all()` returns a D1-shaped result containing `success`, `results` and sanitized metadata. Native driver objects are not exposed.
+`all()` returns a D1-shaped result containing `success`, plain `results` row objects and sanitized metadata. Driver-specific prototypes/row wrappers are normalized at this boundary and never escape into domain code.
 
 ### Mutations
 
@@ -47,12 +47,14 @@ The adapter does **not** expose `exec()`, `raw()`, dump/export helpers, driver h
 
 Canonical portal migrations depend on atomic batches for migration DDL and journal writes; preserving transaction semantics is therefore part of the production runtime contract.
 
+For drivers that expose a boolean statement reader flag, the adapter can use it. The flag is **not** part of the required driver interface: built-in Node SQLite does not expose the `better-sqlite3` `.reader` property. For batch execution the adapter therefore falls back to a deliberately small SQL statement classification for the row-returning forms required by the portal (`SELECT`, `PRAGMA`, `EXPLAIN`, `VALUES`). Expanding this classification requires a concrete repository use case and a RED test.
+
 ## Driver boundary
 
-`runtime/d1-sqlite-adapter.mjs` currently consumes only a synchronous SQLite-driver interface with:
+`runtime/d1-sqlite-adapter.mjs` consumes a synchronous SQLite-driver interface with:
 
-- `prepare(sql)` returning a statement with `reader`, `get()`, `all()` and `run()`;
-- `transaction(fn)` returning an executable transaction wrapper.
+- `prepare(sql)` returning a statement with `get()`, `all()` and `run()`; an optional boolean `reader` hint may be present but is not required;
+- `transaction(fn)` returning an executable synchronous transaction wrapper.
 
 The concrete production driver is selected separately. It must support the repository Node baseline (`>=22.13.0`), pass production dependency audit/SBOM/Trivy gates, and pass canonical migration plus restart/recreate persistence tests before production cutover.
 

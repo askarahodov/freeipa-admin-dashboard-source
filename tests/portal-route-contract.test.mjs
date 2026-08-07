@@ -50,3 +50,23 @@ test("route metadata lookup is exact and does not become a runtime matcher", () 
   assert.equal(findPortalRouteContract("GET", "/api/auth/users/:userId"), undefined);
   assert.equal(findPortalRouteContract("GET", "/does-not-exist"), undefined);
 });
+
+test("local authentication and user administration routes match the current security boundary", () => {
+  assert.equal(findPortalRouteContract("GET", "/api/auth/session")?.auth, "public");
+  assert.equal(findPortalRouteContract("POST", "/api/auth/login")?.auth, "public");
+  assert.equal(findPortalRouteContract("POST", "/api/auth/logout")?.auth, "local-session");
+
+  assert.equal(findPortalRouteContract("GET", "/api/auth/users")?.auth, "admin-session");
+  assert.equal(findPortalRouteContract("POST", "/api/auth/users")?.auth, "admin-session");
+  assert.equal(findPortalRouteContract("PUT", "/api/auth/users/:userId")?.auth, "admin-session");
+  assert.equal(findPortalRouteContract("DELETE", "/api/auth/users/:userId")?.auth, "admin-session");
+  assert.equal(findPortalRouteContract("POST", "/api/auth/users/:userId/password")?.auth, "admin-session");
+  assert.equal(findPortalRouteContract("DELETE", "/api/auth/users/:userId/sessions")?.auth, "admin-session");
+
+  for (const route of portalRouteContracts.filter((route) => route.path.startsWith("/api/auth/users"))) {
+    if (route.method !== "GET") {
+      assert.equal(route.mutation, "mutation", route.id);
+      assert.equal(route.sameOrigin, true, route.id);
+    }
+  }
+});

@@ -17,8 +17,9 @@
 3. [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md) — карта repository/module boundaries и куда вносить изменение.
 4. [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md) — authoritative owners контрактов.
 5. [`DOCUMENTATION_INVENTORY.md`](DOCUMENTATION_INVENTORY.md) — какие документы проверены против текущего `main`.
-6. Профильный документ затрагиваемого домена.
-7. Фактический code/tests текущего ref.
+6. При изменении внешнего/операционного контракта свериться с [`reference/API.md`](reference/API.md), [`reference/PERMISSIONS.md`](reference/PERMISSIONS.md), [`reference/CONFIGURATION.md`](reference/CONFIGURATION.md) и [`reference/ERROR_CODES.md`](reference/ERROR_CODES.md).
+7. Профильный документ затрагиваемого домена.
+8. Фактический code/tests текущего ref.
 
 Правила ведения документации: [`DOCUMENTATION_POLICY.md`](DOCUMENTATION_POLICY.md).
 
@@ -40,6 +41,8 @@
 - [`MAINTENANCE_MODE.md`](MAINTENANCE_MODE.md)
 - [`OFFLINE_FULL_RESTORE.md`](OFFLINE_FULL_RESTORE.md)
 - [`CONFIG_ENCRYPTION_KEY.md`](CONFIG_ENCRYPTION_KEY.md)
+- [`reference/CONFIGURATION.md`](reference/CONFIGURATION.md)
+- [`reference/ERROR_CODES.md`](reference/ERROR_CODES.md)
 
 Для destructive/recovery операций используйте только профильный active runbook, а не команды из старого Issue/PR.
 
@@ -48,7 +51,11 @@
 Основной набор:
 
 - [`ARCHITECTURE.md`](ARCHITECTURE.md)
+- [`SECURITY_MODEL.md`](SECURITY_MODEL.md)
 - [`LOCAL_AUTH_RBAC.md`](LOCAL_AUTH_RBAC.md)
+- [`reference/PERMISSIONS.md`](reference/PERMISSIONS.md)
+- [`reference/API.md`](reference/API.md)
+- [`reference/CONFIGURATION.md`](reference/CONFIGURATION.md)
 - [`AUDIT_LOG.md`](AUDIT_LOG.md)
 - [`CONFIG_ENCRYPTION_KEY.md`](CONFIG_ENCRYPTION_KEY.md)
 - [`DATABASE_MIGRATIONS.md`](DATABASE_MIGRATIONS.md)
@@ -56,7 +63,7 @@
 - [`OFFLINE_FULL_RESTORE.md`](OFFLINE_FULL_RESTORE.md)
 - [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md)
 
-Общий `SECURITY_MODEL.md` пока остаётся отдельным gap Epic #82.
+`SECURITY_MODEL.md` связывает current trust/identity/secret/recovery boundaries, а точные permissions, routes, configuration classes, machine codes, поля, команды и state transitions остаются в профильных active documents/runbooks и canonical runtime owners.
 
 ## Foundation / governance
 
@@ -70,10 +77,24 @@
 | [`GLOSSARY.md`](GLOSSARY.md) | Единая терминология |
 | [`ai/README.md`](ai/README.md) | Обязательный AI-agent entrypoint |
 
+## Normalized reference layer
+
+Эти документы дают единый человекочитаемый вход в распределённые runtime contracts. Они **не создают второй runtime registry**: при изменении поведения canonical code owner и его tests остаются authoritative.
+
+| Документ | Назначение |
+| --- | --- |
+| [`reference/API.md`](reference/API.md) | Поддерживаемые route families, methods, authorization boundaries и current owners |
+| [`reference/PERMISSIONS.md`](reference/PERMISSIONS.md) | Built-in roles и canonical permission codes из `portal-permissions.ts`, с явной маркировкой известного RBAC drift |
+| [`reference/CONFIGURATION.md`](reference/CONFIGURATION.md) | Production/runtime/dynamic/recovery/test configuration classes, secret/lifecycle/source semantics |
+| [`reference/ERROR_CODES.md`](reference/ERROR_CODES.md) | Подтверждённые stable machine-readable codes по доменам; human strings и audit action names исключены |
+
+Текущие ограничения reference layer отслеживаются отдельно: #119 (RBAC owners), #121 (machine-readable route registry), #123 (machine-readable supported configuration contract), #124 (consolidated error-code registry).
+
 ## Authentication / access / audit
 
 | Документ | Назначение |
 | --- | --- |
+| [`SECURITY_MODEL.md`](SECURITY_MODEL.md) | Current trust boundaries, identity classes, secret ownership, authorization/recovery invariants и fail-closed/degraded behavior |
 | [`LOCAL_AUTH_RBAC.md`](LOCAL_AUTH_RBAC.md) | Local portal users, sessions, roles и separation от FreeIPA identities |
 | [`AUDIT_LOG.md`](AUDIT_LOG.md) | Append-only audit, correlation, redaction и read API |
 
@@ -126,9 +147,10 @@
 1. фактический код, canonical registries/schema и tests текущего ref;
 2. owner/source из [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md);
 3. `verified-active` профильный contract/runbook;
-4. [`ARCHITECTURE.md`](ARCHITECTURE.md), [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md) и overview/README;
-5. ADR как объяснение решения;
-6. roadmap, Issue, implementation plan, PR description и historical notes.
+4. normalized `reference/*` как current-state orientation, если он подтверждён canonical owners;
+5. [`ARCHITECTURE.md`](ARCHITECTURE.md), [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md), [`SECURITY_MODEL.md`](SECURITY_MODEL.md) и overview/README;
+6. ADR как объяснение решения;
+7. roadmap, Issue, implementation plan, PR description и historical notes.
 
 ## Когда документация должна измениться
 
@@ -138,6 +160,7 @@ Documentation impact обязателен, если PR изменяет:
 - DB schema/migration/data ownership;
 - environment/configuration;
 - FreeIPA/XYOps protocol;
+- stable machine-readable error code;
 - security/trust/redaction/secret handling;
 - startup/deployment/network/health;
 - backup/restore/maintenance/recovery;
@@ -148,13 +171,12 @@ Documentation impact обязателен, если PR изменяет:
 
 ## Известные gaps Epic #82
 
-После baseline audit и current architecture/module-map остаются отдельные задачи на:
+После baseline audit, current architecture/module-map, security model и normalized reference layer остаются отдельные задачи на:
 
-- `SECURITY_MODEL.md`;
-- normalized API/permissions/error-code/configuration reference;
 - supported/unsupported deployment matrix;
 - ADR registry;
 - module-level documentation coverage;
-- automated documentation consistency CI.
+- automated documentation consistency CI;
+- устранение распределённых runtime ownership gaps #119/#121/#123/#124.
 
 Новые current-state файлы нельзя считать существующими до их реального появления в `main`.

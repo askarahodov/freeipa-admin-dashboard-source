@@ -25,12 +25,14 @@ function tableCodes(markdown) {
   return codes;
 }
 
-test("reference layer contains all four normalized entrypoints and limitation follow-ups", async () => {
-  const [api, permissions, configuration, errors] = await Promise.all([
+test("reference layer contains all four normalized entrypoints and current ownership signals", async () => {
+  const [api, permissions, configuration, errors, sourceOfTruth, ai] = await Promise.all([
     read("docs/reference/API.md"),
     read("docs/reference/PERMISSIONS.md"),
     read("docs/reference/CONFIGURATION.md"),
     read("docs/reference/ERROR_CODES.md"),
+    read("docs/SOURCE_OF_TRUTH.md"),
+    read("docs/ai/README.md"),
   ]);
 
   assert.match(api, /^# API reference/m);
@@ -38,8 +40,12 @@ test("reference layer contains all four normalized entrypoints and limitation fo
   assert.match(configuration, /^# Configuration reference/m);
   assert.match(errors, /^# Error-code reference/m);
 
-  assert.match(api, /#121/);
-  assert.match(permissions, /#119/);
+  assert.match(api, /`portal-route-contract\.ts` is the canonical machine-readable owner/);
+  assert.match(sourceOfTruth, /HTTP\/API route metadata[^\n]+`portal-route-contract\.ts`/);
+  assert.match(ai, /Canonical machine-readable HTTP route metadata.*`portal-route-contract\.ts`/);
+  assert.doesNotMatch(ai, /Машиночитаемый HTTP registry остаётся отдельной задачей #121/);
+  assert.doesNotMatch(ai, /distributed\/orphan RBAC drift отслеживается в #119/);
+
   assert.match(configuration, /#123/);
   assert.match(errors, /#124/);
 });

@@ -13,9 +13,13 @@
 5. прочитать [`DOCUMENTATION_POLICY.md`](../DOCUMENTATION_POLICY.md);
 6. проверить [`SOURCE_OF_TRUTH.md`](../SOURCE_OF_TRUTH.md);
 7. для security-sensitive изменения прочитать [`SECURITY_MODEL.md`](../SECURITY_MODEL.md) до проектирования нового privileged/trust boundary;
-8. прочитать профильный active-document затрагиваемого домена;
-9. проверить актуальный код и tests текущего `main`/целевого ref;
-10. проверить связанные открытые PR/Issues, если они влияют на ownership или параллельную работу.
+8. если изменение затрагивает HTTP route/method/auth boundary — свериться с [`reference/API.md`](../reference/API.md);
+9. если изменение затрагивает role/permission — свериться с [`reference/PERMISSIONS.md`](../reference/PERMISSIONS.md) и canonical `portal-permissions.ts`;
+10. если изменение затрагивает ENV/dynamic/recovery configuration — свериться с [`reference/CONFIGURATION.md`](../reference/CONFIGURATION.md);
+11. если изменение вводит/меняет stable machine-readable code — свериться с [`reference/ERROR_CODES.md`](../reference/ERROR_CODES.md);
+12. прочитать профильный active-document затрагиваемого домена;
+13. проверить актуальный код и tests текущего `main`/целевого ref;
+14. проверить связанные открытые PR/Issues, если они влияют на ownership или параллельную работу.
 
 Нельзя начинать с issue и затем предполагать, что описанное в issue уже реализовано.
 
@@ -28,12 +32,15 @@
 - существует ли уже аналогичная реализация;
 - какой layer/path должен владеть изменением по [`PROJECT_STRUCTURE.md`](../PROJECT_STRUCTURE.md);
 - какой active-document описывает контракт;
+- какой normalized reference затронут;
 - какие tests доказывают поведение;
 - не меняет ли работа shared security/runtime boundary.
 
 Если owner неясен, это сначала architecture/documentation problem. Не создавайте второй owner только ради завершения локальной задачи.
 
 Если изменение затрагивает identity, authorization, secrets, upstream credentials, audit, approvals, maintenance/recovery, schema fail-closed behavior или diagnostic disclosure, дополнительно сверяйтесь с [`SECURITY_MODEL.md`](../SECURITY_MODEL.md) и точным профильным security/runbook owner.
+
+Normalized `reference/*` — навигационный current-state слой, а не второй runtime source of truth. При конфликте проверяйте canonical owner и его tests, затем исправляйте reference drift.
 
 ## Иерархия доверия
 
@@ -42,15 +49,17 @@
 1. фактический код, canonical registries/schema и tests текущего ref;
 2. `SOURCE_OF_TRUTH.md` и указанный там authoritative owner;
 3. active профильный contract/runbook;
-4. `ARCHITECTURE.md`, `PROJECT_STRUCTURE.md`, `SECURITY_MODEL.md` и overview docs;
-5. ADR как объяснение решения;
-6. issue, plan, PR description, historical notes.
+4. normalized `reference/*`, подтверждённый canonical owners;
+5. `ARCHITECTURE.md`, `PROJECT_STRUCTURE.md`, `SECURITY_MODEL.md` и overview docs;
+6. ADR как объяснение решения;
+7. issue, plan, PR description, historical notes.
 
 Issue, roadmap и implementation plan не являются доказательством current behavior.
 
 ## Правила изменения кода
 
 - не создавать второй способ делать то, что уже имеет owner;
+- не создавать второй API/RBAC/config/error-code registry только ради локальной задачи;
 - не расширять scope незаметным рефакторингом unrelated modules;
 - не переносить authorization или security enforcement только в UI;
 - не ослаблять fail-closed gates, redaction, encryption, same-origin, approvals или audit ради упрощения tests;
@@ -61,6 +70,40 @@ Issue, roadmap и implementation plan не являются доказатель
 - не использовать `any`, source-text guards или mocks как замену реальному behavior test там, где важна runtime semantics;
 - перед созданием нового UI primitive/token проверить `app/ui/` и `app/styles/`;
 - перед созданием нового server/integration/storage owner свериться с `PROJECT_STRUCTURE.md` и `SOURCE_OF_TRUTH.md`.
+
+## Reference-layer routing
+
+### API
+
+При добавлении/изменении route:
+
+1. изменить canonical handler/contract/test;
+2. проверить authorization/method/failure semantics;
+3. обновить [`reference/API.md`](../reference/API.md);
+4. обновить [`reference/PERMISSIONS.md`](../reference/PERMISSIONS.md) только если реально меняется permission contract;
+5. обновить [`reference/ERROR_CODES.md`](../reference/ERROR_CODES.md), если меняются stable machine codes.
+
+Не используйте `/api/integrations/routes` как доказательство существования глобального HTTP route registry: это XYOps routing configuration. Машиночитаемый HTTP registry остаётся отдельной задачей #121.
+
+### Permissions
+
+Canonical built-in role/permission registry — `portal-permissions.ts`. [`reference/PERMISSIONS.md`](../reference/PERMISSIONS.md) должен его отражать, но не заменять.
+
+Известный distributed/orphan RBAC drift отслеживается в #119. Не «исправляйте» route-local checks удалением или легализацией через новый документ; сначала определите корректный runtime owner и tests.
+
+### Configuration
+
+[`reference/CONFIGURATION.md`](../reference/CONFIGURATION.md) отделяет supported operator configuration от internal ephemeral/test/recovery values. Не превращайте любое `process.env.*` в public configuration contract.
+
+Особенно: private FreeIPA Gateway URL/token генерируются startup runtime и не должны становиться persistent operator secrets.
+
+Machine-readable supported configuration contract остаётся отдельной задачей #123.
+
+### Error codes
+
+[`reference/ERROR_CODES.md`](../reference/ERROR_CODES.md) содержит stable machine-readable codes, а не human error messages и не audit action names.
+
+Если код вводит новый stable code, обновите owner tests и reference в одном PR. Global consolidation остаётся отдельной задачей #124.
 
 ## Параллельная работа нескольких агентов
 
@@ -101,6 +144,7 @@ agent/<short-scope>
 - изменились ли permissions/auth;
 - изменились ли schema/data ownership;
 - изменилась ли конфигурация;
+- изменился ли stable machine-readable error code;
 - изменился ли deployment/runtime;
 - изменился ли security/failure/recovery contract;
 - изменилась ли module boundary/project placement;
@@ -110,6 +154,8 @@ agent/<short-scope>
 Следуйте [`DOCUMENTATION_POLICY.md`](../DOCUMENTATION_POLICY.md). Не создавайте новый Markdown-файл, если существующий документ уже владеет темой.
 
 Если изменена system topology/trust boundary — актуализируйте [`ARCHITECTURE.md`](../ARCHITECTURE.md). Если изменился module/path ownership — актуализируйте [`PROJECT_STRUCTURE.md`](../PROJECT_STRUCTURE.md). Если изменился security trust/identity/secret/authorization/recovery boundary — актуализируйте [`SECURITY_MODEL.md`](../SECURITY_MODEL.md) и профильный exact contract.
+
+Если изменился route/permission/config/stable-code contract — актуализируйте соответствующий файл в [`../reference/`](../reference/).
 
 ## Current state vs plan
 
@@ -145,13 +191,13 @@ agent/<short-scope>
 Минимальный self-review:
 
 1. scope соответствует issue;
-2. не создан дублирующий owner/abstraction;
+2. не создан дублирующий owner/abstraction/registry;
 3. изменение находится в правильном layer/path;
 4. permission/security boundaries остались server-side;
 5. privileged credentials не стали generic bypass;
 6. upstream/session secrets не появились в browser/logs/diagnostics;
 7. failure semantics понятны и протестированы;
-8. актуальные docs обновлены;
+8. актуальные docs и затронутый normalized reference обновлены;
 9. `ARCHITECTURE.md`/`PROJECT_STRUCTURE.md`/`SECURITY_MODEL.md` обновлены, если затронуты их boundaries;
 10. superseded statements удалены;
 11. paths/links действительно существуют;
@@ -167,7 +213,8 @@ agent/<short-scope>
 - не используйте плавающие числа тестов как долгоживущий факт;
 - не переписывайте runtime semantics «для красоты»;
 - если найдено расхождение docs и runtime, зафиксируйте его как дефект и исправьте в согласованном scope;
-- не отмечайте документ `verified-active`, пока его фактические owners/boundaries не проверены.
+- не отмечайте документ `verified-active`, пока его фактические owners/boundaries не проверены;
+- reference-layer документ не должен превращаться в конкурирующий runtime registry.
 
 ## Куда смотреть дальше
 
@@ -175,8 +222,12 @@ agent/<short-scope>
 - [`../ARCHITECTURE.md`](../ARCHITECTURE.md) — current runtime architecture;
 - [`../PROJECT_STRUCTURE.md`](../PROJECT_STRUCTURE.md) — current repository/module map;
 - [`../SECURITY_MODEL.md`](../SECURITY_MODEL.md) — current security/trust model;
+- [`../reference/API.md`](../reference/API.md) — normalized route reference;
+- [`../reference/PERMISSIONS.md`](../reference/PERMISSIONS.md) — normalized canonical RBAC reference;
+- [`../reference/CONFIGURATION.md`](../reference/CONFIGURATION.md) — supported configuration classes;
+- [`../reference/ERROR_CODES.md`](../reference/ERROR_CODES.md) — stable machine-code reference;
 - [`../SOURCE_OF_TRUTH.md`](../SOURCE_OF_TRUTH.md) — authoritative owners;
 - [`../GLOSSARY.md`](../GLOSSARY.md) — терминология;
 - профильные runbook — фактические operational/security contracts.
 
-Если architecture/project/security map и текущий код расходятся, не выдумывайте новое boundary: проверьте current ref/canonical owner и исправьте подтверждённый documentation drift.
+Если architecture/project/security/reference map и текущий код расходятся, не выдумывайте новое boundary: проверьте current ref/canonical owner и исправьте подтверждённый documentation drift.

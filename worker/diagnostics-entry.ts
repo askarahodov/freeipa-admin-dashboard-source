@@ -1,6 +1,7 @@
 import localRuntime from "./settings-revisions-entry";
 import { listLocalUsers, resolveLocalSession, type LocalAuthEnv } from "../local-auth";
 import { inspectPortalSchema, publicPortalSchemaStatus, type PortalSchemaStatus } from "../db/portal-migrations.ts";
+import packageMetadata from "../package.json";
 
 type RuntimeEnv = NonNullable<Parameters<typeof localRuntime.fetch>[1]> & LocalAuthEnv & {
   PORTAL_IDENTITY_MODE?: string;
@@ -40,6 +41,17 @@ function localMode(env: RuntimeEnv): boolean {
 
 export function schemaDiagnostics(schema: PortalSchemaStatus) {
   return publicPortalSchemaStatus(schema);
+}
+
+export function buildDiagnostics() {
+  return {
+    version: packageMetadata.version,
+    next: packageMetadata.dependencies.next,
+    react: packageMetadata.dependencies.react,
+    vinext: packageMetadata.devDependencies.vinext,
+    vite: packageMetadata.devDependencies.vite,
+    wrangler: packageMetadata.devDependencies.wrangler,
+  };
 }
 
 async function tableCount(env: RuntimeEnv, table: CountableTable): Promise<number | null> {
@@ -90,6 +102,7 @@ async function diagnostics(request: Request, env: RuntimeEnv, ctx: RuntimeContex
   const activeUsers = users.filter((user) => !user.disabled);
   return json({
     generatedAt: Date.now(),
+    build: buildDiagnostics(),
     portal: {
       mode: "local",
       users: users.length,

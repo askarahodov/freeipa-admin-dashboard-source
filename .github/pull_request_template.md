@@ -31,6 +31,18 @@ If a box is applicable, explain the impact in the PR description.
 
 <!-- State which documents are authoritative for this change and why no update is needed for unchecked areas. -->
 
+## Coordination
+
+Owning issue: <!-- Required. Use #123 or explicitly state none. -->
+Canonical domain / contract: <!-- Required. Name the existing owner, not a proposed replacement. -->
+High-conflict paths: <!-- Required. List paths such as app/page.tsx, worker/index.ts, db/**, workflows, or state none. -->
+Dependencies / merge order: <!-- Required. Link blocking/stacked PRs and state the order, or state none. -->
+Parallel-safe with: <!-- Required. Name known independent work or state none identified. -->
+Explicitly out of scope: <!-- Required. State adjacent contracts this PR will not change. -->
+
+- [ ] Active pull requests and branches were inspected before implementation
+- [ ] Overlaps are absent or documented above with explicit ownership and merge order
+
 ## Source-of-truth review
 
 - [ ] Existing owner/source of truth was identified before adding a new contract

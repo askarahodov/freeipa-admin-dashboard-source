@@ -16,11 +16,11 @@ test("architecture and project structure are active documentation entrypoints", 
   assert.match(architecture, /^# Architecture/m);
   assert.match(projectStructure, /^# Project structure and module boundaries/m);
 
-  assert.match(index, /\[ARCHITECTURE\.md\]\(ARCHITECTURE\.md\)/);
-  assert.match(index, /\[PROJECT_STRUCTURE\.md\]\(PROJECT_STRUCTURE\.md\)/);
+  assert.match(index, /\[`ARCHITECTURE\.md`\]\(ARCHITECTURE\.md\)/);
+  assert.match(index, /\[`PROJECT_STRUCTURE\.md`\]\(PROJECT_STRUCTURE\.md\)/);
 
-  assert.match(aiEntrypoint, /\[ARCHITECTURE\.md\]\(\.\.\/ARCHITECTURE\.md\)/);
-  assert.match(aiEntrypoint, /\[PROJECT_STRUCTURE\.md\]\(\.\.\/PROJECT_STRUCTURE\.md\)/);
+  assert.match(aiEntrypoint, /\[`ARCHITECTURE\.md`\]\(\.\.\/ARCHITECTURE\.md\)/);
+  assert.match(aiEntrypoint, /\[`PROJECT_STRUCTURE\.md`\]\(\.\.\/PROJECT_STRUCTURE\.md\)/);
 
   assert.match(inventory, /`docs\/ARCHITECTURE\.md`[\s\S]*`verified-active`/);
   assert.match(inventory, /`docs\/PROJECT_STRUCTURE\.md`[\s\S]*`verified-active`/);

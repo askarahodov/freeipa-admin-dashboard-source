@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
@@ -31,7 +32,12 @@ test("deletes only merged agent branch whose current tip matches merged PR head"
 
   assert.deepEqual(plan, [
     { branch: "agent/advanced-after-merge", action: "INVESTIGATE", reason: "branch_tip_changed_after_closed_pr" },
-    { branch: "agent/merged", action: "DELETE_MERGED", reason: "exact_merged_pr_head" },
+    {
+      branch: "agent/merged",
+      action: "DELETE_MERGED",
+      reason: "exact_merged_pr_head",
+      expectedSha: "aaa",
+    },
   ]);
 });
 
@@ -74,7 +80,7 @@ test("never auto-deletes closed unmerged or untracked branches", () => {
 
 test("report is deterministic and exposes only fixed branch decisions", () => {
   const report = formatAgentBranchHygieneReport([
-    { branch: "agent/merged", action: "DELETE_MERGED", reason: "exact_merged_pr_head" },
+    { branch: "agent/merged", action: "DELETE_MERGED", reason: "exact_merged_pr_head", expectedSha: "aaa" },
     { branch: "agent/open", action: "KEEP_ACTIVE", reason: "referenced_by_open_pr" },
     { branch: "agent/unknown", action: "INVESTIGATE", reason: "no_pr_evidence" },
   ]);
@@ -89,4 +95,27 @@ test("report is deterministic and exposes only fixed branch decisions", () => {
       "",
     ].join("\n"),
   );
+});
+
+test("workflow executes only trusted-main cleanup policy", async () => {
+  const workflow = await readFile(
+    new URL("../.github/workflows/agent-branch-hygiene.yml", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(workflow, /^name:\s*Agent Branch Hygiene/mu);
+  assert.match(workflow, /contents:\s*write/u);
+  assert.match(workflow, /pull-requests:\s*read/u);
+  assert.match(workflow, /ref:\s*main/u);
+  assert.match(workflow, /persist-credentials:\s*false/u);
+  assert.doesNotMatch(workflow, /pull_request_target/u);
+  assert.match(workflow, /actions\/github-script@v7/u);
+  assert.match(workflow, /github\.paginate\(github\.rest\.repos\.listBranches/u);
+  assert.match(workflow, /github\.paginate\(github\.rest\.pulls\.list/u);
+  assert.match(workflow, /buildAgentBranchHygienePlan/u);
+  assert.match(workflow, /entry\.action !== "DELETE_MERGED"/u);
+  assert.match(workflow, /github\.rest\.git\.getRef/u);
+  assert.match(workflow, /entry\.expectedSha/u);
+  assert.match(workflow, /freshOpenRefs\.has\(entry\.branch\)/u);
+  assert.match(workflow, /github\.rest\.git\.deleteRef/u);
 });

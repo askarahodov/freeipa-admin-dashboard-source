@@ -6,8 +6,8 @@ import {
 } from "../freeipa-group-member-query";
 import type { FreeIpaDirectoryUser } from "../freeipa-user-query";
 import {
+  isPortalRole,
   portalRolePermissions,
-  type PortalRole,
 } from "../portal-permissions";
 import { handleBackupImportPreviewRoute, type BackupPreviewAccessEnv } from "./backup-import-preview-root-entry";
 import { handleEncryptedBackupRoute, type EncryptedBackupAccessEnv } from "./backup-encrypted-root-entry";
@@ -65,16 +65,12 @@ async function readPayload<T>(response: Response): Promise<T & { error?: string 
     : {} as T & { error?: string };
 }
 
-function portalRole(value: unknown): PortalRole | null {
-  return value === "viewer" || value === "operator" || value === "admin" ? value : null;
-}
-
 async function withEffectivePermissions(response: Response): Promise<Response> {
   if (!response.ok) return response;
   const payload = await response.clone().json().catch(() => null) as StatusPayload | null;
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) return response;
-  const role = portalRole(payload.access?.role);
-  if (!role || !payload.access) return response;
+  const role = payload.access?.role;
+  if (!isPortalRole(role) || !payload.access) return response;
   return json({
     ...payload,
     access: {

@@ -49,8 +49,10 @@ test("schema diagnostics preserve the existing admin-only local RBAC boundary", 
 test("diagnostics expose sanitized build and dependency versions", () => {
   assert.equal(source.includes('import packageMetadata from "../package.json"'), true);
   assert.equal(source.includes("build: buildDiagnostics()"), true);
+  const buildBlock = source.match(/export function buildDiagnostics\(\) \{([\s\S]*?)\n\}/u)?.[1] ?? "";
+  assert.notEqual(buildBlock, "", "buildDiagnostics body must be present");
   for (const key of ["version", "next", "react", "vinext", "vite", "wrangler"]) {
-    assert.equal(source.includes(`${key}:`), true, key);
+    assert.equal(buildBlock.includes(`${key}:`), true, key);
   }
-  assert.doesNotMatch(source, /buildDiagnostics[\s\S]{0,800}(password|token|secret|CONFIG_ENCRYPTION_KEY)/iu);
+  assert.doesNotMatch(buildBlock, /password|token|secret|CONFIG_ENCRYPTION_KEY/iu);
 });

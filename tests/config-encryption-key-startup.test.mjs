@@ -8,6 +8,7 @@ import { validateProductionEncryptionKey } from "../scripts/config-encryption-ke
 const compose = await readFile(new URL("../compose.yaml", import.meta.url), "utf8");
 const testCompose = await readFile(new URL("../compose.test.yaml", import.meta.url), "utf8");
 const e2eCompose = await readFile(new URL("../compose.e2e.yaml", import.meta.url), "utf8");
+const dockerfile = await readFile(new URL("../Dockerfile", import.meta.url), "utf8");
 const startup = await readFile(new URL("../scripts/start-worker.mjs", import.meta.url), "utf8");
 const envExample = await readFile(new URL("../.env.example", import.meta.url), "utf8");
 
@@ -32,6 +33,10 @@ test("production Compose requires CONFIG_ENCRYPTION_KEY from external configurat
 test("test and E2E Compose explicitly opt into isolated encryption-key profiles", () => {
   assert.match(dashboardService(testCompose), /PORTAL_RUNTIME_PROFILE:\s*test/u);
   assert.match(dashboardService(e2eCompose), /PORTAL_RUNTIME_PROFILE:\s*e2e/u);
+});
+
+test("runtime image packages the encryption key validator imported by startup", () => {
+  assert.match(dockerfile, /\/app\/scripts\/config-encryption-key\.mjs/u);
 });
 
 test("startup validates encryption key before creating the Gateway", () => {

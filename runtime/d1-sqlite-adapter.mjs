@@ -19,6 +19,11 @@ function safeLastRowId(value) {
   return Number.isFinite(number) ? number : 0;
 }
 
+function plainRow(row) {
+  if (row == null || typeof row !== "object" || Array.isArray(row)) return row;
+  return Object.fromEntries(Object.entries(row));
+}
+
 function stripLeadingComments(sql) {
   let source = sql.trimStart();
   while (source) {
@@ -59,10 +64,11 @@ export function createD1SqliteAdapter(database) {
   function execute(state, mode = isReader(state) ? "all" : "run") {
     if (mode === "all") {
       const rows = state.statement.all(...state.params);
+      const results = Array.isArray(rows) ? rows.map(plainRow) : [];
       return {
         success: true,
-        results: Array.isArray(rows) ? rows : [],
-        meta: baseMeta({ rows_read: Array.isArray(rows) ? rows.length : 0 }),
+        results,
+        meta: baseMeta({ rows_read: results.length }),
       };
     }
 
@@ -87,7 +93,7 @@ export function createD1SqliteAdapter(database) {
       },
       async first(columnName) {
         if (statement.reader === false) throw new Error("first() requires a row-returning SQLite statement");
-        const row = statement.get(...params);
+        const row = plainRow(statement.get(...params));
         if (row == null) return null;
         if (columnName === undefined) return row;
         return Object.prototype.hasOwnProperty.call(row, columnName) ? row[columnName] : null;

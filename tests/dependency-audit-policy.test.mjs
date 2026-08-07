@@ -34,7 +34,7 @@ async function policy() {
 test("high and critical production advisories block by default", async () => {
   const { evaluateAuditReport } = await policy();
   const result = evaluateAuditReport(report, { schemaVersion: 1, entries: [] }, new Date("2026-08-07T00:00:00Z"));
-  assert.deepEqual(result.blocked.map((finding) => finding.id), ["GHSA-f88m-g3jw-g9cj"]);
+  assert.deepEqual(result.blocked.map((finding) => finding.id), ["ghsa-f88m-g3jw-g9cj"]);
   assert.equal(result.allowed.length, 0);
 });
 
@@ -52,7 +52,7 @@ test("a temporary exception requires exact package, owner, reason and future exp
   };
   const result = evaluateAuditReport(report, allowlist, new Date("2026-08-07T00:00:00Z"));
   assert.equal(result.blocked.length, 0);
-  assert.deepEqual(result.allowed.map((finding) => finding.id), ["GHSA-f88m-g3jw-g9cj"]);
+  assert.deepEqual(result.allowed.map((finding) => finding.id), ["ghsa-f88m-g3jw-g9cj"]);
 });
 
 test("expired, malformed and stale exceptions are rejected", async () => {

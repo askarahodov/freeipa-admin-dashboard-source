@@ -59,7 +59,7 @@ jobs:
           node -e 'const fs=require("fs"); const bom=JSON.parse(fs.readFileSync("artifacts/security/npm-production-sbom.cdx.json","utf8")); if (bom.bomFormat !== "CycloneDX" || !Array.isArray(bom.components)) process.exit(1)'
 
       - name: Upload production SBOM
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: npm-production-sbom
           path: artifacts/security/npm-production-sbom.cdx.json
@@ -80,7 +80,7 @@ jobs:
         run: tar -czf "$RUNNER_TEMP/source-snapshot.tar.gz" --exclude=.git --exclude=node_modules --exclude=dist .
 
       - name: Upload source snapshot
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: source-snapshot
           path: ${{ runner.temp }}/source-snapshot.tar.gz
@@ -106,7 +106,7 @@ jobs:
         run: npm run build
 
       - name: Upload build
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist
@@ -143,7 +143,7 @@ jobs:
 
       - name: Upload runtime image scan
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: runtime-image-security-scan
           path: artifacts/security/runtime-image-trivy.json
@@ -184,7 +184,7 @@ jobs:
 
       - name: Upload complete suite log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: server-suite-log
           path: server-suite.tap

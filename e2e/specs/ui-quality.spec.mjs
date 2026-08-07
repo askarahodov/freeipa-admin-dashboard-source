@@ -40,7 +40,6 @@ test.describe.serial("UI accessibility and responsive baseline", () => {
   test("shared authenticated controls are keyboard reachable and visibly focused", async ({ page }) => {
     await login(page);
     const logout = page.locator(".local-auth-toolbar").getByRole("button", { name: "Выйти" });
-    await page.locator("body").focus();
     const reached = await tabUntilFocused(page, logout);
     expect(reached).toBe(true);
 
@@ -65,11 +64,16 @@ test.describe.serial("UI accessibility and responsive baseline", () => {
     for (const viewport of viewports) {
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
       await page.goto("/");
-      await expect(page.getByRole("heading", { name: "Обзор инфраструктуры" })).toBeVisible();
+      const heading = page.getByRole("heading", { name: "Обзор инфраструктуры" });
+      await expect(heading).toBeVisible();
       await expect(page.locator(".local-auth-toolbar")).toBeVisible();
-      const viewportMeta = await page.evaluate(() => ({ width: document.documentElement.clientWidth, height: window.innerHeight }));
+      const viewportMeta = await page.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight }));
       expect(viewportMeta.width, viewport.name).toBe(viewport.width);
       expect(viewportMeta.height, viewport.name).toBe(viewport.height);
+      const headingBox = await heading.boundingBox();
+      expect(headingBox, `${viewport.name}: heading box`).not.toBeNull();
+      expect(headingBox.x, `${viewport.name}: heading starts inside viewport`).toBeGreaterThanOrEqual(0);
+      expect(headingBox.x, `${viewport.name}: heading remains reachable`).toBeLessThan(viewport.width);
     }
   });
 

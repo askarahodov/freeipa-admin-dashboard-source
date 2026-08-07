@@ -9,7 +9,7 @@
 .table th, .table td { height: var(--ui-table-row-height); padding: 8px 12px; border-bottom: 1px solid var(--ui-color-border); text-align: left; vertical-align: middle; }
 .table th { background: var(--ui-color-surface-subtle); color: var(--ui-color-muted); font-size: var(--ui-text-label-size); line-height: var(--ui-text-label-line); font-weight: 600; white-space: nowrap; }
 .table tbody tr:last-child td { border-bottom: 0; }
-.table tbody tr:hover td { background: #fafafd; }
+.table tbody tr:hover td { background: var(--ui-color-surface-subtle); }
 .state { justify-content: space-between; align-items: flex-start; }
 .stateCopy { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .stateCopy strong { font-weight: 600; }

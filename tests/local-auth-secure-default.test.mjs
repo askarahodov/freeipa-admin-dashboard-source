@@ -6,6 +6,7 @@ import { validateIdentityStartup } from "../scripts/identity-startup-policy.mjs"
 
 const envExample = await readFile(new URL("../.env.example", import.meta.url), "utf8");
 const startup = await readFile(new URL("../scripts/start-worker.mjs", import.meta.url), "utf8");
+const dockerfile = await readFile(new URL("../Dockerfile", import.meta.url), "utf8");
 
 async function readDevExample() {
   return readFile(new URL("../.env.dev.example", import.meta.url), "utf8");
@@ -69,4 +70,8 @@ test("startup applies identity policy before creating the Gateway", () => {
   assert.notEqual(validation, -1);
   assert.notEqual(gateway, -1);
   assert.ok(validation < gateway, "identity startup policy must run before Gateway startup");
+});
+
+test("runtime image includes the identity startup policy module", () => {
+  assert.match(dockerfile, /identity-startup-policy\.mjs/u);
 });

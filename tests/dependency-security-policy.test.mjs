@@ -41,7 +41,7 @@ test("production runtime keeps the verified Wrangler line while excluding build-
   assert.equal(packageJson.overrides?.undici, "7.29.0");
   assert.match(dockerfile, /AS production-dependencies[\s\S]*npm prune --omit=dev/u);
   assert.match(dockerfile, /COPY --from=production-dependencies[^\n]*\/app\/node_modules \.\/node_modules/u);
-  assert.match(dockerfile, /rm -rf \/usr\/local\/lib\/node_modules\/npm/u);
+  assert.match(dockerfile, /rm -rf [^\n]*\/usr\/local\/lib\/node_modules\/npm/u);
   assert.match(dockerfile, /CMD \["node", "scripts\/start-worker\.mjs"\]/u);
 });
 

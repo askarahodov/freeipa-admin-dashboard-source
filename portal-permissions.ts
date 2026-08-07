@@ -9,6 +9,7 @@ export type PortalPermission =
   | "settings.manage"
   | "backup.export"
   | "backup.export.encrypted"
+  | "backup.restore.preview"
   | "backup.restore.test"
   | "backup.restore.prepare"
   | "backup.restore.commit"
@@ -26,6 +27,7 @@ export const portalPermissionOrder: PortalPermission[] = [
   "settings.manage",
   "backup.export",
   "backup.export.encrypted",
+  "backup.restore.preview",
   "backup.restore.test",
   "backup.restore.prepare",
   "backup.restore.commit",
@@ -93,6 +95,12 @@ export const portalPermissionMetadata: Record<PortalPermission, {
     description: "Создание полной зашифрованной копии данных портала с отдельным пользовательским ключом.",
     scope: "Portal",
   },
+  "backup.restore.preview": {
+    title: "Предварительный просмотр восстановления",
+    shortTitle: "Restore preview",
+    description: "Безопасный read-only preview содержимого и совместимости резервной копии до тестового или production restore.",
+    scope: "Portal",
+  },
   "backup.restore.test": {
     title: "Проверка восстановления",
     shortTitle: "Test restore",
@@ -137,6 +145,7 @@ export const portalRolePermissions: Record<PortalRole, PortalPermission[]> = {
     "settings.manage",
     "backup.export",
     "backup.export.encrypted",
+    "backup.restore.preview",
     "backup.restore.test",
     "backup.restore.prepare",
     "backup.restore.commit",
@@ -144,6 +153,35 @@ export const portalRolePermissions: Record<PortalRole, PortalPermission[]> = {
     "maintenance.manage",
   ],
 };
+
+export function isPortalRole(value: unknown): value is PortalRole {
+  return value === "viewer" || value === "operator" || value === "admin";
+}
+
+export function resolvePortalRole(
+  identity: string,
+  defaultRole: unknown,
+  assignmentsJson?: string,
+  fallbackRole: PortalRole = "admin",
+): PortalRole {
+  const normalizedDefault = String(defaultRole ?? "").trim().toLowerCase();
+  const role = isPortalRole(normalizedDefault) ? normalizedDefault : fallbackRole;
+  if (!assignmentsJson) return role;
+
+  try {
+    const assignments = JSON.parse(assignmentsJson) as unknown;
+    if (!assignments || typeof assignments !== "object" || Array.isArray(assignments)) return role;
+    const normalized = Object.fromEntries(
+      Object.entries(assignments as Record<string, unknown>)
+        .map(([key, value]) => [key.trim().toLowerCase(), value]),
+    );
+    const exact = normalized[identity.trim().toLowerCase()];
+    const wildcard = normalized["*"];
+    return isPortalRole(exact) ? exact : isPortalRole(wildcard) ? wildcard : role;
+  } catch {
+    return role;
+  }
+}
 
 export function roleHasPermission(role: PortalRole, permission: PortalPermission): boolean {
   return portalRolePermissions[role].includes(permission);

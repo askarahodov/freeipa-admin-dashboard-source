@@ -27,6 +27,7 @@ test("portal permission matrix matches the runtime RBAC contract", () => {
     "settings.manage",
     "backup.export",
     "backup.export.encrypted",
+    "backup.restore.preview",
     "backup.restore.test",
     ...selectiveRestorePermissions,
     ...maintenancePermissions,
@@ -43,6 +44,7 @@ test("portal permission matrix matches the runtime RBAC contract", () => {
       "settings.manage",
       "backup.export",
       "backup.export.encrypted",
+      "backup.restore.preview",
       "backup.restore.test",
       ...selectiveRestorePermissions,
       ...maintenancePermissions,
@@ -59,6 +61,9 @@ test("roleHasPermission denies permissions that are not explicitly granted", () 
   assert.equal(roleHasPermission("admin", "backup.export"), true);
   assert.equal(roleHasPermission("viewer", "backup.export.encrypted"), false);
   assert.equal(roleHasPermission("admin", "backup.export.encrypted"), true);
+  assert.equal(roleHasPermission("viewer", "backup.restore.preview"), false);
+  assert.equal(roleHasPermission("operator", "backup.restore.preview"), false);
+  assert.equal(roleHasPermission("admin", "backup.restore.preview"), true);
   assert.equal(roleHasPermission("viewer", "backup.restore.test"), false);
   assert.equal(roleHasPermission("operator", "backup.restore.test"), false);
   assert.equal(roleHasPermission("admin", "backup.restore.test"), true);

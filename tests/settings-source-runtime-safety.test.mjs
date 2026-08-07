@@ -4,6 +4,11 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
+import {
+  portalRolePermissions,
+  resolvePortalRole,
+} from "../portal-permissions.ts";
+
 const safeSourceUrl = new URL("../worker/settings-source-safe-entry.ts", import.meta.url);
 const safeSource = fs.readFileSync(safeSourceUrl, "utf8");
 const normalizerUrl = new URL("../worker/settings-input-normalizer.ts", import.meta.url);
@@ -18,12 +23,21 @@ test("operational integration requests resolve inherited ENV without writing set
   assert.equal(safeSource.includes("UPDATE app_settings SET config_json"), false);
 });
 
-test("source authorization resolves portal RBAC without live connectivity probes", () => {
+test("source authorization resolves canonical portal RBAC without live connectivity probes", () => {
   assert.equal(safeSource.includes("resolvedAccess"), true);
-  assert.equal(safeSource.includes("rolePermissions"), true);
+  assert.equal(safeSource.includes("resolvePortalRole"), true);
+  assert.equal(safeSource.includes("portalRolePermissions"), true);
+  assert.equal(safeSource.includes("const rolePermissions:"), false);
   assert.equal(safeSource.includes('permissions.includes("settings.manage")'), true);
   assert.equal(safeSource.includes('url.pathname = "/api/integrations/status"'), false);
   assert.equal(safeSource.includes("lifecycleRuntime.fetch(new Request(url"), false);
+
+  assert.equal(resolvePortalRole("admin@example.test", "viewer", JSON.stringify({ "admin@example.test": "admin" })), "admin");
+  assert.equal(resolvePortalRole("operator@example.test", "viewer", JSON.stringify({ "*": "operator" })), "operator");
+  assert.equal(resolvePortalRole("viewer@example.test", "viewer", "{"), "viewer");
+  assert.equal(portalRolePermissions.viewer.includes("settings.manage"), false);
+  assert.equal(portalRolePermissions.operator.includes("settings.manage"), false);
+  assert.equal(portalRolePermissions.admin.includes("settings.manage"), true);
 });
 
 test("malformed secret replacements cannot become D1 overrides", () => {

@@ -68,11 +68,13 @@ test("permissions reference tracks the canonical built-in permission order", asy
   ]);
 
   const codes = permissionCodes(source);
-  assert.equal(codes.length, 13, "unexpected canonical permission count; review this contract intentionally");
+  assert.equal(codes.length, 14, "unexpected canonical permission count; review this contract intentionally");
   for (const code of codes) assert.match(reference, new RegExp(`\\\`${code.replaceAll(".", "\\.")}\\\``));
 
+  assert.ok(codes.includes("backup.restore.preview"));
   assert.match(reference, /backup\.restore\.preview/);
-  assert.match(reference, /not.*canonical|not promoted to canonical|not.*promoted/iu);
+  assert.match(reference, /canonical|канонич/iu);
+  assert.doesNotMatch(reference, /backup\.restore\.preview[^\n]{0,180}(not canonical|not promoted|orphan)/iu);
 });
 
 test("API reference tracks known literal storage route constants", async () => {

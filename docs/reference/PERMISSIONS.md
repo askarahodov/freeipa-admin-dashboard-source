@@ -30,6 +30,7 @@ Role labels and the exact role-to-permission arrays are owned by `portal-permiss
 | `settings.manage` | Portal administration | Manage portal settings, audit/policy/metadata/diagnostic/admin-user/session surfaces that use this administrative capability. |
 | `backup.export` | Sanitized backup | Create the supported sanitized backup/export without secrets. |
 | `backup.export.encrypted` | Encrypted full backup | Create the supported full encrypted backup using the separate backup key boundary. |
+| `backup.restore.preview` | Restore preview | Perform the supported read-only backup restore preview before test or production restore. This capability is built-in `admin` only. |
 | `backup.restore.test` | Isolated restore | Test restore selected backup data in an isolated temporary database. |
 | `backup.restore.prepare` | Selective restore preparation | Preflight selective restore, create the required recovery point and stage a guarded restore. |
 | `backup.restore.commit` | Selective restore commit | Apply a prepared selective restore after the required revalidation and confirmation gates. |
@@ -78,6 +79,7 @@ Requester/approver separation, expiry and process-policy rules belong to the app
 | Portal settings/admin/audit/diagnostics | `settings.manage` | relevant settings/admin/session/audit/diagnostic handlers and tests |
 | Sanitized backup | `backup.export` | backup export owner/tests |
 | Full encrypted backup | `backup.export.encrypted` | encrypted backup owner/tests |
+| Backup restore preview | `backup.restore.preview` | backup import/encrypted preview route roots and tests |
 | Isolated restore | `backup.restore.test` | isolated restore owner/tests |
 | Selective restore stage | `backup.restore.prepare` | selective restore preflight/stage owner/tests |
 | Selective restore commit | `backup.restore.commit` | selective restore commit owner/tests |
@@ -86,16 +88,17 @@ Requester/approver separation, expiry and process-policy rules belong to the app
 
 This table is an orientation map, not a substitute for route-level tests.
 
-## Known RBAC ownership drift
+## RBAC ownership consolidation
 
-Current `main` still contains duplicate/orphan permission logic outside `portal-permissions.ts`. That distributed code is **not** promoted to canonical status by this document.
+Issue **#119 — consolidate duplicate and orphan portal RBAC owners** established the consolidation rule used by the current implementation:
 
-Known follow-up: **#119 — consolidate duplicate and orphan portal RBAC owners**. Discovery for #119 includes legacy/local permission mappings and the route-local `backup.restore.preview` capability. Until #119 is resolved:
+- `portal-permissions.ts` is the only runtime owner of portal role names, canonical permission vocabulary and built-in role-to-permission mappings;
+- `backup.restore.preview` is intentionally a distinct canonical capability because read-only restore preview is different from isolated test restore; it remains built-in `admin` only;
+- route roots consume canonical role/permission helpers instead of maintaining private permission maps;
+- identity/session adapters such as local-session and service-administrator wrappers may adapt identity or establish a purpose-specific trust boundary, but they must not create a second portal permission vocabulary;
+- `ADMIN_TOKEN`, recovery credentials and other service authorization mechanisms remain separate from portal RBAC.
 
-- use `portal-permissions.ts` as the canonical built-in role/permission registry;
-- inspect the exact route handler/test before assuming the canonical registry fully represents every historical route-local permission string;
-- do not add another permission registry to documentation or runtime;
-- do not silently remove route-local checks merely to make them match this table.
+If a route requires a permission that is absent from `portal-permissions.ts`, treat that as RBAC drift and resolve it deliberately rather than introducing a route-local permission string.
 
 ## Change checklist
 

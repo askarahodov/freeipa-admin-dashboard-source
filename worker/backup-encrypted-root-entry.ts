@@ -1,10 +1,14 @@
 import { createAuditContext, type AuditContext } from "../audit-log.ts";
 import type { BackupExportEnv } from "../backup-export.ts";
+import {
+  resolvePortalRole,
+  roleHasPermission,
+  type PortalPermission,
+  type PortalRole,
+} from "../portal-permissions.ts";
 import { handleEncryptedBackupExportRequest } from "./backup-encrypted-export-entry.ts";
 import { handleEncryptedBackupPreviewRequest } from "./backup-encrypted-preview-entry.ts";
 import { handleIsolatedBackupRestoreRequest } from "./backup-isolated-restore-entry.ts";
-
-type PortalRole = "viewer" | "operator" | "admin";
 
 export type EncryptedBackupAccessEnv = BackupExportEnv & {
   PORTAL_IDENTITY_MODE?: string;
@@ -26,10 +30,6 @@ export type EncryptedBackupDispatchDependencies = {
   createContext?: (access: EncryptedBackupAccess) => AuditContext;
 };
 
-function portalRole(value: unknown): PortalRole | null {
-  return value === "viewer" || value === "operator" || value === "admin" ? value : null;
-}
-
 function portalIdentity(request: Request, env: EncryptedBackupAccessEnv): string {
   const mode = String(env.PORTAL_IDENTITY_MODE ?? "").trim().toLowerCase();
   const configured = mode === "static" ? env.PORTAL_STATIC_IDENTITY : undefined;
@@ -44,24 +44,11 @@ export function encryptedBackupAccess(request: Request, env: EncryptedBackupAcce
       .split(",").map((value) => value.trim().toLowerCase())
       .filter((value) => value && value.length <= 120 && !/[\r\n]/.test(value)),
   )).slice(0, 100);
-
-  let role = portalRole(String(env.PORTAL_DEFAULT_ROLE || "").trim().toLowerCase()) ?? "admin";
-  if (env.PORTAL_RBAC_JSON) {
-    try {
-      const assignments = JSON.parse(env.PORTAL_RBAC_JSON) as unknown;
-      if (assignments && typeof assignments === "object" && !Array.isArray(assignments)) {
-        const normalized = Object.fromEntries(Object.entries(assignments as Record<string, unknown>)
-          .map(([key, value]) => [key.trim().toLowerCase(), value]));
-        role = portalRole(normalized[identity]) ?? portalRole(normalized["*"]) ?? role;
-      }
-    } catch {
-      // Invalid JSON never grants more than the configured default role.
-    }
-  }
+  const role = resolvePortalRole(identity, env.PORTAL_DEFAULT_ROLE, env.PORTAL_RBAC_JSON, "admin");
   return { identity, role, groups };
 }
 
-function denied(requiredPermission: string, role: PortalRole): Response {
+function denied(requiredPermission: PortalPermission, role: PortalRole): Response {
   return new Response(JSON.stringify({
     error: "Insufficient permission for this operation",
     requiredPermission,
@@ -84,12 +71,12 @@ export async function handleEncryptedBackupRoute(
   if (pathname !== exportPath && pathname !== previewPath && pathname !== testRestorePath) return null;
 
   const access = encryptedBackupAccess(request, env);
-  const requiredPermission = pathname === exportPath
+  const requiredPermission: PortalPermission = pathname === exportPath
     ? "backup.export.encrypted"
     : pathname === testRestorePath
       ? "backup.restore.test"
       : "backup.restore.preview";
-  if (access.role !== "admin") return denied(requiredPermission, access.role);
+  if (!roleHasPermission(access.role, requiredPermission)) return denied(requiredPermission, access.role);
 
   const context = (dependencies.createContext ?? createAuditContext)(access);
   if (pathname === exportPath) {

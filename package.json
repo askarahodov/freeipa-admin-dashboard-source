@@ -35,7 +35,7 @@
     "next": "16.3.0",
     "react": "19.2.6",
     "react-dom": "19.2.6",
-    "wrangler": "4.113.0"
+    "wrangler": "4.119.0"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.46.0",

@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { fileURLToPath } from "node:url";
 
 import { createFreeIpaGateway } from "./freeipa-gateway.mjs";
 import { loadWorkerArtifact, startNodeWorkerHost } from "./node-worker-host.mjs";
@@ -62,8 +63,8 @@ function createApplication({ env, worker }) {
     env,
     createDatabase,
     startHttp: ({ env: runtimeEnv }) => startNodeWorkerHost({
-      artifactPath: process.env.PORTAL_WORKER_ARTIFACT || "dist/server/index.js",
-      assetsRoot: process.env.PORTAL_ASSETS_ROOT || "dist/client",
+      artifactPath: runtimeEnv.PORTAL_WORKER_ARTIFACT || "dist/server/index.js",
+      assetsRoot: runtimeEnv.PORTAL_ASSETS_ROOT || "dist/client",
       worker,
       host: runtimeEnv.HOST || "0.0.0.0",
       port: Number(runtimeEnv.PORT || 3001),
@@ -100,7 +101,8 @@ export function createProductionRuntimeOptions({ env = process.env } = {}) {
 }
 
 async function main() {
-  const runtime = await createProductionRuntimeOptions().start(createProductionRuntimeOptions());
+  const options = createProductionRuntimeOptions();
+  const runtime = await options.start(options);
   const address = runtime.address;
   console.log(`Production runtime listening on ${address?.host ?? "unknown"}:${address?.port ?? "unknown"}`);
 
@@ -121,6 +123,6 @@ async function main() {
   process.once("SIGINT", () => void stop("SIGINT"));
 }
 
-if (process.argv[1] && new URL(import.meta.url).pathname === new URL(`file://${process.argv[1]}`).pathname) {
+if (process.argv[1] && fileURLToPath(import.meta.url) === fileURLToPath(new URL(`file://${process.argv[1]}`))) {
   await main();
 }

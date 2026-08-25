@@ -1,0 +1,53 @@
+name: Agent portal permissions patch
+
+on:
+  push:
+    branches:
+      - agent/ui-portal-permissions-integration
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: "!contains(github.event.head_commit.message, '[portal-permissions-patched]')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/ui-portal-permissions-integration
+          persist-credentials: true
+      - name: Apply RBAC canonical contract
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('app/page.tsx')
+          text = path.read_text()
+          required = 'import { portalRoleLabels, type PortalPermission, type PortalRole } from "../portal-permissions";'
+          if required not in text:
+              anchor = 'import { FREEIPA_DIRECTORY_CHANGED_EVENT, FREEIPA_OPEN_ACTION_EVENT, announceFreeIpaDirectoryChanged, type FreeIpaAction, type FreeIpaOperation } from "../freeipa-ui-events";\n'
+              if anchor not in text:
+                  raise SystemExit('import anchor not found')
+              text = text.replace(anchor, anchor + required + '\n', 1)
+          old_types = 'type PortalRole = "viewer" | "operator" | "admin";\ntype PortalPermission = "directory.read" | "freeipa.write" | "freeipa.delete" | "xyops.run" | "xyops.approve" | "settings.manage";\n'
+          if old_types not in text:
+              raise SystemExit('local RBAC types not found')
+          text = text.replace(old_types, '', 1)
+          old_labels = 'const roleLabels: Record<PortalRole, string> = { viewer: "Наблюдатель", operator: "Оператор", admin: "Администратор" };\n'
+          if old_labels not in text:
+              raise SystemExit('local roleLabels not found')
+          text = text.replace(old_labels, '', 1)
+          if 'roleLabels[integration.access.role]' not in text:
+              raise SystemExit('roleLabels usage not found')
+          text = text.replace('roleLabels[integration.access.role]', 'portalRoleLabels[integration.access.role]')
+          path.write_text(text)
+          PY
+          git diff --check
+          git diff -- app/page.tsx
+          git status --short
+          git add app/page.tsx
+          git rm .github/workflows/agent-portal-permissions-patch.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'refactor: consume canonical portal permission contract [portal-permissions-patched]'
+          git push origin HEAD:agent/ui-portal-permissions-integration

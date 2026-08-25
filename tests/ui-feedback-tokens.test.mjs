@@ -14,8 +14,8 @@ test("feedback surfaces consume semantic design tokens", () => {
     "--ui-color-info-border",
     "--ui-color-primary-border",
   ]) {
-    assert.match(tokens, new RegExp(token.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&"), "u"));
-    assert.match(css, new RegExp(`var\\(${token.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}\\)`, "u"));
+    assert.ok(tokens.includes(token), `missing token ${token}`);
+    assert.ok(css.includes(`var(${token})`), `CSS does not consume ${token}`);
   }
 });
 

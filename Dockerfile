@@ -24,20 +24,22 @@ ENTRYPOINT ["node", "--experimental-strip-types", "scripts/portal-recovery.ts"]
 FROM node:22-bookworm-slim AS runtime
 ENV NODE_ENV=production \
     PORT=3001 \
-    HOST=0.0.0.0
+    HOST=0.0.0.0 \
+    PORTAL_DATA_DIR=/data
 WORKDIR /app
-RUN apt-get update \
- && apt-get install -y --no-install-recommends util-linux \
- && rm -rf /var/lib/apt/lists/* /usr/local/lib/node_modules/npm \
- && rm -f /usr/local/bin/npm /usr/local/bin/npx
-RUN useradd --system --uid 10001 dashboard && mkdir -p /app/.wrangler && chown dashboard:dashboard /app/.wrangler
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx \
+ && useradd --system --uid 10001 dashboard \
+ && mkdir -p /data \
+ && chown dashboard:dashboard /data
 COPY --from=build --chown=dashboard:dashboard /app/package.json /app/package-lock.json ./
 COPY --from=production-dependencies --chown=dashboard:dashboard /app/node_modules ./node_modules
 COPY --from=build --chown=dashboard:dashboard /app/dist ./dist
 COPY --from=build --chown=dashboard:dashboard /app/.openai ./.openai
-COPY --from=build --chown=dashboard:dashboard /app/scripts/start-worker.mjs /app/scripts/config-encryption-key.mjs /app/scripts/identity-startup-policy.mjs /app/scripts/freeipa-gateway.mjs /app/scripts/run-portal-runtime.mjs ./scripts/
+COPY --from=build --chown=dashboard:dashboard /app/db ./db
+COPY --from=build --chown=dashboard:dashboard /app/runtime ./runtime
+COPY --from=build --chown=dashboard:dashboard /app/scripts/config-encryption-key.mjs /app/scripts/identity-startup-policy.mjs /app/scripts/freeipa-gateway.mjs /app/scripts/node-runtime-http.mjs /app/scripts/node-worker-host.mjs /app/scripts/start-production.mjs ./scripts/
 USER dashboard
 EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD ["node", "-e", "fetch('http://127.0.0.1:3001/health/live').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
-CMD ["node", "scripts/start-worker.mjs"]
+CMD ["node", "--experimental-strip-types", "scripts/start-production.mjs"]

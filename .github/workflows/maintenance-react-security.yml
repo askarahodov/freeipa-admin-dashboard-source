@@ -27,3 +27,5 @@ jobs:
           git diff --cached --quiet && exit 0
           git commit -m "security: update react-server-dom-webpack to 19.2.8"
           git push
+
+# Temporary one-shot maintenance workflow; remove before merge.

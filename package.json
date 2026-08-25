@@ -10,7 +10,7 @@
     "dev": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vite",
     "build": "bash scripts/build-verified.sh",
     "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext start",
-    "start:docker": "node --experimental-strip-types scripts/start-production.mjs",
+    "start:docker": "node scripts/start-worker.mjs",
     "recovery": "node --experimental-strip-types scripts/portal-recovery.ts",
     "test": "npm run build && node --experimental-strip-types --test tests/*.test.mjs",
     "test:recovery": "node --experimental-strip-types --test tests/recovery-*.test.mjs",

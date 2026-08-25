@@ -1,6 +1,8 @@
 name: One-shot React security lockfile maintenance
 
 on:
+  pull_request:
+    branches: [main]
   push:
     branches: [security/react-server-dom-1928]
 

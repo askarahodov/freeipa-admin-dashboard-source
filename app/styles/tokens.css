@@ -14,12 +14,19 @@
   --ui-color-primary-subtle: #f0edff;
   --ui-color-success: #177a52;
   --ui-color-success-subtle: #eaf7f0;
+  --ui-color-success-border: #b7dfc9;
   --ui-color-warning: #9a6700;
   --ui-color-warning-subtle: #fff6d8;
+  --ui-color-warning-border: #ecd58d;
   --ui-color-danger: #b42318;
+  --ui-color-danger-hover: #941c14;
   --ui-color-danger-subtle: #fff0ee;
+  --ui-color-danger-border: #edc2bd;
   --ui-color-info: #175cd3;
   --ui-color-info-subtle: #eff4ff;
+  --ui-color-info-border: #c7d7fe;
+  --ui-color-focus-subtle: #e9e6ff;
+  --ui-color-primary-border: #d6cff8;
   --ui-focus-ring: #7f6ee8;
 
   --ui-space-1: 4px;

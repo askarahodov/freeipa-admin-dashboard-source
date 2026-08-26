@@ -1,0 +1,48 @@
+name: One-shot Home presentation integration
+
+on:
+  push:
+    branches: [agent/home-presentation-integration]
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Integrate extracted presentation contract
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app/page.tsx')
+          s = p.read_text()
+          s = s.replace(
+            'import { buildHomePath, resolveHomeLocation, type HomePage } from "./shell/home-navigation";\n',
+            'import { buildHomePath, resolveHomeLocation, type HomePage } from "./shell/home-navigation";\nimport { buildAutomationSlug, resolveProcessIconGlyph } from "./shell/home-presentation";\n'
+          )
+          start = s.index('function automationSlug(value: string): string {')
+          end = s.index('\n\nconst routeOperations', start)
+          s = s[:start] + s[end+2:]
+          start = s.index('const processIconGlyphs: Record<string, string> =')
+          end = s.index('\n\nconst demoUsers:', start)
+          s = s[:start] + s[end+2:]
+          s = s.replace('automationSlug(', 'buildAutomationSlug(')
+          s = s.replace('processIconGlyph(', 'resolveProcessIconGlyph(')
+          p.write_text(s)
+
+          test = Path('tests/home-presentation-ui-integration.test.mjs')
+          test.write_text('''import assert from "node:assert/strict";\nimport { readFileSync } from "node:fs";\nimport test from "node:test";\n\nconst page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");\n\ntest("Home consumes the extracted presentation contract", () => {\n  assert.match(page, /from\\s+["']\\.\\/shell\\/home-presentation["']/u);\n  assert.match(page, /\\bbuildAutomationSlug\\(/u);\n  assert.match(page, /\\bresolveProcessIconGlyph\\(/u);\n  assert.doesNotMatch(page, /function\\s+automationSlug\\s*\\(/u);\n  assert.doesNotMatch(page, /function\\s+processIconGlyph\\s*\\(/u);\n  assert.doesNotMatch(page, /const\\s+processIconGlyphs\\b/u);\n});\n''')
+          PY
+      - name: Commit integration
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/page.tsx tests/home-presentation-ui-integration.test.mjs
+          git diff --cached --quiet && exit 0
+          git commit -m "ui: consume extracted home presentation contract"
+          git push
+
+# Temporary one-shot workflow; remove after generated integration commit.

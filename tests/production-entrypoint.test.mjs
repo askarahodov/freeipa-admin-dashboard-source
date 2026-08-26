@@ -60,3 +60,60 @@ test("production entrypoint composes the canonical runtime with one Worker artif
   assert.equal(runtime.ready(), false);
   assert.deepEqual(calls.slice(-4), ["http.close", "scheduler.stop", "gateway.close", "db.close"]);
 });
+
+test("canonical production runtime preserves XYOps runtime controls through application and scheduler boundaries", async () => {
+  const env = {
+    PORT: "3001",
+    XYOPS_RESULT_FILE_MAX_BYTES: "7340032",
+    XYOPS_CATALOG_SYNC_LOCK_TTL_SECONDS: "90",
+  };
+  const observed = [];
+  const worker = { fetch() {}, scheduled() {} };
+  const options = createProductionRuntimeOptions({ env });
+
+  options.loadWorker = async () => worker;
+  options.startGateway = async ({ env: startupEnv }) => ({
+    env: {
+      ...startupEnv,
+      IPA_NODE_GATEWAY_URL: "http://127.0.0.1:1",
+      IPA_NODE_GATEWAY_TOKEN: "test-token",
+    },
+    close: async () => {},
+  });
+  options.createApplication = async ({ env: runtimeEnv }) => {
+    observed.push([
+      "application",
+      runtimeEnv.XYOPS_RESULT_FILE_MAX_BYTES,
+      runtimeEnv.XYOPS_CATALOG_SYNC_LOCK_TTL_SECONDS,
+    ]);
+    return {
+      database: { DB: { marker: "db" }, close: async () => {} },
+      http: { close: async () => {} },
+      address: { host: "127.0.0.1", port: 3001 },
+    };
+  };
+  options.createScheduler = ({ env: runtimeEnv }) => {
+    observed.push([
+      "scheduler",
+      runtimeEnv.XYOPS_RESULT_FILE_MAX_BYTES,
+      runtimeEnv.XYOPS_CATALOG_SYNC_LOCK_TTL_SECONDS,
+    ]);
+    return { start() {}, async stop() {} };
+  };
+  options.createShutdownCoordinator = (shutdownOptions) => ({
+    async stop() {
+      shutdownOptions.markStopping();
+      await shutdownOptions.closeHttp();
+      await shutdownOptions.stopScheduler();
+      await shutdownOptions.closeGateway();
+      await shutdownOptions.closeDatabase();
+    },
+  });
+
+  const runtime = await options.start(options);
+  assert.deepEqual(observed, [
+    ["application", "7340032", "90"],
+    ["scheduler", "7340032", "90"],
+  ]);
+  await runtime.stop("SIGTERM");
+});

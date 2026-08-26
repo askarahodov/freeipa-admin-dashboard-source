@@ -54,7 +54,11 @@ export function createD1SqliteAdapter(database) {
     throw new Error("SQLite driver must provide prepare() and transaction()");
   }
 
-  const states = new WeakMap();
+  // Prepared statements can cross a Worker/runtime boundary that wraps objects in a
+  // transparent Proxy. WeakMap identity does not survive that wrapper, so keep a
+  // non-enumerable per-adapter brand on the statement itself as the canonical state.
+  const statementState = Symbol("d1-sqlite-adapter-statement-state");
+  const adapterToken = Object.freeze({});
 
   function isReader(state) {
     if (typeof state.statement.reader === "boolean") return state.statement.reader;
@@ -86,7 +90,7 @@ export function createD1SqliteAdapter(database) {
   }
 
   function wrap(statement, sql, params = []) {
-    const state = { statement, sql, params: [...params] };
+    const state = Object.freeze({ adapterToken, statement, sql, params: Object.freeze([...params]) });
     const prepared = {
       bind(...values) {
         return wrap(statement, sql, values);
@@ -107,7 +111,12 @@ export function createD1SqliteAdapter(database) {
         return execute(state, "run");
       },
     };
-    states.set(prepared, state);
+    Object.defineProperty(prepared, statementState, {
+      value: state,
+      enumerable: false,
+      writable: false,
+      configurable: false,
+    });
     return prepared;
   }
 
@@ -119,8 +128,10 @@ export function createD1SqliteAdapter(database) {
     async batch(preparedStatements) {
       if (!Array.isArray(preparedStatements)) throw new Error("batch() requires an array of prepared statements");
       const batchStates = preparedStatements.map((prepared) => {
-        const state = states.get(prepared);
-        if (!state) throw new Error("batch() accepts only statements prepared by this adapter");
+        const state = prepared?.[statementState];
+        if (!state || state.adapterToken !== adapterToken) {
+          throw new Error("batch() accepts only statements prepared by this adapter");
+        }
         return state;
       });
       const transaction = database.transaction(() => batchStates.map((state) => execute(state)));

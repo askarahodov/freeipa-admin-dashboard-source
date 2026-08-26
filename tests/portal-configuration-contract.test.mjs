@@ -53,6 +53,13 @@ test("every start-worker forwarded key has a canonical metadata record", async (
   }
 });
 
+test("canonical production startup transports the process environment without an allowlist", async () => {
+  const source = await readFile(new URL("scripts/start-production.mjs", repositoryRoot), "utf8");
+  assert.match(source, /createProductionRuntimeOptions\(\{ env = process\.env \} = \{\}\)/u);
+  assert.match(source, /const options = \{\s*env,/u);
+  assert.doesNotMatch(source, /forwardedKeys/u);
+});
+
 test("secret configuration records never permit status exposure", () => {
   for (const record of PORTAL_CONFIGURATION_CONTRACT.filter((item) => item.secret)) {
     assert.equal(record.exposure, "never", `${record.name} is secret and must not be exposed through bounded status metadata`);

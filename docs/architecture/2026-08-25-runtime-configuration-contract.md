@@ -15,7 +15,8 @@ Proposed implementation slice for issue #123.
 | Supported configuration metadata | `worker/portal-configuration-contract.ts` |
 | Production encryption-key validation | `scripts/config-encryption-key.mjs` |
 | Identity startup validation | `scripts/identity-startup-policy.mjs` |
-| Startup ENV transport | `scripts/start-worker.mjs` |
+| Production ENV transport | `scripts/start-production.mjs` (process environment pass-through) |
+| Legacy development ENV transport | `scripts/start-worker.mjs` |
 | Production/recovery Compose defaults and mounts | `compose.yaml` |
 | Persisted encrypted settings lifecycle | existing settings/integration domain |
 | Documentation | `docs/reference/CONFIGURATION.md` plus this contract |
@@ -67,16 +68,17 @@ Generated values such as `IPA_NODE_GATEWAY_URL` and `IPA_NODE_GATEWAY_TOKEN` are
 Tests may enforce exact relationships where semantics are mechanical:
 
 1. active assignments in `.env.example` must have registry records;
-2. explicit `start-worker.mjs` forwarded keys must have registry records;
-3. internal generated gateway variables must remain excluded;
-4. secret records must remain non-exposable;
-5. recovery records must remain explicitly classified.
+2. explicit legacy `start-worker.mjs` forwarded keys must have registry records;
+3. the canonical production entrypoint must retain process-environment pass-through without a production forwarding allowlist;
+4. internal generated gateway variables must remain excluded;
+5. secret records must remain non-exposable;
+6. recovery records must remain explicitly classified.
 
 The registry must not infer that a variable is production-supported merely because a repository-wide grep finds its name in tests or CI.
 
-## Known follow-up
+## Production transport after #51
 
-`XYOPS_RESULT_FILE_MAX_BYTES` and `XYOPS_CATALOG_SYNC_LOCK_TTL_SECONDS` are documented and consumed by runtime code but are not currently present in `start-worker.mjs`'s explicit `forwardedKeys`. This PR records that state and adds metadata; it does not change transport behavior. A behavior test and a separate runtime fix are required before changing startup forwarding.
+The canonical production entrypoint is `scripts/start-production.mjs`. It passes the process environment through the runtime composition into the Worker environment rather than rebuilding it from an explicit forwarding allowlist. `XYOPS_RESULT_FILE_MAX_BYTES` and `XYOPS_CATALOG_SYNC_LOCK_TTL_SECONDS` therefore remain operator runtime configuration without requiring additions to the legacy `start-worker.mjs` allowlist. Issue #188 should verify this behavior against the canonical production path before deciding whether any legacy-development forwarding change is still useful.
 
 ## Migration rule
 

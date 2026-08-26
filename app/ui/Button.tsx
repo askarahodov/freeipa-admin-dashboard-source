@@ -1,20 +1,23 @@
 import type { ButtonHTMLAttributes } from "react";
 import styles from "./ui.module.css";
 
-export type ButtonVariant = "primary" | "secondary" | "danger" | "ghost";
+export type ButtonVariant = "primary" | "secondary" | "danger" | "ghost" | "icon" | "sm";
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
+  size?: "sm" | "lg";
 }
 
 const variantClass: Record<ButtonVariant, string> = {
-  primary: styles.primary,
-  secondary: styles.secondary,
-  danger: styles.danger,
-  ghost: styles.ghost,
+  primary: "ds-btn-primary",
+  secondary: "ds-btn-secondary",
+  danger: "ds-btn-danger",
+  ghost: "ds-btn-ghost",
+  icon: "ds-btn-icon",
+  sm: "ds-btn-sm",
 };
 
-export function Button({ variant = "secondary", className, type, ...props }: ButtonProps) {
-  const classes = [styles.button, variantClass[variant], className].filter(Boolean).join(" ");
+export function Button({ variant = "secondary", size, className, type, ...props }: ButtonProps) {
+  const classes = ["ds-btn", variantClass[variant], size ? `ds-btn-${size}` : "", className].filter(Boolean).join(" ");
   return <button className={classes} type={type ?? "button"} {...props} />;
 }

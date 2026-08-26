@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { IconUsers, IconActivity, IconAudit } from "./icons";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
@@ -160,7 +161,7 @@ function PermissionMatrix({ currentRole, effectivePermissions }: { currentRole: 
         <div className="local-current-effective"><span>Текущая роль</span><strong>{portalRoleLabels[currentRole]}</strong><small>{effective.size} из {portalPermissionOrder.length} разрешений</small></div>
       </div>
       <div className="local-permission-table-wrap">
-        <table className="local-permission-table">
+        <table className="local-permission-table ds-table">
           <thead><tr><th>Разрешение</th>{portalRoles.map((role) => <th className={role === currentRole ? "current" : ""} key={role}>{portalRoleLabels[role]}</th>)}</tr></thead>
           <tbody>{portalPermissionOrder.map((permission) => {
             const metadata = portalPermissionMetadata[permission];
@@ -210,9 +211,9 @@ function SettingsTabs({ diagnostics }: { diagnostics: DiagnosticsPayload | null 
       </section>
 
       {activeTab === "access" && <section className="panel settings-link-grid">
-        <Link href="/access"><span>♙</span><div><strong>Пользователи и роли</strong><small>{summary.users} пользователей · {summary.admins} администраторов</small></div></Link>
-        <Link href="/sessions"><span>◷</span><div><strong>Активные сессии</strong><small>{summary.activeSessions} сессий · HttpOnly cookies</small></div></Link>
-        <Link href="/audit"><span>≣</span><div><strong>Аудит доступа</strong><small>RBAC, смены паролей и отзывы сессий</small></div></Link>
+        <Link href="/access"><span><IconUsers size={16} /></span><div><strong>Пользователи и роли</strong><small>{summary.users} пользователей · {summary.admins} администраторов</small></div></Link>
+        <Link href="/sessions"><span><IconActivity size={16} /></span><div><strong>Активные сессии</strong><small>{summary.activeSessions} сессий · HttpOnly cookies</small></div></Link>
+        <Link href="/audit"><span><IconAudit size={16} /></span><div><strong>Аудит доступа</strong><small>RBAC, смены паролей и отзывы сессий</small></div></Link>
       </section>}
 
       {activeTab === "diagnostics" && <section className="panel settings-diagnostics-summary">

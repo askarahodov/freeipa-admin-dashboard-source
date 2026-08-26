@@ -7,6 +7,7 @@ import "./diagnostics.css";
 import "./sessions.css";
 import "./local-administration-context.css";
 import "./settings-tabs.css";
+import "./settings-policy-editors.css";
 import "./portal-interaction-layer.css";
 import "./freeipa-user-browser.css";
 import "./freeipa-user-bulk.css";
@@ -15,11 +16,13 @@ import "./operation-explorer.css";
 import "./local-admin-session.css";
 import "./settings-lifecycle.css";
 import "./settings-source-resets.css";
+import "./design-system.css";
 import LocalAuthToolbar from "./LocalAuthToolbar";
 import LocalAdministrationContext from "./LocalAdministrationContext";
 import LocalAdminSessionBridge from "./LocalAdminSessionBridge";
 import SettingsLifecycleWizard from "./SettingsLifecycleWizard";
 import PortalInteractionLayer from "./PortalInteractionLayer";
+import { ToastProvider } from "./ui/Toast";
 import FreeIpaUserBrowser from "./FreeIpaUserBrowser";
 import FreeIpaGroupMemberBrowser from "./FreeIpaGroupMemberBrowser";
 import OperationExplorer from "./OperationExplorer";
@@ -54,15 +57,17 @@ export default function RootLayout({
   return (
     <html lang="ru">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <PortalInteractionLayer />
-        {children}
-        <FreeIpaUserBrowser />
-        <FreeIpaGroupMemberBrowser />
-        <OperationExplorer />
-        <LocalAdministrationContext />
-        <LocalAdminSessionBridge />
-        <SettingsLifecycleWizard />
-        <LocalAuthToolbar />
+        <ToastProvider>
+          <PortalInteractionLayer />
+          {children}
+          <FreeIpaUserBrowser />
+          <FreeIpaGroupMemberBrowser />
+          <OperationExplorer />
+          <LocalAdministrationContext />
+          <LocalAdminSessionBridge />
+          <SettingsLifecycleWizard />
+          <LocalAuthToolbar />
+        </ToastProvider>
       </body>
     </html>
   );

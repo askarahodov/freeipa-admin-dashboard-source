@@ -31,7 +31,7 @@ export function FormField({ id, label, children, helpText, error, required = fal
     "aria-describedby": describedBy,
     "aria-invalid": error ? true : children.props["aria-invalid"],
   });
-  const classes = [styles.field, error ? styles.fieldInvalid : "", className].filter(Boolean).join(" ");
+  const classes = ["ds-field", error ? "ds-field--invalid" : "", className].filter(Boolean).join(" ");
 
   return (
     <div className={classes}>
@@ -40,8 +40,8 @@ export function FormField({ id, label, children, helpText, error, required = fal
         {requirement.required ? <span className={styles.required}>Обязательно</span> : requirement.optional ? <span className={styles.optional}>Необязательно</span> : null}
       </label>
       {control}
-      {helpText ? <p className={styles.helpText} id={helpId}>{helpText}</p> : null}
-      {error ? <p className={styles.errorText} id={errorId}>{error}</p> : null}
+      {helpText ? <p className="ds-field-helper" id={helpId}>{helpText}</p> : null}
+      {error ? <p className="ds-field-error" id={errorId}>{error}</p> : null}
     </div>
   );
 }

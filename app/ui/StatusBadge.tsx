@@ -5,6 +5,7 @@ export type StatusTone = "neutral" | "success" | "warning" | "danger" | "info" |
 
 export interface StatusBadgeProps extends HTMLAttributes<HTMLSpanElement> {
   tone?: StatusTone;
+  badge?: boolean;
 }
 
 const toneClass: Record<StatusTone, string> = {
@@ -16,7 +17,20 @@ const toneClass: Record<StatusTone, string> = {
   primary: styles.statusPrimary,
 };
 
-export function StatusBadge({ tone = "neutral", className, ...props }: StatusBadgeProps) {
-  const classes = [styles.status, toneClass[tone], className].filter(Boolean).join(" ");
+const dsBadgeTone: Record<StatusTone, string> = {
+  neutral: "ds-badge-neutral",
+  success: "ds-badge-success",
+  warning: "ds-badge-warning",
+  danger: "ds-badge-danger",
+  info: "ds-badge-primary",
+  primary: "ds-badge-primary",
+};
+
+export function StatusBadge({ tone = "neutral", badge = false, className, ...props }: StatusBadgeProps) {
+  const classes = [
+    badge ? "ds-badge" : styles.status,
+    badge ? dsBadgeTone[tone] : toneClass[tone],
+    className,
+  ].filter(Boolean).join(" ");
   return <span className={classes} data-tone={tone} {...props} />;
 }

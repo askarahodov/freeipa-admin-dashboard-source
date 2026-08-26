@@ -6,7 +6,8 @@ export type HomePage =
   | "operations"
   | "approvals"
   | "audit"
-  | "settings";
+  | "settings"
+  | "showcase";
 
 export interface HomeAutomationSection {
   category: string;
@@ -27,6 +28,7 @@ export const HOME_PAGE_PATHS: Record<HomePage, string> = {
   approvals: "/approvals",
   audit: "/audit",
   settings: "/settings",
+  showcase: "/showcase",
 };
 
 function normalizePath(pathname: string): string {

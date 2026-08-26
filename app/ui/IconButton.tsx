@@ -6,6 +6,6 @@ export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonEle
 }
 
 export function IconButton({ className, type, ...props }: IconButtonProps) {
-  const classes = [styles.iconButton, className].filter(Boolean).join(" ");
+  const classes = [styles.iconButton, "ds-btn-icon", className].filter(Boolean).join(" ");
   return <button className={classes} type={type ?? "button"} {...props} />;
 }

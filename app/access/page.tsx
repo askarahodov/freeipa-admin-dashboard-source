@@ -263,22 +263,22 @@ export default function AccessPage() {
 
       <form className="access-panel access-create-form" onSubmit={createUser}>
         <div className="access-section-title"><div><span className="eyebrow">NEW USER</span><h2>Создать пользователя портала</h2></div></div>
-        <label>Логин<input value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value })} placeholder="operator01" required /></label>
-        <label>Отображаемое имя<input value={form.displayName} onChange={(event) => setForm({ ...form, displayName: event.target.value })} placeholder="Оператор портала" /></label>
-        <label>Пароль<input type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} minLength={12} autoComplete="new-password" required /><small>От 12 до 256 символов</small></label>
-        <label>Подтверждение<input type="password" value={form.confirmation} onChange={(event) => setForm({ ...form, confirmation: event.target.value })} minLength={12} autoComplete="new-password" required /></label>
-        <label>Роль<select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value as PortalRole })}><option value="viewer">Наблюдатель</option><option value="operator">Оператор</option><option value="admin">Администратор</option></select></label>
-        <button className="primary">Создать</button>
+        <div className="ds-field"><label>Логин</label><input className="ds-input" value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value })} placeholder="operator01" required /></div>
+        <div className="ds-field"><label>Отображаемое имя</label><input className="ds-input" value={form.displayName} onChange={(event) => setForm({ ...form, displayName: event.target.value })} placeholder="Оператор портала" /></div>
+        <div className="ds-field"><label>Пароль</label><input className="ds-input" type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} minLength={12} autoComplete="new-password" required /><span className="ds-field-helper">От 12 до 256 символов</span></div>
+        <div className="ds-field"><label>Подтверждение</label><input className="ds-input" type="password" value={form.confirmation} onChange={(event) => setForm({ ...form, confirmation: event.target.value })} minLength={12} autoComplete="new-password" required /></div>
+        <div className="ds-field"><label>Роль</label><select className="ds-select" value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value as PortalRole })}><option value="viewer">Наблюдатель</option><option value="operator">Оператор</option><option value="admin">Администратор</option></select></div>
+        <button className="ds-btn ds-btn-primary">Создать</button>
       </form>
 
       <section className="access-panel">
         <div className="access-section-title">
           <div><span className="eyebrow">USERS</span><h2>Локальные пользователи</h2></div>
           <div className="access-tools">
-            <input aria-label="Поиск локальных пользователей" placeholder="Поиск…" value={query} onChange={(event) => setQuery(event.target.value)} />
-            <select aria-label="Фильтр по роли" value={roleFilter} onChange={(event) => setRoleFilter(event.target.value as RoleFilter)}><option value="all">Все роли</option><option value="viewer">Наблюдатели</option><option value="operator">Операторы</option><option value="admin">Администраторы</option></select>
-            <select aria-label="Фильтр по состоянию" value={stateFilter} onChange={(event) => setStateFilter(event.target.value as StateFilter)}><option value="all">Все состояния</option><option value="active">Активные</option><option value="disabled">Отключённые</option><option value="locked">Заблокированные</option></select>
-            <button className="secondary" onClick={() => void load()} disabled={loading}>{loading ? "Обновление…" : "Обновить"}</button>
+            <input className="ds-input" aria-label="Поиск локальных пользователей" placeholder="Поиск…" value={query} onChange={(event) => setQuery(event.target.value)} />
+            <select className="ds-select" aria-label="Фильтр по роли" value={roleFilter} onChange={(event) => setRoleFilter(event.target.value as RoleFilter)}><option value="all">Все роли</option><option value="viewer">Наблюдатели</option><option value="operator">Операторы</option><option value="admin">Администраторы</option></select>
+            <select className="ds-select" aria-label="Фильтр по состоянию" value={stateFilter} onChange={(event) => setStateFilter(event.target.value as StateFilter)}><option value="all">Все состояния</option><option value="active">Активные</option><option value="disabled">Отключённые</option><option value="locked">Заблокированные</option></select>
+            <button className="ds-btn ds-btn-secondary" disabled={loading}>{loading ? "Обновление…" : "Обновить"}</button>
           </div>
         </div>
         <div className="access-users">
@@ -296,17 +296,17 @@ export default function AccessPage() {
                   {locked && <b className="access-badge warning">Временно заблокирован</b>}
                 </div>
                 <div className="access-user-controls">
-                  <label>Отображаемое имя<input value={editingNames[user.id] ?? user.displayName} onChange={(event) => setEditingNames({ ...editingNames, [user.id]: event.target.value })} /></label>
-                  <button className="secondary" disabled={!displayNameChanged} onClick={() => void saveDisplayName(user)}>Сохранить имя</button>
-                  <label>Роль<select value={user.role} disabled={own} onChange={(event) => void updateUser(user, { role: event.target.value }, "Роль пользователя обновлена")}><option value="viewer">Наблюдатель</option><option value="operator">Оператор</option><option value="admin">Администратор</option></select></label>
-                  <label className="access-switch"><input type="checkbox" checked={!user.disabled} disabled={own} onChange={(event) => void updateUser(user, { disabled: !event.target.checked }, event.target.checked ? "Пользователь включён" : "Пользователь отключён")} /> Активен</label>
+                  <div className="ds-field"><label>Отображаемое имя</label><input className="ds-input" value={editingNames[user.id] ?? user.displayName} onChange={(event) => setEditingNames({ ...editingNames, [user.id]: event.target.value })} /></div>
+                  <button className="ds-btn ds-btn-secondary ds-btn-sm" disabled={!displayNameChanged} onClick={() => void saveDisplayName(user)}>Сохранить имя</button>
+                  <div className="ds-field"><label>Роль</label><select className="ds-select" value={user.role} disabled={own} onChange={(event) => void updateUser(user, { role: event.target.value }, "Роль пользователя обновлена")}><option value="viewer">Наблюдатель</option><option value="operator">Оператор</option><option value="admin">Администратор</option></select></div>
+                  <label className="ds-checkbox access-switch"><input type="checkbox" checked={!user.disabled} disabled={own} onChange={(event) => void updateUser(user, { disabled: !event.target.checked }, event.target.checked ? "Пользователь включён" : "Пользователь отключён")} /> Активен</label>
                 </div>
                 <div className="access-user-meta"><span>Последний вход: <b>{formatDate(user.lastLoginAt)}</b></span><span>Активные сессии: <b>{user.activeSessions}</b></span><span>Неудачные попытки: <b>{user.failedAttempts}</b></span>{locked && <span>Блокировка до: <b>{formatDate(user.lockedUntil)}</b></span>}</div>
                 <div className="access-user-actions">
-                  <button className="secondary" onClick={() => setPasswordDialog({ user, password: "", confirmation: "", submitting: false })}>Сменить пароль</button>
-                  {locked && <button className="secondary" onClick={() => void updateUser(user, { disabled: false }, "Пользователь разблокирован")}>Разблокировать</button>}
-                  <button className="secondary" disabled={user.activeSessions < 1} onClick={() => void revokeSessions(user)}>Отозвать сессии</button>
-                  <button className="danger-button" disabled={own} onClick={() => void deleteUser(user)}>Удалить</button>
+                  <button className="ds-btn ds-btn-secondary ds-btn-sm" onClick={() => setPasswordDialog({ user, password: "", confirmation: "", submitting: false })}>Сменить пароль</button>
+                  {locked && <button className="ds-btn ds-btn-secondary ds-btn-sm" onClick={() => void updateUser(user, { disabled: false }, "Пользователь разблокирован")}>Разблокировать</button>}
+                  <button className="ds-btn ds-btn-secondary ds-btn-sm" disabled={user.activeSessions < 1} onClick={() => void revokeSessions(user)}>Отозвать сессии</button>
+                  <button className="ds-btn ds-btn-danger ds-btn-sm" disabled={own} onClick={() => void deleteUser(user)}>Удалить</button>
                 </div>
               </article>
             );
@@ -320,9 +320,9 @@ export default function AccessPage() {
           <form className="modal" onSubmit={submitPassword} onMouseDown={(event) => event.stopPropagation()}>
             <button className="modal-close" type="button" aria-label="Закрыть" disabled={passwordDialog.submitting} onClick={() => setPasswordDialog(null)}>×</button>
             <div><span className="eyebrow">PASSWORD RESET</span><h2>Сменить пароль</h2><p>Пользователь: <strong>{passwordDialog.user.username}</strong>. После сохранения все его активные сессии будут отозваны.</p></div>
-            <label>Новый пароль<input type="password" minLength={12} maxLength={256} autoComplete="new-password" value={passwordDialog.password} onChange={(event) => setPasswordDialog({ ...passwordDialog, password: event.target.value })} required /><small>От 12 до 256 символов</small></label>
-            <label>Подтверждение пароля<input type="password" minLength={12} maxLength={256} autoComplete="new-password" value={passwordDialog.confirmation} onChange={(event) => setPasswordDialog({ ...passwordDialog, confirmation: event.target.value })} required /></label>
-            <div className="modal-actions"><button className="secondary" type="button" disabled={passwordDialog.submitting} onClick={() => setPasswordDialog(null)}>Отмена</button><button className="primary" disabled={passwordDialog.submitting}>{passwordDialog.submitting ? "Сохранение…" : "Сменить пароль"}</button></div>
+            <div className="ds-field"><label>Новый пароль</label><input className="ds-input" type="password" minLength={12} maxLength={256} autoComplete="new-password" value={passwordDialog.password} onChange={(event) => setPasswordDialog({ ...passwordDialog, password: event.target.value })} required /><span className="ds-field-helper">От 12 до 256 символов</span></div>
+            <div className="ds-field"><label>Подтверждение пароля</label><input className="ds-input" type="password" minLength={12} maxLength={256} autoComplete="new-password" value={passwordDialog.confirmation} onChange={(event) => setPasswordDialog({ ...passwordDialog, confirmation: event.target.value })} required /></div>
+            <div className="modal-actions"><button className="ds-btn ds-btn-secondary" type="button" disabled={passwordDialog.submitting} onClick={() => setPasswordDialog(null)}>Отмена</button><button className="ds-btn ds-btn-primary" disabled={passwordDialog.submitting}>{passwordDialog.submitting ? "Сохранение…" : "Сменить пароль"}</button></div>
           </form>
         </div>
       )}

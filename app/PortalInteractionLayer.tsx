@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { IconClose, IconRefresh, IconWarning, IconTimer, IconBlock, IconRepeat } from "./icons";
 
 type FeedbackKind = "forbidden" | "timeout" | "conflict" | "rate-limit" | "unavailable" | "error";
 
@@ -227,18 +228,18 @@ export default function PortalInteractionLayer() {
     <div className={`portal-request-progress ${pending > 0 ? "active" : ""}`} aria-hidden="true"><span /></div>
     <aside className="portal-feedback-stack" aria-live="polite">
       {feedback.map((item) => <article className={`portal-feedback-card ${item.kind}`} key={item.id}>
-        <div className="portal-feedback-icon">{item.kind === "forbidden" ? "⊘" : item.kind === "conflict" ? "↻" : item.kind === "rate-limit" ? "◷" : item.kind === "timeout" ? "⌛" : "!"}</div>
+        <div className="portal-feedback-icon">{item.kind === "forbidden" ? <IconBlock size={18} /> : item.kind === "conflict" ? <IconRepeat size={18} /> : item.kind === "rate-limit" ? <IconTimer size={18} /> : item.kind === "timeout" ? <IconTimer size={18} /> : <IconWarning size={18} />}</div>
         <div><strong>{item.title}</strong><p>{item.message}</p><small>{item.status ? `HTTP ${item.status} · ` : ""}{item.method} {item.path}{item.retryAfter ? ` · повтор после ${item.retryAfter}` : ""}</small></div>
-        <div className="portal-feedback-actions">{["GET", "HEAD"].includes(item.method) && <button data-portal-confirmation-control="1" onClick={() => window.location.reload()}>Обновить</button>}<button data-portal-confirmation-control="1" aria-label="Закрыть сообщение" onClick={() => setFeedback((items) => items.filter((entry) => entry.id !== item.id))}>×</button></div>
+        <div className="portal-feedback-actions">{["GET", "HEAD"].includes(item.method) && <button data-portal-confirmation-control="1" onClick={() => window.location.reload()}><IconRefresh size={14} /> Обновить</button>}{<button data-portal-confirmation-control="1" aria-label="Закрыть сообщение" onClick={() => setFeedback((items) => items.filter((entry) => entry.id !== item.id))}><IconClose size={16} /></button>}</div>
       </article>)}
     </aside>
     {confirmation && <div className="portal-confirm-backdrop" role="presentation" onMouseDown={() => setConfirmation(null)}>
       <section className={`portal-confirm-dialog ${confirmation.tone}`} role="alertdialog" aria-modal="true" aria-labelledby="portal-confirm-title" onMouseDown={(event) => event.stopPropagation()}>
-        <div className="portal-confirm-symbol">{confirmation.tone === "danger" ? "!" : "◇"}</div>
+        <div className="portal-confirm-symbol">{confirmation.tone === "danger" ? <IconWarning size={24} /> : <IconBlock size={24} />}</div>
         <div><span className="eyebrow">ПРОВЕРКА ДЕЙСТВИЯ</span><h2 id="portal-confirm-title">{confirmation.title}</h2><p>{confirmation.message}</p></div>
-        {confirmation.requireReason && <label>Причина отклонения<textarea autoFocus value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Опишите причину для инициатора и аудита" /><small>Минимум 3 символа</small></label>}
-        {confirmation.requireDeletePhrase && <label>Контрольная фраза<input autoFocus value={deletePhrase} onChange={(event) => setDeletePhrase(event.target.value)} placeholder="УДАЛИТЬ" autoComplete="off" /><small>Введите УДАЛИТЬ заглавными или строчными буквами</small></label>}
-        <div className="portal-confirm-actions"><button className="secondary" data-portal-confirmation-control="1" onClick={() => setConfirmation(null)}>Отмена</button><button className={confirmation.tone === "danger" ? "danger-button" : "primary"} data-portal-confirmation-control="1" disabled={!canConfirm} onClick={confirmAction}>{confirmation.confirmLabel}</button></div>
+        {confirmation.requireReason && <div className="ds-field"><label>Причина отклонения</label><textarea className="ds-textarea" autoFocus value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Опишите причину для инициатора и аудита" /><span className="ds-field-helper">Минимум 3 символа</span></div>}
+        {confirmation.requireDeletePhrase && <div className="ds-field"><label>Контрольная фраза</label><input className="ds-input" autoFocus value={deletePhrase} onChange={(event) => setDeletePhrase(event.target.value)} placeholder="УДАЛИТЬ" autoComplete="off" /><span className="ds-field-helper">Введите УДАЛИТЬ заглавными или строчными буквами</span></div>}
+        <div className="portal-confirm-actions"><button className="ds-btn ds-btn-secondary" data-portal-confirmation-control="1" onClick={() => setConfirmation(null)}>Отмена</button><button className={confirmation.tone === "danger" ? "ds-btn ds-btn-danger" : "ds-btn ds-btn-primary"} data-portal-confirmation-control="1" disabled={!canConfirm} onClick={confirmAction}>{confirmation.confirmLabel}</button></div>
       </section>
     </div>}
   </>;

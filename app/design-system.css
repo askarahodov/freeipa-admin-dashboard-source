@@ -1,0 +1,1460 @@
+/* ==========================================================================
+   Unified design system
+   Цель: единый стандарт контролов, кнопок и модальных окон по всему
+   приложению. Файл импортируется последним, поэтому побеждает в
+   равной специфичности с правилами globals.css.
+   ========================================================================== */
+
+:root {
+  /* Радиусы */
+  --ds-radius-sm: 6px;
+  --ds-radius-md: 8px;
+  --ds-radius-control: 10px;
+  --ds-radius-card: 14px;
+  --ds-radius-pill: 999px;
+
+  /* Spacing */
+  --ds-space-1: 4px;
+  --ds-space-2: 8px;
+  --ds-space-3: 12px;
+  --ds-space-4: 16px;
+  --ds-space-5: 20px;
+  --ds-space-6: 24px;
+  --ds-space-8: 32px;
+  --ds-space-10: 40px;
+
+  /* Контролы */
+  --ds-control-h: 40px;
+  --ds-control-h-sm: 32px;
+  --ds-control-border: #d8dae0;
+  --ds-control-border-hover: #b8bcc4;
+  --ds-control-bg: #ffffff;
+  --ds-control-text: #20222c;
+  --ds-control-muted: #71717a;
+  --ds-control-font: 14px;
+  --ds-control-radius: 10px;
+  --ds-focus-border: #937be9;
+  --ds-focus-ring: 0 0 0 3px rgba(118, 86, 232, 0.14);
+  --ds-control-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+  --ds-control-shadow-md: 0 4px 6px -1px rgba(16, 24, 40, 0.08), 0 2px 4px -1px rgba(16, 24, 40, 0.04);
+
+  /* Валидация */
+  --ds-error: #dc3545;
+  --ds-error-bg: #fff5f5;
+  --ds-error-border: #e8aeb1;
+  --ds-error-ring: 0 0 0 3px rgba(220, 53, 69, 0.12);
+  --ds-error-text: #c63840;
+  --ds-success: #198754;
+  --ds-success-bg: #f0fdf4;
+  --ds-success-border: #86efac;
+  --ds-success-ring: 0 0 0 3px rgba(25, 135, 84, 0.12);
+  --ds-success-text: #166534;
+  --ds-warning: #d79a35;
+  --ds-warning-bg: #fffbeb;
+  --ds-warning-border: #fcd34d;
+  --ds-warning-ring: 0 0 0 3px rgba(217, 154, 53, 0.12);
+  --ds-warning-text: #92400e;
+
+  /* Кнопки */
+  --ds-btn-h: 40px;
+  --ds-btn-h-sm: 32px;
+  --ds-btn-h-lg: 48px;
+  --ds-btn-radius: 10px;
+  --ds-btn-font: 14px;
+
+  /* Shadows */
+  --ds-shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.05);
+  --ds-shadow-md: 0 4px 6px -1px rgba(16, 24, 40, 0.08), 0 2px 4px -1px rgba(16, 24, 40, 0.04);
+  --ds-shadow-lg: 0 10px 15px -3px rgba(16, 24, 40, 0.08), 0 4px 6px -2px rgba(16, 24, 40, 0.04);
+  --ds-shadow-xl: 0 20px 25px -5px rgba(16, 24, 40, 0.1), 0 10px 10px -5px rgba(16, 24, 40, 0.04);
+}
+
+/* --------------------------------------------------------------------------
+   1. Единые текстовые контролы (input / select / textarea)
+   -------------------------------------------------------------------------- */
+.settings-card input,
+.settings-card select,
+.settings-card textarea,
+.modal input,
+.modal select,
+.modal textarea,
+.settings-access input,
+.settings-access select,
+.policy-field input,
+.policy-field select,
+.policy-field textarea,
+.route-editor input,
+.route-editor select,
+.tag-input,
+.identity-modal input,
+.identity-modal select,
+.freeipa-user-browser input,
+.freeipa-group-member-browser input,
+.local-admin-session input,
+.diagnostics input,
+.diagnostics select,
+.sessions input,
+.sessions select,
+.access-create-form input,
+.access-create-form select,
+.access-create-form textarea,
+.access-user-controls input,
+.access-user-controls select,
+.access-user-controls textarea,
+.generated-form input,
+.generated-form select,
+.generated-form textarea,
+.dynamic-fields input,
+.dynamic-fields select,
+.dynamic-fields textarea,
+.generated-root input,
+.generated-root select,
+.generated-root textarea,
+.search-row input,
+.search-row select,
+.search-row textarea,
+.portal-interaction-layer input,
+.portal-interaction-layer select,
+.portal-interaction-layer textarea,
+.settings-lifecycle input,
+.settings-lifecycle select,
+.settings-lifecycle textarea,
+.persistence-strip input,
+.persistence-strip select,
+.persistence-strip textarea,
+.audit-filters input,
+.audit-filters select,
+.audit-filters textarea {
+  height: var(--ds-control-h);
+  padding: 0 14px;
+  border: 1px solid var(--ds-control-border);
+  border-radius: var(--ds-radius-control);
+  background: var(--ds-control-bg);
+  color: var(--ds-control-text);
+  font-size: var(--ds-control-font);
+  line-height: 1.4;
+  outline: none;
+  box-shadow: var(--ds-control-shadow);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  width: 100%;
+  min-width: 0;
+}
+
+.settings-card textarea,
+.modal textarea,
+.policy-field textarea,
+.identity-modal textarea {
+  height: auto;
+  padding: 11px 14px;
+  min-height: 110px;
+  resize: vertical;
+  line-height: 1.55;
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+
+/* Фокус — один и тот же для всех полей */
+.settings-card input:focus,
+.settings-card select:focus,
+.settings-card textarea:focus,
+.modal input:focus,
+.modal select:focus,
+.modal textarea:focus,
+.settings-access input:focus,
+.settings-access select:focus,
+.policy-field input:focus,
+.policy-field select:focus,
+.policy-field textarea:focus,
+.route-editor input:focus,
+.route-editor select:focus,
+.tag-input:focus-within,
+.identity-modal input:focus,
+.identity-modal select:focus,
+.access-create-form input:focus,
+.access-create-form select:focus,
+.access-create-form textarea:focus,
+.access-user-controls input:focus,
+.access-user-controls select:focus,
+.access-user-controls textarea:focus,
+.generated-form input:focus,
+.generated-form select:focus,
+.generated-form textarea:focus,
+.dynamic-fields input:focus,
+.dynamic-fields select:focus,
+.dynamic-fields textarea:focus,
+.generated-root input:focus,
+.generated-root select:focus,
+.generated-root textarea:focus,
+.search-row input:focus,
+.search-row select:focus,
+.search-row textarea:focus,
+.portal-interaction-layer input:focus,
+.portal-interaction-layer select:focus,
+.portal-interaction-layer textarea:focus,
+.settings-lifecycle input:focus,
+.settings-lifecycle select:focus,
+.settings-lifecycle textarea:focus,
+.persistence-strip input:focus,
+.persistence-strip select:focus,
+.persistence-strip textarea:focus,
+.audit-filters input:focus,
+.audit-filters select:focus,
+.audit-filters textarea:focus {
+  border-color: var(--ds-focus-border);
+  box-shadow: var(--ds-focus-ring);
+}
+
+/* Placeholder */
+.settings-card input::placeholder,
+.modal input::placeholder,
+.settings-access input::placeholder,
+.policy-field input::placeholder,
+.route-editor input::placeholder,
+.tag-input input::placeholder,
+.identity-modal input::placeholder,
+.access-create-form input::placeholder,
+.access-create-form select::placeholder,
+.access-create-form textarea::placeholder,
+.access-user-controls input::placeholder,
+.access-user-controls select::placeholder,
+.access-user-controls textarea::placeholder,
+.generated-form input::placeholder,
+.generated-form select::placeholder,
+.generated-form textarea::placeholder,
+.dynamic-fields input::placeholder,
+.dynamic-fields select::placeholder,
+.dynamic-fields textarea::placeholder,
+.generated-root input::placeholder,
+.generated-root select::placeholder,
+.generated-root textarea::placeholder,
+.search-row input::placeholder,
+.search-row select::placeholder,
+.search-row textarea::placeholder,
+.portal-interaction-layer input::placeholder,
+.portal-interaction-layer select::placeholder,
+.portal-interaction-layer textarea::placeholder,
+.settings-lifecycle input::placeholder,
+.settings-lifecycle select::placeholder,
+.settings-lifecycle textarea::placeholder,
+.persistence-strip input::placeholder,
+.persistence-strip select::placeholder,
+.persistence-strip textarea::placeholder,
+.audit-filters input::placeholder,
+.audit-filters select::placeholder,
+.audit-filters textarea::placeholder {
+  color: #9a9da5;
+}
+
+/* Селекты — единая высота стрелки (только одиночные) */
+select:not([multiple]) {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%2371717a' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-right: 36px;
+}
+
+/* Чипы-теги внутри tag-input */
+.tag-input {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  min-height: var(--ds-control-h);
+}
+.tag-input input {
+  height: 26px;
+  padding: 0 4px;
+  border: 0;
+  box-shadow: none;
+  width: auto;
+  flex: 1;
+  min-width: 90px;
+}
+.tag-input:focus-within {
+  border-color: var(--ds-focus-border);
+  box-shadow: var(--ds-focus-ring);
+}
+
+/* --------------------------------------------------------------------------
+   2. Единые кнопки
+   -------------------------------------------------------------------------- */
+.primary,
+.secondary,
+.filter,
+.category-tabs button,
+.generated-nav button,
+.audit-filters button,
+.modal-actions button,
+.route-actions button,
+.group-actions button,
+.settings-lifecycle-actions button,
+.policy-add button,
+.rule-card-actions button,
+.access-create-form .primary,
+.access-create-form .secondary,
+.generated-form .primary,
+.generated-form .secondary,
+.dynamic-fields .primary,
+.dynamic-fields .secondary,
+.generated-root .primary,
+.generated-root .secondary,
+.search-row .primary,
+.search-row .secondary,
+.portal-interaction-layer .primary,
+.portal-interaction-layer .secondary,
+.settings-lifecycle .primary,
+.settings-lifecycle .secondary,
+.persistence-strip .primary,
+.persistence-strip .secondary,
+.audit-filters .primary,
+.audit-filters .secondary {
+  height: var(--ds-btn-h);
+  padding: 0 16px;
+  border-radius: var(--ds-btn-radius);
+  font-size: var(--ds-btn-font);
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  line-height: 1;
+  white-space: nowrap;
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.05s ease;
+}
+
+.primary:active,
+.secondary:active,
+.filter:active {
+  transform: translateY(1px);
+}
+
+/* Кнопки поменьше внутри плотных списков */
+.row-actions button,
+.catalog-grid article > .secondary,
+.group-actions button,
+.rule-card-actions button.link-danger,
+.policy-add button {
+  height: 34px;
+  padding: 0 12px;
+  font-size: 12px;
+  border-radius: 8px;
+}
+
+.primary {
+  background: var(--violet);
+  border: 1px solid var(--violet);
+  color: #fff;
+  box-shadow: 0 5px 14px rgba(118, 86, 232, 0.22);
+}
+.primary:hover { background: #6544d2; border-color: #6544d2; }
+.primary:disabled { background: #c9bdf0; border-color: #c9bdf0; box-shadow: none; cursor: not-allowed; }
+
+.secondary {
+  background: #fff;
+  border: 1px solid #d7d9df;
+  color: #454851;
+}
+.secondary:hover { border-color: #b9bcc4; background: #fafafa; }
+.secondary:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* Кнопка «опасное» действие */
+.danger-button,
+.danger-link,
+.link-danger {
+  border-radius: var(--ds-btn-radius);
+  font-weight: 600;
+}
+.danger-button {
+  border: 1px solid #e8aeb1;
+  background: #fff5f5;
+  color: #c63840;
+  height: var(--ds-btn-h);
+  padding: 0 16px;
+  font-size: var(--ds-btn-font);
+}
+.danger-button:hover { background: #ffeaea; }
+.danger-link,
+.link-danger {
+  border: 1px solid #efd0d2;
+  background: #fff8f8;
+  color: #c63840;
+  height: 34px;
+  padding: 0 12px;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* --------------------------------------------------------------------------
+   3. Модальные окна — единый стандарт, без обрезаний
+   -------------------------------------------------------------------------- */
+.modal-backdrop {
+  display: grid;
+  place-items: center;
+  align-items: start;            /* центрируем по горизонтали, но не обрезаем сверху */
+  overflow-y: auto;              /* скролл, если окно выше вьюпорта */
+  padding: 6vh 20px;
+  background: rgba(17, 19, 28, 0.62);
+  backdrop-filter: blur(3px);
+}
+
+.modal {
+  width: min(560px, 100%);
+  max-height: none;
+  background: #fff;
+  border-radius: var(--ds-radius-card);
+  border: 1px solid #eef0f3;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.32);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;             /* скруглённые углы */
+}
+
+/* Внутренние отступы: шапка / тело / подвал */
+.modal > * { padding-left: 26px; padding-right: 26px; }
+.modal > .modal-x { padding: 0; }
+
+.modal h2 {
+  font-size: 20px;
+  letter-spacing: -0.3px;
+  margin: 0;
+}
+.modal p { color: var(--ds-control-muted); font-size: 13px; margin: 0; }
+
+.modal-x {
+  position: absolute;
+  right: 16px;
+  top: 16px;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  border: 0;
+  background: #f3f4f6;
+  color: #555b67;
+  font-size: 22px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  z-index: 2;
+}
+.modal-x:hover { background: #e7e9ee; color: #20222c; }
+
+/* Тело модалки скроллится при необходимости */
+.modal > :not(.modal-x):not(.modal-actions) {
+  padding-top: 18px;
+  padding-bottom: 18px;
+}
+
+/* Подвал с действиями — прижат к низу, с разделителем */
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 18px;
+  padding-bottom: 22px;
+  border-top: 1px solid var(--line);
+  background: #fcfcfd;
+  position: sticky;
+  bottom: 0;
+}
+
+/* Специфичные модалки: сохраняем ширину, но единый скролл */
+.identity-modal,
+.run-details-modal,
+.schema-review-modal,
+.dynamic-modal,
+.process-modal {
+  width: min(760px, 100%);
+  max-height: min(880px, 92vh);
+  overflow-y: auto;
+}
+.process-modal { width: min(640px, 100%); }
+.small-modal { width: min(390px, 100%); text-align: left; }
+
+/* Вложенные скроллируемые блоки внутри модалок */
+.modal .member-table,
+.modal .run-result-table-wrap,
+.modal .dynamic-fields,
+.modal .workflow-timeline,
+.modal .schema-diff-list {
+  overflow-x: auto;
+}
+
+/* Таблицы участников/пользователей не обрезаются */
+.member-table > div {
+  min-width: 0;
+  gap: 12px;
+}
+.member-table strong,
+.member-table small {
+  overflow-wrap: anywhere;
+}
+
+/* --------------------------------------------------------------------------
+   4. Единые радиусы карточек и панелей
+   -------------------------------------------------------------------------- */
+.panel,
+.metric,
+.group-card,
+.process-card,
+.route-card,
+.settings-card,
+.catalog-grid article,
+.catalog-summary article,
+.audit-entry,
+.approval-card,
+.history-list article,
+.xyops-summary span,
+.selected-route,
+.inspector-panel,
+.system-ok,
+.policy-editor,
+.identity-modal,
+.run-details-modal {
+  border-radius: var(--ds-radius-card);
+}
+
+/* Внутренние контролы-пилюли (фильтры, табы) */
+.filter,
+.active-filter,
+.category-tabs button,
+.status,
+.nav-count,
+.bell b {
+  border-radius: var(--ds-radius-pill);
+}
+
+/* Поля поиска в шапке — чуть крупнее, но согласованы */
+.global-search {
+  height: 44px;
+  border-radius: 12px;
+}
+.bell,
+.profile { border-radius: 12px; }
+
+/* Единый отступ между секциями контента */
+.content-stack { gap: 20px; }
+
+/* ==========================================================================
+   5. Единая типографическая шкала
+   ========================================================================== */
+:root {
+  --ds-h1: 30px;        --ds-h1-lh: 1.15;
+  --ds-h2: 20px;        --ds-h2-lh: 1.2;
+  --ds-h3: 17px;        --ds-h3-lh: 1.3;
+  --ds-h4: 15px;        --ds-h4-lh: 1.35;
+  --ds-text-base: 14px; --ds-text-base-lh: 1.5;
+  --ds-text-sm: 13px;
+  --ds-text-xs: 12px;
+}
+
+body {
+  font-size: var(--ds-text-base);
+  line-height: var(--ds-text-base-lh);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Заголовки первого/второго уровня */
+.topbar h1 { font-size: var(--ds-h1); line-height: var(--ds-h1-lh); }
+.panel h2,
+.panel-title h2,
+.settings-head h2,
+.page-tools h2,
+.modal h2,
+.audit-toolbar h2,
+.approval-summary h2,
+.run-detail-head h2,
+.identity-head h2,
+.membership-head h3,
+.automation-hero h2 {
+  font-size: var(--ds-h2);
+  line-height: var(--ds-h2-lh);
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+
+/* Заголовки третьего уровня и акцентные надписи */
+.group-card h3,
+.process-card h3,
+.catalog-grid article > div strong,
+.catalog-summary strong,
+.history-list strong,
+.run-facts strong,
+.identity-facts strong,
+.approval-card-head h3,
+.audit-entry-head strong,
+.run-results-head h3,
+.run-result-values strong,
+.generated-section-title strong,
+.notification-head strong {
+  font-size: var(--ds-h3);
+  line-height: var(--ds-h3-lh);
+  font-weight: 600;
+}
+
+/* Базовый текст и подписи */
+.panel-title p,
+.panel-title > button,
+.settings-head p,
+.page-tools p,
+.metric span,
+.group-card p,
+.modal p,
+.catalog-stats,
+.catalog-grid article > div small,
+.policy-help,
+.audit-filters label,
+.settings-card label,
+.settings-access label,
+.policy-field,
+.route-editor label,
+.identity-head small,
+.identity-head code,
+.membership-head p,
+.membership-list > p,
+.member-table > p,
+.notification-head small,
+.notification-tools small {
+  font-size: var(--ds-text-sm);
+}
+
+/* ==========================================================================
+   6. Ритм отступов (единообразные секции)
+   ========================================================================== */
+.main { padding: 28px 32px 44px; }
+.topbar { margin-bottom: 24px; }
+.content-stack { gap: 20px; }
+.section-page { min-height: 640px; }
+.metrics { gap: 18px; }
+.group-grid,
+.process-grid,
+.catalog-grid,
+.catalog-summary,
+.history-list,
+.approval-list,
+.audit-list,
+.run-result-values,
+.approval-details,
+.rule-list,
+.rule-grid {
+  gap: 16px;
+}
+.panel-title { padding: 20px 22px; }
+.settings-card { padding: 22px; gap: 16px; }
+
+/* ==========================================================================
+   7. Тёмная тема (переключается атрибутом data-theme="dark")
+   ========================================================================== */
+[data-theme="dark"] {
+  --canvas: #15171e;
+  --ink: #e7e9ef;
+  --muted: #9aa0ad;
+  --line: #2a2e3a;
+  --violet: #8b73ee;
+  --teal: #2bb6a4;
+
+  --text: var(--ink);
+  --panel: #1c1f29;
+  --border: #2a2e3a;
+  --accent: #8b73ee;
+  --soft: #232636;
+  --surface-2: #20242f;
+
+  --ds-control-bg: #20242f;
+  --ds-control-text: #e7e9ef;
+  --ds-control-border: #313644;
+  --ds-control-muted: #9aa0ad;
+  --ds-control-shadow: none;
+  --ds-focus-border: #8b73ee;
+  --ds-focus-ring: 0 0 0 3px rgba(139, 115, 238, 0.28);
+
+  color-scheme: dark;
+}
+
+[data-theme="dark"] body { background: var(--canvas); color: var(--ink); }
+
+/* Основные поверхности (были #fff / светлые оттенки) */
+[data-theme="dark"] .panel,
+[data-theme="dark"] .metric,
+[data-theme="dark"] .group-card,
+[data-theme="dark"] .process-card,
+[data-theme="dark"] .route-card,
+[data-theme="dark"] .catalog-summary article,
+[data-theme="dark"] .modal,
+[data-theme="dark"] .category-tabs button,
+[data-theme="dark"] .identity-head > span:first-child,
+[data-theme="dark"] .run-facts > span,
+[data-theme="dark"] .identity-facts > span,
+[data-theme="dark"] .schema-version-line,
+[data-theme="dark"] .membership-list > span,
+[data-theme="dark"] .xyops-summary span,
+[data-theme="dark"] .selected-route,
+[data-theme="dark"] .route-editor,
+[data-theme="dark"] .dynamic-fields .option-search,
+[data-theme="dark"] .catalog-sync,
+[data-theme="dark"] .th,
+[data-theme="dark"] .selectable-run:hover,
+[data-theme="dark"] .group-actions button,
+[data-theme="dark"] .membership-list > span button,
+[data-theme="dark"] .timeline-marker i,
+[data-theme="dark"] .history-list article > i,
+[data-theme="dark"] .inspector-panel code,
+[data-theme="dark"] .schema-version-line code,
+[data-theme="dark"] .audit-links code,
+[data-theme="dark"] .audit-entry pre,
+[data-theme="dark"] .policy-json,
+[data-theme="dark"] .modal-actions,
+[data-theme="dark"] .process-help,
+[data-theme="dark"] .settings-note,
+[data-theme="dark"] .checkbox-field,
+[data-theme="dark"] .generated-section .generated-section,
+[data-theme="dark"] .catalog-sync.stale {
+  background: #1c1f29;
+  border-color: #2a2e3a;
+  color: var(--ink);
+}
+
+/* Вложенные блоки чуть светлее фона */
+[data-theme="dark"] .metric-icon,
+[data-theme="dark"] .service-icon,
+[data-theme="dark"] .route-kind,
+[data-theme="dark"] .process-category,
+[data-theme="dark"] .operation i,
+[data-theme="dark"] .timeline-marker i {
+  filter: brightness(1.05);
+}
+
+/* Текстовые подписи, жёстко зашитые в светлый цвет */
+[data-theme="dark"] .metric span,
+[data-theme="dark"] .settings-card label,
+[data-theme="dark"] .settings-access label,
+[data-theme="dark"] .policy-field,
+[data-theme="dark"] .route-editor label,
+[data-theme="dark"] .catalog-grid article > div small,
+[data-theme="dark"] .catalog-stats,
+[data-theme="dark"] .service small,
+[data-theme="dark"] .th,
+[data-theme="dark"] .policy-toolbar label {
+  color: var(--muted);
+}
+
+/* Верхняя панель в тёмной теме */
+[data-theme="dark"] .global-search,
+[data-theme="dark"] .bell,
+[data-theme="dark"] .profile {
+  background: #20242f;
+  border-color: #2a2e3a;
+  color: var(--ink);
+}
+[data-theme="dark"] .global-search input { color: var(--ink); }
+[data-theme="dark"] .profile { background: linear-gradient(90deg, #7656e8 0 38px, #20242f 38px); }
+[data-theme="dark"] .profile span { color: var(--ink); }
+[data-theme="dark"] .profile small { color: var(--muted); }
+
+/* Кнопки в тёмной теме */
+[data-theme="dark"] .secondary { background: #232636; border-color: #313644; color: #d7dae2; }
+[data-theme="dark"] .secondary:hover { background: #2a2e3a; border-color: #3a3f4d; }
+[data-theme="dark"] .filter,
+[data-theme="dark"] .category-tabs button { background: #20242f; border-color: #313644; color: #b9bdc7; }
+[data-theme="dark"] .filter.active-filter,
+[data-theme="dark"] .category-tabs button.active { background: #2a2350; border-color: #8b73ee; color: #c9bdf0; }
+
+/* ==========================================================================
+   8. Переключатель темы
+   ========================================================================== */
+.theme-toggle {
+  width: 44px;
+  height: 44px;
+  border: 1px solid #d9dbe0;
+  background: #fff;
+  border-radius: 12px;
+  font-size: 20px;
+  display: grid;
+  place-items: center;
+  color: #555b67;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.theme-toggle:hover { border-color: #b9bcc4; background: #fafafa; }
+[data-theme="dark"] .theme-toggle { background: #20242f; border-color: #2a2e3a; color: #e7e9ef; }
+[data-theme="dark"] .theme-toggle:hover { background: #2a2e3a; }
+
+/* ==========================================================================
+   9. Accessibility: prefers-reduced-motion
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .toast { animation: none !important; }
+  .metric:hover,
+  .group-card:hover,
+  .process-card:hover {
+    transform: none !important;
+  }
+}
+
+/* ==========================================================================
+   10. Accessibility: prefers-contrast (forced colors / high contrast)
+   ========================================================================== */
+@media (prefers-contrast: more) {
+  :root {
+    --ds-control-border: #000;
+    --ds-focus-border: #000;
+    --ds-focus-ring: 0 0 0 3px #000;
+    --line: #000;
+    --violet: #4b36b8;
+    --teal: #007a6d;
+  }
+  [data-theme="dark"] {
+    --ds-control-border: #fff;
+    --ds-focus-border: #fff;
+    --ds-focus-ring: 0 0 0 3px #fff;
+    --line: #fff;
+    --violet: #b8a0ff;
+    --teal: #4df8e8;
+  }
+  .primary { box-shadow: 0 0 0 2px currentColor; }
+  .panel,
+  .metric,
+  .group-card,
+  .process-card,
+  .route-card,
+  .settings-card,
+  .catalog-grid article,
+  .catalog-summary article,
+  .audit-entry,
+  .approval-card,
+  .history-list article,
+  .modal {
+    border-width: 2px;
+  }
+  .status { border-width: 2px; }
+}
+
+/* ==========================================================================
+   11. Dark theme edge-case fixes (inner tinted backgrounds)
+   ========================================================================== */
+[data-theme="dark"] .run-facts > span {
+  background: #20242f;
+  border-color: #2a2e3a;
+}
+[data-theme="dark"] .run-facts small,
+[data-theme="dark"] .run-facts code {
+  color: var(--muted);
+}
+[data-theme="dark"] .schema-diff-list {
+  background: #1c1f29;
+  border-color: #2a2e3a;
+}
+[data-theme="dark"] .schema-diff-list article {
+  border-color: #2a2e3a;
+}
+[data-theme="dark"] .schema-diff-list code {
+  color: #b4a6e6;
+}
+[data-theme="dark"] .schema-diff-list small {
+  color: var(--muted);
+}
+[data-theme="dark"] .timeline-marker span {
+  background: #2a2e3a;
+}
+[data-theme="dark"] .timeline-marker i {
+  background: #232636;
+  color: var(--muted);
+}
+[data-theme="dark"] .timeline-marker i.success { background: #1a3d2e; color: #4ade80; }
+[data-theme="dark"] .timeline-marker i.running { background: #2a2350; color: #b4a6e6; }
+[data-theme="dark"] .timeline-marker i.failed { background: #3d1a1a; color: #f87171; }
+[data-theme="dark"] .timeline-marker i.queued { background: #3d351a; color: #fbbf24; }
+[data-theme="dark"] .member-table > div { border-color: #2a2e3a; }
+[data-theme="dark"] .identity-facts > span { background: #20242f; border-color: #2a2e3a; }
+[data-theme="dark"] .membership-list > span { background: #232636; border-color: #2a2e3a; color: #c9bdf0; }
+[data-theme="dark"] .membership-list > span button { background: #2a2e3a; color: #b4a6e6; }
+[data-theme="dark"] .settings-note { background: #232636; border-color: #2a2e3a; color: var(--ink); }
+[data-theme="dark"] .checkbox-field { background: #20242f; border-color: #2a2e3a; }
+[data-theme="dark"] .generated-section .generated-section { border-color: #2a2e3a; }
+[data-theme="dark"] .policy-json { background: #232636; border-color: #2a2e3a; color: var(--ink); }
+[data-theme="dark"] .dynamic-fields .option-search { background: #20242f; color: var(--ink); }
+[data-theme="dark"] .catalog-sync { background: #1a3d2e; border-color: #2a2e3a; }
+[data-theme="dark"] .catalog-sync.stale { background: #3d351a; border-color: #3d351a; }
+[data-theme="dark"] .route-editor { background: #1c1f29; border-color: #2a2e3a; }
+[data-theme="dark"] .process-help { background: #232636; border-color: #2a2e3a; }
+[data-theme="dark"] .th { background: #20242f; }
+[data-theme="dark"] .selectable-run:hover { background: #20242f; }
+
+/* ==========================================================================
+   12. Form controls: checkboxes, radios, switches, validation states
+   ========================================================================== */
+.ds-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ds-field label,
+.ds-field > span {
+  font-size: var(--ds-text-xs);
+  font-weight: 600;
+  color: var(--ds-control-muted);
+}
+
+.ds-field-helper {
+  font-size: var(--ds-text-xs);
+  color: var(--ds-control-muted);
+  line-height: 1.45;
+}
+
+.ds-field-error {
+  font-size: var(--ds-text-xs);
+  color: var(--ds-error-text);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+/* Unified text inputs */
+.ds-input,
+.ds-select,
+.ds-textarea {
+  height: var(--ds-control-h);
+  padding: 0 14px;
+  border: 1px solid var(--ds-control-border);
+  border-radius: var(--ds-control-radius);
+  background: var(--ds-control-bg);
+  color: var(--ds-control-text);
+  font-size: var(--ds-control-font);
+  line-height: 1.4;
+  outline: none;
+  box-shadow: var(--ds-control-shadow);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  width: 100%;
+  min-width: 0;
+  appearance: none;
+}
+
+.ds-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%2371717a' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-right: 36px;
+}
+
+.ds-textarea {
+  height: auto;
+  min-height: 110px;
+  resize: vertical;
+  padding: 11px 14px;
+  line-height: 1.55;
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+
+.ds-input:focus,
+.ds-select:focus,
+.ds-textarea:focus {
+  border-color: var(--ds-focus-border);
+  box-shadow: var(--ds-focus-ring);
+}
+
+/* Validation states */
+.ds-input.ds-error,
+.ds-select.ds-error,
+.ds-textarea.ds-error {
+  border-color: var(--ds-error-border);
+  box-shadow: var(--ds-error-ring);
+}
+.ds-input.ds-success,
+.ds-select.ds-success,
+.ds-textarea.ds-success {
+  border-color: var(--ds-success-border);
+  box-shadow: var(--ds-success-ring);
+}
+.ds-input.ds-warning,
+.ds-select.ds-warning,
+.ds-textarea.ds-warning {
+  border-color: var(--ds-warning-border);
+  box-shadow: var(--ds-warning-ring);
+}
+
+/* Checkboxes */
+.ds-checkbox {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--ds-control-text);
+}
+.ds-checkbox input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--violet);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+/* Radios */
+.ds-radio {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--ds-control-text);
+}
+.ds-radio input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--violet);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+/* Toggle switches */
+.ds-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 14px;
+  line-height: 1.4;
+}
+.ds-toggle input {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 42px;
+  height: 24px;
+  background: #d1d5db;
+  border-radius: 999px;
+  position: relative;
+  cursor: pointer;
+  outline: none;
+  transition: background 0.2s ease;
+  flex: 0 0 auto;
+}
+.ds-toggle input:checked {
+  background: var(--violet);
+}
+.ds-toggle input::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.2s ease;
+}
+.ds-toggle input:checked::before {
+  transform: translateX(18px);
+}
+.ds-toggle input:focus-visible {
+  box-shadow: var(--ds-focus-ring);
+}
+
+/* ==========================================================================
+   13. Buttons: comprehensive set with variants
+   ========================================================================== */
+.ds-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: var(--ds-btn-h);
+  padding: 0 16px;
+  border-radius: var(--ds-btn-radius);
+  font-size: var(--ds-btn-font);
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.05s ease;
+}
+.ds-btn:active { transform: translateY(1px); }
+.ds-btn:disabled { opacity: 0.55; cursor: not-allowed; pointer-events: auto; }
+
+.ds-btn-primary {
+  background: var(--violet);
+  border-color: var(--violet);
+  color: #fff;
+  box-shadow: 0 5px 14px rgba(118, 86, 232, 0.22);
+}
+.ds-btn-primary:hover { background: #6544d2; border-color: #6544d2; }
+
+.ds-btn-secondary {
+  background: #fff;
+  border-color: #d7d9df;
+  color: #454851;
+}
+.ds-btn-secondary:hover { border-color: #b9bcc4; background: #fafafa; }
+
+.ds-btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--ds-control-muted);
+}
+.ds-btn-ghost:hover { background: rgba(118, 86, 232, 0.06); color: var(--ds-control-text); }
+
+.ds-btn-icon {
+  width: var(--ds-btn-h);
+  height: var(--ds-btn-h);
+  padding: 0;
+  justify-content: center;
+}
+.ds-btn-icon:hover { background: rgba(118, 86, 232, 0.06); }
+
+.ds-btn-sm {
+  height: var(--ds-btn-h-sm);
+  padding: 0 12px;
+  font-size: 12px;
+  border-radius: var(--ds-radius-md);
+}
+
+.ds-btn-lg {
+  height: var(--ds-btn-h-lg);
+  padding: 0 20px;
+  font-size: 15px;
+}
+
+/* Danger buttons */
+.ds-btn-danger {
+  background: #fff5f5;
+  border-color: #e8aeb1;
+  color: #c63840;
+}
+.ds-btn-danger:hover { background: #ffeaea; }
+
+/* ==========================================================================
+   14. Data tables: unified styling
+   ========================================================================== */
+.ds-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.ds-table th {
+  text-align: left;
+  padding: 11px 14px;
+  background: #fafafd;
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--ds-control-muted);
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+.ds-table td {
+  padding: 13px 14px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+.ds-table tbody tr:hover { background: rgba(118, 86, 232, 0.04); }
+.ds-table tbody tr:last-child td { border-bottom: none; }
+.ds-table tbody tr td:first-child { border-top-left-radius: var(--ds-radius-sm); border-bottom-left-radius: var(--ds-radius-sm); }
+.ds-table tbody tr td:last-child { border-top-right-radius: var(--ds-radius-sm); border-bottom-right-radius: var(--ds-radius-sm); }
+
+/* ==========================================================================
+   15. Loading states: spinner and skeletons
+   ========================================================================== */
+.ds-spinner {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: ds-spin 0.8s linear infinite;
+}
+@keyframes ds-spin { to { transform: rotate(360deg); } }
+
+.ds-skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  border-radius: var(--ds-radius-sm);
+  animation: ds-shimmer 1.5s ease-in-out infinite;
+}
+@keyframes ds-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.ds-skeleton-text { height: 14px; }
+.ds-skeleton-circle { border-radius: 50%; width: 32px; height: 32px; }
+
+/* ==========================================================================
+   16. Empty states
+   ========================================================================== */
+.ds-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+  padding: 48px 20px;
+  color: var(--ds-control-muted);
+}
+.ds-empty .icon {
+  width: 64px;
+  height: 64px;
+  opacity: 0.3;
+  display: grid;
+  place-items: center;
+}
+
+/* ==========================================================================
+   17. Progress bar
+   ========================================================================== */
+.ds-progress {
+  width: 100%;
+  height: 8px;
+  background: var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.ds-progress > div {
+  height: 100%;
+  border-radius: inherit;
+  transition: width 0.3s ease;
+  background: var(--violet);
+}
+
+/* ==========================================================================
+   18. Toast notifications — improved
+   ========================================================================== */
+.ds-toast-viewport {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 100;
+  pointer-events: none;
+}
+.ds-toast-viewport > * { pointer-events: auto; }
+
+.ds-toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  border-radius: var(--ds-radius-card);
+  font-size: 13px;
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15);
+  animation: ds-toast-in 0.2s ease-out;
+  border: 1px solid transparent;
+  max-width: 380px;
+}
+@keyframes ds-toast-in { from { transform: translateY(10px); opacity: 0; } }
+
+.ds-toast-success {
+  background: #fff;
+  border-color: #dcfce7;
+  color: var(--ds-success-text);
+}
+.ds-toast .icon {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  display: inline-flex;
+}
+.ds-toast-success .icon { color: var(--ds-success); }
+.ds-toast-error {
+  background: #fff;
+  border-color: #fecdca;
+  color: var(--ds-error-text);
+}
+.ds-toast-error .icon { color: var(--ds-error); }
+.ds-toast-warning {
+  background: #fff;
+  border-color: #fed7aa;
+  color: var(--ds-warning-text);
+}
+.ds-toast-warning .icon { color: var(--ds-warning); }
+.ds-toast-info {
+  background: #fff;
+  border-color: #c7d7fe;
+  color: #1e40af;
+}
+.ds-toast-info .icon { color: var(--violet); }
+
+.ds-toast-message { flex: 1 1 auto; min-width: 0; }
+
+.ds-toast-action {
+  margin-left: 4px;
+  font-weight: 600;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: 13px;
+}
+
+.ds-toast-close {
+  margin-left: 4px;
+  width: 22px;
+  height: 22px;
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.7;
+}
+.ds-toast-close:hover { opacity: 1; background: rgba(0, 0, 0, 0.06); }
+
+/* ==========================================================================
+   19. Unified dark theme — complete surface + text + border mapping
+   ========================================================================== */
+[data-theme="dark"] {
+  --ds-control-border: #313644;
+  --ds-control-border-hover: #4a5268;
+  --ds-control-bg: #20242f;
+  --ds-control-text: #e7e9ef;
+  --ds-control-muted: #9aa0ad;
+  --ds-focus-border: #8b73ee;
+  --ds-focus-ring: 0 0 0 3px rgba(139, 115, 238, 0.28);
+  --ds-control-shadow: none;
+  --ds-control-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+
+  --ds-error-bg: #2d1a1a;
+  --ds-error-border: #5c2b2b;
+  --ds-error-ring: 0 0 0 3px rgba(248, 113, 113, 0.28);
+  --ds-success-bg: #14271a;
+  --ds-success-border: #1f7d53;
+  --ds-success-ring: 0 0 0 3px rgba(74, 222, 124, 0.28);
+  --ds-warning-bg: #3d2c10;
+  --ds-warning-border: #c2780f;
+  --ds-warning-ring: 0 0 0 3px rgba(251, 191, 36, 0.28);
+
+  --ds-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --ds-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+  --ds-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.25);
+  --ds-shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.35);
+}
+
+/* Dark theme: form controls */
+[data-theme="dark"] .ds-input,
+[data-theme="dark"] .ds-select,
+[data-theme="dark"] .ds-textarea {
+  background: var(--ds-control-bg);
+  color: var(--ds-control-text);
+  border-color: var(--ds-control-border);
+}
+[data-theme="dark"] .ds-input::placeholder,
+[data-theme="dark"] .ds-select::placeholder,
+[data-theme="dark"] .ds-textarea::placeholder { color: var(--ds-control-muted); }
+
+/* Dark theme: buttons */
+[data-theme="dark"] .ds-btn-secondary { background: #232636; border-color: #313644; color: #d7dae2; }
+[data-theme="dark"] .ds-btn-secondary:hover { background: #2a2e3a; border-color: #3a3f4d; }
+[data-theme="dark"] .ds-btn-ghost:hover { background: rgba(255, 255, 255, 0.04); }
+[data-theme="dark"] .ds-btn-icon:hover { background: rgba(255, 255, 255, 0.04); }
+[data-theme="dark"] .ds-btn-danger { background: #3d1a1a; border-color: #5c2b2b; color: #f87171; }
+[data-theme="dark"] .ds-btn-danger:hover { background: #5c2b2b; }
+
+/* Dark theme: tables */
+[data-theme="dark"] .ds-table th { background: #20242f; border-bottom-color: #2a2e3a; color: var(--ds-control-muted); }
+[data-theme="dark"] .ds-table td { border-bottom-color: #2a2e3a; }
+[data-theme="dark"] .ds-table tbody tr:hover { background: rgba(139, 115, 238, 0.06); }
+
+/* Dark theme: skeletons */
+[data-theme="dark"] .ds-skeleton {
+  background: linear-gradient(90deg, #2a2e3a 25%, #242733 50%, #2a2e3a 75%);
+  background-size: 200% 100%;
+}
+
+/* Dark theme: toggle switch */
+[data-theme="dark"] .ds-toggle input { background: #555b67; }
+[data-theme="dark"] .ds-toggle input:checked { background: var(--violet); }
+
+/* Dark theme: empty state */
+[data-theme="dark"] .ds-empty { opacity: 0.7; }
+
+/* Dark theme: cards and panels */
+[data-theme="dark"] .ds-card {
+  background: #1c1f29;
+  border: 1px solid #2a2e3a;
+}
+
+/* Dark theme: toasts */
+[data-theme="dark"] .ds-toast,
+[data-theme="dark"] .ds-toast-success,
+[data-theme="dark"] .ds-toast-warning,
+[data-theme="dark"] .ds-toast-info { background: #1c1f29; border-color: #2a2e3a; }
+[data-theme="dark"] .ds-toast-error { background: #1c1f29; border-color: #4a1f1f; }
+[data-theme="dark"] .ds-toast-info .icon { color: #b4a6e6; }
+[data-theme="dark"] .ds-toast-info { color: #c9d4f5; }
+
+/* ==========================================================================
+   20. Unified card component
+   ========================================================================== */
+.ds-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--ds-radius-card);
+  box-shadow: var(--ds-shadow-sm);
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+.ds-card:hover { box-shadow: var(--ds-shadow-md); }
+.ds-card-body { padding: 20px; }
+.ds-card-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* ==========================================================================
+   21. Badge component
+   ========================================================================== */
+.ds-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--ds-radius-pill);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+}
+.ds-badge-primary { background: rgba(118, 86, 232, 0.12); color: #6743d4; }
+.ds-badge-success { background: rgba(25, 135, 84, 0.12); color: #166534; }
+.ds-badge-warning { background: rgba(217, 154, 53, 0.12); color: #92400e; }
+.ds-badge-danger { background: rgba(220, 53, 69, 0.12); color: #c63840; }
+.ds-badge-neutral { background: rgba(148, 155, 171, 0.2); color: #5f636d; }
+[data-theme="dark"] .ds-badge-primary { background: rgba(139, 115, 238, 0.2); color: #b4a6e6; }
+[data-theme="dark"] .ds-badge-success { background: rgba(35, 195, 143, 0.2); color: #6ee7b7; }
+[data-theme="dark"] .ds-badge-warning { background: rgba(251, 191, 36, 0.2); color: #fcd34d; }
+[data-theme="dark"] .ds-badge-danger { background: rgba(248, 113, 113, 0.2); color: #fca5a5; }
+[data-theme="dark"] .ds-badge-neutral { background: rgba(154, 163, 173, 0.2); color: var(--ds-control-muted); }

@@ -1,0 +1,86 @@
+name: One-shot runtime configuration contract sync
+
+on:
+  push:
+    branches: [agent/runtime-configuration-contract-main]
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+      - name: Align configuration metadata with canonical production runtime
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+
+          const registryPath = 'worker/portal-configuration-contract.ts';
+          let registry = fs.readFileSync(registryPath, 'utf8');
+          const developmentMarker = '  {\n    name: "PORTAL_STATIC_IDENTITY"';
+          const developmentIndex = registry.indexOf(developmentMarker);
+          if (developmentIndex < 0) throw new Error('development configuration marker not found');
+          let production = registry.slice(0, developmentIndex);
+          const compatibility = registry.slice(developmentIndex);
+          production = production
+            .replaceAll('environment > start-worker default', 'environment > production runtime default')
+            .replaceAll('validationOwner: "scripts/start-worker.mjs"', 'validationOwner: "scripts/start-production.mjs"')
+            .replaceAll('transportOwner: "compose.yaml/start-worker"', 'transportOwner: "compose.yaml/start-production"')
+            .replaceAll('transportOwner: "scripts/start-worker.mjs"', 'transportOwner: "scripts/start-production.mjs"')
+            .replaceAll(
+              'transportOwner: "runtime consumption; forwarding requires explicit evidence"',
+              'transportOwner: "scripts/start-production.mjs (process environment pass-through)"',
+            )
+            .replaceAll(
+              'notes: "Documented and consumed by runtime code; start-worker forwarding must be verified by a behavior test before changing transport."',
+              'notes: "Canonical production runtime passes process environment directly to the Worker runtime; no explicit production forwarding allowlist is used."',
+            );
+          registry = production + compatibility;
+          fs.writeFileSync(registryPath, registry);
+
+          const docsPath = 'docs/architecture/2026-08-25-runtime-configuration-contract.md';
+          let docs = fs.readFileSync(docsPath, 'utf8');
+          docs = docs
+            .replace(
+              '| Startup ENV transport | `scripts/start-worker.mjs` |',
+              '| Production ENV transport | `scripts/start-production.mjs` (process environment pass-through) |\n| Legacy development ENV transport | `scripts/start-worker.mjs` |',
+            )
+            .replace(
+              '2. explicit `start-worker.mjs` forwarded keys must have registry records;',
+              '2. explicit legacy `start-worker.mjs` forwarded keys must have registry records;\n3. the canonical production entrypoint must retain process-environment pass-through without a production forwarding allowlist;',
+            )
+            .replace('3. internal generated gateway variables must remain excluded;', '4. internal generated gateway variables must remain excluded;')
+            .replace('4. secret records must remain non-exposable;', '5. secret records must remain non-exposable;')
+            .replace('5. recovery records must remain explicitly classified.', '6. recovery records must remain explicitly classified.')
+            .replace(
+              '## Known follow-up\n\n`XYOPS_RESULT_FILE_MAX_BYTES` and `XYOPS_CATALOG_SYNC_LOCK_TTL_SECONDS` are documented and consumed by runtime code but are not currently present in `start-worker.mjs`\'s explicit `forwardedKeys`. This PR records that state and adds metadata; it does not change transport behavior. A behavior test and a separate runtime fix are required before changing startup forwarding.',
+              '## Production transport after #51\n\nThe canonical production entrypoint is `scripts/start-production.mjs`. It passes the process environment through the runtime composition into the Worker environment rather than rebuilding it from an explicit forwarding allowlist. `XYOPS_RESULT_FILE_MAX_BYTES` and `XYOPS_CATALOG_SYNC_LOCK_TTL_SECONDS` therefore remain operator runtime configuration without requiring additions to the legacy `start-worker.mjs` allowlist. Issue #188 should verify this behavior against the canonical production path before deciding whether any legacy-development forwarding change is still useful.',
+            );
+          fs.writeFileSync(docsPath, docs);
+
+          const testPath = 'tests/portal-configuration-contract.test.mjs';
+          let tests = fs.readFileSync(testPath, 'utf8');
+          const anchor = 'test("secret configuration records never permit status exposure", () => {';
+          const addition = `test("canonical production startup transports the process environment without an allowlist", async () => {\n  const source = await readFile(new URL("scripts/start-production.mjs", repositoryRoot), "utf8");\n  assert.match(source, /createProductionRuntimeOptions\\(\\{ env = process\\.env \\} = \\{\\}\\)/u);\n  assert.match(source, /const options = \\{\\s*env,/u);\n  assert.doesNotMatch(source, /forwardedKeys/u);\n});\n\n`;
+          if (!tests.includes('canonical production startup transports the process environment without an allowlist')) {
+            tests = tests.replace(anchor, addition + anchor);
+          }
+          fs.writeFileSync(testPath, tests);
+          NODE
+      - name: Commit synchronized contract
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add worker/portal-configuration-contract.ts tests/portal-configuration-contract.test.mjs docs/architecture/2026-08-25-runtime-configuration-contract.md
+          git diff --cached --quiet && exit 0
+          git commit -m "config: align contract with canonical production runtime"
+          git push
+
+# Temporary one-shot maintenance workflow; remove after synchronization.

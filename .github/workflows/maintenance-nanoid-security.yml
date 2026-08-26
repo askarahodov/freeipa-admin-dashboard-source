@@ -1,0 +1,34 @@
+name: One-shot nanoid security lockfile maintenance
+
+on:
+  push:
+    branches: [security/react-server-dom-1928]
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - name: Regenerate lockfile with security overrides
+        run: npm install --package-lock-only
+      - name: Verify patched nanoid
+        run: node -e "const l=require('./package-lock.json'); const p=l.packages['node_modules/nanoid']; if (!p || p.version !== '3.3.18') { throw new Error('Expected nanoid 3.3.18, got '+(p&&p.version)); }"
+      - name: Commit generated lockfile
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          git diff --cached --quiet && exit 0
+          git commit -m "security: regenerate lockfile for nanoid 3.3.18"
+          git push
+
+# Temporary one-shot workflow; remove after lockfile regeneration.

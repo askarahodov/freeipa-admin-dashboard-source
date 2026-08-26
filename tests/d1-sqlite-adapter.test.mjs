@@ -101,6 +101,17 @@ test("batch executes statements once inside one driver transaction and preserves
   assert.deepEqual(result[1].results.at(-1), { id: "gamma", value: 11 });
 });
 
+test("batch accepts transparent Proxy wrappers from the Worker runtime boundary", async () => {
+  const driver = fakeDatabase();
+  const db = createD1SqliteAdapter(driver);
+  const insert = db.prepare("INSERT INTO records (id, value) VALUES (?, ?)").bind("gamma", 11);
+  const select = db.prepare("SELECT id, value FROM records ORDER BY id");
+  const result = await db.batch([new Proxy(insert, {}), new Proxy(select, {})]);
+  assert.equal(driver.transactionCount, 1);
+  assert.equal(result[0].meta.changes, 1);
+  assert.deepEqual(result[1].results.at(-1), { id: "gamma", value: 11 });
+});
+
 test("adapter works with SQLite drivers that do not expose a reader flag", async () => {
   const driver = fakeDatabase({ exposeReader: false });
   const db = createD1SqliteAdapter(driver);

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AutomationRoute as SourceAutomationRoute, CatalogEvent, RouteField } from "../automation-types";
 import { conditionFieldNames, fieldConditionMatches } from "../field-conditions";
 import { FREEIPA_DIRECTORY_CHANGED_EVENT, FREEIPA_OPEN_ACTION_EVENT, announceFreeIpaDirectoryChanged, type FreeIpaAction, type FreeIpaOperation } from "../freeipa-ui-events";
+import { portalRoleLabels, type PortalPermission, type PortalRole } from "../portal-permissions";
 import { buildHomePath, resolveHomeLocation, type HomePage } from "./shell/home-navigation";
 
 type Page = HomePage;
@@ -24,8 +25,6 @@ type CatalogChange = { id: string; title: string; kind: "new" | "changed" | "rem
 type CatalogMeta = { syncedAt: string | null; source: "demo" | "xyops" | "cache" | "none"; stale: boolean; changes: CatalogChange[] };
 type CatalogHistoryEntry = { id: string; syncedAt: number; processCount: number; changes: CatalogChange[] };
 type SettingsData = { source: "database" | "environment"; persistenceAvailable: boolean; encryptionConfigured: boolean; updatedAt: number | null; demoMode: boolean; freeipa: { url: string; username: string; passwordConfigured: boolean }; xyops: { url: string; apiKeyConfigured: boolean } };
-type PortalRole = "viewer" | "operator" | "admin";
-type PortalPermission = "directory.read" | "freeipa.write" | "freeipa.delete" | "xyops.run" | "xyops.approve" | "settings.manage";
 type PortalAccess = { identity: string; role: PortalRole; groups?: string[]; permissions: PortalPermission[] };
 type ApprovalStatus = "pending" | "approved" | "rejected" | "cancelled" | "expired" | "executing" | "executed" | "failed" | "unknown";
 type AuditEvent = { id: string; createdAt: number; correlationId: string; actorIdentity: string; actorRole: string; actorGroups: string[]; action: string; resourceType: string; resourceId: string; eventId: string; schemaVersion: string; approvalId: string; runId: string; jobId: string; outcome: "success" | "failure" | "pending" | "denied" | "unknown" | "info"; errorCode: string; metadata: Record<string, unknown> };
@@ -46,7 +45,6 @@ const nav: { id: Page; label: string; icon: string }[] = [
   { id: "audit", label: "Аудит", icon: "≣" },
   { id: "settings", label: "Настройки", icon: "⚙" },
 ];
-const roleLabels: Record<PortalRole, string> = { viewer: "Наблюдатель", operator: "Оператор", admin: "Администратор" };
 
 function automationSlug(value: string): string {
   const cyrillic: Record<string, string> = { а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ё: "e", ж: "zh", з: "z", и: "i", й: "y", к: "k", л: "l", м: "m", н: "n", о: "o", п: "p", р: "r", с: "s", т: "t", у: "u", ф: "f", х: "h", ц: "ts", ч: "ch", ш: "sh", щ: "sch", ъ: "", ы: "y", ь: "", э: "e", ю: "yu", я: "ya" };
@@ -446,7 +444,7 @@ export default function Home() {
       <main className="main">
         <header className="topbar">
           <div><h1>{page === "overview" ? "Обзор инфраструктуры" : title}</h1><p>{page === "overview" ? "FreeIPA и портал автоматизаций XYOps" : `Управление разделом «${title}»`}</p></div>
-          <div className="header-actions"><label className="global-search"><span>⌕</span><input aria-label="Глобальный поиск" placeholder="Поиск процессов, пользователей, групп…" value={query} onChange={(e) => setQuery(e.target.value)} /></label><div className="notification-anchor"><button className={`bell ${notificationsOpen ? "active" : ""}`} aria-label="Уведомления операций" aria-expanded={notificationsOpen} onClick={() => setNotificationsOpen((value) => !value)}>♢{notificationUnread > 0 && <b>{notificationUnread > 99 ? "99+" : notificationUnread}</b>}</button>{notificationsOpen && <NotificationCenter items={notifications} unread={notificationUnread} permission={notificationPermission} close={() => setNotificationsOpen(false)} markAll={() => void updateNotificationReads(null)} enableSystem={() => void enableSystemNotifications()} openItem={(item) => void openPortalNotification(item)} />}</div><button className="profile" title={`Роль: ${roleLabels[integration.access.role]}`}>{integration.viewer.slice(0, 2).toUpperCase()} <span>{integration.viewer}<small>{roleLabels[integration.access.role]}</small></span></button></div>
+          <div className="header-actions"><label className="global-search"><span>⌕</span><input aria-label="Глобальный поиск" placeholder="Поиск процессов, пользователей, групп…" value={query} onChange={(e) => setQuery(e.target.value)} /></label><div className="notification-anchor"><button className={`bell ${notificationsOpen ? "active" : ""}`} aria-label="Уведомления операций" aria-expanded={notificationsOpen} onClick={() => setNotificationsOpen((value) => !value)}>♢{notificationUnread > 0 && <b>{notificationUnread > 99 ? "99+" : notificationUnread}</b>}</button>{notificationsOpen && <NotificationCenter items={notifications} unread={notificationUnread} permission={notificationPermission} close={() => setNotificationsOpen(false)} markAll={() => void updateNotificationReads(null)} enableSystem={() => void enableSystemNotifications()} openItem={(item) => void openPortalNotification(item)} />}</div><button className="profile" title={`Роль: ${portalRoleLabels[integration.access.role]}`}>{integration.viewer.slice(0, 2).toUpperCase()} <span>{integration.viewer}<small>{portalRoleLabels[integration.access.role]}</small></span></button></div>
         </header>
 
         {page === "overview" && <Overview goTo={(nextPage) => navigateTo(nextPage)} integration={integration} userCount={directoryUsers.length} groupCount={directoryGroups.length} directorySource={directorySource} runs={recentRuns} runStats={runStats} />}

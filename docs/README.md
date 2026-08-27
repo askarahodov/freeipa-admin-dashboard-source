@@ -15,8 +15,9 @@
 5. [`DEPLOYMENT_MATRIX.md`](DEPLOYMENT_MATRIX.md) — supported/development/constrained/unsupported deployment modes.
 6. [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md) — authoritative owners и precedence.
 7. [`DOCUMENTATION_POLICY.md`](DOCUMENTATION_POLICY.md) — docs-as-code и правила нескольких агентов.
-8. При изменении внешнего/операционного контракта свериться с [`reference/API.md`](reference/API.md), [`reference/PERMISSIONS.md`](reference/PERMISSIONS.md), [`reference/CONFIGURATION.md`](reference/CONFIGURATION.md) и [`reference/ERROR_CODES.md`](reference/ERROR_CODES.md).
-9. Затем читать профильный документ и фактический code/tests текущего ref.
+8. [`development/README.md`](development/README.md) — repository governance, branch lifecycle, required checks and dependency-update policy.
+9. При изменении внешнего/операционного контракта свериться с [`reference/API.md`](reference/API.md), [`reference/PERMISSIONS.md`](reference/PERMISSIONS.md), [`reference/CONFIGURATION.md`](reference/CONFIGURATION.md) и [`reference/ERROR_CODES.md`](reference/ERROR_CODES.md).
+10. Затем читать профильный документ и фактический code/tests текущего ref.
 
 ### ИИ-агент
 
@@ -49,6 +50,7 @@
 - [`DEPLOYMENT_MATRIX.md`](DEPLOYMENT_MATRIX.md)
 - [`SECURITY_MODEL.md`](SECURITY_MODEL.md)
 - [`LOCAL_AUTH_RBAC.md`](LOCAL_AUTH_RBAC.md)
+- [`security/DEPENDENCY_SECURITY.md`](security/DEPENDENCY_SECURITY.md)
 - [`reference/PERMISSIONS.md`](reference/PERMISSIONS.md)
 - [`reference/API.md`](reference/API.md)
 - [`reference/CONFIGURATION.md`](reference/CONFIGURATION.md)
@@ -71,9 +73,18 @@
 | [`DOCUMENTATION_POLICY.md`](DOCUMENTATION_POLICY.md) | Docs-as-code, statuses, review and multi-agent rules |
 | [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md) | Authoritative source registry and precedence |
 | [`DOCUMENTATION_INVENTORY.md`](DOCUMENTATION_INVENTORY.md) | Current audit status |
+| [`development/README.md`](development/README.md) | Development/repository governance policies |
 | [`adr/README.md`](adr/README.md) | ADR policy/registry — why-level decisions |
 | [`GLOSSARY.md`](GLOSSARY.md) | Common terminology |
 | [`ai/README.md`](ai/README.md) | Mandatory AI-agent entrypoint |
+
+## Development / repository governance
+
+| Документ | Назначение |
+| --- | --- |
+| [`development/AGENT_BRANCH_POLICY.md`](development/AGENT_BRANCH_POLICY.md) | AI-agent branch lifecycle and safe cleanup |
+| [`development/REQUIRED_CHECKS.md`](development/REQUIRED_CHECKS.md) | Stable branch-protection and CI check contract |
+| [`development/DEPENDABOT_POLICY.md`](development/DEPENDABOT_POLICY.md) | Dependency-update capacity and coordination policy |
 
 ## Normalized reference layer
 
@@ -96,6 +107,7 @@ Machine-readable ownership work referenced by the documentation platform is comp
 | [`SECURITY_MODEL.md`](SECURITY_MODEL.md) | Trust boundaries, identity classes, secret/recovery invariants |
 | [`LOCAL_AUTH_RBAC.md`](LOCAL_AUTH_RBAC.md) | Portal users, sessions, roles and FreeIPA identity separation |
 | [`AUDIT_LOG.md`](AUDIT_LOG.md) | Append-only audit, correlation, redaction and read API |
+| [`security/DEPENDENCY_SECURITY.md`](security/DEPENDENCY_SECURITY.md) | Supply-chain audit, SBOM and runtime image security policy |
 
 ## Storage / schema / recovery
 

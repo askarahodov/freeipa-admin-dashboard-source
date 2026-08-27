@@ -60,9 +60,16 @@ export default function LoginPage() {
           </div>
         )}
 
-        <div className="ds-field"><label className="ds-field-label">Логин</label><input className="ds-input" autoFocus autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} required /></div>
-        <div className="ds-field"><label className="ds-field-label">Пароль</label><input className="ds-input" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required /></div>
+        <div className="ds-field">
+          <label className="ds-field-label" htmlFor="portal-login-username">Логин</label>
+          <input id="portal-login-username" className="ds-input" autoFocus autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} required />
+        </div>
+        <div className="ds-field">
+          <label className="ds-field-label" htmlFor="portal-login-password">Пароль</label>
+          <input id="portal-login-password" className="ds-input" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required />
+        </div>
 
+        {error && <div className="local-auth-error" role="alert">{error}</div>}
         <button className="ds-btn ds-btn-primary" disabled={loading || checking || setupRequired}>
           {checking ? "Проверка…" : loading ? "Вход…" : "Войти"}
         </button>

@@ -1,0 +1,50 @@
+name: Temporary Settings Wiring
+on:
+  push:
+    branches: [ui-118-wire-settings]
+permissions:
+  contents: write
+jobs:
+  wire:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ui-118-wire-settings
+      - run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path('app/page.tsx')
+          s = p.read_text()
+          s = s.replace('import type { AutomationRoute as SourceAutomationRoute, CatalogEvent, RouteField } from "../automation-types";\n', 'import type { CatalogEvent } from "../automation-types";\n', 1)
+          anchor = 'import { AuditLog } from "./audit/AuditLog";\n'
+          assert anchor in s
+          s = s.replace(anchor, anchor + 'import { Settings, type AutomationRoute } from "./settings/SettingsScreens";\n', 1)
+          remove_prefixes = (
+            'type AutomationRoute =',
+            'type CatalogHistoryEntry =',
+            'type SettingsData =',
+            'type CatalogPolicyRule =',
+            'type CatalogPolicySet =',
+            'type LocalizedProcessPresentation =',
+            'type ProcessPresentationSet =',
+          )
+          s = '\n'.join(line for line in s.split('\n') if not line.startswith(remove_prefixes))
+          start = s.index('\nconst routeOperations = [')
+          end = s.index('\n\nconst demoUsers:', start)
+          s = s[:start] + s[end:]
+          start = s.index('\nfunction routeSchemaDrift(')
+          end = s.index('\n\nexport default function Home()', start)
+          s = s[:start] + s[end:]
+          start = s.index('\nfunction PersistentConnectionSettings(')
+          end = s.index('\nfunction FreeIpaActionModal(', start)
+          s = s[:start] + '\n' + s[end:]
+          p.write_text(s)
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add app/page.tsx
+          git commit -m "ui: wire extracted Settings and editors"
+          git push

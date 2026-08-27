@@ -154,7 +154,7 @@ async function waitForCancellableRun(context, jobId) {
 }
 
 function operationRow(page, title, jobId) {
-  return page.locator("button.operation-explorer-row")
+  return page.locator(".selectable-run")
     .filter({ hasText: title })
     .filter({ hasText: jobId });
 }

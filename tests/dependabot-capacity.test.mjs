@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const config = await readFile(new URL("../.github/dependabot.yml", import.meta.url), "utf8");
-const policy = await readFile(new URL("../.github/DEPENDABOT_POLICY.md", import.meta.url), "utf8");
+const policy = await readFile(new URL("../docs/development/DEPENDABOT_POLICY.md", import.meta.url), "utf8");
 
 function updateBlock(ecosystem) {
   const marker = `  - package-ecosystem: ${ecosystem}`;

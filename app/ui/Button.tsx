@@ -1,5 +1,4 @@
 import type { ButtonHTMLAttributes } from "react";
-import styles from "./ui.module.css";
 
 export type ButtonVariant = "primary" | "secondary" | "danger" | "ghost" | "icon" | "sm";
 

@@ -93,24 +93,24 @@ test("FreeIPA user, group and membership CRUD works through the browser", async 
     await page.getByRole("button", { name: /Создать группу/ }).click();
     await submitFreeIpaModal(page, { group, description: "Playwright stateful FreeIPA group" });
 
-    const groupCard = page.locator(".group-card").filter({ hasText: group });
-    await expect(groupCard).toBeVisible();
-    await expect(groupCard).toContainText("0");
+    const groupRow = page.getByRole("row").filter({ hasText: group });
+    await expect(groupRow).toBeVisible();
+    await expect(groupRow).toContainText("0");
 
-    await groupCard.getByRole("button", { name: /Участник/ }).click();
+    await groupRow.getByRole("button", { name: /Участник/ }).click();
     await submitFreeIpaModal(page, { username: uid });
-    await expect(groupCard).toContainText("1");
+    await expect(groupRow).toContainText("1");
 
-    await groupCard.getByRole("button", { name: "Открыть группу" }).click();
+    await groupRow.getByRole("button", { name: "Открыть группу" }).click();
     const groupModal = page.locator(".identity-modal").filter({ hasText: group });
     await expect(groupModal).toBeVisible();
-    const memberRow = groupModal.locator(".freeipa-group-member-row").filter({ hasText: uid });
+    const memberRow = groupModal.getByRole("row").filter({ hasText: uid });
     await expect(memberRow).toBeVisible();
     await expect(memberRow).toContainText("Updated User");
 
     await memberRow.getByRole("button", { name: "Удалить" }).click();
     await submitFreeIpaModal(page, {}, true);
-    await expect(groupModal.locator(".freeipa-group-member-row").filter({ hasText: uid })).toHaveCount(0);
+    await expect(groupModal.getByRole("row").filter({ hasText: uid })).toHaveCount(0);
     await groupModal.getByRole("button", { name: "Закрыть" }).click();
 
     await page.getByRole("button", { name: /Пользователи$/ }).click();
@@ -137,12 +137,12 @@ test("FreeIPA user, group and membership CRUD works through the browser", async 
     await expect(userRow).toHaveCount(0);
 
     await page.getByRole("button", { name: /Группы$/ }).click();
-    await expect(groupCard).toBeVisible();
-    await groupCard.getByRole("button", { name: "Открыть группу" }).click();
+    await expect(groupRow).toBeVisible();
+    await groupRow.getByRole("button", { name: "Открыть группу" }).click();
     const deleteGroupModal = page.locator(".identity-modal").filter({ hasText: group });
     await deleteGroupModal.getByRole("button", { name: "Удалить группу" }).click();
     await submitFreeIpaModal(page, {}, true);
-    await expect(groupCard).toHaveCount(0);
+    await expect(groupRow).toHaveCount(0);
   } finally {
     await cleanup(page, "user_del", { username: uid });
     await cleanup(page, "group_del", { group });

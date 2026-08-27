@@ -102,7 +102,7 @@ Secrets (`ipaPassword`, `xyopsApiKey`) are stored in the encrypted secret payloa
 - injects the resulting loopback URL and token into the in-process runtime environment passed to the Worker host and application runtime;
 - keeps the token process-local rather than persisting it as operator configuration.
 
-The previous `scripts/start-worker.mjs` temp-env-file mechanism is not the canonical production owner after the #51/#194 Node runtime cutover. Do not add `IPA_NODE_GATEWAY_URL` or `IPA_NODE_GATEWAY_TOKEN` to `.env.example` as persistent operator secrets.
+The previous `scripts/start-worker.mjs` temp-env-file mechanism is not the canonical production owner after the #51/#194 Node runtime cutover. Do not add these values to `.env.example` as persistent operator secrets.
 
 ## XYOps configuration
 

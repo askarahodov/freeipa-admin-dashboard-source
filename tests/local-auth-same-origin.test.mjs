@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 
-const authorization = fs.readFileSync(new URL("../admin-session-authorization.ts", import.meta.url), "utf8");
+import { sameOriginAdminMutation } from "../admin-session-authorization.ts";
+
 const runtime = fs.readFileSync(new URL("../worker/local-secure-entry.ts", import.meta.url), "utf8");
 
 function authHandlerSource() {
@@ -12,15 +13,31 @@ function authHandlerSource() {
   return runtime.slice(start, end);
 }
 
-test("same-origin helper distinguishes browser provenance from non-browser clients", () => {
-  assert.match(authorization, /request\.headers\.get\("origin"\)/);
-  assert.match(authorization, /request\.headers\.get\("referer"\)/);
-  assert.match(authorization, /new URL\(origin\)\.origin === requestOrigin/);
-  assert.match(authorization, /new URL\(referer\)\.origin === requestOrigin/);
-  assert.match(authorization, /Non-browser API\/service clients commonly omit both browser provenance headers[\s\S]*return true;/);
+function request(method, origin) {
+  const headers = new Headers();
+  if (origin !== undefined) headers.set("origin", origin);
+  return new Request("https://portal.example/api/auth/users", { method, headers });
+}
+
+test("same-origin helper fails closed for missing malformed and mismatched mutation origins", () => {
+  assert.equal(sameOriginAdminMutation(request("POST", undefined)), false);
+  assert.equal(sameOriginAdminMutation(request("POST", "not a url")), false);
+  assert.equal(sameOriginAdminMutation(request("POST", "https://evil.example")), false);
+  assert.equal(sameOriginAdminMutation(request("POST", "https://portal.example")), true);
+  assert.equal(sameOriginAdminMutation(request("GET", undefined)), true);
 });
 
-test("local-auth login remains outside the administrative same-origin mutation gate", () => {
+test("same-origin comparison uses the request URL origin and does not trust forwarded host headers", () => {
+  const headers = new Headers({
+    origin: "https://proxy.example",
+    "x-forwarded-host": "proxy.example",
+    "x-forwarded-proto": "https",
+  });
+  const proxied = new Request("https://portal.example/api/auth/users", { method: "POST", headers });
+  assert.equal(sameOriginAdminMutation(proxied), false);
+});
+
+test("local-auth login remains outside the authenticated mutation origin gate", () => {
   const source = authHandlerSource();
   const login = source.indexOf('url.pathname === "/api/auth/login"');
   const guard = source.indexOf("!sameOriginAdminMutation(request)");
@@ -28,9 +45,9 @@ test("local-auth login remains outside the administrative same-origin mutation g
   const admin = source.indexOf("const current = await requireAdmin(env, request)");
 
   assert.ok(login >= 0, "login route must exist");
-  assert.ok(guard > login, "same-origin gate must run after credential login");
-  assert.ok(logout > guard, "logout mutation must be protected by same-origin gate");
-  assert.ok(admin > guard, "all administrative local-auth mutations must cross the gate before authorization");
+  assert.ok(guard > login, "origin gate must run after credential login");
+  assert.ok(logout > guard, "logout mutation must be protected by origin gate");
+  assert.ok(admin > guard, "administrative local-auth mutations must cross the gate before authorization");
   assert.match(source, /Административный local-auth запрос заблокирован проверкой источника/);
 });
 

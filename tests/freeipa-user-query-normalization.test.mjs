@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { normalizeFreeIpaUserQuery } from "../freeipa-user-query.ts";
+import { normalizeFreeIpaUserQuery } from "../src/freeipa/freeipa-user-query.ts";
 
 test("normalizes FreeIPA user query parameters with bounded allowlists", () => {
   const query = normalizeFreeIpaUserQuery(new URLSearchParams({

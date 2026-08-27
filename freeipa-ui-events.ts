@@ -1,1 +1,1 @@
-export * from "./src/freeipa/freeipa-ui-events";
+export * from "./src/freeipa/freeipa-ui-events.ts";

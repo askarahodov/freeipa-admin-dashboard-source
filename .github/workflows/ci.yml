@@ -36,6 +36,24 @@ jobs:
             --github-output "$GITHUB_OUTPUT" \
             --max-shards 8
 
+  docs-consistency:
+    name: Documentation consistency
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          show-progress: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+
+      - name: Check active documentation contracts
+        run: npm run docs:check
+
   dependency-security:
     name: Dependency security
     runs-on: ubuntu-latest
@@ -241,13 +259,14 @@ jobs:
   required:
     name: Required CI
     if: always()
-    needs: [discover-tests, dependency-security, build, container-security, recovery-compose, test]
+    needs: [discover-tests, docs-consistency, dependency-security, build, container-security, recovery-compose, test]
     runs-on: ubuntu-latest
     steps:
       - name: Verify all required CI jobs succeeded
         shell: bash
         env:
           DISCOVER_RESULT: ${{ needs.discover-tests.result }}
+          DOCS_RESULT: ${{ needs.docs-consistency.result }}
           SECURITY_RESULT: ${{ needs.dependency-security.result }}
           BUILD_RESULT: ${{ needs.build.result }}
           CONTAINER_RESULT: ${{ needs.container-security.result }}
@@ -255,7 +274,7 @@ jobs:
           TEST_RESULT: ${{ needs.test.result }}
         run: |
           set -euo pipefail
-          for result in "$DISCOVER_RESULT" "$SECURITY_RESULT" "$BUILD_RESULT" "$CONTAINER_RESULT" "$RECOVERY_RESULT" "$TEST_RESULT"; do
+          for result in "$DISCOVER_RESULT" "$DOCS_RESULT" "$SECURITY_RESULT" "$BUILD_RESULT" "$CONTAINER_RESULT" "$RECOVERY_RESULT" "$TEST_RESULT"; do
             if [[ "$result" != "success" ]]; then
               echo "A required CI dependency finished with result: $result"
               exit 1

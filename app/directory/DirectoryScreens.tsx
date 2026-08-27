@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { FreeIpaAction } from "../../freeipa-ui-events";
+import type { FreeIpaAction } from "../../src/freeipa/freeipa-ui-events";
 import { Button, DataListPage, DataListState, DataTable, Toolbar } from "../ui";
 
 export type DirectoryUser = { uid: string; name: string; firstName: string; lastName: string; email: string; groups: number; groupNames: string[]; active: boolean };

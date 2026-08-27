@@ -9,7 +9,7 @@ import type {
   FreeIpaGroupMemberSort,
   FreeIpaGroupMemberStatus,
 } from "../src/freeipa/freeipa-group-member-query";
-import { FREEIPA_DIRECTORY_CHANGED_EVENT, loadFreeIpaAccess, openFreeIpaAction } from "../freeipa-ui-events";
+import { FREEIPA_DIRECTORY_CHANGED_EVENT, loadFreeIpaAccess, openFreeIpaAction } from "../src/freeipa/freeipa-ui-events";
 
 type QueryState = {
   q: string;

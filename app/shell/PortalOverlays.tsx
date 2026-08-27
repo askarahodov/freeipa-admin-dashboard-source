@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type { CatalogEvent, RouteField } from "../../automation-types";
 import { fieldConditionMatches } from "../../field-conditions";
-import type { FreeIpaAction, FreeIpaOperation } from "../../freeipa-ui-events";
+import type { FreeIpaAction, FreeIpaOperation } from "../../src/freeipa/freeipa-ui-events";
 import { resolveProcessIconGlyph } from "./home-presentation";
 import { formatDateTime } from "../operations/OperationsApprovalsScreens";
 

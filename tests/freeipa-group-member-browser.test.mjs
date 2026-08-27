@@ -4,7 +4,7 @@ import test from "node:test";
 
 test("group member browser uses direct FreeIPA actions and the paginated API", () => {
   const component = fs.readFileSync(new URL("../app/FreeIpaGroupMemberBrowser.tsx", import.meta.url), "utf8");
-  const events = fs.readFileSync(new URL("../freeipa-ui-events.ts", import.meta.url), "utf8");
+  const events = fs.readFileSync(new URL("../src/freeipa/freeipa-ui-events.ts", import.meta.url), "utf8");
   const wrapper = fs.readFileSync(new URL("../worker/freeipa-group-member-entry.ts", import.meta.url), "utf8");
   const selectiveRoot = fs.readFileSync(new URL("../worker/backup-selective-restore-root-entry.ts", import.meta.url), "utf8");
   const maintenanceControlRoot = fs.readFileSync(new URL("../worker/maintenance-control-root-entry.ts", import.meta.url), "utf8");

@@ -11,6 +11,7 @@ async function login(page) {
   await page.getByLabel("Пароль").fill(adminPassword);
   await page.getByRole("button", { name: "Войти" }).click();
   await page.waitForURL(/\/$/, { timeout: 30_000 });
+  await expect(page.locator(".local-auth-toolbar")).toBeVisible({ timeout: 30_000 });
 }
 
 async function tabUntilFocused(page, locator, limit = 40) {
@@ -81,11 +82,14 @@ test.describe.serial("UI accessibility and responsive baseline", () => {
 
   test("visible UI artifacts contain no credentials and visible status indicators have text", async ({ page }) => {
     await login(page);
-    const bodyText = await page.locator("body").innerText();
-    expect(bodyText).not.toContain(adminPassword);
-    expect(bodyText).not.toMatch(/(?:ldap|pg\d+)\.softrust\.ru/iu);
+    const body = page.locator("body");
+    await expect(body).not.toContainText(adminPassword);
+    await expect(body).not.toContainText(/(?:ldap|pg\d+)\.softrust\.ru/iu);
 
-    const statuses = await page.locator(".status, [data-tone]").allTextContents();
-    for (const label of statuses) expect(label.trim().length).toBeGreaterThan(0);
+    const statuses = page.locator(".status, [data-tone]");
+    const statusCount = await statuses.count();
+    for (let index = 0; index < statusCount; index += 1) {
+      await expect(statuses.nth(index)).toContainText(/\S/);
+    }
   });
 });

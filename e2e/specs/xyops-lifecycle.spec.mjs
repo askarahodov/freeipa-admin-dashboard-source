@@ -142,8 +142,18 @@ async function currentJobId(context, eventId, scenario) {
   return jobId;
 }
 
+async function waitForCancellableRun(context, jobId) {
+  await expect.poll(async () => {
+    const run = (await loadRuns(context)).find((item) => item.jobId === jobId);
+    return {
+      status: run?.status ?? "missing",
+      cancel: run?.actions?.cancel === true,
+    };
+  }, { timeout: 20_000, intervals: [250, 500, 1000] }).toEqual({ status: "running", cancel: true });
+}
+
 function operationRow(page, title, jobId) {
-  return page.locator("button.operation-explorer-row")
+  return page.locator(".selectable-run")
     .filter({ hasText: title })
     .filter({ hasText: jobId });
 }
@@ -177,10 +187,7 @@ test("XYOps dangerous workflows support approval, cancellation and result render
       await executeAsRequester(operatorPage, cancelTitle, cancelScenario);
 
       const cancelJobId = await currentJobId(operatorContext, "e2e-lifecycle-cancel", cancelScenario);
-      await expect.poll(async () => {
-        const run = (await loadRuns(operatorContext)).find((item) => item.jobId === cancelJobId);
-        return run?.status ?? "missing";
-      }, { timeout: 20_000, intervals: [250, 500, 1000] }).toMatch(/^(queued|running)$/);
+      await waitForCancellableRun(operatorContext, cancelJobId);
 
       await operatorPage.goto("/operations");
       const cancelRow = operationRow(operatorPage, cancelTitle, cancelJobId);

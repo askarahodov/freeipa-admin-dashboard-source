@@ -93,11 +93,12 @@ test("FreeIPA user, group and membership CRUD works through the browser", async 
     await page.getByRole("button", { name: /Создать группу/ }).click();
     await submitFreeIpaModal(page, { group, description: "Playwright stateful FreeIPA group" });
 
-    const groupRow = page.getByRole("row").filter({ hasText: group });
+    const groupBrowser = page.getByRole("region", { name: "Группы доступа" });
+    const groupRow = groupBrowser.getByRole("row").filter({ hasText: group });
     await expect(groupRow).toBeVisible();
     await expect(groupRow).toContainText("0");
 
-    await groupRow.getByRole("button", { name: /Участник/ }).click();
+    await groupRow.getByRole("button", { name: "Добавить участника" }).click();
     await submitFreeIpaModal(page, { username: uid });
     await expect(groupRow).toContainText("1");
 

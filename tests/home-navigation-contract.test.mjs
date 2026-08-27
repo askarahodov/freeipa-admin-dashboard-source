@@ -22,6 +22,7 @@ test("home navigation preserves canonical page paths", () => {
     approvals: "/approvals",
     audit: "/audit",
     settings: "/settings",
+    showcase: "/showcase",
   });
 });
 
@@ -29,6 +30,7 @@ test("location resolution is deterministic and normalizes trailing slashes", () 
   assert.deepEqual(resolveHomeLocation("/", sections), { page: "overview", automationCategory: "all" });
   assert.deepEqual(resolveHomeLocation("/users/", sections), { page: "users", automationCategory: "all" });
   assert.deepEqual(resolveHomeLocation("/groups", sections), { page: "groups", automationCategory: "all" });
+  assert.deepEqual(resolveHomeLocation("/showcase/", sections), { page: "showcase", automationCategory: "all" });
   assert.deepEqual(resolveHomeLocation("/unknown", sections), { page: "overview", automationCategory: "all" });
 });
 
@@ -42,6 +44,7 @@ test("automation locations resolve known generated sections without leaking them
 test("path building preserves existing automation category behavior", () => {
   assert.equal(buildHomePath("overview", "all", sections), "/");
   assert.equal(buildHomePath("operations", "all", sections), "/operations");
+  assert.equal(buildHomePath("showcase", "all", sections), "/showcase");
   assert.equal(buildHomePath("automation", "Infrastructure", sections), "/automation/infrastructure");
   assert.equal(buildHomePath("automation", "missing", sections), "/automation");
   assert.equal(buildHomePath("users", "Infrastructure", sections), "/users");

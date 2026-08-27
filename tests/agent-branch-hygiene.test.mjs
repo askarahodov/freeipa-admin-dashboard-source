@@ -109,7 +109,7 @@ test("workflow executes only trusted-main cleanup policy", async () => {
   assert.match(workflow, /ref:\s*main/u);
   assert.match(workflow, /persist-credentials:\s*false/u);
   assert.doesNotMatch(workflow, /pull_request_target/u);
-  assert.match(workflow, /actions\/github-script@v7/u);
+  assert.match(workflow, /actions\/github-script@v9/u);
   assert.match(workflow, /github\.paginate\(github\.rest\.repos\.listBranches/u);
   assert.match(workflow, /github\.paginate\(github\.rest\.pulls\.list/u);
   assert.match(workflow, /buildAgentBranchHygienePlan/u);

@@ -1,5 +1,5 @@
 import sessionRuntime from "./session-management-entry";
-import { normalizeFreeIpaUserQuery, queryFreeIpaUsers, type FreeIpaDirectoryUser } from "../freeipa-user-query";
+import { normalizeFreeIpaUserQuery, queryFreeIpaUsers, type FreeIpaDirectoryUser } from "../src/freeipa/freeipa-user-query";
 
 type RuntimeEnv = NonNullable<Parameters<typeof sessionRuntime.fetch>[1]>;
 type RuntimeContext = Parameters<typeof sessionRuntime.fetch>[2];

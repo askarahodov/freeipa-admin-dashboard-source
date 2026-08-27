@@ -21,7 +21,7 @@
 | `docs/README.md` | documentation index | documentation policy + inventory | `verified-active` | Основной навигатор active docs |
 | `docs/ARCHITECTURE.md` | architecture/current-state overview | current runtime entries, Compose/startup, canonical domain owners and tests | `verified-active` | Production runtime resynced in #210; #209 persistence mismatch documented separately |
 | `docs/PROJECT_STRUCTURE.md` | repository/module ownership map | current repository paths + `SOURCE_OF_TRUTH.md` + representative tests | `verified-active` | Startup/module ownership resynced in #210; не является target refactor plan |
-| `docs/DOCUMENTATION_POLICY.md` | policy | Epic #82 documentation contract | `verified-active` | Docs-as-code и правила нескольких ИИ-агентов |
+| `docs/DOCUMENTATION_POLICY.md` | policy | Epic #82 documentation contract + `scripts/documentation-consistency.mjs` | `verified-active` | Docs-as-code, правила нескольких ИИ-агентов и обязательный `npm run docs:check` |
 | `docs/SOURCE_OF_TRUTH.md` | reference registry | canonical runtime owners | `verified-active` | Re-audited in #207/#211; points to existing configuration/project-structure references |
 | `docs/GLOSSARY.md` | terminology | active runtime/domain semantics | `verified-active` | Общая терминология |
 | `docs/ai/README.md` | AI entrypoint | documentation policy + source registry | `verified-active` | Обязательный порядок чтения для ИИ-агентов |
@@ -70,8 +70,8 @@
 | --- | --- | --- | --- | --- |
 | `docs/PRODUCT_ROADMAP.md` | roadmap | GitHub Issues + merged work | `plan` | Не использовать вместо runtime contract |
 | `docs/OPEN_TASKS.md` | historical task snapshot | GitHub Issues | `superseded` | Текущий backlog только в GitHub Issues; старый snapshot сохранён в Git history |
-| `docs/superpowers/specs/**` | design artifacts | implementation + active docs | `design/historical` | Не являются current runbook после реализации |
-| `docs/superpowers/plans/**` | implementation/review plans | implementation + active docs | `design/historical` | Не являются current contract после merge |
+| `docs/superpowers/specs/**` | design artifacts | implementation + active docs | `design/historical` | Не являются current runbook после реализации; исключены из automated active-doc guard |
+| `docs/superpowers/plans/**` | implementation/review plans | implementation + active docs | `design/historical` | Не являются current contract после merge; исключены из automated active-doc guard |
 
 ## Исправленные расхождения baseline
 
@@ -86,6 +86,7 @@
 - **DOC-009:** добавлен normalized reference layer для API, permissions, configuration и stable machine error codes без создания дублирующих runtime registries.
 - **DOC-010:** #210 синхронизировал production architecture/project structure с canonical Node runtime после #194.
 - **DOC-011:** #207/#211 синхронизировал configuration/source-of-truth/security current-state owner pointers и повторно проверил API/RBAC references.
+- **DOC-012:** #208 добавляет deterministic documentation consistency guard для внутренних ссылок, npm command references и известных obsolete runtime markers.
 
 ## Проверенные группы
 
@@ -107,6 +108,18 @@
 - P0 automated acceptance — script/package/Compose entrypoints.
 - Schema/migrations — canonical registry, v4 automatic foundation, controlled-suffix semantics and storage migration contracts.
 
+## Automated consistency coverage
+
+`scripts/documentation-consistency.mjs` is the machine-checkable owner for repository-wide active-document consistency checks exposed as `npm run docs:check`. CI runs it in a dedicated dependency-free `Documentation consistency` job and includes that result in `Required CI`.
+
+Current deterministic coverage intentionally includes:
+
+- internal Markdown links resolving to existing repository paths;
+- documented `npm run ...` commands resolving to scripts in `package.json`;
+- known obsolete production-runtime statements that would reintroduce pre-#194 Wrangler current-state drift.
+
+Semantic API/RBAC/configuration/runtime truth continues to belong to canonical owners and their contract tests. Historical `docs/superpowers/**` material is intentionally outside this guard.
+
 ## Ограничения inventory
 
 Этот baseline перечисляет active/current инженерные документы и отдельно классифицирует `docs/superpowers/specs/**` / `plans/**` как historical implementation artifacts. Historical plans не перечисляются по одному, потому что они не являются current contracts и их authoritative owner — соответствующий merged implementation + active documentation.
@@ -117,11 +130,10 @@
 
 ## Следующие gaps Epic #82
 
-Baseline повторно актуализирован в #207; architecture/module ownership map, security model и normalized reference layer существуют и проверяются против canonical owners. Остаются отдельные current-state задачи:
+Baseline повторно актуализирован в #207; architecture/module ownership map, security model и normalized reference layer существуют и проверяются против canonical owners. После #208 automated consistency guard больше не является gap. Остаются отдельные current-state задачи:
 
 - supported/unsupported deployment matrix;
 - ADR registry;
 - module-level documentation coverage;
-- automated documentation consistency CI (#208);
 - устранение распределённых runtime ownership gaps #119/#121/#123/#124;
 - исправление production Compose persistence contract #209.

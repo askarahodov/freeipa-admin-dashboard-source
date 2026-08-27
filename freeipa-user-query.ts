@@ -1,1 +1,1 @@
-export * from "./src/freeipa/freeipa-user-query";
+export * from "./src/freeipa/freeipa-user-query.ts";

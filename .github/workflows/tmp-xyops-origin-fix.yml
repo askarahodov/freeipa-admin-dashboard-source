@@ -1,0 +1,30 @@
+name: Temporary XYOps E2E Origin Fix
+on:
+  push:
+    branches: [fix/xyops-e2e-same-origin-admin]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/xyops-e2e-same-origin-admin
+      - name: Patch same-origin E2E requests
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('e2e/specs/xyops-lifecycle.spec.mjs')
+          s = p.read_text()
+          s = s.replace('const response = await page.request.post("/api/auth/users", {\n    data:', 'const response = await page.request.post("/api/auth/users", {\n    headers: { Origin: baseURL },\n    data:', 1)
+          s = s.replace('await page.request.delete(`/api/auth/users/${encodeURIComponent(operatorUser.id)}`).catch(() => {});', 'await page.request.delete(`/api/auth/users/${encodeURIComponent(operatorUser.id)}`, { headers: { Origin: baseURL } }).catch(() => {});', 1)
+          p.write_text(s)
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add e2e/specs/xyops-lifecycle.spec.mjs
+          git rm .github/workflows/tmp-xyops-origin-fix.yml
+          git commit -m "test(e2e): send same-origin headers for admin mutations"
+          git push

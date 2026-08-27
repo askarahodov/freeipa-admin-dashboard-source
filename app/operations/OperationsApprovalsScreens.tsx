@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Button, DataListPage, DataListState, DataTable } from "../ui";
 
 export type RunStatus = "queued" | "running" | "success" | "failed" | "cancelled" | "unknown";
 export type RunStage = { id: string; title: string; status: RunStatus; startedAt: number | null; completedAt: number | null; error: string };
@@ -26,7 +27,18 @@ export function Approvals({ items, pendingForMe, loading, canApprove, refresh, o
 export function Operations({ runs, stats, loading, refresh, onAction }: { runs: RunRecord[]; stats: RunStats; loading: boolean; refresh: () => void; onAction: (run: RunRecord, action: "cancel" | "rerun") => Promise<boolean> }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = runs.find((run) => run.id === selectedId) ?? null;
-  return <div className="content-stack"><section className="panel table-panel section-page"><div className="panel-title"><div><h2>Журнал операций</h2><p>Прямые изменения FreeIPA и запуски автоматизаций XYOps</p></div><button className="secondary" disabled={loading} onClick={refresh}>{loading ? "Обновление…" : "⟳ Обновить"}</button></div><div className="stats-strip"><span><b>{stats.today}</b> операций сегодня</span><span><i className="dot green" /><b>{stats.success}</b> успешно</span><span><i className="dot amber" /><b>{stats.queued}</b> выполняются</span><span><i className="dot red-dot" /><b>{stats.failed}</b> ошибки</span></div><OperationTable rows={runs} detailed onSelect={(run) => setSelectedId(run.id)} /></section>{selected && <RunDetails run={selected} close={() => setSelectedId(null)} onAction={onAction} />}</div>;
+  return <>
+    <DataListPage
+      className="section-page"
+      title="Журнал операций"
+      description="Прямые изменения FreeIPA и запуски автоматизаций XYOps"
+      actions={<Button variant="secondary" disabled={loading} onClick={refresh}>{loading ? "Обновление…" : "Обновить"}</Button>}
+      toolbar={<div className="stats-strip"><span><b>{stats.today}</b> операций сегодня</span><span><i className="dot green" /><b>{stats.success}</b> успешно</span><span><i className="dot amber" /><b>{stats.queued}</b> выполняются</span><span><i className="dot red-dot" /><b>{stats.failed}</b> ошибки</span></div>}
+    >
+      <OperationTable rows={runs} detailed onSelect={(run) => setSelectedId(run.id)} />
+    </DataListPage>
+    {selected && <RunDetails run={selected} close={() => setSelectedId(null)} onAction={onAction} />}
+  </>;
 }
 
 function RunDetails({ run, close, onAction }: { run: RunRecord; close: () => void; onAction: (run: RunRecord, action: "cancel" | "rerun") => Promise<boolean> }) {
@@ -58,5 +70,9 @@ export function RunStatusBadge({ status }: { status: RunStatus }) {
 }
 
 export function OperationTable({ rows, detailed = false, onSelect }: { rows: RunRecord[]; detailed?: boolean; onSelect?: (run: RunRecord) => void }) {
-  return <div className="data-table"><div className={`tr th ${detailed ? "ops-detailed" : "ops-row"}`}><span>Операция</span><span>Объект</span><span>Статус</span><span>Инициатор</span><span>Время</span>{detailed && <span>Job</span>}</div>{rows.map((run) => <div className={`tr ${detailed ? "ops-detailed" : "ops-row"} ${onSelect ? "selectable-run" : ""}`} key={run.id} title={run.error ?? ""} onClick={() => onSelect?.(run)}><span className="operation"><i className={run.status}>↗</i>{run.title}</span><span>{run.subject}</span><span><RunStatusBadge status={run.status} /></span><span>{run.actor}</span><span><strong>{new Date(run.startedAt).toLocaleTimeString("ru-RU")}</strong><small>{new Date(run.startedAt).toLocaleDateString("ru-RU")}</small></span>{detailed && <span className="mono">{run.jobId}</span>}</div>)}{!rows.length && <div className="catalog-empty"><strong>Операций пока нет</strong><span>Запуски Events и Workflows появятся здесь автоматически.</span></div>}</div>;
+  if (!rows.length) return <DataListState kind="empty" title="Операций пока нет" description="Запуски Events и Workflows появятся здесь автоматически." />;
+  return <DataTable label="Журнал операций" className="data-table"><thead><tr className={`tr th ${detailed ? "ops-detailed" : "ops-row"}`}><th>Операция</th><th>Объект</th><th>Статус</th><th>Инициатор</th><th>Время</th>{detailed && <th>Job</th>}</tr></thead><tbody>{rows.map((run) => {
+    const activate = () => onSelect?.(run);
+    return <tr className={`tr ${detailed ? "ops-detailed" : "ops-row"}${onSelect ? " selectable-run" : ""}`} key={run.id} title={run.error ?? ""} onClick={activate} onKeyDown={onSelect ? (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); activate(); } } : undefined} tabIndex={onSelect ? 0 : undefined}><td><span className="operation"><i className={run.status}>↗</i>{run.title}</span></td><td>{run.subject}</td><td><RunStatusBadge status={run.status} /></td><td>{run.actor}</td><td><strong>{new Date(run.startedAt).toLocaleTimeString("ru-RU")}</strong><small>{new Date(run.startedAt).toLocaleDateString("ru-RU")}</small></td>{detailed && <td className="mono">{run.jobId}</td>}</tr>;
+  })}</tbody></DataTable>;
 }

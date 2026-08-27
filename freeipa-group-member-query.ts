@@ -1,1 +1,1 @@
-export * from "./src/freeipa/freeipa-group-member-query";
+export * from "./src/freeipa/freeipa-group-member-query.ts";

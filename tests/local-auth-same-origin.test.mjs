@@ -5,6 +5,7 @@ import test from "node:test";
 import { sameOriginAdminMutation } from "../admin-session-authorization.ts";
 
 const runtime = fs.readFileSync(new URL("../worker/local-secure-entry.ts", import.meta.url), "utf8");
+const sessionRuntime = fs.readFileSync(new URL("../worker/session-management-entry.ts", import.meta.url), "utf8");
 
 function authHandlerSource() {
   const start = runtime.indexOf("async function handleAuthApi");
@@ -51,7 +52,7 @@ test("local-auth login remains outside the authenticated mutation origin gate", 
   assert.match(source, /Административный local-auth запрос заблокирован проверкой источника/);
 });
 
-test("protected local-auth surface includes user, password and session mutations", () => {
+test("protected local-auth surface includes user, password and per-user session mutations", () => {
   const source = authHandlerSource();
   assert.match(source, /url\.pathname === "\/api\/auth\/users"/);
   assert.match(source, /request\.method === "POST"/);
@@ -59,4 +60,14 @@ test("protected local-auth surface includes user, password and session mutations
   assert.match(source, /action === "sessions" && request\.method === "DELETE"/);
   assert.match(source, /!action && request\.method === "PUT"/);
   assert.match(source, /!action && request\.method === "DELETE"/);
+});
+
+test("administrative session revocation has an explicit same-origin boundary", () => {
+  const match = sessionRuntime.indexOf('url.pathname.match(/^\\/api\\/auth\\/sessions');
+  const deleteMethod = sessionRuntime.indexOf('request.method !== "DELETE"', match);
+  const guard = sessionRuntime.indexOf("!sameOriginAdminMutation(request)", deleteMethod);
+  const revoke = sessionRuntime.indexOf("revokeLocalPortalSession(env, match[1])", guard);
+  assert.ok(match >= 0, "session revocation route must exist");
+  assert.ok(deleteMethod > match && guard > deleteMethod, "DELETE session route must cross same-origin gate");
+  assert.ok(revoke > guard, "session revocation must happen only after same-origin authorization");
 });

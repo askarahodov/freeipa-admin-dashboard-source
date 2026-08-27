@@ -222,12 +222,12 @@ export default function FreeIpaGroupMemberBrowser() {
       <button className="secondary" disabled={loading} onClick={() => void load()}>{loading ? "Обновление…" : "Обновить"}</button>
     </div>
 
-    <form className="freeipa-group-member-query" onSubmit={(event) => { event.preventDefault(); setFilter({ q: draft }); }}>
-      <label className="freeipa-group-member-search"><span>Поиск</span><input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Логин, имя или email" /></label>
-      <label><span>Статус</span><select value={query.status} onChange={(event) => setFilter({ status: event.target.value as FreeIpaGroupMemberStatus })}><option value="all">Все</option><option value="active">Активные</option><option value="disabled">Отключённые</option><option value="unknown">Без карточки</option></select></label>
-      <label><span>Сортировка</span><select value={query.sort} onChange={(event) => setFilter({ sort: event.target.value as FreeIpaGroupMemberSort })}><option value="uid">Логин</option><option value="name">Имя</option><option value="email">Email</option><option value="status">Статус</option></select></label>
-      <button type="button" className="secondary freeipa-group-member-direction" onClick={() => setFilter({ direction: query.direction === "asc" ? "desc" : "asc" })}>{query.direction === "asc" ? "↑ По возрастанию" : "↓ По убыванию"}</button>
-      <button className="primary" type="submit">Найти</button>
+<form className="freeipa-group-member-query" onSubmit={(event) => { event.preventDefault(); setFilter({ q: draft }); }}>
+        <div className="ds-field"><label className="ds-field-label">Поиск</label><input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Логин, имя или email" /></div>
+        <div className="ds-field"><label className="ds-field-label">Статус</label><select value={query.status} onChange={(event) => setFilter({ status: event.target.value as FreeIpaGroupMemberStatus })}><option value="all">Все</option><option value="active">Активные</option><option value="disabled">Отключённые</option><option value="unknown">Без карточки</option></select></div>
+        <div className="ds-field"><label className="ds-field-label">Сортировка</label><select value={query.sort} onChange={(event) => setFilter({ sort: event.target.value as FreeIpaGroupMemberSort })}><option value="uid">Логин</option><option value="name">Имя</option><option value="email">Email</option><option value="status">Статус</option></select></div>
+        <button type="button" className="secondary freeipa-group-member-direction" onClick={() => setFilter({ direction: query.direction === "asc" ? "desc" : "asc" })}>{query.direction === "asc" ? "↑ По возрастанию" : "↓ По убыванию"}</button>
+        <button className="primary" type="submit">Найти</button>
     </form>
 
     {error && <div className="freeipa-group-member-state error"><span>{error}</span><button className="secondary" onClick={() => void load()}>Повторить</button></div>}

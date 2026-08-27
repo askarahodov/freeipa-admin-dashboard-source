@@ -54,22 +54,16 @@ export default function LoginPage() {
         <p>Используйте внутреннюю учётную запись портала. Пользователи FreeIPA не используются для аутентификации.</p>
 
         {setupRequired && (
-          <div className="local-auth-warning">
-            Первый администратор ещё не создан. Задайте <code>PORTAL_BOOTSTRAP_ADMIN_USERNAME</code> и <code>PORTAL_BOOTSTRAP_ADMIN_PASSWORD</code> в <code>.env</code>, затем перезапустите контейнер.
+          <div className="ds-field-group ds-field-error">
+            <span className="ds-field-helper">⚠</span>
+            <div><strong className="ds-field-error-title">Требуется настройка администратора</strong><p>Первый администратор ещё не создан. Задайте <code>PORTAL_BOOTSTRAP_ADMIN_USERNAME</code> и <code>PORTAL_BOOTSTRAP_ADMIN_PASSWORD</code> в <code>.env</code>, затем перезапустите контейнер.</p></div>
           </div>
         )}
 
-        <label>
-          Логин
-          <input autoFocus autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} required />
-        </label>
-        <label>
-          Пароль
-          <input type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required />
-        </label>
+        <div className="ds-field"><label className="ds-field-label">Логин</label><input className="ds-input" autoFocus autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} required /></div>
+        <div className="ds-field"><label className="ds-field-label">Пароль</label><input className="ds-input" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required /></div>
 
-        {error && <div className="local-auth-error">{error}</div>}
-        <button className="primary" disabled={loading || checking || setupRequired}>
+        <button className="ds-btn ds-btn-primary" disabled={loading || checking || setupRequired}>
           {checking ? "Проверка…" : loading ? "Вход…" : "Войти"}
         </button>
       </form>

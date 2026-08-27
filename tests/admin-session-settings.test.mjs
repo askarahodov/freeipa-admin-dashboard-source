@@ -44,7 +44,9 @@ test("all administrative settings restore and maintenance endpoints use the shar
 
 test("local session mutations require same-origin while service token access stays behind the maintenance gate", () => {
   assert.equal(authorization.includes('request.headers.get("origin")'), true);
-  assert.equal(authorization.includes("new URL(origin).origin === new URL(request.url).origin"), true);
+  assert.equal(authorization.includes('request.headers.get("referer")'), true);
+  assert.equal(authorization.includes("new URL(origin).origin === requestOrigin"), true);
+  assert.equal(authorization.includes("new URL(referer).origin === requestOrigin"), true);
   assert.equal(runtime.includes("sameOriginAdminMutation(request)"), true);
   assert.equal(runtime.includes("service-admin@portal.local"), true);
   assert.equal(viteConfig.includes('main: "./worker/schema-migrations-entry.ts"'), true);

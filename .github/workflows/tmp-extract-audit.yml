@@ -1,0 +1,32 @@
+name: Temporary Audit Extraction
+on:
+  push:
+    branches: [ui-118-extract-audit]
+permissions:
+  contents: write
+jobs:
+  extract:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ui-118-extract-audit
+      - run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app/page.tsx')
+          s = p.read_text()
+          anchor = 'import { AutomationCatalog } from "./automation/AutomationCatalog";\n'
+          assert anchor in s
+          s = s.replace(anchor, anchor + 'import { AuditLog } from "./audit/AuditLog";\n', 1)
+          start = s.index('\nfunction AuditLog()')
+          end = s.index('\nconst exampleProcessPresentation:', start)
+          s = s[:start] + '\n' + s[end:]
+          p.write_text(s)
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add app/page.tsx
+          git commit -m "ui: wire extracted Audit screen"
+          git push

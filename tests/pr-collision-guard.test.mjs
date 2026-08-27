@@ -183,7 +183,7 @@ test("workflow is a stable read-only pull-request check", () => {
   assert.doesNotMatch(workflow, /contents:\s*write/u);
   assert.doesNotMatch(workflow, /pull-requests:\s*write/u);
   assert.match(workflow, /name:\s*ownership-collision/u);
-  assert.match(workflow, /actions\/github-script@v7/u);
+  assert.match(workflow, /actions\/github-script@v9/u);
 });
 
 test("workflow reads PR metadata through the GitHub client and delegates policy to the tested module", () => {

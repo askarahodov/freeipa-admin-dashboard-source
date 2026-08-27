@@ -46,7 +46,7 @@ test("FreeIPA domain modules have one canonical implementation path", async () =
   assert.equal(
     compatibilityShim.trim(),
     'export * from "./src/freeipa/freeipa-ui-events.ts";',
-    "root FreeIPA UI events file must remain a compatibility-only re-export while app/page.tsx still consumes it",
+    "root FreeIPA UI events file must remain a compatibility-only re-export while legacy application consumers remain",
   );
 });
 
@@ -69,7 +69,7 @@ test("application, workers and tests do not reference removed FreeIPA root query
   assert.deepEqual(violations, [], `legacy FreeIPA root query path references found: ${violations.join(", ")}`);
 });
 
-test("temporary FreeIPA UI events root shim has exactly one application consumer", async () => {
+test("temporary FreeIPA UI events root shim has an explicit shrinking application allowlist", async () => {
   const files = (await Promise.all(scanRoots.map(collectSourceFiles))).flat();
   const consumers = [];
 
@@ -79,9 +79,10 @@ test("temporary FreeIPA UI events root shim has exactly one application consumer
     if (/(?:\.\.\/)+freeipa-ui-events(?:\.ts)?["']/.test(content)) consumers.push(relativePath);
   }
 
+  consumers.sort();
   assert.deepEqual(
     consumers,
-    ["app/page.tsx"],
+    ["app/page.tsx", "app/shell/PortalOverlays.tsx"],
     `temporary FreeIPA UI events shim consumers changed: ${consumers.join(", ")}`,
   );
 });

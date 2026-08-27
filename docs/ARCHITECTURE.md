@@ -40,20 +40,32 @@ The current self-hosted deployment is Docker Compose based.
 
 ### Dashboard container
 
-The dashboard runtime:
+The production image runs as the non-root `dashboard` user, exposes port `3001`, and starts the canonical Node production entrypoint:
 
-1. validates the production `CONFIG_ENCRYPTION_KEY` before starting the application runtime;
-2. validates the configured identity mode and secure bootstrap requirements;
-3. starts a private FreeIPA Gateway bound to `127.0.0.1` on an ephemeral or explicitly configured local port;
-4. creates an ephemeral high-entropy gateway token and writes the Worker runtime environment to a mode-`0600` file under `/tmp`;
-5. starts the Worker-oriented runtime through `scripts/run-portal-runtime.mjs`, which owns the exclusive runtime lock;
-6. persists local runtime data under `.wrangler`, mounted from the Compose volume `dashboard-data`.
+```text
+node --experimental-strip-types scripts/start-production.mjs
+```
 
-The current production image runs as the non-root `dashboard` user and exposes port `3001`. Docker liveness uses `GET /health/live`.
+The startup path is owned by `scripts/start-production.mjs` and `runtime/production-runtime.mjs`. At a high level it:
 
-### Current runtime limitation
+1. builds the production runtime options from the process environment;
+2. loads the built Worker artifact, defaulting to `dist/server/index.js`;
+3. starts the private FreeIPA Gateway on `127.0.0.1` using an ephemeral high-entropy token;
+4. creates the runtime application and SQLite-backed D1-compatible database boundary;
+5. applies canonical schema verification/migrations before ordinary application service becomes ready;
+6. starts the Node Worker HTTP host for the built Worker artifact and static assets;
+7. starts the portal scheduler only through the canonical runtime orchestration;
+8. installs coordinated `SIGTERM`/`SIGINT` shutdown handling with a bounded shutdown timeout.
 
-The production startup path currently launches Wrangler with `wrangler dev --local`. This is a **current implementation fact and known production-runtime limitation**, not a target architecture. Replacement of the development-oriented runtime is tracked separately by #51.
+The canonical production startup no longer uses `wrangler dev --local`. Wrangler/Vinext remain development/build tooling where configured, but they are not the production process owner after the #51/#194 runtime cutover.
+
+Docker liveness uses `GET /health/live`.
+
+### Persistence boundary
+
+The canonical production image declares `PORTAL_DATA_DIR=/data`, and the Node SQLite persistence boundary owns the production database path under that persistence root unless explicitly configured otherwise.
+
+Current `compose.yaml`, however, still mounts the `dashboard-data` named volume at `/app/.wrangler`. That does not match the canonical `/data` production persistence root introduced by the Node runtime cutover. This is a confirmed current deployment-contract defect tracked by #209; documentation must not claim that the existing Compose mount persists the canonical production database until that issue is resolved.
 
 ### Current network model
 
@@ -61,11 +73,13 @@ The current Compose service uses `network_mode: host`. This document records tha
 
 ### Recovery container
 
-The Compose `recovery` profile uses a separate recovery image/entrypoint, runs as a non-root recovery user, mounts portal data explicitly, uses a read-only root filesystem plus `/tmp` tmpfs, and executes the offline recovery CLI. Detailed destructive recovery procedure belongs to [`OFFLINE_FULL_RESTORE.md`](OFFLINE_FULL_RESTORE.md).
+The Compose `recovery` profile uses a separate recovery image/entrypoint, runs as a non-root recovery user, mounts portal data explicitly, uses a read-only root filesystem plus `/tmp` tmpfs, and executes the offline recovery CLI. Because the production persistence mount is currently inconsistent with the canonical `/data` runtime root, recovery/production volume alignment must be verified as part of #209 before relying on Compose persistence claims.
+
+Detailed destructive recovery procedure belongs to [`OFFLINE_FULL_RESTORE.md`](OFFLINE_FULL_RESTORE.md).
 
 ## Server request architecture
 
-### Actual entry chain
+### Actual Worker entry chain
 
 The built Worker entry is currently `worker/schema-migrations-entry.ts`. Request handling is composed through a series of wrapper/entry modules before the base `worker/index.ts` implementation.
 
@@ -93,7 +107,7 @@ worker/schema-migrations-entry.ts
   -> worker/index.ts
 ```
 
-This wrapper chain is part of the **current architecture**, not the desired end state. Refactoring it into a clearer router/middleware/module structure is tracked by #56. Until that refactor is merged, documentation must not describe an idealized middleware stack as if it already exists.
+This wrapper chain is part of the **current application request architecture**, even though the production process hosting it is now the canonical Node runtime. Refactoring the Worker chain into a clearer router/middleware/module structure remains a separate concern tracked by #56.
 
 ### Request lifecycle
 
@@ -174,19 +188,15 @@ The portal accesses XYOps server-side for catalog and execution functions. It no
 
 ## Frontend architecture
 
-The frontend uses the `app/` tree with React/Vinext. `app/layout.tsx` owns the document layout and mounts several global portal interaction/enhancement components. The main product UI is still heavily concentrated in `app/page.tsx`, with additional dedicated pages such as login, access, sessions and diagnostics plus feature-specific CSS layers.
+The frontend uses the `app/` tree with React/Vinext. `app/layout.tsx` owns the document layout and mounts global portal interaction/enhancement components. Reusable design tokens and domain-agnostic UI primitives live under `app/styles/` and `app/ui/`, with the reusable product shell/navigation foundation under `app/shell/`.
 
-A shared UI foundation is part of current `main`: semantic design tokens live under `app/styles/`, and domain-agnostic primitives are exported from `app/ui/`. In addition, #113 merged a reusable product shell/navigation foundation under `app/shell/`: `AppShell.tsx`, the typed grouped product-navigation model in `navigation.ts`, local typed SVG icons and shell styles are current code and should be reused instead of creating a parallel global navigation model.
-
-The `app/shell/` foundation is **not yet the primary Home composition**. PR #113 intentionally left `app/page.tsx` untouched because it remains a large shared high-conflict surface. Targeted Home/AppShell wiring remains follow-up work under #94. Therefore current-state code owns a reusable AppShell/navigation foundation, while the rendered primary product composition is still the existing `app/page.tsx` implementation until that integration lands.
-
-The concentration in `app/page.tsx` remains a current maintainability constraint. Broader UI architecture work under #92–#94 must be described according to what is actually merged; #113 is current foundation, while unfinished Home integration remains planned/in-progress.
+Recent UI architecture work has extracted additional presentation responsibilities from the former monolithic Home page, including Home presentation and dedicated Users/Groups screen modules. Because this area is actively changing, exact current component ownership should be verified against the current `app/` tree and relevant UI tests before modifying a screen. Do not rely on historical statements that `app/page.tsx` is the sole owner of those extracted surfaces.
 
 Frontend code must not become a second authorization layer: UI visibility improves UX, while permissions remain enforced by server-side contracts.
 
 ## Schema and startup boundary
 
-Canonical schema verification/migration runs before ordinary application traffic through `worker/schema-migrations-entry.ts` and the database migration runtime.
+Canonical schema verification/migration is part of the production runtime startup boundary and remains enforced by the Worker/schema runtime before ordinary application traffic is considered ready.
 
 Key rules are defined in [`DATABASE_MIGRATIONS.md`](DATABASE_MIGRATIONS.md):
 
@@ -239,9 +249,9 @@ Use:
 These are current-state constraints, not recommendations:
 
 1. **Large Worker wrapper chain and base entrypoint.** Request concerns are spread across many wrapper entries plus `worker/index.ts`; #56 tracks refactoring.
-2. **Frontend concentration despite reusable shell foundation.** Shared tokens/primitives exist in `app/styles/` and `app/ui/`, and `app/shell/` now owns a merged AppShell/navigation foundation, but the primary Home composition remains concentrated in `app/page.tsx` until #94 integration work lands.
-3. **Local SQLite/D1-compatible ownership.** The supported deployment persists one local `.wrangler` data directory through a Compose volume. No active current-state document establishes a horizontally scaled multi-writer database architecture.
-4. **Development-oriented Wrangler production command.** Production currently uses `wrangler dev --local`; #51 tracks replacement.
+2. **Actively changing frontend ownership.** Shared tokens/primitives and the AppShell foundation exist, while screen/presentation extraction has continued beyond the original shell foundation; exact ownership must be checked against current `main` rather than historical UI plans.
+3. **Local SQLite/D1-compatible ownership.** The canonical Node runtime uses a local SQLite-backed D1-compatible persistence boundary and does not establish a horizontally scaled multi-writer database architecture.
+4. **Compose persistence mismatch.** The canonical production persistence root is `/data`, while current Compose still mounts `dashboard-data` at `/app/.wrangler`; #209 tracks correction and regression coverage.
 5. **Host networking.** Current Compose uses `network_mode: host`; #52 tracks a different network model.
 6. **Distributed route/reference ownership.** A single declarative API/permission registry does not yet exist; until it does, route contracts must be verified against current handlers/wrappers/tests plus owner documents.
 

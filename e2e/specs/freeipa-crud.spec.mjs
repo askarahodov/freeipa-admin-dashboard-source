@@ -59,11 +59,12 @@ test("FreeIPA user, group and membership CRUD works through the browser", async 
 
   await login(page, "/users");
   const userBrowser = page.getByRole("region", { name: "Пользователи FreeIPA" });
+  const createUserButton = page.getByRole("button", { name: /Создать пользователя/ });
   await expect(userBrowser).toBeVisible();
-  await expect(userBrowser.getByRole("button", { name: /Создать пользователя/ })).toBeEnabled();
+  await expect(createUserButton).toBeEnabled();
 
   try {
-    await userBrowser.getByRole("button", { name: /Создать пользователя/ }).click();
+    await createUserButton.click();
     await submitFreeIpaModal(page, {
       username: uid,
       firstName: "E2E",

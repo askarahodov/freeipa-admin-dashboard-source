@@ -18,6 +18,9 @@
 /.next/
 /out/
 
+# generated/tool state
+/.vinext/
+
 # misc
 .DS_Store
 *.pem

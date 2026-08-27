@@ -56,6 +56,7 @@ async function confirmPortalAction(page, dialogTitle, buttonName) {
 
 async function createPortalUser(page, username, password) {
   const response = await page.request.post("/api/auth/users", {
+    headers: { Origin: baseURL },
     data: {
       username,
       displayName: "E2E XYOps Operator",
@@ -228,7 +229,7 @@ test("XYOps dangerous workflows support approval, cancellation and result render
     }
   } finally {
     if (operatorUser?.id) {
-      await page.request.delete(`/api/auth/users/${encodeURIComponent(operatorUser.id)}`).catch(() => {});
+      await page.request.delete(`/api/auth/users/${encodeURIComponent(operatorUser.id)}`, { headers: { Origin: baseURL } }).catch(() => {});
     }
     await resetMock(page).catch(() => {});
   }

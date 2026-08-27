@@ -176,10 +176,25 @@ Active-документы описывают то, как система раб�
 
 Если документация не меняется, автор указывает почему изменение не затрагивает documented contract.
 
+## Automated consistency guard
+
+`npm run docs:check` является обязательной детерминированной проверкой active documentation. Она запускается локально без установки зависимостей и отдельным job `Documentation consistency` в CI.
+
+Guard проверяет только машинно-доказуемые классы drift, в том числе:
+
+- сломанные внутренние Markdown-ссылки;
+- документированные `npm run ...` команды, отсутствующие в `package.json`;
+- известные запрещённые current-state маркеры после завершённых production-runtime переходов.
+
+`docs/superpowers/**` исключён из active-doc проверки, потому что это historical design/implementation material. Guard не заменяет semantic contract tests и ручную проверку runtime owners: если точность утверждения нельзя надёжно доказать детерминированно, её проверяет профильный test или review.
+
+Нельзя ослаблять guard ради прохождения CI, если он обнаружил реальный drift. Сначала исправьте документ/owner contract либо измените сам guard вместе с тестом и обоснованием, если машинное правило стало неверным.
+
 ## Review checklist
 
 Перед merge документационного изменения проверьте:
 
+- `npm run docs:check` проходит;
 - ссылки ведут на существующие файлы или явно помечены как future gap без hyperlink;
 - нет дублирования owner-topic;
 - current state не смешан с roadmap;

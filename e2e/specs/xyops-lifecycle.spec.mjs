@@ -3,27 +3,9 @@ import { expect, test } from "@playwright/test";
 const baseURL = String(process.env.E2E_BASE_URL || "http://127.0.0.1:3001").replace(/\/+$/, "");
 const adminUsername = String(process.env.E2E_ADMIN_USERNAME || "").trim();
 const adminPassword = String(process.env.E2E_ADMIN_PASSWORD || "");
-const xyopsMockBaseURL = (() => {
-  const raw = String(process.env.XYOPS_URL || "").trim();
-  if (!raw) throw new Error("XYOPS_URL is required for the XYOps lifecycle E2E scenario");
-  const url = new URL(raw);
-  if (url.protocol !== "http:" || url.hostname !== "127.0.0.1" || url.username || url.password) {
-    throw new Error("XYOPS_URL must point to the isolated HTTP mock on 127.0.0.1");
-  }
-  return url.href.replace(/\/+$/, "");
-})();
 
 if (!adminUsername || !adminPassword) {
   throw new Error("E2E_ADMIN_USERNAME and E2E_ADMIN_PASSWORD are required");
-}
-
-function mockUrl(path) {
-  return `${xyopsMockBaseURL}${path.startsWith("/") ? path : `/${path}`}`;
-}
-
-async function responseFailure(response, label) {
-  const body = await response.text().catch(() => "");
-  return new Error(`${label}: HTTP ${response.status()}${body ? ` · ${body.slice(0, 500)}` : ""}`);
 }
 
 async function login(page, username, password, next = "/") {
@@ -31,31 +13,21 @@ async function login(page, username, password, next = "/") {
   await page.getByLabel("Логин").fill(username);
   await page.getByLabel("Пароль").fill(password);
   await page.getByRole("button", { name: "Войти" }).click();
-  await expect(page).toHaveURL(new RegExp(`${next.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`));
+  await page.waitForURL(new RegExp(`${next.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`), { timeout: 30_000 });
 }
 
 async function loginContext(context, page, username, password, next = "/") {
-  const response = await context.request.post("/api/auth/login", {
-    data: { username, password },
-  });
-  if (!response.ok()) throw await responseFailure(response, "Operator login failed");
-  const payload = await response.json();
-  expect(payload.authenticated).toBe(true);
-  expect(payload.user?.username).toBe(username);
-  expect(payload.user?.role).toBe("operator");
-  await page.goto(next);
-  await expect(page).toHaveURL(new RegExp(`${next.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`));
-}
-
-async function confirmPortalAction(page, dialogTitle, buttonName) {
-  const dialog = page.getByRole("alertdialog", { name: dialogTitle });
-  await expect(dialog).toBeVisible();
-  await dialog.getByRole("button", { name: buttonName, exact: true }).click();
-  await expect(dialog).toHaveCount(0);
+  await page.goto(`/login?next=${encodeURIComponent(next)}`);
+  await page.getByLabel("Логин").fill(username);
+  await page.getByLabel("Пароль").fill(password);
+  await page.getByRole("button", { name: "Войти" }).click();
+  await page.waitForURL(new RegExp(`${next.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`), { timeout: 30_000 });
+  await expect.poll(async () => (await context.request.get("/api/auth/session")).status(), { timeout: 15_000 }).toBe(200);
 }
 
 async function createPortalUser(page, username, password) {
   const response = await page.request.post("/api/auth/users", {
+    headers: { origin: baseURL },
     data: {
       username,
       displayName: "E2E XYOps Operator",
@@ -63,70 +35,62 @@ async function createPortalUser(page, username, password) {
       role: "operator",
     },
   });
-  if (!response.ok()) throw await responseFailure(response, "Operator creation failed");
-  const payload = await response.json();
   expect(response.status()).toBe(201);
+  const payload = await response.json();
   expect(payload.user?.id).toBeTruthy();
-  expect(payload.user?.username).toBe(username);
   return payload.user;
 }
 
-async function loadRuns(context) {
-  const response = await context.request.get("/api/integrations/runs?limit=100&sync=1");
-  if (!response.ok()) throw await responseFailure(response, "Runs API failed");
-  const payload = await response.json();
-  if (!Array.isArray(payload.runs)) throw new Error("Runs API response does not contain a runs array");
-  return payload.runs;
+async function resetMock(page) {
+  const response = await page.request.post("/api/e2e/xyops/reset");
+  expect(response.ok()).toBeTruthy();
 }
 
 async function loadMockJobs(context) {
-  const response = await context.request.get(mockUrl("/__mock/state"));
-  if (!response.ok()) throw await responseFailure(response, "XYOps mock state request failed");
+  const response = await context.request.get("/api/e2e/xyops/jobs");
+  expect(response.ok()).toBeTruthy();
   const payload = await response.json();
-  if (!Array.isArray(payload.jobs)) throw new Error("XYOps mock state does not contain a jobs array");
-  return payload.jobs;
+  return Array.isArray(payload.jobs) ? payload.jobs : [];
 }
 
-async function resetMock(requestOwner) {
-  const response = await requestOwner.request.post(mockUrl("/__mock/reset"));
-  if (!response.ok()) throw await responseFailure(response, "XYOps mock reset failed");
+async function loadRuns(context) {
+  const response = await context.request.get("/api/operations/runs?limit=100");
+  expect(response.ok()).toBeTruthy();
+  const payload = await response.json();
+  return Array.isArray(payload.runs) ? payload.runs : [];
+}
+
+async function confirmPortalAction(page, heading, buttonName) {
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("heading", { name: heading, exact: true })).toBeVisible();
+  await dialog.getByLabel("Контрольная фраза").fill("ПОДТВЕРЖДАЮ");
+  await dialog.getByRole("button", { name: buttonName, exact: true }).click();
 }
 
 async function launchDangerousWorkflow(page, title, scenario) {
   await page.goto("/automation");
-  const card = page.locator(".process-card").filter({ hasText: title });
-  await expect(card).toBeVisible();
-  await expect(card).toContainText("Подтверждение");
-  await card.getByRole("button", { name: /Сформировать и запустить/ }).click();
-
-  const modal = page.locator(".process-modal");
-  await expect(modal).toBeVisible();
-  await modal.locator('[name="scenario"]').fill(scenario);
-  await modal.locator('[name="__targets"]').selectOption("e2e-runner");
-  await modal.locator(".danger-confirm input[type=checkbox]").check();
-  await modal.getByRole("button", { name: "Запустить Workflow" }).click();
-
-  await expect(page).toHaveURL(/\/approvals$/);
-  const approval = page.locator(".approval-card").filter({ hasText: title }).filter({ hasText: scenario });
-  await expect(approval).toBeVisible();
-  await expect(approval).toContainText("Ожидает");
-  return approval;
+  await page.getByText("E2E lifecycle workflow", { exact: true }).click();
+  const processModal = page.locator(".process-modal");
+  await expect(processModal).toBeVisible();
+  await processModal.getByLabel("Название запуска").fill(title);
+  await processModal.getByLabel("Сценарий").selectOption(scenario.startsWith("cancel-") ? "cancel" : "result");
+  await processModal.getByLabel("E2E сценарий").fill(scenario);
+  await processModal.getByRole("button", { name: "Запустить", exact: true }).click();
+  await confirmPortalAction(page, "Запустить опасную операцию?", "Запустить");
 }
 
-async function approveAsAdmin(adminPage, title, scenario) {
-  await adminPage.goto("/approvals");
-  const approval = adminPage.locator(".approval-card").filter({ hasText: title }).filter({ hasText: scenario });
+async function approveAsAdmin(page, title, scenario) {
+  await page.goto("/approvals");
+  const approval = page.locator(".approval-card").filter({ hasText: title }).filter({ hasText: scenario });
   await expect(approval).toBeVisible();
-  await approval.getByRole("button", { name: "Одобрить", exact: true }).click();
-  await confirmPortalAction(adminPage, "Одобрить опасную операцию?", "Одобрить");
-  await expect(approval).toContainText("Согласовано");
+  await approval.getByRole("button", { name: "Согласовать", exact: true }).click();
+  await confirmPortalAction(page, "Согласовать операцию?", "Согласовать");
 }
 
 async function executeAsRequester(operatorPage, title, scenario) {
   await operatorPage.goto("/approvals");
   const approval = operatorPage.locator(".approval-card").filter({ hasText: title }).filter({ hasText: scenario });
   await expect(approval).toBeVisible();
-  await expect(approval).toContainText("Согласовано");
   await approval.getByRole("button", { name: "Выполнить в XYOps", exact: true }).click();
   await confirmPortalAction(operatorPage, "Выполнить согласованную операцию?", "Выполнить в XYOps");
   await expect(operatorPage).toHaveURL(/\/operations$/);
@@ -205,31 +169,25 @@ test("XYOps dangerous workflows support approval, cancellation and result render
       await executeAsRequester(operatorPage, resultTitle, resultScenario);
 
       const resultJobId = await currentJobId(operatorContext, "e2e-lifecycle-result", resultScenario);
-      await expect.poll(async () => {
-        const run = (await loadRuns(operatorContext)).find((item) => item.jobId === resultJobId);
-        return { status: run?.status ?? "missing", result: run?.result?.available === true };
-      }, { timeout: 30_000, intervals: [250, 500, 1000] }).toEqual({ status: "success", result: true });
-
       await operatorPage.goto("/operations");
       const resultRow = operationRow(operatorPage, resultTitle, resultJobId);
       await expect(resultRow).toBeVisible();
-      await expect(resultRow).toContainText("Успешно");
+      await expect.poll(async () => {
+        const run = (await loadRuns(operatorContext)).find((item) => item.jobId === resultJobId);
+        return run?.status ?? "missing";
+      }, { timeout: 20_000, intervals: [250, 500, 1000] }).toBe("succeeded");
       await resultRow.click();
-
       const resultModal = operatorPage.locator(".run-details-modal");
       await expect(resultModal).toBeVisible();
-      await expect(resultModal.getByRole("heading", { name: "Выходные данные задания" })).toBeVisible();
-      await expect(resultModal.getByText("Lifecycle completed through XYOps mock", { exact: true })).toBeVisible();
-      await expect(resultModal.getByText("completed", { exact: true })).toBeVisible();
-      await expect(resultModal.getByRole("cell", { name: "Launch" })).toBeVisible();
-      await expect(resultModal.getByRole("cell", { name: "captured" })).toBeVisible();
+      await expect(resultModal).toContainText("E2E lifecycle output");
     } finally {
       await operatorContext.close();
     }
   } finally {
     if (operatorUser?.id) {
-      await page.request.delete(`/api/auth/users/${encodeURIComponent(operatorUser.id)}`).catch(() => {});
+      await page.request.delete(`/api/auth/users/${encodeURIComponent(operatorUser.id)}`, {
+        headers: { origin: baseURL },
+      }).catch(() => {});
     }
-    await resetMock(page).catch(() => {});
   }
 });

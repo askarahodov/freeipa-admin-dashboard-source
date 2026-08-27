@@ -2,7 +2,7 @@
 
 Этот документ фиксирует baseline инженерной документации для задачи #85 и Epic #82: назначение, owner/source of truth и результат проверки против актуального `main`/целевого stacked ref.
 
-Последний focused re-audit выполнен в #207 против `main` после merge #210 (`f4514e2224b2e5091f6856d1513b2c4ced6c9fda`) с исправлениями и повторной CI-проверкой в PR #211. Post-audit persistence reconciliation выполнен после #209 / PR #220 (`415de033a66620312cd2febc88226ac5adf4d2ce`). Подробный audit trail: [`DOCUMENTATION_REAUDIT_2026-08-27.md`](DOCUMENTATION_REAUDIT_2026-08-27.md).
+Последний focused re-audit выполнен в #207 против `main` после merge #210 (`f4514e2224b2e5091f6856d1513b2c4ced6c9fda`) с исправлениями и повторной CI-проверкой в PR #211. Post-audit persistence reconciliation выполнен после #209 / PR #220 (`415de033a66620312cd2febc88226ac5adf4d2ce`). ADR registry добавлен в #230 / PR #232. Module-level coverage добавляется в #235. Подробный audit trail: [`DOCUMENTATION_REAUDIT_2026-08-27.md`](DOCUMENTATION_REAUDIT_2026-08-27.md).
 
 > Каноническое product/display name — **Admin Dashboard Softrust**. Технические compatibility identifiers не переименовываются в рамках branding-only изменений.
 
@@ -21,8 +21,13 @@
 | `docs/README.md` | documentation index | documentation policy + inventory | `verified-active` | Основной навигатор active docs |
 | `docs/ARCHITECTURE.md` | architecture/current-state overview | current runtime entries, Compose/startup, canonical domain owners and tests | `verified-active` | Production runtime resynced in #210; Compose persistence aligned to `/data` by #209/#220 |
 | `docs/PROJECT_STRUCTURE.md` | repository/module ownership map | current repository paths + `SOURCE_OF_TRUTH.md` + representative tests | `verified-active` | Startup/module ownership resynced in #210; не является target refactor plan |
+| `docs/MODULE_COVERAGE.md` | module-level ownership coverage | current module boundaries + local module READMEs + canonical owners/tests | `verified-active` | #235 defines local-vs-central coverage and scoped verification without duplicating volatile registries |
+| `runtime/README.md` | local module guide | canonical Node runtime + runtime tests | `verified-active` | Lifecycle/persistence/gateway/scheduler ownership and forbidden dependencies |
+| `worker/README.md` | local module guide | Worker boundary + API/security contracts/tests | `verified-active` | Request/scheduled orchestration boundary; domain owners remain outside Worker wrappers |
+| `db/README.md` | local module guide | schema/migration registry/tests | `verified-active` | Canonical schema/migration ownership; request handlers must not own DDL |
 | `docs/DOCUMENTATION_POLICY.md` | policy | Epic #82 documentation contract + `scripts/documentation-consistency.mjs` | `verified-active` | Docs-as-code, правила нескольких ИИ-агентов и обязательный `npm run docs:check` |
 | `docs/SOURCE_OF_TRUTH.md` | reference registry | canonical runtime owners | `verified-active` | Re-audited in #207/#211; points to existing configuration/project-structure references |
+| `docs/adr/README.md` | ADR registry / policy | accepted ADRs + canonical implementation evidence | `verified-active` | ADRs explain why; code/tests/current references remain authoritative for what |
 | `docs/GLOSSARY.md` | terminology | active runtime/domain semantics | `verified-active` | Общая терминология |
 | `docs/ai/README.md` | AI entrypoint | documentation policy + source registry | `verified-active` | Обязательный порядок чтения для ИИ-агентов |
 | `.github/pull_request_template.md` | contribution process | documentation policy | `verified-active` | Documentation/security/source-of-truth checklist |
@@ -88,11 +93,14 @@
 - **DOC-011:** #207/#211 синхронизировал configuration/source-of-truth/security current-state owner pointers и повторно проверил API/RBAC references.
 - **DOC-012:** #208 добавил deterministic documentation consistency guard для внутренних ссылок, npm command references и известных obsolete runtime markers.
 - **DOC-013:** #209/#220 выровнял Compose named-volume mount с canonical `/data` SQLite store и добавил regression contract test.
+- **DOC-014:** #230/#232 добавил ADR registry и initial accepted decision records without promoting historical plans to current authority.
+- **DOC-015:** #235 добавляет module-level coverage map и focused local guides для `runtime/`, `worker/`, `db/`.
 
 ## Проверенные группы
 
 - Architecture/topology — Compose, Dockerfile, canonical Node startup/runtime, Worker entry chain, merged UI foundation and current constraints.
-- Repository/module boundaries — `app/`, `app/styles/`, `app/ui/`, `worker/`, `db/`, root domain modules, scripts, tests/e2e, docs, CI/deployment files.
+- Repository/module boundaries — `app/`, `app/styles/`, `app/ui/`, `worker/`, `runtime/`, `db/`, root domain modules, scripts, tests/e2e, docs, CI/deployment files.
+- Module-level coverage — centralized coverage for lower-volatility modules; focused local guides for runtime/Worker/schema boundaries with dependency direction, scoped tests and documentation-impact triggers.
 - Normalized API reference — health/auth/settings/FreeIPA/XYOps/approvals/runs/backup/storage/schema/maintenance families и exact owner pointers.
 - Canonical permissions — `portal-permissions.ts`: `viewer`, `operator`, `admin` и 13 permission codes; distributed/orphan checks остаются tracked drift #119.
 - Configuration reference — `.env.example`, Compose, `scripts/start-production.mjs`, startup validators, settings source/lifecycle, recovery tooling и internal ephemeral Gateway values.
@@ -132,9 +140,6 @@ Production persistence defect #209 закрыт PR #220: canonical runtime `/dat
 
 ## Следующие gaps Epic #82
 
-Baseline повторно актуализирован в #207; architecture/module ownership map, security model и normalized reference layer существуют и проверяются против canonical owners. Automated consistency guard из #208 и production persistence fix #209 больше не являются gaps. Остаются отдельные current-state задачи:
+Baseline повторно актуализирован в #207; architecture/module ownership map, security model, deployment matrix, ADR registry, module-level coverage и normalized reference layer существуют и проверяются против canonical owners. Automated consistency guard из #208 и production persistence fix #209 также закрыты.
 
-- supported/unsupported deployment matrix;
-- ADR registry;
-- module-level documentation coverage;
-- устранение распределённых runtime ownership gaps #119/#121/#123/#124.
+Остаются распределённые runtime ownership gaps #119/#121/#123/#124; они требуют изменений canonical registries/owners, а не расширения overview documentation.

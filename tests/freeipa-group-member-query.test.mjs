@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { normalizeFreeIpaGroupMemberQuery, queryFreeIpaGroupMembers } from "../freeipa-group-member-query.ts";
+import { normalizeFreeIpaGroupMemberQuery, queryFreeIpaGroupMembers } from "../src/freeipa/freeipa-group-member-query.ts";
 
 const group = {
   name: "devops",

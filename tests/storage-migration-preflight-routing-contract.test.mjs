@@ -30,9 +30,9 @@ test("migration preflight is dispatched only after service-token or local-sessio
   assert.ok(nonLocalHandlerIndex > tokenCheckIndex);
 
   const sessionIndex = localSecureSource.indexOf("const session = await resolveLocalSession(sourceEnv, request)");
-  const originIndex = localSecureSource.indexOf("sameOriginAdminMutation(request)");
-  const delegatedRequestIndex = localSecureSource.indexOf("const delegatedRequest = new Request(request, { headers })");
-  const localHandlerIndex = localSecureSource.indexOf("handleStorageMigrationPreflightRequest(delegatedRequest, delegated)");
+  const originIndex = localSecureSource.indexOf("sameOriginAdminMutation(request)", sessionIndex);
+  const delegatedRequestIndex = localSecureSource.indexOf("const delegatedRequest = new Request(request, { headers })", sessionIndex);
+  const localHandlerIndex = localSecureSource.indexOf("handleStorageMigrationPreflightRequest(delegatedRequest, delegated)", sessionIndex);
   assert.ok(sessionIndex >= 0 && originIndex > sessionIndex);
   assert.ok(delegatedRequestIndex > originIndex && localHandlerIndex > delegatedRequestIndex);
 

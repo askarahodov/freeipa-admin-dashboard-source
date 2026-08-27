@@ -55,15 +55,21 @@ test("route metadata lookup is exact and does not become a runtime matcher", () 
 test("local authentication and user administration routes match the current security boundary", () => {
   assert.equal(findPortalRouteContract("GET", "/api/auth/session")?.auth, "public");
   assert.equal(findPortalRouteContract("POST", "/api/auth/login")?.auth, "public");
+  assert.equal(findPortalRouteContract("POST", "/api/auth/login")?.sameOrigin, false);
   assert.equal(findPortalRouteContract("POST", "/api/auth/logout")?.auth, "local-session");
+  assert.equal(findPortalRouteContract("POST", "/api/auth/logout")?.sameOrigin, true);
   assert.equal(findPortalRouteContract("GET", "/api/auth/users")?.auth, "admin-session");
-  assert.equal(findPortalRouteContract("POST", "/api/auth/users")?.auth, "admin-session");
-  assert.equal(findPortalRouteContract("PUT", "/api/auth/users/:userId")?.auth, "admin-session");
-  assert.equal(findPortalRouteContract("DELETE", "/api/auth/users/:userId")?.auth, "admin-session");
-  assert.equal(findPortalRouteContract("POST", "/api/auth/users/:userId/password")?.auth, "admin-session");
-  assert.equal(findPortalRouteContract("DELETE", "/api/auth/users/:userId/sessions")?.auth, "admin-session");
-  for (const route of portalRouteContracts.filter((route) => route.path.startsWith("/api/auth/"))) {
-    assert.equal(route.sameOrigin, false, `${route.id}: current auth API dispatch precedes the shared admin same-origin gate`);
+  assert.equal(findPortalRouteContract("GET", "/api/auth/users")?.sameOrigin, false);
+  for (const [method, path] of [
+    ["POST", "/api/auth/users"],
+    ["PUT", "/api/auth/users/:userId"],
+    ["DELETE", "/api/auth/users/:userId"],
+    ["POST", "/api/auth/users/:userId/password"],
+    ["DELETE", "/api/auth/users/:userId/sessions"],
+  ]) {
+    const route = findPortalRouteContract(method, path);
+    assert.equal(route?.auth, "admin-session", `${method} ${path}`);
+    assert.equal(route?.sameOrigin, true, `${method} ${path}`);
   }
 });
 

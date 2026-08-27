@@ -124,6 +124,10 @@ async function handleAuthApi(request: Request, env: RuntimeEnv, url: URL): Promi
     }
   }
 
+  if (!sameOriginAdminMutation(request)) {
+    return json({ error: "Административный local-auth запрос заблокирован проверкой источника" }, 403);
+  }
+
   if (request.method === "POST" && url.pathname === "/api/auth/logout") {
     await revokeLocalSession(env, request);
     return json({ enabled: true, authenticated: false }, 200, { "set-cookie": clearLocalSessionCookie(request) });
@@ -211,7 +215,7 @@ async function handleAuthApi(request: Request, env: RuntimeEnv, url: URL): Promi
         outcome: "success",
         metadata: { username: user.username, role: user.role, disabled: user.disabled },
       }).catch(() => {});
-      return json({ user });
+      return json({ user }, 200);
     } catch (error) {
       return json({ error: error instanceof Error ? error.message : "Не удалось обновить пользователя" }, 400);
     }

@@ -31,9 +31,9 @@ test("integrity route is dispatched only after local session and same-origin mut
   assert.match(localSecureSource, /handleStorageIntegrityRequest\(delegatedRequest, delegated\)/);
 
   const sessionIndex = localSecureSource.indexOf("const session = await resolveLocalSession(sourceEnv, request)");
-  const originIndex = localSecureSource.indexOf("sameOriginAdminMutation(request)");
-  const delegatedRequestIndex = localSecureSource.indexOf("const delegatedRequest = new Request(request, { headers })");
-  const sessionHandlerIndex = localSecureSource.indexOf("handleStorageIntegrityRequest(delegatedRequest, delegated)");
+  const originIndex = localSecureSource.indexOf("sameOriginAdminMutation(request)", sessionIndex);
+  const delegatedRequestIndex = localSecureSource.indexOf("const delegatedRequest = new Request(request, { headers })", sessionIndex);
+  const sessionHandlerIndex = localSecureSource.indexOf("handleStorageIntegrityRequest(delegatedRequest, delegated)", sessionIndex);
   assert.ok(sessionIndex >= 0 && originIndex > sessionIndex);
   assert.ok(delegatedRequestIndex > originIndex && sessionHandlerIndex > delegatedRequestIndex);
 

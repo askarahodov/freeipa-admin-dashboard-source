@@ -1,5 +1,6 @@
 import diagnosticsRuntime from "./diagnostics-entry";
 import { appendAuditEvent, createAuditContext } from "../audit-log";
+import { sameOriginAdminMutation } from "../admin-session-authorization";
 import { resolveLocalSession, type LocalAuthEnv } from "../local-auth";
 import { listLocalPortalSessions, revokeLocalPortalSession } from "../local-session-management";
 
@@ -45,6 +46,7 @@ async function handleSessionsApi(request: Request, env: RuntimeEnv, url: URL): P
   const match = url.pathname.match(/^\/api\/auth\/sessions\/([A-Za-z0-9-]{1,100})$/);
   if (!match) return json({ error: "Not found" }, 404);
   if (request.method !== "DELETE") return json({ error: "Method not allowed" }, 405);
+  if (!sameOriginAdminMutation(request)) return json({ error: "Административный local-auth запрос заблокирован проверкой источника" }, 403);
   if (match[1] === current.id) return json({ error: "Текущую сессию нужно завершать через кнопку «Выйти»" }, 400);
 
   try {

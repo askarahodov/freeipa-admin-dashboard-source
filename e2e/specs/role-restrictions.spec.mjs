@@ -18,6 +18,7 @@ async function login(page, username, password, next = "/") {
 
 async function createPortalUser(page, username, role, password) {
   const response = await page.request.post("/api/auth/users", {
+    headers: { origin: baseURL },
     data: {
       username,
       displayName: `E2E ${role}`,
@@ -97,7 +98,9 @@ test("viewer, operator and admin receive different effective permissions", async
       data: { operation: "group_del", group: demoGroup },
     }).catch(() => {});
     for (const user of createdUsers.reverse()) {
-      await page.request.delete(`/api/auth/users/${encodeURIComponent(user.id)}`).catch(() => {});
+      await page.request.delete(`/api/auth/users/${encodeURIComponent(user.id)}`, {
+        headers: { origin: baseURL },
+      }).catch(() => {});
     }
   }
 });

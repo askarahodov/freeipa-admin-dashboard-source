@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { FreeIpaDirectoryUser, FreeIpaSortDirection, FreeIpaUserSort, FreeIpaUserStatus } from "../src/freeipa/freeipa-user-query";
-import { FREEIPA_DIRECTORY_CHANGED_EVENT, announceFreeIpaDirectoryChanged, loadFreeIpaAccess, openFreeIpaAction } from "../freeipa-ui-events";
+import { FREEIPA_DIRECTORY_CHANGED_EVENT, announceFreeIpaDirectoryChanged, loadFreeIpaAccess, openFreeIpaAction } from "../src/freeipa/freeipa-ui-events";
 
 type QueryState = {
   q: string;

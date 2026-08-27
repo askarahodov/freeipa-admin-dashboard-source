@@ -38,23 +38,21 @@ test("FreeIPA domain modules have one canonical implementation path", async () =
     assert.equal(await exists(canonical), true, `missing canonical FreeIPA module: ${canonical}`);
   }
 
-  for (const removedRoot of ["freeipa-user-query.ts", "freeipa-group-member-query.ts"]) {
+  for (const removedRoot of [
+    "freeipa-user-query.ts",
+    "freeipa-group-member-query.ts",
+    "freeipa-ui-events.ts",
+  ]) {
     assert.equal(await exists(removedRoot), false, `legacy root FreeIPA module returned: ${removedRoot}`);
   }
-
-  const compatibilityShim = await readFile(path.join(repoRoot, "freeipa-ui-events.ts"), "utf8");
-  assert.equal(
-    compatibilityShim.trim(),
-    'export * from "./src/freeipa/freeipa-ui-events.ts";',
-    "root FreeIPA UI events file must remain a compatibility-only re-export while legacy application consumers remain",
-  );
 });
 
-test("application, workers and tests do not reference removed FreeIPA root query paths", async () => {
+test("application, workers and tests do not reference removed FreeIPA root paths", async () => {
   const files = (await Promise.all(scanRoots.map(collectSourceFiles))).flat();
   const forbidden = [
     /(?:\.\.\/)+freeipa-user-query(?:\.ts)?["']/,
     /(?:\.\.\/)+freeipa-group-member-query(?:\.ts)?["']/,
+    /(?:\.\.\/)+freeipa-ui-events(?:\.ts)?["']/,
   ];
 
   const violations = [];
@@ -66,23 +64,5 @@ test("application, workers and tests do not reference removed FreeIPA root query
     }
   }
 
-  assert.deepEqual(violations, [], `legacy FreeIPA root query path references found: ${violations.join(", ")}`);
-});
-
-test("temporary FreeIPA UI events root shim has an explicit shrinking application allowlist", async () => {
-  const files = (await Promise.all(scanRoots.map(collectSourceFiles))).flat();
-  const consumers = [];
-
-  for (const relativePath of files) {
-    if (relativePath === "tests/freeipa-domain-path-contract.test.mjs") continue;
-    const content = await readFile(path.join(repoRoot, relativePath), "utf8");
-    if (/(?:\.\.\/)+freeipa-ui-events(?:\.ts)?["']/.test(content)) consumers.push(relativePath);
-  }
-
-  consumers.sort();
-  assert.deepEqual(
-    consumers,
-    ["app/page.tsx"],
-    `temporary FreeIPA UI events shim consumers changed: ${consumers.join(", ")}`,
-  );
+  assert.deepEqual(violations, [], `legacy FreeIPA root path references found: ${violations.join(", ")}`);
 });

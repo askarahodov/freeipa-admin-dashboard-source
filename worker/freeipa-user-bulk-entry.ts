@@ -1,5 +1,5 @@
 import queryRuntime from "./freeipa-user-query-entry";
-import { normalizeFreeIpaUserQuery, queryFreeIpaUsers, type FreeIpaDirectoryUser } from "../freeipa-user-query";
+import { normalizeFreeIpaUserQuery, queryFreeIpaUsers, type FreeIpaDirectoryUser } from "../src/freeipa/freeipa-user-query";
 
 type RuntimeEnv = NonNullable<Parameters<typeof queryRuntime.fetch>[1]>;
 type RuntimeContext = Parameters<typeof queryRuntime.fetch>[2];

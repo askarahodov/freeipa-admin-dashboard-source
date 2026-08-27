@@ -4,7 +4,7 @@
 
 This document normalizes the **supported current configuration surfaces** of Admin Dashboard Softrust without creating a second runtime configuration registry.
 
-Canonical values still belong to the current runtime owners: `.env.example`, Compose, startup validators, settings lifecycle/source handlers and recovery tooling. The lack of one machine-readable global configuration registry is tracked by **#123**.
+Canonical values still belong to the current runtime owners: `.env.example`, Compose, `scripts/start-production.mjs`, startup validators, settings lifecycle/source handlers and recovery tooling. The lack of one machine-readable global configuration registry is tracked by **#123**.
 
 Never copy real credentials, internal hostnames or active secrets into documentation, Issues, logs or examples.
 
@@ -14,11 +14,11 @@ The current project has several different configuration classes. They must not b
 
 | Class | Typical owner | Lifetime / precedence | Examples |
 | --- | --- | --- | --- |
-| Process/deployment configuration | `.env`, Compose, startup scripts | startup/process lifetime | `CONFIG_ENCRYPTION_KEY`, identity/bootstrap, port/host, recovery mounts |
+| Process/deployment configuration | `.env`, Compose, canonical production startup/runtime | startup/process lifetime | `CONFIG_ENCRYPTION_KEY`, identity/bootstrap, port/host, recovery mounts |
 | Dynamic portal integration settings | settings lifecycle/source handlers + D1 | D1 override when explicitly set; otherwise inherited ENV/default according to current settings source logic | demo mode, FreeIPA URL/user/password, XYOps URL/API key |
 | Bootstrap/catalog/policy metadata | ENV bootstrap + persisted portal state where implemented | persisted portal state may take precedence over bootstrap ENV | XYOps routes, catalog policies, approval policies, process metadata |
 | Recovery-only configuration | Compose recovery profile / recovery tooling | only the offline recovery workflow | `PORTAL_RECOVERY_*` paths/UID/GID and recovery secret mount |
-| Internal ephemeral runtime configuration | startup script | generated at process start; not operator-persisted | `IPA_NODE_GATEWAY_URL`, `IPA_NODE_GATEWAY_TOKEN` |
+| Internal ephemeral runtime configuration | `scripts/start-production.mjs` | generated at process start; not operator-persisted | `IPA_NODE_GATEWAY_URL`, `IPA_NODE_GATEWAY_TOKEN` |
 | Test/E2E/development fixtures | `.env.*.example`, tests/workflows | isolated non-production only | fixture encryption keys, static identity profiles |
 
 ## Core deployment variables
@@ -26,8 +26,8 @@ The current project has several different configuration classes. They must not b
 | Variable | Required? | Secret? | Lifetime | Current owner / rule |
 | --- | --- | --- | --- | --- |
 | `DASHBOARD_PORT` | documented deployment setting | no | startup | `.env.example`; product port is 3001 in the supported Compose/runtime configuration |
-| `PORT` | runtime process setting | no | startup | Compose/startup runtime; defaults to `3001` in `scripts/start-worker.mjs` |
-| `HOST` | runtime process setting | no | startup | Compose/startup runtime; defaults to `0.0.0.0` |
+| `PORT` | runtime process setting | no | startup | Compose/canonical Node production runtime; defaults to `3001` in `scripts/start-production.mjs` |
+| `HOST` | runtime process setting | no | startup | canonical Node production runtime; defaults to `0.0.0.0` in `scripts/start-production.mjs` |
 | `CONFIG_ENCRYPTION_KEY` | **yes in supported production startup** | **yes** | startup; changing active key requires migration/rotation design | `scripts/config-encryption-key.mjs`; must be 32-byte canonical base64 or 64-character hex, reject published/test/weak keys outside allowed profile |
 | `ADMIN_TOKEN` | required only for the explicit service-admin capability when used | **yes** | process/startup | service-admin authorization owner; does not replace local authentication/RBAC |
 | `PORTAL_RUNTIME_PROFILE` | optional; default production semantics in validators | no | startup | startup validators; controls whether isolated fixtures/static identity are permitted |
@@ -94,14 +94,15 @@ Secrets (`ipaPassword`, `xyopsApiKey`) are stored in the encrypted secret payloa
 
 ### Internal FreeIPA Gateway values
 
-`IPA_NODE_GATEWAY_URL` and `IPA_NODE_GATEWAY_TOKEN` are **internal ephemeral runtime values**, not supported operator configuration. `scripts/start-worker.mjs`:
+`IPA_NODE_GATEWAY_URL` and `IPA_NODE_GATEWAY_TOKEN` are **internal ephemeral runtime values**, not supported operator configuration. The canonical `scripts/start-production.mjs` startup path:
 
 - generates a random 32-byte Gateway token at every startup;
 - binds the Gateway to `127.0.0.1`;
-- writes the token/URL into a mode-`0600` temporary runtime env file;
-- removes that file when the child runtime exits.
+- starts the Gateway on the requested `IPA_GATEWAY_PORT` or an ephemeral port when the value is `0`/omitted;
+- injects the resulting loopback URL and token into the in-process runtime environment passed to the Worker host and application runtime;
+- keeps the token process-local rather than persisting it as operator configuration.
 
-Do not add these values to `.env.example` as persistent operator secrets.
+The previous `scripts/start-worker.mjs` temp-env-file mechanism is not the canonical production owner after the #51/#194 Node runtime cutover. Do not add `IPA_NODE_GATEWAY_URL` or `IPA_NODE_GATEWAY_TOKEN` to `.env.example` as persistent operator secrets.
 
 ## XYOps configuration
 
@@ -147,7 +148,7 @@ These are not normal dashboard runtime settings. Destructive recovery procedure 
 
 ## Known configuration ownership limitation
 
-There is no single machine-readable registry that currently describes every supported production, development, recovery and test variable with type, secrecy, lifecycle and validation metadata. The current contract is distributed across `.env.example`, Compose, startup validators, settings-source/lifecycle code and recovery tooling.
+There is no single machine-readable registry that currently describes every supported production, development, recovery and test variable with type, secrecy, lifecycle and validation metadata. The current contract is distributed across `.env.example`, Compose, canonical production startup/runtime, startup validators, settings-source/lifecycle code and recovery tooling.
 
 Follow-up **#123** tracks consolidation into a machine-readable supported configuration contract. Until then:
 

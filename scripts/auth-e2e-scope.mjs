@@ -13,6 +13,7 @@ const fullCategories = Object.freeze(Object.keys(categorySpecs));
 const fullRiskPaths = new Set([
   ".env.e2e.example",
   ".github/workflows/e2e-auth.yml",
+  "Dockerfile",
   "compose.e2e.yaml",
   "e2e/Dockerfile",
   "e2e/playwright.config.mjs",
@@ -26,9 +27,9 @@ const fullRiskPaths = new Set([
 const categoryRules = Object.freeze([
   ["auth", /^(?:local-auth\.ts|admin-session-authorization\.ts|app\/login\/.*|worker\/local-secure-entry\.ts|e2e\/specs\/auth\.spec\.mjs|tests\/.*auth.*\.(?:mjs|ts))$/u],
   ["rbac", /^(?:portal-permissions\.ts|admin-session-authorization\.ts|app\/access\/.*|e2e\/specs\/(?:rbac-user|role-restrictions)\.spec\.mjs|tests\/.*(?:rbac|permission|role).*\.(?:mjs|ts))$/u],
-  ["freeipa", /^(?:freeipa[^/]*\.(?:ts|tsx|mjs|js)|app\/(?:users|groups)\/.*|e2e\/(?:freeipa-mock\.mjs|specs\/freeipa-crud\.spec\.mjs)|tests\/.*freeipa.*\.(?:mjs|ts))$/u],
-  ["xyops", /^(?:xyops[^/]*\.(?:ts|tsx|mjs|js)|operation[^/]*\.(?:ts|tsx|mjs|js)|approval[^/]*\.(?:ts|tsx|mjs|js)|app\/(?:operations|approvals)\/.*|e2e\/(?:xyops-mock\.mjs|specs\/xyops-lifecycle\.spec\.mjs)|tests\/.*(?:xyops|operation|approval).*\.(?:mjs|ts))$/u],
-  ["settings", /^(?:settings[^/]*\.(?:ts|tsx|mjs|js)|worker\/settings[^/]*\.(?:ts|mjs)|app\/settings\/.*|e2e\/specs\/(?:admin-session-settings|zz-settings-draft-lifecycle)\.spec\.mjs|tests\/.*settings.*\.(?:mjs|ts))$/u],
+  ["freeipa", /^(?:freeipa[^/]*\.(?:ts|tsx|mjs|js)|app\/(?:FreeIpa[^/]*|(?:users|groups)\/.*)|e2e\/(?:freeipa-mock\.mjs|specs\/freeipa-crud\.spec\.mjs)|tests\/.*freeipa.*\.(?:mjs|ts))$/u],
+  ["xyops", /^(?:xyops[^/]*\.(?:ts|tsx|mjs|js)|operation[^/]*\.(?:ts|tsx|mjs|js)|approval[^/]*\.(?:ts|tsx|mjs|js)|app\/(?:(?:Operation|Approval)[^/]*|(?:operations|approvals)\/.*)|e2e\/(?:xyops-mock\.mjs|specs\/xyops-lifecycle\.spec\.mjs)|tests\/.*(?:xyops|operation|approval).*\.(?:mjs|ts))$/u],
+  ["settings", /^(?:settings[^/]*\.(?:ts|tsx|mjs|js)|worker\/settings[^/]*\.(?:ts|mjs)|app\/(?:Settings[^/]*|settings\/.*)|e2e\/specs\/(?:admin-session-settings|zz-settings-draft-lifecycle)\.spec\.mjs|tests\/.*settings.*\.(?:mjs|ts))$/u],
   ["ui", /^(?:app\/.*\.(?:tsx|css|js)|e2e\/specs\/ui-quality\.spec\.mjs|tests\/.*(?:ui|accessibility|responsive).*\.(?:mjs|ts))$/u],
 ]);
 
@@ -53,7 +54,6 @@ export function categoriesForPath(value) {
   const path = normalizePath(value);
   if (!path) return [];
   if (fullRiskPaths.has(path) || path.startsWith("e2e/package")) return [...fullCategories];
-  if (path.startsWith("db/")) return ["settings"];
   const categories = new Set();
   for (const [category, pattern] of categoryRules) {
     if (pattern.test(path)) categories.add(category);

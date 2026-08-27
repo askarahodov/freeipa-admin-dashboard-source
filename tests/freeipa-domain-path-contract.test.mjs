@@ -53,8 +53,8 @@ test("FreeIPA domain modules have one canonical implementation path", async () =
 test("application, workers and tests do not reference removed FreeIPA root query paths", async () => {
   const files = (await Promise.all(scanRoots.map(collectSourceFiles))).flat();
   const forbidden = [
-    /(?:\.\.\/)+freeipa-user-query(?:\.ts)?["']/, 
-    /(?:\.\.\/)+freeipa-group-member-query(?:\.ts)?["']/, 
+    /(?:\.\.\/)+freeipa-user-query(?:\.ts)?["']/,
+    /(?:\.\.\/)+freeipa-group-member-query(?:\.ts)?["']/,
   ];
 
   const violations = [];
@@ -82,7 +82,7 @@ test("temporary FreeIPA UI events root shim has an explicit shrinking applicatio
   consumers.sort();
   assert.deepEqual(
     consumers,
-    ["app/page.tsx", "app/shell/PortalOverlays.tsx"],
+    ["app/page.tsx"],
     `temporary FreeIPA UI events shim consumers changed: ${consumers.join(", ")}`,
   );
 });

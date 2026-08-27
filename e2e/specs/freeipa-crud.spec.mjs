@@ -73,7 +73,7 @@ test("FreeIPA user, group and membership CRUD works through the browser", async 
       password: "FreeIPA-E2E-Password-2026",
     });
 
-    const userRow = page.locator(".freeipa-user-table tbody tr").filter({ hasText: uid });
+    const userRow = userBrowser.getByRole("row").filter({ hasText: uid });
     await expect(userRow).toBeVisible();
     await expect(userRow).toContainText("E2E CRUD");
     await expect(userRow).toContainText(initialEmail);

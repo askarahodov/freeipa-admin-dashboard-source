@@ -1,0 +1,32 @@
+name: Temporary Automation Wiring
+on:
+  push:
+    branches: [ui-118-wire-automation-catalog]
+permissions:
+  contents: write
+jobs:
+  wire:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ui-118-wire-automation-catalog
+      - run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app/page.tsx')
+          s = p.read_text()
+          anchor = 'import { Approvals, Operations, OperationTable, RunStatusBadge, formatDateTime, type ApprovalRecord, type RunRecord, type RunStats } from "./operations/OperationsApprovalsScreens";\n'
+          assert anchor in s
+          s = s.replace(anchor, anchor + 'import { AutomationCatalog } from "./automation/AutomationCatalog";\n', 1)
+          start = s.index('\nfunction AutomationCatalog(')
+          end = s.index('\nfunction PersistentConnectionSettings(', start)
+          s = s[:start] + '\n' + s[end:]
+          p.write_text(s)
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add app/page.tsx
+          git commit -m "ui: wire extracted Automation catalog"
+          git push

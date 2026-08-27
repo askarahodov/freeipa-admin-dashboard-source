@@ -8,7 +8,7 @@ import {
   announceFreeIpaDirectoryChanged,
   loadFreeIpaAccess,
   openFreeIpaAction,
-} from "../freeipa-ui-events.ts";
+} from "../src/freeipa/freeipa-ui-events.ts";
 
 function installWindowTarget() {
   const previousWindow = globalThis.window;

@@ -4,7 +4,7 @@ import test from "node:test";
 
 test("user browser uses the shared FreeIPA action contract and exposes server query controls", () => {
   const component = fs.readFileSync(new URL("../app/FreeIpaUserBrowser.tsx", import.meta.url), "utf8");
-  const events = fs.readFileSync(new URL("../freeipa-ui-events.ts", import.meta.url), "utf8");
+  const events = fs.readFileSync(new URL("../src/freeipa/freeipa-ui-events.ts", import.meta.url), "utf8");
   const wrapper = fs.readFileSync(new URL("../worker/freeipa-user-query-entry.ts", import.meta.url), "utf8");
   const bulkWrapper = fs.readFileSync(new URL("../worker/freeipa-user-bulk-entry.ts", import.meta.url), "utf8");
   const topWrapper = fs.readFileSync(new URL("../worker/freeipa-group-member-entry.ts", import.meta.url), "utf8");

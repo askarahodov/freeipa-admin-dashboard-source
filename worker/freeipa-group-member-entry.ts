@@ -3,8 +3,8 @@ import {
   normalizeFreeIpaGroupMemberQuery,
   queryFreeIpaGroupMembers,
   type FreeIpaDirectoryGroup,
-} from "../freeipa-group-member-query";
-import type { FreeIpaDirectoryUser } from "../freeipa-user-query";
+} from "../src/freeipa/freeipa-group-member-query";
+import type { FreeIpaDirectoryUser } from "../src/freeipa/freeipa-user-query";
 import {
   isPortalRole,
   portalRolePermissions,

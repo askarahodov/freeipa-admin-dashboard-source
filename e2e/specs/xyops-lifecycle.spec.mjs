@@ -162,7 +162,7 @@ async function visibleOperationsPanel(page) {
 
 async function operationRow(page, title, jobId) {
   const panel = await visibleOperationsPanel(page);
-  return panel.locator(".selectable-run")
+  return panel.locator(".selectable-run:visible")
     .filter({ hasText: title })
     .filter({ hasText: jobId });
 }

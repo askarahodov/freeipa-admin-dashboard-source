@@ -58,7 +58,7 @@ test("FreeIPA user, group and membership CRUD works through the browser", async 
   const updatedEmail = `${uid}.updated@example.test`;
 
   await login(page, "/users");
-  const userBrowser = page.locator(".freeipa-user-browser-shell");
+  const userBrowser = page.getByRole("region", { name: "Пользователи FreeIPA" });
   await expect(userBrowser).toBeVisible();
   await expect(userBrowser.getByRole("button", { name: /Создать пользователя/ })).toBeEnabled();
 

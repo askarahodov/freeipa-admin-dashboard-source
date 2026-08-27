@@ -314,11 +314,12 @@ The following rules are mandatory unless an explicit architectural/security deci
 
 The following are known current-state limitations or open hardening work. They are **not implemented controls merely because an Issue exists**:
 
-- production runtime still uses the development-oriented Wrangler local command; replacement is tracked by #51;
 - current Compose networking uses host networking; replacement/hardening is tracked by #52;
 - reverse-proxy/TLS/security-header hardening is tracked by #53;
 - backend request composition remains a large wrapper chain; refactoring is tracked by #56 and must preserve existing security gates;
 - route/permission/reference ownership is still distributed rather than generated from one canonical declarative API registry.
+
+The canonical production runtime now uses the Node startup path introduced by #51/#194; Wrangler development mode is no longer a current production limitation.
 
 Always inspect current `main` before repeating this list in another document; merged hardening work should be removed from this section when it stops being a limitation.
 

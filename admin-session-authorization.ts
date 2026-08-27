@@ -47,13 +47,25 @@ export function isReadOnlyMethod(method: string): boolean {
 
 export function sameOriginAdminMutation(request: Request): boolean {
   if (isReadOnlyMethod(request.method)) return true;
-  const origin = request.headers.get("origin");
-  if (!origin) return false;
-  try {
-    return new URL(origin).origin === new URL(request.url).origin;
-  } catch {
-    return false;
+  const requestOrigin = new URL(request.url).origin;
+  const origin = String(request.headers.get("origin") || "").trim();
+  if (origin) {
+    try {
+      return new URL(origin).origin === requestOrigin;
+    } catch {
+      return false;
+    }
   }
+  const referer = String(request.headers.get("referer") || "").trim();
+  if (referer) {
+    try {
+      return new URL(referer).origin === requestOrigin;
+    } catch {
+      return false;
+    }
+  }
+  // Non-browser API/service clients commonly omit both browser provenance headers.
+  return true;
 }
 
 async function secretsMatch(provided: string | null, expected: string | undefined): Promise<boolean> {

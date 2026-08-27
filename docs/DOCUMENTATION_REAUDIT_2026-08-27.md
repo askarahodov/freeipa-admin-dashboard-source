@@ -2,7 +2,7 @@
 
 Issue: #207
 
-Baseline: `main` after merge of #210 (`f4514e2224b2e5091f6856d1513b2c4ced6c9fda`), with fixes and verification performed on PR #211.
+Baseline: `main` after merge of #210 (`f4514e2224b2e5091f6856d1513b2c4ced6c9fda`), with fixes and verification performed on PR #211. Post-audit persistence reconciliation was completed after #209 merged via PR #220 (`415de033a66620312cd2febc88226ac5adf4d2ce`).
 
 ## Purpose
 
@@ -23,11 +23,18 @@ Current owner verified against:
 
 #210 corrected `docs/ARCHITECTURE.md`, `docs/PROJECT_STRUCTURE.md`, and the stale documentation architecture test.
 
-### AUDIT-207-02 — Compose persistence contract mismatch — open as #209
+### AUDIT-207-02 — Compose persistence contract mismatch — fixed by #209 / PR #220
 
-The canonical production image/runtime uses `PORTAL_DATA_DIR=/data`, while current `compose.yaml` still mounts `dashboard-data` at `/app/.wrangler`.
+The canonical production image/runtime uses `PORTAL_DATA_DIR=/data`. Before #209, `compose.yaml` still mounted `dashboard-data` at `/app/.wrangler`, so the named volume did not own the canonical production SQLite path.
 
-This is a runtime/deployment defect, not something documentation should hide. Active documentation may describe the mismatch and point to #209, but must not claim that the current Compose mount persists the canonical Node production database until the deployment contract is fixed and regression-tested.
+PR #220 corrected the deployment contract:
+
+- production Compose now mounts `dashboard-data:/data`;
+- the canonical default remains `/data/portal.sqlite`;
+- the recovery profile continues to mount the same named volume at `/portal-data`;
+- `tests/compose-persistence-contract.test.mjs` ties Compose, Dockerfile and the SQLite runtime default together and fails if those owners diverge again.
+
+This finding is closed. Current documentation may now state that the Compose named volume persists the canonical production SQLite store.
 
 ### AUDIT-207-03 — configuration reference legacy production bootstrap — fixed in #211
 
@@ -71,13 +78,10 @@ The highest-risk documents affected by recent runtime/configuration/UI changes w
 4. `docs/SECURITY_MODEL.md` — corrected in #211;
 5. `docs/reference/API.md` — re-verified against current route ownership/tests;
 6. `docs/reference/PERMISSIONS.md` — re-verified against canonical RBAC owner/tests;
-7. `docs/DOCUMENTATION_INVENTORY.md` — reconciled to an explicit verification baseline.
+7. `docs/DOCUMENTATION_INVENTORY.md` — reconciled to an explicit verification baseline;
+8. production persistence — reconciled after #209 / PR #220 and protected by a Compose/runtime contract test.
 
 The remaining active runbooks/reference documents were not found to be directly invalidated by #194–#201 during this focused re-audit. Their `verified-active` status remains conditional on the inventory rule: any change to their canonical owner requires re-verification on the exact merge candidate.
-
-## Open runtime/deployment defect
-
-#209 remains open. Until it is fixed and tested, documentation must not imply that the existing Compose named-volume mount persists the canonical `/data` production database path.
 
 ## Verification rule after #207
 
@@ -85,4 +89,4 @@ The remaining active runbooks/reference documents were not found to be directly 
 - a change to runtime, configuration, security, deployment, API, UI ownership, or a referenced canonical owner invalidates the affected verification until re-checked;
 - machine-checkable documentation contracts should be covered by tests/CI rather than prose-only convention;
 - historical `docs/superpowers/**` plans/specs remain non-authoritative for current runtime behavior;
-- #209 remains explicitly tracked until fixed in deployment/runtime code and regression-tested.
+- resolved defects such as #209 must be reconciled out of active documentation after the runtime fix merges, rather than remaining as stale warnings.

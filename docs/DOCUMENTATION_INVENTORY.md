@@ -2,7 +2,7 @@
 
 Этот документ фиксирует baseline инженерной документации для задачи #85 и Epic #82: назначение, owner/source of truth и результат проверки против актуального `main`/целевого stacked ref.
 
-Последний focused re-audit выполнен в #207 против `main` после merge #210 (`f4514e2224b2e5091f6856d1513b2c4ced6c9fda`) с исправлениями и повторной CI-проверкой в PR #211. Подробный audit trail: [`DOCUMENTATION_REAUDIT_2026-08-27.md`](DOCUMENTATION_REAUDIT_2026-08-27.md).
+Последний focused re-audit выполнен в #207 против `main` после merge #210 (`f4514e2224b2e5091f6856d1513b2c4ced6c9fda`) с исправлениями и повторной CI-проверкой в PR #211. Post-audit persistence reconciliation выполнен после #209 / PR #220 (`415de033a66620312cd2febc88226ac5adf4d2ce`). Подробный audit trail: [`DOCUMENTATION_REAUDIT_2026-08-27.md`](DOCUMENTATION_REAUDIT_2026-08-27.md).
 
 > Каноническое product/display name — **Admin Dashboard Softrust**. Технические compatibility identifiers не переименовываются в рамках branding-only изменений.
 
@@ -19,7 +19,7 @@
 | --- | --- | --- | --- | --- |
 | `README.md` | product overview / quick start | runtime + Compose + package/config | `verified-active` | Стабильная входная точка; offline restore и controlled migrations отражают current state |
 | `docs/README.md` | documentation index | documentation policy + inventory | `verified-active` | Основной навигатор active docs |
-| `docs/ARCHITECTURE.md` | architecture/current-state overview | current runtime entries, Compose/startup, canonical domain owners and tests | `verified-active` | Production runtime resynced in #210; #209 persistence mismatch documented separately |
+| `docs/ARCHITECTURE.md` | architecture/current-state overview | current runtime entries, Compose/startup, canonical domain owners and tests | `verified-active` | Production runtime resynced in #210; Compose persistence aligned to `/data` by #209/#220 |
 | `docs/PROJECT_STRUCTURE.md` | repository/module ownership map | current repository paths + `SOURCE_OF_TRUTH.md` + representative tests | `verified-active` | Startup/module ownership resynced in #210; не является target refactor plan |
 | `docs/DOCUMENTATION_POLICY.md` | policy | Epic #82 documentation contract + `scripts/documentation-consistency.mjs` | `verified-active` | Docs-as-code, правила нескольких ИИ-агентов и обязательный `npm run docs:check` |
 | `docs/SOURCE_OF_TRUTH.md` | reference registry | canonical runtime owners | `verified-active` | Re-audited in #207/#211; points to existing configuration/project-structure references |
@@ -86,7 +86,8 @@
 - **DOC-009:** добавлен normalized reference layer для API, permissions, configuration и stable machine error codes без создания дублирующих runtime registries.
 - **DOC-010:** #210 синхронизировал production architecture/project structure с canonical Node runtime после #194.
 - **DOC-011:** #207/#211 синхронизировал configuration/source-of-truth/security current-state owner pointers и повторно проверил API/RBAC references.
-- **DOC-012:** #208 добавляет deterministic documentation consistency guard для внутренних ссылок, npm command references и известных obsolete runtime markers.
+- **DOC-012:** #208 добавил deterministic documentation consistency guard для внутренних ссылок, npm command references и известных obsolete runtime markers.
+- **DOC-013:** #209/#220 выровнял Compose named-volume mount с canonical `/data` SQLite store и добавил regression contract test.
 
 ## Проверенные группы
 
@@ -107,6 +108,7 @@
 - XYOps ownership/inspector/presentation — current runtime/scripts.
 - P0 automated acceptance — script/package/Compose entrypoints.
 - Schema/migrations — canonical registry, v4 automatic foundation, controlled-suffix semantics and storage migration contracts.
+- Production persistence — `PORTAL_DATA_DIR=/data`, Compose `dashboard-data:/data`, recovery access to the same named volume, and `tests/compose-persistence-contract.test.mjs`.
 
 ## Automated consistency coverage
 
@@ -126,14 +128,13 @@ Semantic API/RBAC/configuration/runtime truth continues to belong to canonical o
 
 `verified-active` означает проверку против записанного baseline/целевого ref и canonical owners, а не бессрочную гарантию. Изменение runtime/UI/security/configuration/deployment/API owner автоматически требует повторной проверки затронутых документов на exact merge candidate.
 
-Известный deployment/runtime defect #209 остаётся открытым: canonical Node runtime использует `/data`, а текущий Compose named volume всё ещё монтируется в legacy `/app/.wrangler`. До исправления #209 документация не должна утверждать, что этот mount гарантирует persistence canonical production database.
+Production persistence defect #209 закрыт PR #220: canonical runtime `/data` и Compose named-volume mount теперь совпадают и защищены regression contract test. Эта проблема больше не является known limitation active documentation.
 
 ## Следующие gaps Epic #82
 
-Baseline повторно актуализирован в #207; architecture/module ownership map, security model и normalized reference layer существуют и проверяются против canonical owners. После #208 automated consistency guard больше не является gap. Остаются отдельные current-state задачи:
+Baseline повторно актуализирован в #207; architecture/module ownership map, security model и normalized reference layer существуют и проверяются против canonical owners. Automated consistency guard из #208 и production persistence fix #209 больше не являются gaps. Остаются отдельные current-state задачи:
 
 - supported/unsupported deployment matrix;
 - ADR registry;
 - module-level documentation coverage;
-- устранение распределённых runtime ownership gaps #119/#121/#123/#124;
-- исправление production Compose persistence contract #209.
+- устранение распределённых runtime ownership gaps #119/#121/#123/#124.

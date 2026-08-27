@@ -188,7 +188,7 @@ The portal accesses XYOps server-side for catalog and execution functions. It no
 
 ## Frontend architecture
 
-The frontend uses the `app/` tree with React/Vinext. `app/layout.tsx` owns the document layout and mounts global portal interaction/enhancement components. Reusable design tokens and domain-agnostic UI primitives live under `app/styles/` and `app/ui/`, while `app/shell/` owns the reusable product shell/navigation foundation.
+The frontend uses the `app/` tree with React/Vinext. `app/layout.tsx` owns the document layout and mounts global portal interaction/enhancement components. Reusable design tokens and domain-agnostic UI primitives live under `app/styles/` and `app/ui/`, with the reusable product shell/navigation foundation under `app/shell/`.
 
 Recent UI architecture work has extracted additional presentation responsibilities from the former monolithic Home page, including Home presentation and dedicated Users/Groups screen modules. Because this area is actively changing, exact current component ownership should be verified against the current `app/` tree and relevant UI tests before modifying a screen. Do not rely on historical statements that `app/page.tsx` is the sole owner of those extracted surfaces.
 

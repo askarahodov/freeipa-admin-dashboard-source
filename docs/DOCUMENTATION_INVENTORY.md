@@ -2,11 +2,13 @@
 
 Этот документ фиксирует baseline инженерной документации для задачи #85 и Epic #82: назначение, owner/source of truth и результат проверки против актуального `main`/целевого stacked ref.
 
+Последний focused re-audit выполнен в #207 против `main` после merge #210 (`f4514e2224b2e5091f6856d1513b2c4ced6c9fda`) с исправлениями и повторной CI-проверкой в PR #211. Подробный audit trail: [`DOCUMENTATION_REAUDIT_2026-08-27.md`](DOCUMENTATION_REAUDIT_2026-08-27.md).
+
 > Каноническое product/display name — **Admin Dashboard Softrust**. Технические compatibility identifiers не переименовываются в рамках branding-only изменений.
 
 Статусы:
 
-- `verified-active` — проверен против текущего `main`/целевого ref; подтверждённого drift не найдено;
+- `verified-active` — проверен против записанного baseline/целевого ref и canonical owners; статус требует повторной проверки после изменения соответствующего runtime/config/security/deployment/API/UI owner;
 - `plan` — roadmap/task planning, не доказательство runtime;
 - `superseded` — заменён другим source of truth;
 - `design/historical` — исторический design/implementation artifact, не active runbook.
@@ -17,10 +19,10 @@
 | --- | --- | --- | --- | --- |
 | `README.md` | product overview / quick start | runtime + Compose + package/config | `verified-active` | Стабильная входная точка; offline restore и controlled migrations отражают current state |
 | `docs/README.md` | documentation index | documentation policy + inventory | `verified-active` | Основной навигатор active docs |
-| `docs/ARCHITECTURE.md` | architecture/current-state overview | current runtime entries, Compose/startup, canonical domain owners and tests | `verified-active` | Проверены system context, request chain, trust/data/failure boundaries, current runtime/network/frontend limitations |
-| `docs/PROJECT_STRUCTURE.md` | repository/module ownership map | current repository paths + `SOURCE_OF_TRUTH.md` + representative tests | `verified-active` | Куда относить UI/auth/FreeIPA/XYOps/storage/recovery/docs/tests; не является target refactor plan |
+| `docs/ARCHITECTURE.md` | architecture/current-state overview | current runtime entries, Compose/startup, canonical domain owners and tests | `verified-active` | Production runtime resynced in #210; #209 persistence mismatch documented separately |
+| `docs/PROJECT_STRUCTURE.md` | repository/module ownership map | current repository paths + `SOURCE_OF_TRUTH.md` + representative tests | `verified-active` | Startup/module ownership resynced in #210; не является target refactor plan |
 | `docs/DOCUMENTATION_POLICY.md` | policy | Epic #82 documentation contract | `verified-active` | Docs-as-code и правила нескольких ИИ-агентов |
-| `docs/SOURCE_OF_TRUTH.md` | reference registry | canonical runtime owners | `verified-active` | Не заменяет code registries |
+| `docs/SOURCE_OF_TRUTH.md` | reference registry | canonical runtime owners | `verified-active` | Re-audited in #207/#211; points to existing configuration/project-structure references |
 | `docs/GLOSSARY.md` | terminology | active runtime/domain semantics | `verified-active` | Общая терминология |
 | `docs/ai/README.md` | AI entrypoint | documentation policy + source registry | `verified-active` | Обязательный порядок чтения для ИИ-агентов |
 | `.github/pull_request_template.md` | contribution process | documentation policy | `verified-active` | Documentation/security/source-of-truth checklist |
@@ -29,9 +31,9 @@
 
 | Path | Тип | Owner / source of truth | Status | Примечание |
 | --- | --- | --- | --- | --- |
-| `docs/reference/API.md` | normalized API/current-state reference | route handlers/wrappers, literal path contracts and route tests | `verified-active` | Route families, methods, auth boundaries и current owners; не заменяет будущий machine-readable registry #121 |
-| `docs/reference/PERMISSIONS.md` | normalized RBAC/current-state reference | `portal-permissions.ts` + exact route enforcement/tests | `verified-active` | 3 built-in roles и 13 canonical permissions; route-local/orphan drift вынесен в #119 |
-| `docs/reference/CONFIGURATION.md` | normalized configuration/current-state reference | `.env.example`, Compose, startup validators, settings lifecycle/source, recovery tooling | `verified-active` | Production/dynamic/recovery/test/internal-ephemeral classes; machine-readable contract остаётся #123 |
+| `docs/reference/API.md` | normalized API/current-state reference | `portal-route-contract.ts` + route handlers/wrappers/tests | `verified-active` | Re-verified in #207; route families/auth/owner pointers remain aligned with current reference tests |
+| `docs/reference/PERMISSIONS.md` | normalized RBAC/current-state reference | `portal-permissions.ts` + exact route enforcement/tests | `verified-active` | Re-verified in #207; 3 built-in roles и 13 canonical permissions checked by reference tests |
+| `docs/reference/CONFIGURATION.md` | normalized configuration/current-state reference | `.env.example`, Compose, `scripts/start-production.mjs`, startup validators, settings lifecycle/source, recovery tooling | `verified-active` | Legacy `start-worker.mjs` production ownership corrected in #207/#211; machine-readable contract remains #123 |
 | `docs/reference/ERROR_CODES.md` | normalized machine-code/current-state reference | domain handlers/contracts/tests | `verified-active` | Stable machine-readable codes по проверенным доменам; human strings/audit action names не включаются; consolidation #124 |
 
 Эти четыре reference-документа являются current-state orientation и не создают второй runtime registry. При конфликте canonical code owner/tests имеют приоритет.
@@ -40,7 +42,7 @@
 
 | Path | Тип | Owner / source of truth | Status | Примечание |
 | --- | --- | --- | --- | --- |
-| `docs/SECURITY_MODEL.md` | security/current-state overview | current auth/session/service-admin/integration/recovery owners + active security runbooks/tests | `verified-active` | Trust/identity/secret/authorization/recovery/fail-closed model; не заменяет exact security/runbook owners |
+| `docs/SECURITY_MODEL.md` | security/current-state overview | current auth/session/service-admin/integration/recovery owners + active security runbooks/tests | `verified-active` | Obsolete Wrangler/#51 limitation removed in #207/#211; trust/identity/secret/recovery model remains current |
 | `docs/LOCAL_AUTH_RBAC.md` | security/reference | `local-auth.ts` + local session boundary + DB schema | `verified-active` | PBKDF2, lockout и session semantics проверены |
 | `docs/DATABASE_MIGRATIONS.md` | operations/runbook | canonical migration registry/runtime/tests | `verified-active` | Automatic/controlled lifecycle, preflight/apply/status/reconcile и v4 foundation |
 | `docs/MAINTENANCE_MODE.md` | security/runbook | maintenance runtime + `portal_maintenance_state` | `verified-active` | Persistent maintenance boundary |
@@ -82,16 +84,18 @@
 - **DOC-007:** добавлены `ARCHITECTURE.md` и `PROJECT_STRUCTURE.md`; docs index/AI entrypoint больше не утверждают, что эти current-state документы отсутствуют.
 - **DOC-008:** добавлен `SECURITY_MODEL.md`; security reviewer/AI flow теперь имеет единый current-state trust/identity/secret/recovery overview без создания второго runtime owner.
 - **DOC-009:** добавлен normalized reference layer для API, permissions, configuration и stable machine error codes без создания дублирующих runtime registries.
+- **DOC-010:** #210 синхронизировал production architecture/project structure с canonical Node runtime после #194.
+- **DOC-011:** #207/#211 синхронизировал configuration/source-of-truth/security current-state owner pointers и повторно проверил API/RBAC references.
 
 ## Проверенные группы
 
-- Architecture/topology — Compose, Dockerfile, startup scripts, Worker entry chain, merged UI foundation and current constraints.
+- Architecture/topology — Compose, Dockerfile, canonical Node startup/runtime, Worker entry chain, merged UI foundation and current constraints.
 - Repository/module boundaries — `app/`, `app/styles/`, `app/ui/`, `worker/`, `db/`, root domain modules, scripts, tests/e2e, docs, CI/deployment files.
 - Normalized API reference — health/auth/settings/FreeIPA/XYOps/approvals/runs/backup/storage/schema/maintenance families и exact owner pointers.
 - Canonical permissions — `portal-permissions.ts`: `viewer`, `operator`, `admin` и 13 permission codes; distributed/orphan checks остаются tracked drift #119.
-- Configuration reference — `.env.example`, Compose/startup validators, settings source/lifecycle, recovery tooling и internal ephemeral Gateway values.
+- Configuration reference — `.env.example`, Compose, `scripts/start-production.mjs`, startup validators, settings source/lifecycle, recovery tooling и internal ephemeral Gateway values.
 - Machine error codes — health/dependency/storage/migration/maintenance/backup/settings code owners; human messages и audit actions отделены.
-- Security model — `local-auth.ts`, `admin-session-authorization.ts`, `scripts/freeipa-gateway.mjs`, active auth/audit/encryption/maintenance/recovery/schema/health docs and representative security tests/log evidence.
+- Security model — local auth/session/service-admin, private FreeIPA Gateway, active auth/audit/encryption/maintenance/recovery/schema/health docs and representative security tests/log evidence.
 - Auth/RBAC — local auth/session boundary, password/session hashing, lockout, cookie semantics and last-active-admin protection.
 - Service-admin/mutation boundary — exact admin integration path set, constant-time token comparison and same-origin mutation guard.
 - FreeIPA isolation — server-side Gateway method allowlist, loopback token authorization, upstream cookie confinement and bounded request/error handling.
@@ -107,14 +111,17 @@
 
 Этот baseline перечисляет active/current инженерные документы и отдельно классифицирует `docs/superpowers/specs/**` / `plans/**` как historical implementation artifacts. Historical plans не перечисляются по одному, потому что они не являются current contracts и их authoritative owner — соответствующий merged implementation + active documentation.
 
-`verified-active` для architecture/project/security/reference overview означает проверку current-state утверждений против целевого ref и canonical owners. Если параллельный runtime/UI/security PR меняет описанный boundary до merge соответствующей документационной ветки, документы должны быть синхронизированы и повторно проверены на exact merge candidate.
+`verified-active` означает проверку против записанного baseline/целевого ref и canonical owners, а не бессрочную гарантию. Изменение runtime/UI/security/configuration/deployment/API owner автоматически требует повторной проверки затронутых документов на exact merge candidate.
+
+Известный deployment/runtime defect #209 остаётся открытым: canonical Node runtime использует `/data`, а текущий Compose named volume всё ещё монтируется в legacy `/app/.wrangler`. До исправления #209 документация не должна утверждать, что этот mount гарантирует persistence canonical production database.
 
 ## Следующие gaps Epic #82
 
-Baseline актуализирован; architecture/module ownership map, security model и normalized reference layer добавлены. Остаются отдельные current-state задачи:
+Baseline повторно актуализирован в #207; architecture/module ownership map, security model и normalized reference layer существуют и проверяются против canonical owners. Остаются отдельные current-state задачи:
 
 - supported/unsupported deployment matrix;
 - ADR registry;
 - module-level documentation coverage;
-- automated documentation consistency CI;
-- устранение распределённых runtime ownership gaps #119/#121/#123/#124.
+- automated documentation consistency CI (#208);
+- устранение распределённых runtime ownership gaps #119/#121/#123/#124;
+- исправление production Compose persistence contract #209.

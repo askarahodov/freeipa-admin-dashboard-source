@@ -17,6 +17,24 @@ test("mixed changes union affected categories without expanding to full suite", 
   ]);
 });
 
+test("top-level feature components route to their functional suites plus ui", () => {
+  assert.deepEqual(buildE2ETestPlan(["app/FreeIpaUserBrowser.tsx"]).categories, ["freeipa", "ui"]);
+  assert.deepEqual(buildE2ETestPlan(["app/OperationExplorer.tsx"]).categories, ["xyops", "ui"]);
+  assert.deepEqual(buildE2ETestPlan(["app/SettingsLifecycleWizard.tsx"]).categories, ["settings", "ui"]);
+});
+
+test("database-only changes select schema contracts without browser categories", () => {
+  const plan = buildE2ETestPlan(["db/portal-migrations.ts"]);
+  assert.deepEqual(plan.categories, []);
+  assert.deepEqual(plan.browserSpecs, []);
+  assert.ok(plan.contractTests.includes("tests/portal-schema-migrations.test.mjs"));
+});
+
+test("root Dockerfile remains a full E2E runtime risk", () => {
+  const plan = buildE2ETestPlan(["Dockerfile"]);
+  assert.deepEqual(plan.categories, ["auth", "rbac", "freeipa", "xyops", "settings", "ui"]);
+});
+
 test("test-only changes route to the category owned by that test", () => {
   assert.deepEqual(buildE2ETestPlan(["e2e/specs/rbac-user.spec.mjs"]).categories, ["rbac"]);
   assert.deepEqual(buildE2ETestPlan(["e2e/specs/ui-quality.spec.mjs"]).categories, ["ui"]);

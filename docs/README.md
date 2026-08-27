@@ -1,38 +1,30 @@
 # Engineering documentation
 
-Этот каталог — главный индекс инженерной документации проекта. Он предназначен для разработчиков, операторов, security reviewers и ИИ-агентов.
+Этот каталог — главный индекс инженерной документации **Admin Dashboard Softrust** для разработчиков, операторов, security reviewers и ИИ-агентов.
 
-> Каноническое product/display name — **Admin Dashboard Softrust**. Historical artifacts могут сохранять прежнее название; active current-state documentation должна использовать каноническое имя.
-
-Корневой [`README.md`](../README.md) остаётся краткой входной точкой. Подробные contracts, runbook и reference находятся в `docs/`.
-
-Текущий результат проверки документации против `main`: [`DOCUMENTATION_INVENTORY.md`](DOCUMENTATION_INVENTORY.md).
+Корневой [`README.md`](../README.md) остаётся краткой входной точкой. Current audit status: [`DOCUMENTATION_INVENTORY.md`](DOCUMENTATION_INVENTORY.md).
 
 ## С чего начать
 
 ### Новый разработчик
 
-1. [`../README.md`](../README.md) — назначение, quick start и основные boundaries.
+1. [`../README.md`](../README.md) — назначение и quick start.
 2. [`ARCHITECTURE.md`](ARCHITECTURE.md) — current runtime topology, trust/data boundaries и major ownership.
-3. [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md) — карта repository/module boundaries и куда вносить изменение.
-4. [`MODULE_COVERAGE.md`](MODULE_COVERAGE.md) — module-level ownership, dependency direction, scoped tests и документационные triggers.
-5. [`DEPLOYMENT_MATRIX.md`](DEPLOYMENT_MATRIX.md) — какие способы запуска поддерживаются в production, development и какие остаются unsupported/constrained.
-6. [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md) — authoritative owners контрактов.
-7. [`DOCUMENTATION_INVENTORY.md`](DOCUMENTATION_INVENTORY.md) — какие документы проверены против текущего `main`.
+3. [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md) — repository/module map и where-to-change routing.
+4. [`MODULE_COVERAGE.md`](MODULE_COVERAGE.md) — module ownership, dependency direction и scoped tests.
+5. [`DEPLOYMENT_MATRIX.md`](DEPLOYMENT_MATRIX.md) — supported/development/constrained/unsupported deployment modes.
+6. [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md) — authoritative owners и precedence.
+7. [`DOCUMENTATION_POLICY.md`](DOCUMENTATION_POLICY.md) — docs-as-code и правила нескольких агентов.
 8. При изменении внешнего/операционного контракта свериться с [`reference/API.md`](reference/API.md), [`reference/PERMISSIONS.md`](reference/PERMISSIONS.md), [`reference/CONFIGURATION.md`](reference/CONFIGURATION.md) и [`reference/ERROR_CODES.md`](reference/ERROR_CODES.md).
-9. Профильный документ затрагиваемого домена и фактический code/tests текущего ref.
-
-Правила ведения документации: [`DOCUMENTATION_POLICY.md`](DOCUMENTATION_POLICY.md).
+9. Затем читать профильный документ и фактический code/tests текущего ref.
 
 ### ИИ-агент
 
-Обязательная точка входа: [`ai/README.md`](ai/README.md).
-
-ИИ-агент не должен считать GitHub Issue, implementation plan, старый PR или historical design доказательством текущего поведения. При конфликте приоритет у текущего runtime/canonical source и verified active-document.
+Обязательная точка входа: [`ai/README.md`](ai/README.md). Issue, implementation plan, старый PR или historical design не являются доказательством текущего поведения. При конфликте приоритет у canonical code/tests, затем documented source of truth и verified-active профильных документов.
 
 ### Оператор
 
-Начните с:
+Основной набор:
 
 - [`DEPLOYMENT_MATRIX.md`](DEPLOYMENT_MATRIX.md)
 - [`HEALTH_CONTRACTS.md`](HEALTH_CONTRACTS.md)
@@ -46,7 +38,7 @@
 - [`reference/CONFIGURATION.md`](reference/CONFIGURATION.md)
 - [`reference/ERROR_CODES.md`](reference/ERROR_CODES.md)
 
-Для destructive/recovery операций используйте только профильный active runbook, а не команды из старого Issue/PR.
+Для destructive/recovery операций используйте только профильный active runbook.
 
 ### Security reviewer
 
@@ -60,6 +52,7 @@
 - [`reference/PERMISSIONS.md`](reference/PERMISSIONS.md)
 - [`reference/API.md`](reference/API.md)
 - [`reference/CONFIGURATION.md`](reference/CONFIGURATION.md)
+- [`reference/ERROR_CODES.md`](reference/ERROR_CODES.md)
 - [`AUDIT_LOG.md`](AUDIT_LOG.md)
 - [`CONFIG_ENCRYPTION_KEY.md`](CONFIG_ENCRYPTION_KEY.md)
 - [`DATABASE_MIGRATIONS.md`](DATABASE_MIGRATIONS.md)
@@ -67,117 +60,101 @@
 - [`OFFLINE_FULL_RESTORE.md`](OFFLINE_FULL_RESTORE.md)
 - [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md)
 
-`SECURITY_MODEL.md` связывает current trust/identity/secret/recovery boundaries, а точные permissions, routes, configuration classes, machine codes, поля, команды и state transitions остаются в профильных active documents/runbooks и canonical runtime owners.
-
 ## Foundation / governance
 
 | Документ | Назначение |
 | --- | --- |
-| [`ARCHITECTURE.md`](ARCHITECTURE.md) | Current runtime topology, request chain, trust/data/failure boundaries и подтверждённые ограничения |
-| [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md) | Repository ownership map, module boundaries и practical where-to-change routing |
-| [`MODULE_COVERAGE.md`](MODULE_COVERAGE.md) | Module-level ownership/dependency/test/documentation coverage без дублирования volatile registries |
-| [`DEPLOYMENT_MATRIX.md`](DEPLOYMENT_MATRIX.md) | Current supported/development/constrained/unsupported deployment modes и их canonical evidence |
-| [`DOCUMENTATION_POLICY.md`](DOCUMENTATION_POLICY.md) | Docs-as-code, current-state vs plan, statuses, review и правила нескольких ИИ-агентов |
-| [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md) | Authoritative source registry |
-| [`DOCUMENTATION_INVENTORY.md`](DOCUMENTATION_INVENTORY.md) | Audit status документов против текущего `main` |
-| [`adr/README.md`](adr/README.md) | ADR registry: why-level архитектурные решения и правила supersession |
-| [`GLOSSARY.md`](GLOSSARY.md) | Единая терминология |
-| [`ai/README.md`](ai/README.md) | Обязательный AI-agent entrypoint |
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | Current topology/request/trust/data/failure boundaries |
+| [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md) | Repository ownership map and module boundaries |
+| [`MODULE_COVERAGE.md`](MODULE_COVERAGE.md) | Module documentation/test coverage and dependency direction |
+| [`DEPLOYMENT_MATRIX.md`](DEPLOYMENT_MATRIX.md) | Supported and unsupported deployment models |
+| [`DOCUMENTATION_POLICY.md`](DOCUMENTATION_POLICY.md) | Docs-as-code, statuses, review and multi-agent rules |
+| [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md) | Authoritative source registry and precedence |
+| [`DOCUMENTATION_INVENTORY.md`](DOCUMENTATION_INVENTORY.md) | Current audit status |
+| [`adr/README.md`](adr/README.md) | ADR policy/registry — why-level decisions |
+| [`GLOSSARY.md`](GLOSSARY.md) | Common terminology |
+| [`ai/README.md`](ai/README.md) | Mandatory AI-agent entrypoint |
 
 ## Normalized reference layer
 
-Эти документы дают единый человекочитаемый вход в распределённые runtime contracts. Они **не создают второй runtime registry**: при изменении поведения canonical code owner и его tests остаются authoritative.
+Эти документы дают человекочитаемый вход в распределённые runtime contracts и **не заменяют runtime owners**.
 
 | Документ | Назначение |
 | --- | --- |
-| [`reference/API.md`](reference/API.md) | Поддерживаемые route families, methods, authorization boundaries и current owners |
-| [`reference/PERMISSIONS.md`](reference/PERMISSIONS.md) | Built-in roles и canonical permission codes из `portal-permissions.ts`, с явной маркировкой известного RBAC drift |
-| [`reference/CONFIGURATION.md`](reference/CONFIGURATION.md) | Production/runtime/dynamic/recovery/test configuration classes, secret/lifecycle/source semantics |
-| [`reference/ERROR_CODES.md`](reference/ERROR_CODES.md) | Подтверждённые stable machine-readable codes по доменам; human strings и audit action names исключены |
+| [`reference/API.md`](reference/API.md) | Route families, methods, authorization boundaries and owners |
+| [`reference/PERMISSIONS.md`](reference/PERMISSIONS.md) | Built-in roles and canonical permission codes |
+| [`reference/CONFIGURATION.md`](reference/CONFIGURATION.md) | Production/runtime/dynamic/recovery/test configuration classes |
+| [`reference/ERROR_CODES.md`](reference/ERROR_CODES.md) | Verified stable machine-readable error/status codes |
+| [`ERROR_CODE_OWNERSHIP.md`](ERROR_CODE_OWNERSHIP.md) | `stable-error-contract.ts` ownership/verification rules |
 
-Текущие ограничения reference layer отслеживаются отдельно: #119 (RBAC owners), #121 (machine-readable route registry), #123 (machine-readable supported configuration contract), #124 (consolidated error-code registry).
+Machine-readable ownership work referenced by the documentation platform is complete: RBAC ownership #119, route registry #121, supported configuration contract #123 and stable error-code ownership #124. Domain code/tests remain behavioral owners.
 
 ## Authentication / access / audit
 
 | Документ | Назначение |
 | --- | --- |
-| [`SECURITY_MODEL.md`](SECURITY_MODEL.md) | Current trust boundaries, identity classes, secret ownership, authorization/recovery invariants и fail-closed/degraded behavior |
-| [`LOCAL_AUTH_RBAC.md`](LOCAL_AUTH_RBAC.md) | Local portal users, sessions, roles и separation от FreeIPA identities |
-| [`AUDIT_LOG.md`](AUDIT_LOG.md) | Append-only audit, correlation, redaction и read API |
+| [`SECURITY_MODEL.md`](SECURITY_MODEL.md) | Trust boundaries, identity classes, secret/recovery invariants |
+| [`LOCAL_AUTH_RBAC.md`](LOCAL_AUTH_RBAC.md) | Portal users, sessions, roles and FreeIPA identity separation |
+| [`AUDIT_LOG.md`](AUDIT_LOG.md) | Append-only audit, correlation, redaction and read API |
 
 ## Storage / schema / recovery
 
 | Документ | Назначение |
 | --- | --- |
-| [`DATABASE_MIGRATIONS.md`](DATABASE_MIGRATIONS.md) | Canonical schema, automatic/controlled migrations, journal, drift и recovery semantics |
+| [`DATABASE_MIGRATIONS.md`](DATABASE_MIGRATIONS.md) | Canonical schema/migrations/journal/drift/recovery semantics |
 | [`STORAGE_STATUS.md`](STORAGE_STATUS.md) | Bounded read-only storage status |
-| [`STORAGE_INTEGRITY.md`](STORAGE_INTEGRITY.md) | Read-only SQLite/index integrity diagnostics |
-| [`MAINTENANCE_MODE.md`](MAINTENANCE_MODE.md) | Persistent maintenance state machine и recovery boundary |
-| [`OFFLINE_FULL_RESTORE.md`](OFFLINE_FULL_RESTORE.md) | Destructive offline full restore, atomic swap, verify и rollback |
-| [`CONFIG_ENCRYPTION_KEY.md`](CONFIG_ENCRYPTION_KEY.md) | Production encryption-key generation/startup requirements |
+| [`STORAGE_INTEGRITY.md`](STORAGE_INTEGRITY.md) | Read-only SQLite/index diagnostics |
+| [`MAINTENANCE_MODE.md`](MAINTENANCE_MODE.md) | Persistent maintenance state machine |
+| [`OFFLINE_FULL_RESTORE.md`](OFFLINE_FULL_RESTORE.md) | Offline destructive restore, atomic swap, verify, rollback |
+| [`CONFIG_ENCRYPTION_KEY.md`](CONFIG_ENCRYPTION_KEY.md) | Production encryption-key requirements |
 
 ## Health / monitoring
 
 | Документ | Назначение |
 | --- | --- |
-| [`HEALTH_CONTRACTS.md`](HEALTH_CONTRACTS.md) | Liveness, readiness, dependency health и diagnostics |
+| [`HEALTH_CONTRACTS.md`](HEALTH_CONTRACTS.md) | Liveness, readiness, dependency health and diagnostics |
 | [`HEALTH_METRICS.md`](HEALTH_METRICS.md) | Prometheus-compatible baseline health metrics |
 
 ## XYOps / process presentation
 
 | Документ | Назначение |
 | --- | --- |
-| [`XYOPS_EXECUTION_OWNERSHIP.md`](XYOPS_EXECUTION_OWNERSHIP.md) | Разделение ответственности Portal/XYOps за execution, queue, concurrency и rate limits |
-| [`XYOPS_INSPECTOR.md`](XYOPS_INSPECTOR.md) | Safe read-only contract inspector для установленной версии XYOps |
-| [`PROCESS_PRESENTATION_METADATA.md`](PROCESS_PRESENTATION_METADATA.md) | Presentation overrides, locale/fallback и безопасные boundaries |
+| [`XYOPS_EXECUTION_OWNERSHIP.md`](XYOPS_EXECUTION_OWNERSHIP.md) | Portal/XYOps execution ownership split |
+| [`XYOPS_INSPECTOR.md`](XYOPS_INSPECTOR.md) | Safe read-only installed-version inspector |
+| [`PROCESS_PRESENTATION_METADATA.md`](PROCESS_PRESENTATION_METADATA.md) | Presentation overrides, locale/fallback and boundaries |
 
 ## Testing / acceptance
 
 | Документ | Назначение |
 | --- | --- |
-| [`LOCAL_ACCEPTANCE_TESTS.md`](LOCAL_ACCEPTANCE_TESTS.md) | Ручная/интеграционная локальная acceptance-процедура |
-| [`P0_OPERATIONAL_ACCEPTANCE.md`](P0_OPERATIONAL_ACCEPTANCE.md) | Автоматический P0 local-auth/persistence runner |
+| [`LOCAL_ACCEPTANCE_TESTS.md`](LOCAL_ACCEPTANCE_TESTS.md) | Local integration acceptance procedure |
+| [`P0_OPERATIONAL_ACCEPTANCE.md`](P0_OPERATIONAL_ACCEPTANCE.md) | Automated P0 local-auth/persistence runner |
 
 ## Roadmap / historical material
 
 | Документ | Статус |
 | --- | --- |
-| [`PRODUCT_ROADMAP.md`](PRODUCT_ROADMAP.md) | Roadmap/snapshot; не является доказательством runtime |
-| [`OPEN_TASKS.md`](OPEN_TASKS.md) | `superseded` historical task snapshot; текущий backlog — GitHub Issues |
+| [`PRODUCT_ROADMAP.md`](PRODUCT_ROADMAP.md) | Plan/snapshot; not runtime evidence |
+| [`OPEN_TASKS.md`](OPEN_TASKS.md) | `superseded`; current backlog is GitHub Issues |
 | `superpowers/specs/**` | Design/historical artifacts |
-| `superpowers/plans/**` | Implementation/review plans; после merge не заменяют active docs |
+| `superpowers/plans/**` | Historical implementation/review plans |
 
 ## Иерархия доверия
 
-При противоречии информации:
-
-1. фактический код, canonical registries/schema и tests текущего ref;
+1. фактический code, canonical registries/schema и tests текущего ref;
 2. owner/source из [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md);
 3. `verified-active` профильный contract/runbook;
-4. normalized `reference/*` как current-state orientation, если он подтверждён canonical owners;
-5. [`ARCHITECTURE.md`](ARCHITECTURE.md), [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md), [`MODULE_COVERAGE.md`](MODULE_COVERAGE.md), [`DEPLOYMENT_MATRIX.md`](DEPLOYMENT_MATRIX.md), [`SECURITY_MODEL.md`](SECURITY_MODEL.md) и overview/README;
+4. normalized `reference/*` как current-state orientation;
+5. architecture/project/module/deployment/security overview;
 6. ADR как объяснение решения;
-7. roadmap, Issue, implementation plan, PR description и historical notes.
+7. roadmap, Issue, plan, PR description и historical notes.
 
 ## Когда документация должна измениться
 
-Documentation impact обязателен, если PR изменяет:
-
-- route/method/auth/permission;
-- DB schema/migration/data ownership;
-- environment/configuration;
-- FreeIPA/XYOps protocol;
-- stable machine-readable error code;
-- security/trust/redaction/secret handling;
-- startup/deployment/network/health;
-- backup/restore/maintenance/recovery;
-- пользовательский workflow, уже описанный в документации;
-- module boundary или source of truth.
+Documentation impact обязателен, если PR изменяет route/method/auth/permission, schema/migration/data ownership, configuration, integration protocol, stable machine code, security/trust/redaction/secrets, startup/deployment/network/health, backup/restore/maintenance/recovery, documented user workflow, module boundary или source of truth.
 
 Если код делает active-document неверным, PR не считается завершённым до исправления документации либо явной регистрации blocking documentation defect.
 
-## Известные gaps Epic #82
+## Epic #82 status
 
-После baseline audit, current architecture/module map, module-level coverage, security model, deployment matrix, ADR registry, normalized reference layer и automated documentation consistency CI остаются только распределённые runtime ownership gaps #119/#121/#123/#124.
-
-Новые current-state файлы нельзя считать существующими до их реального появления в `main`.
+Documentation foundation, architecture/project orientation, AI-agent context, normalized reference coverage, module coverage, ADR registry and docs-consistency CI реализованы. Final current-state reconciliation выполняется в #240 / PR #242; после зелёного exact-head Required CI и отсутствия новых material gaps Epic #82 может быть закрыт как completed.

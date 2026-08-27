@@ -17,15 +17,15 @@ The scoped E2E router maps changed files to these categories:
 - **settings** — administrative settings session and draft/apply/reset/rollback lifecycle. Runs `admin-session-settings.spec.mjs` and `zz-settings-draft-lifecycle.spec.mjs`.
 - **ui** — shared authenticated UI accessibility, keyboard behavior, responsive layout and visible-status quality. Runs `ui-quality.spec.mjs`.
 
-A change may select more than one category. The router takes the union of the affected categories; it must not expand to unrelated categories.
+A change may select more than one category. The router takes the union of the affected categories; it must not expand to unrelated categories. Top-level feature components under `app/` are owned by both their functional category and `ui` where applicable.
 
 ## Contract-test categories
 
-Database/schema changes run the portal schema contract tests. Settings changes run settings lifecycle/source-safety contracts. A browser suite is selected only when the changed boundary also has browser behavior to prove.
+Database/schema changes run the portal schema contract tests. A database-only change does **not** imply settings browser E2E. Settings changes run settings lifecycle/source-safety contracts and browser coverage only when the changed boundary affects settings behavior visible through that suite.
 
 ## Full regression
 
-Full browser regression is intentional and limited to changes that can affect the whole E2E runtime (for example `compose.e2e.yaml`, `e2e/Dockerfile`, Playwright configuration, package dependency graph, Vite configuration, the routing policy itself), and to `main`, scheduled, and manually dispatched runs.
+Full browser regression is intentional and limited to changes that can affect the whole E2E runtime (for example the root `Dockerfile`, `compose.e2e.yaml`, `e2e/Dockerfile`, Playwright configuration, package dependency graph, Vite configuration, the routing policy itself), and to `main`, scheduled, and manually dispatched runs.
 
 ## Agent workflow
 

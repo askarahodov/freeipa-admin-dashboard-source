@@ -36,9 +36,9 @@ test("integration domains route to their own browser suites", () => {
 
 test("schema work runs schema contracts without unrelated browser suites", () => {
   const plan = buildE2ETestPlan(["db/portal-migrations.ts"]);
-  assert.deepEqual(plan.categories, ["settings"]);
+  assert.deepEqual(plan.categories, []);
+  assert.deepEqual(plan.browserSpecs, []);
   assert.ok(plan.contractTests.some((path) => path.includes("portal-schema-migrations")));
-  assert.ok(!plan.browserSpecs.includes("specs/rbac-user.spec.mjs"));
 });
 
 test("E2E infrastructure changes deliberately run full coverage", () => {

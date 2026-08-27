@@ -36,7 +36,18 @@ export function Users({ items, allGroups, total, source, canWrite, canDelete, on
 export function Groups({ items, allUsers, source, canWrite, canDelete, onCreate, onAction }: { items: DirectoryGroup[]; allUsers: DirectoryUser[]; source: DirectorySource; canWrite: boolean; canDelete: boolean; onCreate: () => void; onAction: (action: FreeIpaAction) => void }) {
   const [selectedName, setSelectedName] = useState<string | null>(null);
   const selected = items.find((group) => group.name === selectedName) ?? null;
-  return <><div className="content-stack"><div className="page-tools"><div><h2>Группы доступа</h2><p>{`${items.length} групп · ${source === "live" ? "прямое подключение FreeIPA" : source === "demo" ? "демо-данные" : "FreeIPA не настроен"}`}</p></div>{canWrite ? <button className="primary" disabled={source === "unconfigured"} onClick={onCreate}>＋ Создать группу</button> : <Status tone="neutral">Только просмотр</Status>}</div>{source === "unconfigured" ? <section className="panel catalog-empty"><strong>FreeIPA не настроен</strong><span>Сохраните подключение в разделе «Настройки».</span></section> : <section className="group-grid">{items.map((g, i) => <article className="group-card" key={g.name}><div className={`group-avatar c${i % 4}`}>♣</div><h3>{g.name}</h3><p>{g.description}</p><div><span><strong>{g.members}</strong><small>участников</small></span><Status tone="violet">{g.type}</Status></div><div className="group-actions"><button onClick={() => setSelectedName(g.name)}>Открыть группу</button>{canWrite && <button onClick={() => onAction({ operation: "group_add_member", title: `Добавить участника в ${g.name}`, preset: { group: g.name }, choices: { users: allUsers.filter((user) => !g.memberUids.includes(user.uid)).map((user) => user.uid) } })}>＋ Участник</button>}</div></article>)}</section>}</div>{selected && <GroupDetails group={selected} users={allUsers} canWrite={canWrite} canDelete={canDelete} close={() => setSelectedName(null)} action={onAction} />}</>;
+  const sourceLabel = source === "live" ? "прямое подключение FreeIPA" : source === "demo" ? "демо-данные" : "FreeIPA не настроен";
+
+  return <>
+    <DataListPage
+      title="Группы доступа"
+      description={`${items.length} групп · ${sourceLabel}`}
+      actions={canWrite ? <Button variant="primary" disabled={source === "unconfigured"} onClick={onCreate}>Создать группу</Button> : <Status tone="neutral">Только просмотр</Status>}
+    >
+      {source === "unconfigured" ? <DataListState kind="error" title="FreeIPA не настроен" description="Сохраните подключение в разделе «Настройки»." /> : items.length === 0 ? <DataListState kind="empty" title="Групп пока нет" description="В каталоге FreeIPA нет групп для отображения." /> : <DataTable label="Группы доступа"><thead><tr><th>Группа</th><th>Описание</th><th>Участники</th><th>Тип</th><th>Действия</th></tr></thead><tbody>{items.map((group) => <tr key={group.name}><td><strong>{group.name}</strong></td><td>{group.description}</td><td>{group.members}</td><td><Status tone="violet">{group.type}</Status></td><td><span className="row-actions"><Button variant="ghost" onClick={() => setSelectedName(group.name)}>Открыть группу</Button>{canWrite && <Button variant="secondary" onClick={() => onAction({ operation: "group_add_member", title: `Добавить участника в ${group.name}`, preset: { group: group.name }, choices: { users: allUsers.filter((user) => !group.memberUids.includes(user.uid)).map((user) => user.uid) } })}>Добавить участника</Button>}</span></td></tr>)}</tbody></DataTable>}
+    </DataListPage>
+    {selected && <GroupDetails group={selected} users={allUsers} canWrite={canWrite} canDelete={canDelete} close={() => setSelectedName(null)} action={onAction} />}
+  </>;
 }
 
 function UserDetails({ user, groups, canWrite, canDelete, close, action }: { user: DirectoryUser; groups: DirectoryGroup[]; canWrite: boolean; canDelete: boolean; close: () => void; action: (action: FreeIpaAction) => void }) {

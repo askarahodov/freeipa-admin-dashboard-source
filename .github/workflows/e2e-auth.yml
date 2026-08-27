@@ -1,4 +1,4 @@
-name: Auth E2E
+name: Scoped E2E
 
 on:
   pull_request:
@@ -12,11 +12,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: auth-e2e-${{ github.event.pull_request.number || github.ref || github.run_id }}
+  group: scoped-e2e-${{ github.event.pull_request.number || github.ref || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  auth-e2e:
+  scoped-e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -24,44 +24,56 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Run Auth E2E routing contract
-        run: node --test tests/auth-e2e-routing.test.mjs
+      - name: Validate test routing policy
+        run: node --test tests/auth-e2e-routing.test.mjs tests/test-scope-routing.test.mjs
 
-      - name: Determine Auth E2E scope
+      - name: Determine affected test categories
         id: scope
         shell: bash
         run: |
           set -euo pipefail
           if [[ "${{ github.event_name }}" != "pull_request" ]]; then
-            echo "run=true" >> "$GITHUB_OUTPUT"
+            : > "$RUNNER_TEMP/e2e-changed-files.txt"
+            node scripts/auth-e2e-scope.mjs --github-output "$GITHUB_OUTPUT" --full "$RUNNER_TEMP/e2e-changed-files.txt"
             exit 0
           fi
-          git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" > "$RUNNER_TEMP/auth-e2e-changed-files.txt"
-          node scripts/auth-e2e-scope.mjs --github-output "$GITHUB_OUTPUT" "$RUNNER_TEMP/auth-e2e-changed-files.txt"
+          git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" > "$RUNNER_TEMP/e2e-changed-files.txt"
+          node scripts/auth-e2e-scope.mjs --github-output "$GITHUB_OUTPUT" "$RUNNER_TEMP/e2e-changed-files.txt"
 
-      - name: Auth E2E not required for this pull request
-        if: steps.scope.outputs.run != 'true'
-        run: echo "No Auth E2E-relevant files changed; stable check succeeds without Chromium."
+      - name: Report selected coverage
+        run: |
+          echo "categories=${{ steps.scope.outputs.categories }}"
+          echo "browser_specs=${{ steps.scope.outputs.browser_specs }}"
+          echo "contract_tests=${{ steps.scope.outputs.contract_tests }}"
 
-      - name: Run settings and schema contracts
-        if: steps.scope.outputs.run == 'true'
-        run: node --experimental-strip-types --test tests/portal-schema-inventory.test.mjs tests/portal-schema-migrations.test.mjs tests/portal-schema-review-hardening.test.mjs tests/portal-schema-boundary.test.mjs tests/local-diagnostics-schema.test.mjs tests/settings-draft-lifecycle.test.mjs tests/settings-reset-fallback-refresh.test.mjs tests/settings-source-runtime-safety.test.mjs
+      - name: No browser E2E required for this pull request
+        if: steps.scope.outputs.browser_specs == ''
+        run: echo "No browser E2E category is affected by this change."
+
+      - name: Run affected contract tests
+        if: steps.scope.outputs.contract_tests != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          read -r -a tests <<< "${{ steps.scope.outputs.contract_tests }}"
+          node --experimental-strip-types --test "${tests[@]}"
 
       - name: Prepare isolated E2E environment
-        if: steps.scope.outputs.run == 'true'
+        if: steps.scope.outputs.browser_specs != ''
         run: cp .env.e2e.example .env.e2e
 
-      - name: Run Chromium authentication scenarios
-        if: steps.scope.outputs.run == 'true'
+      - name: Run affected Chromium scenarios
+        if: steps.scope.outputs.browser_specs != ''
         env:
           CI: "true"
+          E2E_SPECS: ${{ steps.scope.outputs.browser_specs }}
         run: npm run test:e2e:auth
 
       - name: Upload Playwright artifacts
-        if: steps.scope.outputs.run == 'true' && !cancelled()
+        if: steps.scope.outputs.browser_specs != '' && !cancelled()
         uses: actions/upload-artifact@v4
         with:
-          name: auth-e2e-report
+          name: scoped-e2e-report
           path: |
             artifacts/e2e/playwright-report
             artifacts/e2e/test-results

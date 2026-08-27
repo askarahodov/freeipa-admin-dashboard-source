@@ -8,6 +8,7 @@ ENV_FILE="${E2E_ENV_FILE:-.env.e2e}"
 COMPOSE_FILE="${E2E_COMPOSE_FILE:-compose.e2e.yaml}"
 ARTIFACT_ROOT="${E2E_ARTIFACT_DIR:-artifacts/e2e}"
 BASE_URL="${E2E_BASE_URL:-http://127.0.0.1:3001}"
+E2E_SPECS="${E2E_SPECS:-}"
 
 if [[ ! -f "$ENV_FILE" ]]; then
   echo "E2E environment file is missing: $ENV_FILE" >&2
@@ -68,4 +69,11 @@ if [[ "$ready" != "true" ]]; then
 fi
 
 compose build playwright
-compose run --rm playwright
+if [[ -n "$E2E_SPECS" ]]; then
+  read -r -a specs <<< "$E2E_SPECS"
+  echo "Running scoped Playwright specs: ${specs[*]}"
+  compose run --rm playwright npx playwright test --config=playwright.config.mjs "${specs[@]}"
+else
+  echo "Running full Playwright suite"
+  compose run --rm playwright
+fi

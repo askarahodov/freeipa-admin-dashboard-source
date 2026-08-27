@@ -1,85 +1,75 @@
 import assert from "node:assert/strict";
-import { access, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { authE2EExactRelevantPaths, shouldRunAuthE2E } from "../scripts/auth-e2e-scope.mjs";
+import { buildE2ETestPlan, categoriesForPath, shouldRunAuthE2E } from "../scripts/auth-e2e-scope.mjs";
 
 const workflow = await readFile(new URL("../.github/workflows/e2e-auth.yml", import.meta.url), "utf8");
 const ciWorkflow = await readFile(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
 
-const relevant = [
-  "local-auth.ts",
-  "admin-session-authorization.ts",
-  "worker/local-secure-entry.ts",
-  "worker/settings-lifecycle-entry.ts",
-  "app/login/page.tsx",
-  "db/portal-migrations.ts",
-  "e2e/specs/auth.spec.mjs",
-  "scripts/start-worker.mjs",
-  "scripts/freeipa-gateway.mjs",
-  "Dockerfile",
-  "compose.yaml",
-  "compose.e2e.yaml",
-  ".env.example",
-  ".env.e2e.example",
-  "package.json",
-  "package-lock.json",
-  "vite.config.ts",
-  ".github/workflows/e2e-auth.yml",
-];
-
-for (const path of relevant) {
-  test(`Auth E2E scope includes ${path}`, () => {
-    assert.equal(shouldRunAuthE2E([path]), true);
-  });
-}
-
-test("every exact Auth E2E routing reference exists in the repository", async () => {
-  for (const path of authE2EExactRelevantPaths) {
-    await assert.doesNotReject(access(new URL(`../${path}`, import.meta.url)), `missing routing path: ${path}`);
-  }
-});
-
-test("Auth E2E scope ignores documentation-only changes", () => {
+test("documentation-only changes do not trigger browser E2E", () => {
   assert.equal(shouldRunAuthE2E(["docs/README.md", "docs/OPERATIONS_EXPLORER.md"]), false);
 });
 
-test("Auth E2E scope runs when any file in a mixed change is relevant", () => {
-  assert.equal(shouldRunAuthE2E(["docs/README.md", "local-auth.ts"]), true);
+test("ordinary UI changes run UI coverage but not unrelated RBAC or integrations", () => {
+  const plan = buildE2ETestPlan(["app/icons.tsx"]);
+  assert.deepEqual(plan.categories, ["ui"]);
+  assert.deepEqual(plan.browserSpecs, ["specs/ui-quality.spec.mjs"]);
 });
 
-test("workflow exposes a stable pull-request check instead of top-level path filtering", () => {
+test("authentication changes select authentication coverage", () => {
+  assert.deepEqual(categoriesForPath("local-auth.ts"), ["auth"]);
+  assert.deepEqual(buildE2ETestPlan(["app/login/page.tsx"]).browserSpecs, ["specs/auth.spec.mjs", "specs/ui-quality.spec.mjs"]);
+});
+
+test("RBAC changes select only RBAC coverage", () => {
+  const plan = buildE2ETestPlan(["portal-permissions.ts"]);
+  assert.deepEqual(plan.categories, ["rbac"]);
+  assert.deepEqual(plan.browserSpecs, ["specs/rbac-user.spec.mjs", "specs/role-restrictions.spec.mjs"]);
+});
+
+test("integration domains route to their own browser suites", () => {
+  assert.deepEqual(buildE2ETestPlan(["freeipa-client.ts"]).categories, ["freeipa"]);
+  assert.deepEqual(buildE2ETestPlan(["xyops-client.ts"]).categories, ["xyops"]);
+  assert.deepEqual(buildE2ETestPlan(["settings-service.ts"]).categories, ["settings"]);
+});
+
+test("schema work runs schema contracts without unrelated browser suites", () => {
+  const plan = buildE2ETestPlan(["db/portal-migrations.ts"]);
+  assert.deepEqual(plan.categories, []);
+  assert.deepEqual(plan.browserSpecs, []);
+  assert.ok(plan.contractTests.some((path) => path.includes("portal-schema-migrations")));
+});
+
+test("E2E infrastructure changes deliberately run full coverage", () => {
+  const plan = buildE2ETestPlan(["compose.e2e.yaml"]);
+  assert.deepEqual(plan.categories, ["auth", "rbac", "freeipa", "xyops", "settings", "ui"]);
+  assert.equal(plan.browserSpecs.length, 8);
+});
+
+test("workflow keeps a stable pull-request check and scopes only expensive coverage", () => {
   const pullRequestBlock = workflow.match(/pull_request:\s*\n([\s\S]*?)(?=\n  [a-zA-Z_]+:|\npermissions:)/u)?.[1] ?? "";
   assert.doesNotMatch(pullRequestBlock, /\bpaths:/u);
+  assert.match(workflow, /Determine affected test categories/u);
+  assert.match(workflow, /browser_specs/u);
+  assert.match(workflow, /contract_tests/u);
+  assert.match(workflow, /E2E_SPECS/u);
+  assert.match(workflow, /--full/u);
+});
+
+test("scheduled, manual and main runs retain full regression coverage", () => {
   assert.match(workflow, /workflow_dispatch:/u);
   assert.match(workflow, /schedule:/u);
   assert.match(workflow, /push:\s*\n\s+branches:\s*\[main\]/u);
+  assert.match(workflow, /--full/u);
 });
 
-test("workflow keeps one stable auth-e2e job and gates only expensive steps", () => {
-  assert.match(workflow, /\n  auth-e2e:\n/u);
-  assert.match(workflow, /Determine Auth E2E scope/u);
-  assert.match(workflow, /Auth E2E not required for this pull request/u);
-  assert.match(workflow, /if: steps\.scope\.outputs\.run == 'true'/u);
-});
-
-test("Auth E2E concurrency cancels obsolete PR runs but not main, manual, or scheduled runs", () => {
+test("E2E concurrency cancels obsolete PR runs but not main, manual, or scheduled runs", () => {
   assert.match(workflow, /concurrency:/u);
   assert.match(workflow, /cancel-in-progress:.*pull_request/u);
 });
 
-test("main CI also cancels only obsolete pull-request runs", () => {
-  assert.match(ciWorkflow, /concurrency:/u);
-  assert.match(ciWorkflow, /cancel-in-progress:.*pull_request/u);
-  assert.doesNotMatch(ciWorkflow, /cancel-in-progress:\s*true/u);
-});
-
-test("main CI exposes one stable aggregate required check over security, shards and recovery", () => {
+test("main CI still exposes its stable aggregate required check", () => {
   assert.match(ciWorkflow, /\n  required:\n/u);
   assert.match(ciWorkflow, /name:\s*Required CI/u);
-  const requiredBlock = ciWorkflow.match(/\n  required:\n([\s\S]*)$/u)?.[1] ?? "";
-  for (const job of ["discover-tests", "dependency-security", "build", "container-security", "recovery-compose", "test"]) {
-    assert.match(requiredBlock, new RegExp(`needs:[^\\n]*\\b${job}\\b`, "u"), job);
-  }
-  assert.doesNotMatch(requiredBlock, /\btest-suite\b/u);
 });

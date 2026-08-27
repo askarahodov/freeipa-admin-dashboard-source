@@ -14,8 +14,9 @@ test("UI browser quality spec covers keyboard focus and the required viewport ma
 
 test("UI browser quality spec protects visible artifacts from credentials and internal-host fixtures", async () => {
   const source = await read("e2e/specs/ui-quality.spec.mjs");
-  assert.match(source, /not\.toContain\(adminPassword\)/u);
-  assert.match(source, /softrust\\\.ru/u);
+  assert.match(source, /not\.toContainText\(adminPassword\)/u);
+  assert.match(source, /not\.toContainText\(\/\(\?:ldap\|pg\\d\+\)\\\.softrust\\\.ru\/iu\)/u);
+  assert.match(source, /local-auth-toolbar.*toBeVisible/u);
 });
 
 test("phase 1 does not create fake screenshot showcase routes", async () => {

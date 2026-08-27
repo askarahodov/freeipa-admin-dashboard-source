@@ -15,11 +15,12 @@
 1. [`../README.md`](../README.md) — назначение, quick start и основные boundaries.
 2. [`ARCHITECTURE.md`](ARCHITECTURE.md) — current runtime topology, trust/data boundaries и major ownership.
 3. [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md) — карта repository/module boundaries и куда вносить изменение.
-4. [`DEPLOYMENT_MATRIX.md`](DEPLOYMENT_MATRIX.md) — какие способы запуска поддерживаются в production, development и какие остаются unsupported/constrained.
-5. [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md) — authoritative owners контрактов.
-6. [`DOCUMENTATION_INVENTORY.md`](DOCUMENTATION_INVENTORY.md) — какие документы проверены против текущего `main`.
-7. При изменении внешнего/операционного контракта свериться с [`reference/API.md`](reference/API.md), [`reference/PERMISSIONS.md`](reference/PERMISSIONS.md), [`reference/CONFIGURATION.md`](reference/CONFIGURATION.md) и [`reference/ERROR_CODES.md`](reference/ERROR_CODES.md).
-8. Профильный документ затрагиваемого домена и фактический code/tests текущего ref.
+4. [`MODULE_COVERAGE.md`](MODULE_COVERAGE.md) — module-level ownership, dependency direction, scoped tests и документационные triggers.
+5. [`DEPLOYMENT_MATRIX.md`](DEPLOYMENT_MATRIX.md) — какие способы запуска поддерживаются в production, development и какие остаются unsupported/constrained.
+6. [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md) — authoritative owners контрактов.
+7. [`DOCUMENTATION_INVENTORY.md`](DOCUMENTATION_INVENTORY.md) — какие документы проверены против текущего `main`.
+8. При изменении внешнего/операционного контракта свериться с [`reference/API.md`](reference/API.md), [`reference/PERMISSIONS.md`](reference/PERMISSIONS.md), [`reference/CONFIGURATION.md`](reference/CONFIGURATION.md) и [`reference/ERROR_CODES.md`](reference/ERROR_CODES.md).
+9. Профильный документ затрагиваемого домена и фактический code/tests текущего ref.
 
 Правила ведения документации: [`DOCUMENTATION_POLICY.md`](DOCUMENTATION_POLICY.md).
 
@@ -52,6 +53,7 @@
 Основной набор:
 
 - [`ARCHITECTURE.md`](ARCHITECTURE.md)
+- [`MODULE_COVERAGE.md`](MODULE_COVERAGE.md)
 - [`DEPLOYMENT_MATRIX.md`](DEPLOYMENT_MATRIX.md)
 - [`SECURITY_MODEL.md`](SECURITY_MODEL.md)
 - [`LOCAL_AUTH_RBAC.md`](LOCAL_AUTH_RBAC.md)
@@ -73,10 +75,12 @@
 | --- | --- |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | Current runtime topology, request chain, trust/data/failure boundaries и подтверждённые ограничения |
 | [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md) | Repository ownership map, module boundaries и practical where-to-change routing |
+| [`MODULE_COVERAGE.md`](MODULE_COVERAGE.md) | Module-level ownership/dependency/test/documentation coverage без дублирования volatile registries |
 | [`DEPLOYMENT_MATRIX.md`](DEPLOYMENT_MATRIX.md) | Current supported/development/constrained/unsupported deployment modes и их canonical evidence |
 | [`DOCUMENTATION_POLICY.md`](DOCUMENTATION_POLICY.md) | Docs-as-code, current-state vs plan, statuses, review и правила нескольких ИИ-агентов |
 | [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md) | Authoritative source registry |
 | [`DOCUMENTATION_INVENTORY.md`](DOCUMENTATION_INVENTORY.md) | Audit status документов против текущего `main` |
+| [`adr/README.md`](adr/README.md) | ADR registry: why-level архитектурные решения и правила supersession |
 | [`GLOSSARY.md`](GLOSSARY.md) | Единая терминология |
 | [`ai/README.md`](ai/README.md) | Обязательный AI-agent entrypoint |
 
@@ -151,7 +155,7 @@
 2. owner/source из [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md);
 3. `verified-active` профильный contract/runbook;
 4. normalized `reference/*` как current-state orientation, если он подтверждён canonical owners;
-5. [`ARCHITECTURE.md`](ARCHITECTURE.md), [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md), [`DEPLOYMENT_MATRIX.md`](DEPLOYMENT_MATRIX.md), [`SECURITY_MODEL.md`](SECURITY_MODEL.md) и overview/README;
+5. [`ARCHITECTURE.md`](ARCHITECTURE.md), [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md), [`MODULE_COVERAGE.md`](MODULE_COVERAGE.md), [`DEPLOYMENT_MATRIX.md`](DEPLOYMENT_MATRIX.md), [`SECURITY_MODEL.md`](SECURITY_MODEL.md) и overview/README;
 6. ADR как объяснение решения;
 7. roadmap, Issue, implementation plan, PR description и historical notes.
 
@@ -174,10 +178,6 @@ Documentation impact обязателен, если PR изменяет:
 
 ## Известные gaps Epic #82
 
-После baseline audit, current architecture/module-map, security model, deployment matrix, normalized reference layer и automated documentation consistency CI остаются отдельные задачи на:
-
-- ADR registry;
-- module-level documentation coverage;
-- устранение распределённых runtime ownership gaps #119/#121/#123/#124.
+После baseline audit, current architecture/module map, module-level coverage, security model, deployment matrix, ADR registry, normalized reference layer и automated documentation consistency CI остаются только распределённые runtime ownership gaps #119/#121/#123/#124.
 
 Новые current-state файлы нельзя считать существующими до их реального появления в `main`.

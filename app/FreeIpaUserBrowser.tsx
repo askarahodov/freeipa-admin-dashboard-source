@@ -90,7 +90,7 @@ function useUsersMount(active: boolean): HTMLElement | null {
     const install = () => {
       if (cancelled) return true;
       const page = document.querySelector<HTMLElement>(".section-page");
-      if (!page || !page.querySelector(".users-row")) return false;
+      if (!page) return false;
       document.getElementById("freeipa-user-browser")?.remove();
       const node = document.createElement("div");
       node.id = "freeipa-user-browser";

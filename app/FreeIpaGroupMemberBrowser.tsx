@@ -8,7 +8,7 @@ import type {
   FreeIpaGroupMemberDirection,
   FreeIpaGroupMemberSort,
   FreeIpaGroupMemberStatus,
-} from "../freeipa-group-member-query";
+} from "../src/freeipa/freeipa-group-member-query";
 import { FREEIPA_DIRECTORY_CHANGED_EVENT, loadFreeIpaAccess, openFreeIpaAction } from "../freeipa-ui-events";
 
 type QueryState = {

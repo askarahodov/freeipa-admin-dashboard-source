@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { normalizeFreeIpaUserQuery, queryFreeIpaUsers } from "../freeipa-user-query.ts";
+import { normalizeFreeIpaUserQuery, queryFreeIpaUsers } from "../src/freeipa/freeipa-user-query.ts";
 
 const users = [
   { uid: "zvolkov", name: "Волков Захар", firstName: "Захар", lastName: "Волков", email: "z@example.test", active: true, groups: 2, groupNames: ["devops", "vpn"] },

@@ -152,17 +152,8 @@ async function waitForCancellableRun(context, jobId) {
   }, { timeout: 20_000, intervals: [250, 500, 1000] }).toEqual({ status: "running", cancel: true });
 }
 
-async function visibleOperationsPanel(page) {
-  const heading = page.getByRole("heading", { name: "Журнал операций", exact: true });
-  await expect(heading).toBeVisible();
-  const panel = heading.locator("xpath=ancestor::section[contains(@class,'section-page')][1]");
-  await expect(panel).toBeVisible();
-  return panel;
-}
-
-async function operationRow(page, title, jobId) {
-  const panel = await visibleOperationsPanel(page);
-  return panel.locator(".selectable-run:visible")
+function operationRow(page, title, jobId) {
+  return page.locator("button.operation-explorer-row")
     .filter({ hasText: title })
     .filter({ hasText: jobId });
 }
@@ -199,7 +190,7 @@ test("XYOps dangerous workflows support approval, cancellation and result render
       await waitForCancellableRun(operatorContext, cancelJobId);
 
       await operatorPage.goto("/operations");
-      const cancelRow = await operationRow(operatorPage, cancelTitle, cancelJobId);
+      const cancelRow = operationRow(operatorPage, cancelTitle, cancelJobId);
       await expect(cancelRow).toBeVisible();
       await cancelRow.click();
       const cancelModal = operatorPage.locator(".run-details-modal");
@@ -220,7 +211,7 @@ test("XYOps dangerous workflows support approval, cancellation and result render
       }, { timeout: 30_000, intervals: [250, 500, 1000] }).toEqual({ status: "success", result: true });
 
       await operatorPage.goto("/operations");
-      const resultRow = await operationRow(operatorPage, resultTitle, resultJobId);
+      const resultRow = operationRow(operatorPage, resultTitle, resultJobId);
       await expect(resultRow).toBeVisible();
       await expect(resultRow).toContainText("Успешно");
       await resultRow.click();

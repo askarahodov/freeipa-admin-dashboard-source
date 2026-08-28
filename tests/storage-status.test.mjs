@@ -4,7 +4,7 @@ import test from "node:test";
 import { portalMaintenanceStateTable } from "../db/portal-maintenance-schema.ts";
 import { portalRestoreStageTable } from "../db/portal-restore-stage-schema.ts";
 import { portalSchemaTables } from "../db/portal-schema.ts";
-import { inspectStorageStatus } from "../storage-status.ts";
+import { inspectStorageStatus } from "../src/storage/status/storage-status.ts";
 
 const canonicalTables = [
   ...portalSchemaTables.map((table) => table.name),

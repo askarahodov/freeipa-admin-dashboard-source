@@ -7,7 +7,6 @@ import { fileURLToPath } from "node:url";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const scanRoots = ["app", "worker", "tests", "scripts", "db", "e2e", "src"];
 const sourceExtensions = new Set([".js", ".mjs", ".cjs", ".ts", ".tsx"]);
-const expectedLegacyConsumers = [];
 
 async function collectSourceFiles(relativeDir) {
   const absoluteDir = path.join(repoRoot, relativeDir);
@@ -37,7 +36,7 @@ async function exists(relativePath) {
   }
 }
 
-test("automation domain has canonical implementations and thin root compatibility shims", async () => {
+test("automation domain has one canonical implementation path", async () => {
   for (const canonical of [
     "src/automation/automation-types.ts",
     "src/automation/field-conditions.ts",
@@ -45,16 +44,12 @@ test("automation domain has canonical implementations and thin root compatibilit
     assert.equal(await exists(canonical), true, `missing canonical automation module: ${canonical}`);
   }
 
-  const shims = new Map([
-    ["automation-types.ts", 'export * from "./src/automation/automation-types";\n'],
-    ["field-conditions.ts", 'export * from "./src/automation/field-conditions";\n'],
-  ]);
-  for (const [relativePath, expected] of shims) {
-    assert.equal(await readFile(path.join(repoRoot, relativePath), "utf8"), expected, `${relativePath} must remain a thin compatibility shim`);
+  for (const removedRoot of ["automation-types.ts", "field-conditions.ts"]) {
+    assert.equal(await exists(removedRoot), false, `legacy root automation module returned: ${removedRoot}`);
   }
 });
 
-test("legacy automation imports are limited to the explicit migration allowlist", async () => {
+test("legacy automation imports are absent repository-wide", async () => {
   const files = [
     ...await collectRootSourceFiles(),
     ...(await Promise.all(scanRoots.map(collectSourceFiles))).flat(),
@@ -64,12 +59,12 @@ test("legacy automation imports are limited to the explicit migration allowlist"
     /(?:\.\.\/|\.\/)+field-conditions(?:\.ts)?["']/,
   ];
 
-  const legacyConsumers = new Set();
+  const violations = [];
   for (const relativePath of files) {
-    if (["automation-types.ts", "field-conditions.ts", "tests/automation-domain-path-contract.test.mjs", "src/automation/field-conditions.ts"].includes(relativePath)) continue;
+    if (["tests/automation-domain-path-contract.test.mjs", "src/automation/field-conditions.ts"].includes(relativePath)) continue;
     const content = await readFile(path.join(repoRoot, relativePath), "utf8");
-    if (forbidden.some((pattern) => pattern.test(content))) legacyConsumers.add(relativePath);
+    if (forbidden.some((pattern) => pattern.test(content))) violations.push(relativePath);
   }
 
-  assert.deepEqual([...legacyConsumers].sort(), expectedLegacyConsumers, "legacy automation import set changed; migrate consumers or update this contract intentionally");
+  assert.deepEqual(violations.sort(), [], `legacy automation imports found: ${violations.join(", ")}`);
 });

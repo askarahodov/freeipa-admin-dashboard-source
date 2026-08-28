@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { AutomationRoute as SourceAutomationRoute, CatalogEvent, RouteField } from "../automation-types";
-import { conditionFieldNames } from "../field-conditions";
+import type { AutomationRoute as SourceAutomationRoute, CatalogEvent, RouteField } from "../src/automation/automation-types";
+import { conditionFieldNames } from "../src/automation/field-conditions";
 import { FREEIPA_DIRECTORY_CHANGED_EVENT, FREEIPA_OPEN_ACTION_EVENT, announceFreeIpaDirectoryChanged, type FreeIpaAction, type FreeIpaOperation } from "../src/freeipa/freeipa-ui-events";
 import { portalRoleLabels, type PortalPermission, type PortalRole } from "../portal-permissions";
 import { buildHomePath, resolveHomeLocation, type HomePage } from "./shell/home-navigation";

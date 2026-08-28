@@ -1,6 +1,6 @@
 "use client";
 
-import type { CatalogEvent } from "../../automation-types";
+import type { CatalogEvent } from "../../src/automation/automation-types";
 import { resolveProcessIconGlyph } from "../shell/home-presentation";
 import { RunStatusBadge, formatDateTime, type RunRecord } from "../operations/OperationsApprovalsScreens";
 

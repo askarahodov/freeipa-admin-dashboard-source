@@ -1,4 +1,4 @@
-import type { CatalogEvent } from "./automation-types";
+import type { CatalogEvent } from "./src/automation/automation-types";
 
 export type LocalizedProcessPresentationOverride = {
   title?: string;

@@ -10,7 +10,6 @@ const sourceExtensions = new Set([".js", ".mjs", ".cjs", ".ts", ".tsx"]);
 const expectedLegacyConsumers = [
   "app/settings-policy-editors.tsx",
   "app/settings/SettingsScreens.tsx",
-  "approval-gates.ts",
 ];
 
 async function collectSourceFiles(relativeDir) {

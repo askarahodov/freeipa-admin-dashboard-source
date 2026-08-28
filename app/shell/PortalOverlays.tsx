@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { CatalogEvent, RouteField } from "../../automation-types";
-import { fieldConditionMatches } from "../../field-conditions";
+import type { CatalogEvent, RouteField } from "../../src/automation/automation-types";
+import { fieldConditionMatches } from "../../src/automation/field-conditions";
 import type { FreeIpaAction, FreeIpaOperation } from "../../src/freeipa/freeipa-ui-events";
 import { resolveProcessIconGlyph } from "./home-presentation";
 import { formatDateTime } from "../operations/OperationsApprovalsScreens";

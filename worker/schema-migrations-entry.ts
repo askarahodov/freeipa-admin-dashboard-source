@@ -8,7 +8,7 @@ import {
   STORAGE_MIGRATION_APPLY_STATUS_PATH,
   STORAGE_MIGRATION_RECONCILE_PATH,
 } from "../storage-migration-apply-contract.ts";
-import { STORAGE_STATUS_PATH } from "../storage-status-contract.ts";
+import { STORAGE_STATUS_PATH } from "../src/storage/status/storage-status-contract.ts";
 import { handleDependencyHealthRequest } from "./dependency-health.ts";
 import { handleHealthDiagnosticsRequest } from "./health-diagnostics-ui.ts";
 import { handleHealthMetricsRequest } from "./health-metrics.ts";

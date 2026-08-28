@@ -8,7 +8,7 @@ import { STORAGE_STATUS_PATH } from "../storage-status-contract.ts";
 import {
   inspectStorageStatus,
   type StorageStatusReport,
-} from "../storage-status.ts";
+} from "../src/storage/status/storage-status.ts";
 import { encryptedBackupAccess } from "./backup-encrypted-root-entry.ts";
 
 type StorageStatusEnv = {

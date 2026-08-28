@@ -1,6 +1,6 @@
 import { STORAGE_INTEGRITY_PATH } from "./storage-integrity-contract.ts";
 import { STORAGE_MIGRATION_PREFLIGHT_PATH } from "./storage-migration-preflight-contract.ts";
-import { STORAGE_STATUS_PATH } from "./storage-status-contract.ts";
+import { STORAGE_STATUS_PATH } from "./src/storage/status/storage-status-contract.ts";
 
 export const LOCAL_ADMIN_SESSION_MARKER = "__local_admin_session__";
 

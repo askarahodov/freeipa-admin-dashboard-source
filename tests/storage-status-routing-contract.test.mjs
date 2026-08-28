@@ -17,7 +17,7 @@ const [
   readFile(new URL("../worker/service-admin-root-entry.ts", import.meta.url), "utf8"),
   readFile(new URL("../admin-session-authorization.ts", import.meta.url), "utf8"),
   readFile(new URL("../Dockerfile", import.meta.url), "utf8"),
-  readFile(new URL("../storage-status.ts", import.meta.url), "utf8"),
+  readFile(new URL("../src/storage/status/storage-status.ts", import.meta.url), "utf8"),
 ]);
 
 test("storage route is dispatched only after the existing local-session boundary", () => {

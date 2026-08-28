@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { AutomationRoute as SourceAutomationRoute, CatalogEvent, RouteField } from "../../automation-types";
-import { conditionFieldNames } from "../../field-conditions";
+import type { AutomationRoute as SourceAutomationRoute, CatalogEvent, RouteField } from "../../src/automation/automation-types";
+import { conditionFieldNames } from "../../src/automation/field-conditions";
 import { resolveProcessIconGlyph } from "../shell/home-presentation";
 
 export type AutomationRoute = SourceAutomationRoute & { enabled: boolean; targets: string[]; fields: RouteField[] };

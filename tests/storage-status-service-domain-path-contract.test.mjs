@@ -25,11 +25,7 @@ test("storage status service has one canonical status-domain owner", async () =>
   const workerPath = "worker/storage-status-entry.ts";
 
   assert.equal(await exists(canonicalPath), true, `missing canonical storage status service: ${canonicalPath}`);
-  assert.equal(
-    await read(rootPath),
-    'export * from "./src/storage/status/storage-status.ts";\n',
-    "root storage status service must remain an exact compatibility re-export",
-  );
+  assert.equal(await exists(rootPath), false, "root storage status service shim must be removed");
 
   const canonical = await read(canonicalPath);
   assert.match(canonical, /export async function inspectStorageStatus\(/);

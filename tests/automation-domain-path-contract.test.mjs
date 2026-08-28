@@ -10,7 +10,6 @@ const sourceExtensions = new Set([".js", ".mjs", ".cjs", ".ts", ".tsx"]);
 const expectedLegacyConsumers = [
   "app/settings-policy-editors.tsx",
   "app/settings/SettingsScreens.tsx",
-  "app/shell/PortalOverlays.tsx",
   "approval-gates.ts",
 ];
 

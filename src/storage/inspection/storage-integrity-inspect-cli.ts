@@ -1,4 +1,4 @@
-import { STORAGE_INTEGRITY_PATH } from "../../../storage-integrity-contract.ts";
+import { STORAGE_INTEGRITY_PATH } from "../integrity/storage-integrity-contract.ts";
 
 export type StorageIntegrityInspectCliOptions = {
   portalUrl: string;

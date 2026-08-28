@@ -4,7 +4,7 @@ import {
   parseStorageInspectCli,
   runStorageInspectCli,
   StorageInspectCliError,
-} from "../storage-inspect-cli.ts";
+} from "../src/storage/inspection/storage-inspect-cli.ts";
 
 async function main(): Promise<void> {
   try {

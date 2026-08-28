@@ -5,7 +5,7 @@ import {
   parseStorageInspectCli,
   runStorageInspectCli,
   StorageInspectCliError,
-} from "../storage-inspect-cli.ts";
+} from "../src/storage/inspection/storage-inspect-cli.ts";
 
 function jsonResponse(payload, status = 200, headers = {}) {
   return new Response(JSON.stringify(payload), {

@@ -1,4 +1,4 @@
-import { STORAGE_STATUS_PATH } from "../../../storage-status-contract.ts";
+import { STORAGE_STATUS_PATH } from "../status/storage-status-contract.ts";
 
 export type StorageInspectCliOptions = {
   portalUrl: string;

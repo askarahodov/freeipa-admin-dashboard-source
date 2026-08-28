@@ -7,7 +7,7 @@ import {
 import {
   STORAGE_INTEGRITY_PATH,
   type StorageIntegrityReport,
-} from "../storage-integrity-contract.ts";
+} from "../src/storage/integrity/storage-integrity-contract.ts";
 import {
   inspectStorageIntegrity,
   unavailableStorageIntegrityReport,

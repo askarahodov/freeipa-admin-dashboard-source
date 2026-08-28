@@ -4,7 +4,7 @@ import type {
   StorageIntegrityQuickCheck,
   StorageIntegrityReport,
 } from "./storage-integrity-contract.ts";
-import { inspectStorageQuickCheck } from "./storage-quick-check.ts";
+import { inspectStorageQuickCheck } from "./src/storage/integrity/storage-quick-check.ts";
 
 type StorageIntegrityEnv = {
   DB?: D1Database;

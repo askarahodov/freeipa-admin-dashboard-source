@@ -23,7 +23,7 @@ import {
   type LocalAuthEnv,
   type LocalSession,
 } from "../local-auth";
-import { STORAGE_INTEGRITY_PATH } from "../storage-integrity-contract.ts";
+import { STORAGE_INTEGRITY_PATH } from "../src/storage/integrity/storage-integrity-contract.ts";
 import { STORAGE_MIGRATION_PREFLIGHT_PATH } from "../storage-migration-preflight-contract.ts";
 import { handleStorageIntegrityRequest } from "./storage-integrity-entry.ts";
 import { handleStorageMigrationPreflightRequest } from "./storage-migration-preflight-entry.ts";

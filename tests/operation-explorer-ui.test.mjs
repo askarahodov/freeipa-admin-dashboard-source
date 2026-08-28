@@ -5,7 +5,7 @@ import test from "node:test";
 test("operation explorer adds filters without bypassing legacy run actions", () => {
   const component = fs.readFileSync(new URL("../app/OperationExplorer.tsx", import.meta.url), "utf8");
   const model = fs.readFileSync(new URL("../operation-explorer.ts", import.meta.url), "utf8");
-  const bridge = fs.readFileSync(new URL("../operation-explorer-legacy-bridge.ts", import.meta.url), "utf8");
+  const bridge = fs.readFileSync(new URL("../src/operations/operation-explorer-legacy-bridge.ts", import.meta.url), "utf8");
   const layout = fs.readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
   const css = fs.readFileSync(new URL("../app/operation-explorer.css", import.meta.url), "utf8");
 

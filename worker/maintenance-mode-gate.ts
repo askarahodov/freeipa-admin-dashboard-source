@@ -4,7 +4,7 @@ import {
   type PublicMaintenanceStatus,
 } from "../maintenance-mode.ts";
 import { loadMaintenanceState } from "../maintenance-repository.ts";
-import { STORAGE_INTEGRITY_PATH } from "../storage-integrity-contract.ts";
+import { STORAGE_INTEGRITY_PATH } from "../src/storage/integrity/storage-integrity-contract.ts";
 import { STORAGE_MIGRATION_PREFLIGHT_PATH } from "../storage-migration-preflight-contract.ts";
 import { STORAGE_STATUS_PATH } from "../src/storage/status/storage-status-contract.ts";
 import { schemaTestBypassEnabled } from "./schema-migrations-boundary.ts";

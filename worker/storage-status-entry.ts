@@ -4,7 +4,7 @@ import {
   type AuditContext,
   type AuditEventInput,
 } from "../audit-log.ts";
-import { STORAGE_STATUS_PATH } from "../storage-status-contract.ts";
+import { STORAGE_STATUS_PATH } from "../src/storage/status/storage-status-contract.ts";
 import {
   inspectStorageStatus,
   type StorageStatusReport,

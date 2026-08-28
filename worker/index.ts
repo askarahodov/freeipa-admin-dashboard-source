@@ -1470,7 +1470,7 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL, in
   if (request.method === "GET" && url.pathname === "/api/integrations/catalog/history") {
     const limit = Number(url.searchParams.get("limit") ?? 20);
     try { return json({ persistenceAvailable: Boolean(baseEnv.DB), history: await listCatalogHistory(baseEnv, Number.isFinite(limit) ? limit : 20) }); }
-    catch { return json({ persistenceAvailable: Boolean(baseEnv.DB), history: [] });
+    catch { return json({ persistenceAvailable: Boolean(baseEnv.DB), history: [] }); }
   }
 
   if (request.method === "GET" && url.pathname === "/api/integrations/catalog/options") {

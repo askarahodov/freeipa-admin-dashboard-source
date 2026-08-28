@@ -8,7 +8,7 @@ test("storage encryption self-test has one canonical status-domain owner", async
   const [canonical, shim, statusSource] = await Promise.all([
     read("src/storage/status/storage-encryption-self-test.ts"),
     read("storage-encryption-self-test.ts"),
-    read("storage-status.ts"),
+    read("src/storage/status/storage-status.ts"),
   ]);
 
   assert.equal(
@@ -22,6 +22,7 @@ test("storage encryption self-test has one canonical status-domain owner", async
   assert.match(
     statusSource,
     /from "\.\/storage-encryption-self-test\.ts";/,
-    "storage status may temporarily consume the compatibility shim until its own domain move",
+    "canonical storage status service must consume the canonical sibling encryption self-test",
   );
+  assert.equal(statusSource.includes('from "../../../storage-encryption-self-test.ts"'), false);
 });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { CatalogEvent } from "../automation-types";
+import type { CatalogEvent } from "../src/automation/automation-types";
 import { IconPlus, IconClose } from "./icons";
 
 type PortalRole = "viewer" | "operator" | "admin";

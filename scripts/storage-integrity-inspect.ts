@@ -4,7 +4,7 @@ import {
   parseStorageIntegrityInspectCli,
   runStorageIntegrityInspectCli,
   StorageIntegrityInspectCliError,
-} from "../storage-integrity-inspect-cli.ts";
+} from "../src/storage/inspection/storage-integrity-inspect-cli.ts";
 
 async function main(): Promise<void> {
   try {

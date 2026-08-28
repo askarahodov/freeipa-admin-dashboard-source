@@ -1,26 +1,34 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 
-const [canonicalSource, rootSource, workerSource] = await Promise.all([
-  readFile(new URL("../src/storage/integrity/storage-integrity.ts", import.meta.url), "utf8"),
-  readFile(new URL("../storage-integrity.ts", import.meta.url), "utf8"),
-  readFile(new URL("../worker/storage-integrity-entry.ts", import.meta.url), "utf8"),
-]);
+const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
+const exists = async (path) => {
+  try {
+    await access(new URL(`../${path}`, import.meta.url));
+    return true;
+  } catch {
+    return false;
+  }
+};
 
-test("storage integrity service has canonical domain ownership with an exact root shim", () => {
+test("storage integrity service has canonical domain ownership", async () => {
+  const canonicalSource = await read("src/storage/integrity/storage-integrity.ts");
+  assert.equal(await exists("storage-integrity.ts"), false, "root storage integrity service shim must be removed");
   assert.match(canonicalSource, /export function inspectStorageIntegrity/);
   assert.match(canonicalSource, /export function unavailableStorageIntegrityReport/);
-  assert.equal(
-    rootSource,
-    'export * from "./src/storage/integrity/storage-integrity.ts";\n',
-  );
 });
 
-test("storage integrity runtime entry consumes the canonical implementation", () => {
+test("storage integrity runtime entry consumes canonical implementation and contract", async () => {
+  const workerSource = await read("worker/storage-integrity-entry.ts");
   assert.match(
     workerSource,
     /from ["']\.\.\/src\/storage\/integrity\/storage-integrity\.ts["']/,
   );
+  assert.match(
+    workerSource,
+    /from ["']\.\.\/src\/storage\/integrity\/storage-integrity-contract\.ts["']/,
+  );
   assert.equal(workerSource.includes('from "../storage-integrity.ts"'), false);
+  assert.equal(workerSource.includes('from "../storage-integrity-contract.ts"'), false);
 });

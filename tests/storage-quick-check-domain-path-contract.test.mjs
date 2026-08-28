@@ -4,7 +4,7 @@ import test from "node:test";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
-test("storage quick-check has one canonical integrity-domain owner", async () => {
+test("storage quick-check has one canonical integrity-domain owner with a temporary migration shim", async () => {
   const [canonical, shim, integrity] = await Promise.all([
     read("src/storage/integrity/storage-quick-check.ts"),
     read("storage-quick-check.ts"),
@@ -14,7 +14,7 @@ test("storage quick-check has one canonical integrity-domain owner", async () =>
   assert.equal(
     shim,
     'export * from "./src/storage/integrity/storage-quick-check.ts";\n',
-    "root quick-check module must remain an exact compatibility re-export",
+    "root quick-check module must remain an exact compatibility re-export while #264 consumes it",
   );
   assert.match(canonical, /export async function inspectStorageQuickCheck/);
   assert.match(canonical, /PRAGMA quick_check\(1\)/);

@@ -8,7 +8,6 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const scanRoots = ["app", "worker", "tests", "scripts", "db", "e2e", "src"];
 const sourceExtensions = new Set([".js", ".mjs", ".cjs", ".ts", ".tsx"]);
 const expectedLegacyConsumers = [
-  "app/settings-policy-editors.tsx",
   "app/settings/SettingsScreens.tsx",
 ];
 

@@ -63,7 +63,7 @@ test("permissions reference tracks the canonical built-in permission order", asy
 });
 
 test("API reference tracks known literal storage route constants", async () => {
-  const [api, status, integrity, preflight, apply] = await Promise.all([read("docs/reference/API.md"), read("src/storage/status/storage-status-contract.ts"), read("storage-integrity-contract.ts"), read("storage-migration-preflight-contract.ts"), read("storage-migration-apply-contract.ts")]);
+  const [api, status, integrity, preflight, apply] = await Promise.all([read("docs/reference/API.md"), read("src/storage/status/storage-status-contract.ts"), read("src/storage/integrity/storage-integrity-contract.ts"), read("storage-migration-preflight-contract.ts"), read("storage-migration-apply-contract.ts")]);
   const paths = [exportedPath(status, "STORAGE_STATUS_PATH"), exportedPath(integrity, "STORAGE_INTEGRITY_PATH"), exportedPath(preflight, "STORAGE_MIGRATION_PREFLIGHT_PATH"), exportedPath(apply, "STORAGE_MIGRATION_APPLY_PATH"), exportedPath(apply, "STORAGE_MIGRATION_APPLY_STATUS_PATH"), exportedPath(apply, "STORAGE_MIGRATION_RECONCILE_PATH")];
   for (const path of paths) assert.ok(api.includes(`\`${path}\``), `missing API reference path: ${path}`);
   assert.match(api, /\/api\/integrations\/routes.*not.*HTTP API registry/is);

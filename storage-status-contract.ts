@@ -1,1 +1,1 @@
-export const STORAGE_STATUS_PATH = "/api/admin/storage/status" as const;
+export * from "./src/storage/status/storage-status-contract";

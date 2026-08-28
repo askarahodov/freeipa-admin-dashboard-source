@@ -1,8 +1,8 @@
 /** Cloudflare Worker entry point for the vinext-starter template. */
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
-import type { AutomationRoute, CatalogEvent, RouteField } from "../automation-types";
-import { fieldConditionMatches, normalizeFieldCondition } from "../field-conditions";
+import type { AutomationRoute, CatalogEvent, RouteField } from "../src/automation/automation-types";
+import { fieldConditionMatches, normalizeFieldCondition } from "../src/automation/field-conditions";
 import { listRunReplaySummaries, readRunReplay, saveRunReplay, type RunReplaySummary } from "../run-replays";
 import { listRunResults, readRunResultFile, saveRunResult, type PublicRunResult } from "../run-results";
 import { listRunNotifications, markRunNotificationsRead, saveRunNotification } from "../run-notifications";
@@ -1470,7 +1470,7 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL, in
   if (request.method === "GET" && url.pathname === "/api/integrations/catalog/history") {
     const limit = Number(url.searchParams.get("limit") ?? 20);
     try { return json({ persistenceAvailable: Boolean(baseEnv.DB), history: await listCatalogHistory(baseEnv, Number.isFinite(limit) ? limit : 20) }); }
-    catch { return json({ persistenceAvailable: Boolean(baseEnv.DB), history: [] }); }
+    catch { return json({ persistenceAvailable: Boolean(baseEnv.DB), history: [] });
   }
 
   if (request.method === "GET" && url.pathname === "/api/integrations/catalog/options") {

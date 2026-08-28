@@ -29,15 +29,12 @@ async function collectSourceFiles(relativeDir) {
   return files;
 }
 
-test("operation explorer bridge has a canonical operations implementation and thin root shim", async () => {
+test("operation explorer bridge has a canonical operations implementation and no root shim", async () => {
   assert.equal(await exists("src/operations/operation-explorer-legacy-bridge.ts"), true);
-  assert.equal(
-    await readFile(path.join(repoRoot, "operation-explorer-legacy-bridge.ts"), "utf8"),
-    'export * from "./src/operations/operation-explorer-legacy-bridge";\n',
-  );
+  assert.equal(await exists("operation-explorer-legacy-bridge.ts"), false);
 });
 
-test("legacy operation explorer bridge imports are limited to the explicit migration allowlist", async () => {
+test("legacy operation explorer bridge imports are fully removed", async () => {
   const files = (await Promise.all(scanRoots.map(collectSourceFiles))).flat();
   const offenders = [];
   for (const relativePath of files) {
@@ -45,5 +42,5 @@ test("legacy operation explorer bridge imports are limited to the explicit migra
     const content = await readFile(path.join(repoRoot, relativePath), "utf8");
     if (/(?:\.\.\/|\.\/)+operation-explorer-legacy-bridge(?:\.ts)?["']/.test(content)) offenders.push(relativePath);
   }
-  assert.deepEqual(offenders.sort(), ["app/OperationExplorer.tsx"]);
+  assert.deepEqual(offenders, []);
 });

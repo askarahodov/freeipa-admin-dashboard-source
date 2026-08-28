@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { resolveLegacyOperationTarget } from "../operation-explorer-legacy-bridge";
+import { resolveLegacyOperationTarget } from "../src/operations/operation-explorer-legacy-bridge";
 import {
   buildOperationTimeline,
   formatOperationDuration,
@@ -247,7 +247,7 @@ function TimelineDetails({ run, now }: { run: OperationRun; now: number }) {
   const timeline = buildOperationTimeline(run, now);
   return <section className="operation-timeline-panel">
     <div className="operation-timeline-head">
-      <div><span>ВРЕМЕННАЯ ШКАЛА</span><h3>Продолжительность выполнения</h3></div>
+      <div><span>ВРЕМЕННЯ ШКАЛА</span><h3>Продолжительность выполнения</h3></div>
       <strong>{formatOperationDuration(timeline.totalDurationMs)}</strong>
     </div>
     <div className="operation-timeline-facts">
@@ -260,11 +260,11 @@ function TimelineDetails({ run, now }: { run: OperationRun; now: number }) {
       <div className="operation-stage-body">
         <div><strong>{stage.title}</strong><em className={statusTone(stage.status)}>{statusLabels[stage.status]}</em></div>
         <p><span>Начало: {formatDateTime(stage.startedAt)}</span><span>Конец: {formatDateTime(stage.completedAt)}</span></p>
-        <div className="operation-stage-bar"><i style={{ width: `${stage.progress}%` }} /></div>
-        <small>Длительность: <b>{formatOperationDuration(stage.durationMs)}</b>{stage.waitingMs && stage.waitingMs > 0 ? ` · ожидание до этапа: ${formatOperationDuration(stage.waitingMs)}` : ""}{stage.offsetMs !== null ? ` · от старта: +${formatOperationDuration(stage.offsetMs)}` : ""}</small>
+        <div className="operation-stage-bar"><i style={{ width: `${stage.progress}%`} } /></div>
+        <small>Длительность: <b>{formatOperationDuration(stage.durationMs)}</b>{stage.waitingMs && stage.waitingMs > 0 ? ` · ожидание до этапа: ${formatOperationDuration(stage.waitingMs)}` : ""}{stage.offsetMs !== null ? ` µ от старта: +${formatOperationDuration(stage.offsetMs)}` : ""}</small>
         {stage.error && <p className="operation-stage-error">{stage.error}</p>}
       </div>
-    </article>)}</div> : <div className="operation-timeline-empty"><strong>Детализация этапов отсутствует</strong><span>Общая продолжительность рассчитана по времени запуска, обновления и завершения задания.</span></div>}
+    </article>)}</div> : <div className="operation-timeline-empty"><strong>Детализация нт етапов отсутствует</strong><span>Общая время рассчитана по времени запуска, обновления и завершения задания.</span></div>}
   </section>;
 }
 
@@ -307,113 +307,4 @@ export default function OperationExplorer() {
 
   const load = useCallback(async (sync = false) => {
     if (!active) return;
-    const id = ++requestId.current;
-    setLoading(true);
-    setError("");
-    try {
-      const response = await fetch(`/api/integrations/runs?limit=100&sync=${sync ? "1" : "0"}`, { cache: "no-store" });
-      const data = await response.json().catch(() => ({})) as RunsPayload;
-      if (!response.ok) throw new Error(data.error || "Журнал операций недоступен");
-      if (id !== requestId.current) return;
-      setRuns(Array.isArray(data.runs) ? data.runs : []);
-      setNow(Date.now());
-    } catch (cause) {
-      if (id !== requestId.current) return;
-      setRuns([]);
-      setError(cause instanceof Error ? cause.message : "Журнал операций недоступен");
-    } finally {
-      if (id === requestId.current) setLoading(false);
-    }
-  }, [active]);
-
-  useEffect(() => {
-    if (!active || !mount) return;
-    const initial = window.setTimeout(() => void load(false), 0);
-    const timer = window.setInterval(() => void load(false), 15_000);
-    return () => { window.clearTimeout(initial); window.clearInterval(timer); };
-  }, [active, load, mount]);
-
-  useEffect(() => {
-    const enabled = Boolean(active && mount);
-    document.body.classList.toggle("operation-explorer-active", enabled);
-    return () => document.body.classList.remove("operation-explorer-active");
-  }, [active, mount]);
-
-  const result = useMemo(() => queryOperationRuns(runs, query, now), [now, query, runs]);
-  const detailJobId = detailMount?.jobId ?? "";
-  const detailNode = detailMount?.node ?? null;
-  const detailRun = useMemo(() => runs.find((run) => run.jobId === detailJobId) ?? null, [detailJobId, runs]);
-
-  const setFilter = useCallback((change: Partial<OperationQuery>) => {
-    setQuery((current) => {
-      const next = { ...current, ...change, page: change.page ?? 1 };
-      writeQuery(next);
-      return next;
-    });
-  }, []);
-
-  const reset = useCallback(() => {
-    setDraft({ q: "", actor: "" });
-    setQuery(defaultQuery);
-    writeQuery(defaultQuery);
-  }, []);
-
-  const pages = useMemo(() => {
-    const values = new Set([1, result.pagination.totalPages, result.pagination.page - 1, result.pagination.page, result.pagination.page + 1]);
-    return Array.from(values).filter((value) => value >= 1 && value <= result.pagination.totalPages).sort((left, right) => left - right);
-  }, [result.pagination.page, result.pagination.totalPages]);
-
-  if (!active || !mount) return null;
-
-  return <>
-    {createPortal(<section className="operation-explorer-shell">
-      <div className="operation-explorer-summary">
-        <article><small>Всего</small><strong>{result.summary.total}</strong></article>
-        <article><small>Активные</small><strong>{result.summary.active}</strong></article>
-        <article><small>Успешно</small><strong>{result.summary.success}</strong></article>
-        <article><small>Ошибки</small><strong>{result.summary.failed}</strong></article>
-        <article><small>Остановлено</small><strong>{result.summary.cancelled}</strong></article>
-      </div>
-
-<form className="operation-explorer-filters" onSubmit={(event) => { event.preventDefault(); setFilter({ q: draft.q, actor: draft.actor }); }}>
-        <div className="ds-field"><label className="ds-field-label">Процесс, Job или объект</label><input value={draft.q} onChange={(event) => setDraft((current) => ({ ...current, q: event.target.value }))} placeholder="backup, job-42, billing…" /></div>
-        <div className="ds-field"><label className="ds-field-label">Статус</label><select value={query.status} onChange={(event) => setFilter({ status: event.target.value as OperationStatusFilter })}><option value="all">Все статусы</option><option value="active">Все активные</option><option value="finished">Все завершённые</option><option value="queued">В очереди</option><option value="running">Выполняется</option><option value="success">Успешно</option><option value="failed">Ошибка</option><option value="cancelled">Остановлено</option><option value="unknown">Неизвестно</option></select></div>
-        <div className="ds-field"><label className="ds-field-label">Пользователь</label><input list="operation-actors" value={draft.actor} onChange={(event) => setDraft((current) => ({ ...current, actor: event.target.value }))} placeholder="operator@example.test" /><datalist id="operation-actors">{result.options.actors.map((actor) => <option value={actor} key={actor} />)}</datalist></div>
-        <div className="ds-field"><label className="ds-field-label">С даты</label><input type="date" value={query.from} onChange={(event) => setFilter({ from: event.target.value })} /></div>
-        <div className="ds-field"><label className="ds-field-label">По дату</label><input type="date" value={query.to} onChange={(event) => setFilter({ to: event.target.value })} /></div>
-        <div className="ds-field"><label className="ds-field-label">Сортировка</label><select value={query.sort} onChange={(event) => setFilter({ sort: event.target.value as OperationSort })}><option value="started_desc">Сначала новые</option><option value="started_asc">Сначала старые</option><option value="duration_desc">Сначала долгие</option><option value="duration_asc">Сначала быстрые</option></select></div>
-        <div className="operation-explorer-filter-actions"><button className="primary">Применить</button><button type="button" className="secondary" onClick={reset}>Сбросить</button><button type="button" className="secondary" disabled={loading} onClick={() => void load(true)}>{loading ? "Синхронизация…" : "⟳ Обновить XYOps"}</button></div>
-    </form>
-
-      {error && <div className="operation-explorer-state error"><span>{error}</span><button className="secondary" onClick={() => void load(true)}>Повторить</button></div>}
-      {!error && loading && !runs.length && <div className="operation-explorer-state"><span>Загрузка журнала операций…</span></div>}
-      {!error && <>
-        <div className="operation-explorer-result"><span>{result.pagination.from ? `${result.pagination.from}–${result.pagination.to} из ${result.pagination.total}` : "Операции не найдены"}</span><b>Фильтр: {result.summary.filtered} из {result.summary.total}</b></div>
-        <div className="operation-explorer-table">
-          <div className="operation-explorer-row head"><span>Операция</span><span>Статус</span><span>Инициатор</span><span>Начало</span><span>Длительность</span></div>
-          {result.runs.map((run) => <button className="operation-explorer-row" key={run.id} onClick={() => {
-            setError("");
-            void (async () => {
-              if (!(await openLegacyRun(mount.page, run.jobId))) {
-                setError(`Операция ${run.jobId} отсутствует в текущей legacy-таблице после обновления`);
-              }
-            })();
-          }}>
-            <span><strong>{run.title}</strong><small>{run.subject || run.eventId} · {run.kind} · {run.mode.toUpperCase()}</small><code>{run.jobId}</code></span>
-            <span><em className={statusTone(run.status)}>{statusLabels[run.status]}</em></span>
-            <span>{run.actor || "—"}</span>
-            <span><strong>{new Date(run.startedAt).toLocaleTimeString("ru-RU")}</strong><small>{new Date(run.startedAt).toLocaleDateString("ru-RU")}</small></span>
-            <span><strong>{formatOperationDuration(operationDurationMs(run, now))}</strong><small>{run.completedAt ? `завершено ${new Date(run.completedAt).toLocaleTimeString("ru-RU")}` : "обновляется"}</small></span>
-          </button>)}
-          {!result.runs.length && <div className="operation-explorer-empty"><strong>Совпадений нет</strong><span>Измените статус, пользователя, период или поисковую строку.</span></div>}
-        </div>
-        <div className="operation-explorer-pagination">
-          <label>На странице<select value={query.pageSize} onChange={(event) => setFilter({ pageSize: Number(event.target.value) })}><option value="10">10</option><option value="25">25</option><option value="50">50</option><option value="100">100</option></select></label>
-          <div><button disabled={result.pagination.page <= 1} onClick={() => setFilter({ page: result.pagination.page - 1 })}>←</button>{pages.map((page, index) => <span key={page}>{index > 0 && page - pages[index - 1] > 1 && <i>…</i>}<button className={page === result.pagination.page ? "active" : ""} onClick={() => setFilter({ page })}>{page}</button></span>)}<button disabled={result.pagination.page >= result.pagination.totalPages} onClick={() => setFilter({ page: result.pagination.page + 1 })}>→</button></div>
-          <span>Страница {result.pagination.page} из {result.pagination.totalPages}</span>
-        </div>
-      </>}
-    </section>, mount.node)}
-    {detailNode && detailRun && createPortal(<TimelineDetails run={detailRun} now={now} />, detailNode)}
-  </>;
-}
+    const id = +

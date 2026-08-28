@@ -22,7 +22,7 @@ test("storage status contract has one canonical domain implementation and a thin
   assert.equal(await exists(canonical), true, `missing canonical storage status contract: ${canonical}`);
   assert.equal(
     await readFile(path.join(repoRoot, legacyRoot), "utf8"),
-    'export * from "./src/storage/status/storage-status-contract";\n',
+    'export * from "./src/storage/status/storage-status-contract.ts";\n',
     "root storage status contract must remain an exact compatibility re-export",
   );
 

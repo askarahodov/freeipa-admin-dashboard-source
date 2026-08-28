@@ -15,20 +15,15 @@ async function exists(relativePath) {
   }
 }
 
-test("storage status contract has one canonical domain implementation and a thin root shim", async () => {
+test("storage status contract lives only under the canonical storage status domain", async () => {
   const canonical = "src/storage/status/storage-status-contract.ts";
   const legacyRoot = "storage-status-contract.ts";
 
   assert.equal(await exists(canonical), true, `missing canonical storage status contract: ${canonical}`);
-  assert.equal(
-    await readFile(path.join(repoRoot, legacyRoot), "utf8"),
-    'export * from "./src/storage/status/storage-status-contract.ts";\n',
-    "root storage status contract must remain an exact compatibility re-export",
-  );
-
+  assert.equal(await exists(legacyRoot), false, "root storage status contract shim must be removed");
   assert.equal(
     await readFile(path.join(repoRoot, canonical), "utf8"),
     'export const STORAGE_STATUS_PATH = "/api/admin/storage/status" as const;\n',
-    "canonical storage status contract changed unexpectedly during the structural move",
+    "canonical storage status contract changed unexpectedly during root shim removal",
   );
 });

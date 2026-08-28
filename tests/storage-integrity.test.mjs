@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { portalSchemaIndexes } from "../db/portal-schema.ts";
-import { inspectStorageIntegrity } from "../storage-integrity.ts";
+import { inspectStorageIntegrity } from "../src/storage/integrity/storage-integrity.ts";
 
 const QUICK_CHECK_SQL = "PRAGMA quick_check(1)";
 const INDEX_INVENTORY_SQL = "SELECT name, tbl_name, sql FROM sqlite_schema WHERE type = 'index' AND name NOT LIKE 'sqlite_autoindex_%'";

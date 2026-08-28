@@ -11,7 +11,7 @@ import {
 import {
   inspectStorageIntegrity,
   unavailableStorageIntegrityReport,
-} from "../storage-integrity.ts";
+} from "../src/storage/integrity/storage-integrity.ts";
 import { encryptedBackupAccess } from "./backup-encrypted-root-entry.ts";
 
 type StorageIntegrityEnv = {

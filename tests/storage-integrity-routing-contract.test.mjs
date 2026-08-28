@@ -19,7 +19,7 @@ const [
   readFile(new URL("../admin-session-authorization.ts", import.meta.url), "utf8"),
   readFile(new URL("../Dockerfile", import.meta.url), "utf8"),
   readFile(new URL("../storage-integrity.ts", import.meta.url), "utf8"),
-  readFile(new URL("../storage-quick-check.ts", import.meta.url), "utf8"),
+  readFile(new URL("../src/storage/integrity/storage-quick-check.ts", import.meta.url), "utf8"),
 ]);
 
 test("integrity route is dispatched only after local session and same-origin mutation boundaries", () => {

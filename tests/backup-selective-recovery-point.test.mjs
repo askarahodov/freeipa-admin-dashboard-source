@@ -6,7 +6,7 @@ import {
   createSelectiveRecoveryPoint,
   verifySelectiveRecoveryPoint,
 } from "../backup-selective-recovery-point.ts";
-import { validateSelectiveRestoreDomains } from "../backup-selective-restore-policy.ts";
+import { validateSelectiveRestoreDomains } from "../src/backup/restore/backup-selective-restore-policy.ts";
 
 const manifest = {
   format: "freeipa-admin-dashboard-backup",

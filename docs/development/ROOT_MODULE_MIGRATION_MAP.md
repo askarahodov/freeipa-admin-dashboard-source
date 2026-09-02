@@ -46,7 +46,6 @@ Risk: **high**. These modules participate in authorization, session and route co
 - `backup-isolated-verification.ts`
 - `backup-manifest.ts`
 - `backup-restore-plan.ts`
-- `backup-restore-selection.ts`
 - `backup-restore-stage-repository.ts`
 - `backup-restore-stage.ts`
 - `backup-selective-recovery-point.ts`
@@ -57,7 +56,7 @@ Risk: **high**. These modules participate in authorization, session and route co
 
 Risk: **medium-high**. The family is cohesive by naming but intersects recovery, storage/schema, encryption, maintenance and route/RBAC owners. Preserve one-way dependency direction; do not create a generic utility bucket while moving it.
 
-Current #265 checkpoint: the read-only full-backup projection owner is canonical at `src/backup/preview/backup-full-projections.ts`; its root implementation is removed and active consumers use the canonical path directly. Export orchestration is canonical at `src/backup/export/backup-export.ts`; all production, Worker and focused behavior-test consumers use the canonical path directly, and the temporary root `backup-export.ts` compatibility entrypoint has been removed. The remaining root `backup-*.ts` modules listed above stay in explicit follow-up scope and must move only in dependency-closed slices.
+Current #265 checkpoint: the read-only full-backup projection owner is canonical at `src/backup/preview/backup-full-projections.ts`; its root implementation is removed and active consumers use the canonical path directly. Export orchestration is canonical at `src/backup/export/backup-export.ts`; all production, Worker and focused behavior-test consumers use the canonical path directly, and the temporary root `backup-export.ts` compatibility entrypoint has been removed. Restore selection is canonical at `src/backup/restore/backup-restore-selection.ts`; all production and focused test consumers use the canonical path directly, and the temporary root `backup-restore-selection.ts` compatibility entrypoint has been removed. The remaining root `backup-*.ts` modules listed above stay in explicit follow-up scope and must move only in dependency-closed slices.
 
 ### Recovery and maintenance → `src/recovery/`
 

@@ -5,13 +5,13 @@ import {
   STORAGE_MIGRATION_RECONCILE_PATH,
   isStorageMigrationApplyPath,
   type StorageMigrationApplyInput,
-} from "../storage-migration-apply-contract.ts";
+} from "../src/storage/migration/apply/storage-migration-apply-contract.ts";
 import {
   applyControlledStorageMigrations,
   inspectMigrationApplyStatus,
   reconcileControlledStorageMigration,
   type StorageMigrationApplyError,
-} from "../storage-migration-apply.ts";
+} from "../src/storage/migration/apply/storage-migration-apply.ts";
 import { sameOriginAdminMutation, serviceAdminTokenAuthorized } from "../admin-session-authorization.ts";
 import { resolveLocalSession, type LocalAuthEnv } from "../local-auth.ts";
 import { encryptedBackupAccess } from "./backup-encrypted-root-entry.ts";

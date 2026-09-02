@@ -16,7 +16,7 @@ import {
   BackupIsolatedStoreError,
   stageIsolatedRestore,
   type IsolatedRestoreStore,
-} from "./backup-isolated-store.ts";
+} from "./src/backup/restore/backup-isolated-store.ts";
 import {
   BackupIsolatedVerificationError,
   verifyIsolatedRestore,

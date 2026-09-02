@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { inspectStorageMigrationPreflight } from "../storage-migration-preflight.ts";
+import { inspectStorageMigrationPreflight } from "../src/storage/migration/preflight/storage-migration-preflight.ts";
 
 const applied = {
   version: 1,

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { assertSanitizedBackupPayload } from "../backup-manifest.ts";
 import { FULL_BACKUP_TABLES } from "../backup-full-domains.ts";
-import { projectFullBackupDomain } from "../backup-full-projections.ts";
+import { projectFullBackupDomain } from "../src/backup/preview/backup-full-projections.ts";
 
 function payload(domain, tableRows) {
   const definitions = FULL_BACKUP_TABLES.find(([item]) => item === domain)[1];

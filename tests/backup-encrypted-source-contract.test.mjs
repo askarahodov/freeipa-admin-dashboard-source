@@ -6,7 +6,7 @@ const productionFiles = [
   "backup-encryption.ts",
   "backup-full-domains.ts",
   "backup-encrypted-export.ts",
-  "backup-full-projections.ts",
+  "src/backup/preview/backup-full-projections.ts",
   "backup-encrypted-preview.ts",
   "worker/backup-encrypted-export-entry.ts",
   "worker/backup-encrypted-preview-entry.ts",

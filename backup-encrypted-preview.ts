@@ -20,7 +20,7 @@ import {
   type FullBackupDomainExporter,
   type FullBackupDomainPayload,
 } from "./backup-full-domains.ts";
-import { projectFullBackupDomain } from "./backup-full-projections.ts";
+import { projectFullBackupDomain } from "./src/backup/preview/backup-full-projections.ts";
 import {
   previewBackupImport,
   type BackupImportDocument,

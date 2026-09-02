@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { applyControlledStorageMigrations } from "../storage-migration-apply.ts";
+import { applyControlledStorageMigrations } from "../src/storage/migration/apply/storage-migration-apply.ts";
 
 const maintenanceOperationId = "maintenance_00000000-0000-4000-8000-000000000000";
 const controllerSecret = "a".repeat(43);

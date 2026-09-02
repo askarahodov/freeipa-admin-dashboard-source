@@ -1,17 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 
-const [canonicalSource, rootSource] = await Promise.all([
-  readFile(new URL("../src/storage/migration/apply/storage-migration-apply.ts", import.meta.url), "utf8"),
-  readFile(new URL("../storage-migration-apply.ts", import.meta.url), "utf8"),
-]);
+const canonicalUrl = new URL("../src/storage/migration/apply/storage-migration-apply.ts", import.meta.url);
+const legacyRootUrl = new URL("../storage-migration-apply.ts", import.meta.url);
+const canonicalSource = await readFile(canonicalUrl, "utf8");
 
-test("storage migration apply facade has one canonical src owner", () => {
-  assert.equal(
-    rootSource,
-    'export * from "./src/storage/migration/apply/storage-migration-apply.ts";\n',
-  );
+test("storage migration apply facade has one canonical src owner", async () => {
+  await assert.rejects(access(legacyRootUrl));
   assert.match(canonicalSource, /export async function applyControlledStorageMigrations\(/);
   assert.match(canonicalSource, /export async function reconcileControlledStorageMigration\(/);
   assert.match(canonicalSource, /from ["']\.\.\/operation\/storage-migration-operation-repository\.ts["']/);

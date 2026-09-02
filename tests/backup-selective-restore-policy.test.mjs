@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   BackupSelectiveRestorePolicyError,
   validateSelectiveRestoreDomains,
-} from "../backup-selective-restore-policy.ts";
+} from "../src/backup/restore/backup-selective-restore-policy.ts";
 
 function codeOf(callback) {
   try {

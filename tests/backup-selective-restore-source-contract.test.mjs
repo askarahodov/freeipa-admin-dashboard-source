@@ -3,7 +3,7 @@ import fs from "node:fs";
 import test from "node:test";
 
 const productionPaths = [
-  "../backup-selective-restore-policy.ts",
+  "../src/backup/restore/backup-selective-restore-policy.ts",
   "../backup-restore-stage.ts",
   "../backup-restore-stage-repository.ts",
   "../backup-selective-recovery-point.ts",

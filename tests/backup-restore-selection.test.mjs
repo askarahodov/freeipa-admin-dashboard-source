@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import {
   BackupRestoreSelectionError,
   selectBackupRestoreDomains,
-} from "../backup-restore-selection.ts";
+} from "../src/backup/restore/backup-restore-selection.ts";
 
 test("selects all manifest domains when selection is omitted", () => {
   const manifestDomains = ["settings", "local-auth", "rbac"];

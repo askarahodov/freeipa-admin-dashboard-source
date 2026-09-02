@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const productionFiles = [
-  "backup-restore-selection.ts",
+  "src/backup/restore/backup-restore-selection.ts",
   "backup-restore-plan.ts",
   "backup-isolated-store.ts",
   "backup-isolated-verification.ts",

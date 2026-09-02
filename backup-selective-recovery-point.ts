@@ -14,7 +14,7 @@ import {
   decryptEncryptedBackupDomains,
   validateEncryptedBackupDocument,
 } from "./backup-encrypted-preview.ts";
-import type { BackupExportEnv } from "./backup-export.ts";
+import type { BackupExportEnv } from "./src/backup/export/backup-export.ts";
 import {
   FULL_BACKUP_TABLES,
   FullBackupValidationError,

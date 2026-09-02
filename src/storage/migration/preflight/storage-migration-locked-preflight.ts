@@ -5,7 +5,7 @@ import {
 import {
   inspectStorageMigrationPreflight,
   unavailableStorageMigrationPreflightReport,
-} from "../../../../storage-migration-preflight.ts";
+} from "./storage-migration-preflight.ts";
 import type { StorageMigrationPreflightReport } from "./storage-migration-preflight-contract.ts";
 
 type MigrationEnv = { DB?: D1Database };

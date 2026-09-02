@@ -21,7 +21,7 @@ import {
   BackupIsolatedVerificationError,
   verifyIsolatedRestore,
   type IsolatedRestoreVerificationResult,
-} from "./backup-isolated-verification.ts";
+} from "./src/backup/restore/backup-isolated-verification.ts";
 import type { PortalBackupDomain } from "./backup-manifest.ts";
 import {
   BackupRestorePlanError,

@@ -20,7 +20,7 @@ import {
   type EncryptedPayloadEnvelope,
 } from "./backup-encryption.ts";
 import { validateFullBackupDomainPayload, type FullBackupDomainExporter } from "./backup-full-domains.ts";
-import type { BackupExportEnv } from "./backup-export.ts";
+import type { BackupExportEnv } from "./src/backup/export/backup-export.ts";
 
 export class BackupEncryptedExportError extends Error {
   readonly code: string;

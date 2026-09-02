@@ -5,7 +5,7 @@ import {
   parseBackupExportRequest,
   type BackupExportEnv,
   type PortalBackupDomainExporter,
-} from "../backup-export.ts";
+} from "../src/backup/export/backup-export.ts";
 import { SANITIZED_BACKUP_EXPORTERS } from "../backup-export-domains.ts";
 import type { PortalBackupDomain } from "../backup-manifest.ts";
 import { inspectPortalSchema, type PortalSchemaStatus } from "../db/portal-migrations.ts";

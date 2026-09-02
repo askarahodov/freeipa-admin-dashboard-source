@@ -1,7 +1,7 @@
 import {
   IsolatedRestoreStore,
   type IsolatedRestoreTable,
-} from "./backup-isolated-store.ts";
+} from "./src/backup/restore/backup-isolated-store.ts";
 import type { PortalBackupDomain } from "./backup-manifest.ts";
 
 export class BackupIsolatedVerificationError extends Error {

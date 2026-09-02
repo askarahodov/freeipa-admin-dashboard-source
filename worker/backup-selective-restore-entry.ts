@@ -16,7 +16,7 @@ import {
   BackupSelectiveRestorePrepareError,
   prepareSelectiveProductionRestore,
 } from "../backup-selective-restore-prepare.ts";
-import type { BackupExportEnv, PortalBackupDomainExporter } from "../backup-export.ts";
+import type { BackupExportEnv, PortalBackupDomainExporter } from "../src/backup/export/backup-export.ts";
 import { SANITIZED_BACKUP_EXPORTERS } from "../backup-export-domains.ts";
 import {
   FULL_BACKUP_EXPORTERS,

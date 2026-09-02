@@ -31,7 +31,7 @@ import {
 import {
   BackupRestoreSelectionError,
   selectBackupRestoreDomains,
-} from "./backup-restore-selection.ts";
+} from "./src/backup/restore/backup-restore-selection.ts";
 
 export class BackupIsolatedRestoreError extends Error {
   readonly code: string;

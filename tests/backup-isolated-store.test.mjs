@@ -5,7 +5,7 @@ import { FULL_BACKUP_TABLES } from "../backup-full-domains.ts";
 import {
   BackupIsolatedStoreError,
   stageIsolatedRestore,
-} from "../backup-isolated-store.ts";
+} from "../src/backup/restore/backup-isolated-store.ts";
 
 function payload(domain, rowsByTable = {}) {
   const definitions = FULL_BACKUP_TABLES.find(([item]) => item === domain)[1];

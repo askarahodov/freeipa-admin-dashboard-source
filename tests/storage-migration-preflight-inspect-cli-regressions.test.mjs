@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { runStorageMigrationPreflightInspectCli } from "../storage-migration-preflight-inspect-cli.ts";
+import { runStorageMigrationPreflightInspectCli } from "../src/storage/migration/preflight/storage-migration-preflight-inspect-cli.ts";
 
 const options = {
   portalUrl: "https://portal.test",

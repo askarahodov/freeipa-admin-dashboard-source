@@ -10,10 +10,9 @@ const scriptPath = "scripts/storage-migration-preflight-inspect.ts";
 
 test("storage migration preflight CLI has canonical storage-domain ownership", async () => {
   await access(new URL(`../${canonicalPath}`, import.meta.url));
-  assert.equal(
-    await read(legacyPath),
-    'export * from "./src/storage/migration/preflight/storage-migration-preflight-inspect-cli.ts";\n',
-    "root preflight CLI entrypoint must remain an exact compatibility shim",
+  await assert.rejects(
+    access(new URL(`../${legacyPath}`, import.meta.url)),
+    "root preflight CLI compatibility shim must be removed",
   );
 
   const script = await read(scriptPath);
@@ -25,7 +24,7 @@ test("storage migration preflight CLI has canonical storage-domain ownership", a
   assert.doesNotMatch(
     script,
     /from ["']\.\.\/storage-migration-preflight-inspect-cli\.ts["'];/,
-    "operator script must not consume the root compatibility shim",
+    "operator script must not consume a root preflight CLI entrypoint",
   );
 
   const source = await read(canonicalPath);

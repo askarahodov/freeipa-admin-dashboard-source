@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { BackupExportError } from "../backup-export.ts";
+import { BackupExportError } from "../src/backup/export/backup-export.ts";
 import { handleBackupExportRequest } from "../worker/backup-export-entry.ts";
 
 const auditContext = {

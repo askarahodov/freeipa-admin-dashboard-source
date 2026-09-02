@@ -22,7 +22,7 @@ import {
   type FullBackupDomainExporter,
   type FullBackupDomainPayload,
 } from "./backup-full-domains.ts";
-import type { SelectiveRestorePolicyResult } from "./backup-selective-restore-policy.ts";
+import type { SelectiveRestorePolicyResult } from "./src/backup/restore/backup-selective-restore-policy.ts";
 
 export class BackupSelectiveRecoveryPointError extends Error {
   readonly code: string;

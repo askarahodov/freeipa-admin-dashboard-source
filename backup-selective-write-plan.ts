@@ -9,7 +9,7 @@ import {
   canonicalBackupJson,
   type PortalBackupDomain,
 } from "./backup-manifest.ts";
-import type { SelectiveRestorePolicyResult } from "./backup-selective-restore-policy.ts";
+import type { SelectiveRestorePolicyResult } from "./src/backup/restore/backup-selective-restore-policy.ts";
 
 export const MAX_SELECTIVE_RESTORE_JSON_BINDING_BYTES = 1_750_000;
 export const MAX_SELECTIVE_RESTORE_CLAIM_PARAMETERS = 100;

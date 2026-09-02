@@ -4,23 +4,23 @@ import test from "node:test";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
+async function exists(path) {
+  try {
+    await access(new URL(`../${path}`, import.meta.url));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const contextPath = "src/storage/migration/apply/storage-migration-apply-context.ts";
 const executorPath = "src/storage/migration/apply/storage-migration-apply-executor.ts";
 
 test("storage migration apply runtime has canonical storage-domain ownership", async () => {
-  await access(new URL(`../${contextPath}`, import.meta.url));
-  await access(new URL(`../${executorPath}`, import.meta.url));
-
-  assert.equal(
-    await read("storage-migration-apply-context.ts"),
-    'export * from "./src/storage/migration/apply/storage-migration-apply-context.ts";\n',
-    "root apply context must remain an exact compatibility shim",
-  );
-  assert.equal(
-    await read("storage-migration-apply-executor.ts"),
-    'export * from "./src/storage/migration/apply/storage-migration-apply-executor.ts";\n',
-    "root apply executor must remain an exact compatibility shim",
-  );
+  assert.equal(await exists(contextPath), true);
+  assert.equal(await exists(executorPath), true);
+  assert.equal(await exists("storage-migration-apply-context.ts"), false);
+  assert.equal(await exists("storage-migration-apply-executor.ts"), false);
 
   const context = await read(contextPath);
   assert.match(context, /from ["']\.\.\/operation\/storage-migration-operation\.ts["'];/);

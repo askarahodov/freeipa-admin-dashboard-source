@@ -4,7 +4,7 @@ import {
   validateEncryptedBackupDocument,
   type DecryptedEncryptedBackupSelection,
 } from "./backup-encrypted-preview.ts";
-import type { BackupExportEnv, PortalBackupDomainExporter } from "./backup-export.ts";
+import type { BackupExportEnv, PortalBackupDomainExporter } from "./src/backup/export/backup-export.ts";
 import type { FullBackupDomainExporter } from "./backup-full-domains.ts";
 import {
   BackupImportPreviewError,

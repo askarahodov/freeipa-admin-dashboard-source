@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 
 const productionFiles = [
   "src/backup/restore/backup-restore-selection.ts",
-  "backup-restore-plan.ts",
+  "src/backup/restore/backup-restore-plan.ts",
   "src/backup/restore/backup-isolated-store.ts",
   "src/backup/restore/backup-isolated-verification.ts",
   "backup-isolated-restore.ts",
@@ -55,7 +55,7 @@ test("new route is wired through the existing encrypted backup root only once", 
 
 test("production D1 access is limited to existing read-only registries and schema inspection", async () => {
   for (const { path, source } of await sources()) {
-    if (path === "backup-restore-plan.ts") {
+    if (path === "src/backup/restore/backup-restore-plan.ts") {
       assert.match(source, /exporter\.export/);
       assert.doesNotMatch(source, /env\.DB\.(?:prepare|batch|exec)/);
       continue;

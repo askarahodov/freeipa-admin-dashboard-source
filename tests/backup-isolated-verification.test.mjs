@@ -6,7 +6,7 @@ import { stageIsolatedRestore } from "../src/backup/restore/backup-isolated-stor
 import {
   BackupIsolatedVerificationError,
   verifyIsolatedRestore,
-} from "../backup-isolated-verification.ts";
+} from "../src/backup/restore/backup-isolated-verification.ts";
 
 function payload(domain, rowsByTable = {}) {
   const definitions = FULL_BACKUP_TABLES.find(([item]) => item === domain)[1];

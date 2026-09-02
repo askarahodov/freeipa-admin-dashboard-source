@@ -7,7 +7,7 @@ import {
 import {
   STORAGE_MIGRATION_PREFLIGHT_PATH,
   type StorageMigrationPreflightReport,
-} from "../storage-migration-preflight-contract.ts";
+} from "../src/storage/migration/preflight/storage-migration-preflight-contract.ts";
 import {
   inspectStorageMigrationPreflight,
   unavailableStorageMigrationPreflightReport,

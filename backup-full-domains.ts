@@ -1,5 +1,5 @@
 import { canonicalBackupJson, PORTAL_BACKUP_DOMAINS, type PortalBackupDomain } from "./backup-manifest.ts";
-import { BackupExportError, type BackupExportEnv } from "./backup-export.ts";
+import { BackupExportError, type BackupExportEnv } from "./src/backup/export/backup-export.ts";
 
 export class FullBackupValidationError extends Error {
   readonly code = "backup_full_payload_invalid";

@@ -6,7 +6,7 @@ import {
   migrationApplyConfirmation,
   normalizeMigrationOperationRow,
   publicIdleMigrationOperation,
-} from "../storage-migration-operation.ts";
+} from "../src/storage/migration/operation/storage-migration-operation.ts";
 
 const maintenanceId = "maintenance_00000000-0000-4000-8000-000000000000";
 

@@ -9,7 +9,7 @@ import {
   failMigrationOperation,
   markMigrationInterrupted,
   markMigrationReconciled,
-} from "../storage-migration-operation-repository.ts";
+} from "../src/storage/migration/operation/storage-migration-operation-repository.ts";
 
 function result(changes = 1) { return { meta: { changes } }; }
 function dbWith({ first = null, batch = [result()] } = {}) {

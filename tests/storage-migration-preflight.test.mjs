@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   inspectStorageMigrationPreflight,
   unavailableStorageMigrationPreflightReport,
-} from "../storage-migration-preflight.ts";
+} from "../src/storage/migration/preflight/storage-migration-preflight.ts";
 
 const registry = [
   {

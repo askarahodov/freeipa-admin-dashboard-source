@@ -22,7 +22,7 @@ import {
   type MigrationOperationRow,
   type PublicMigrationOperation,
 } from "../operation/storage-migration-operation.ts";
-import { inspectStorageMigrationPreflight } from "../../../../storage-migration-preflight.ts";
+import { inspectStorageMigrationPreflight } from "../preflight/storage-migration-preflight.ts";
 import { inspectStorageMigrationPreflightWithOwnedLock } from "../preflight/storage-migration-locked-preflight.ts";
 import type { StorageMigrationPreflightReport } from "../preflight/storage-migration-preflight-contract.ts";
 import { inspectStorageQuickCheck, type StorageQuickCheckResult } from "../../integrity/storage-quick-check.ts";

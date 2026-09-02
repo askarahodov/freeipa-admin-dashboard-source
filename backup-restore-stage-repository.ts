@@ -2,7 +2,7 @@ import type { PortalBackupDomain } from "./backup-manifest.ts";
 import {
   BackupSelectiveRestorePolicyError,
   validateSelectiveRestoreDomains,
-} from "./backup-selective-restore-policy.ts";
+} from "./src/backup/restore/backup-selective-restore-policy.ts";
 import type { RestoreStageOperation } from "./backup-restore-stage.ts";
 
 export type RestoreStageStatus = "prepared" | "committing" | "cancelled" | "committed" | "expired";

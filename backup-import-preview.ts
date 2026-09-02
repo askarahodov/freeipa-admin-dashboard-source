@@ -7,7 +7,7 @@ import {
   type PortalBackupDomain,
   type PortalBackupManifest,
 } from "./backup-manifest.ts";
-import type { BackupExportEnv, PortalBackupDomainExporter } from "./backup-export.ts";
+import type { BackupExportEnv, PortalBackupDomainExporter } from "./src/backup/export/backup-export.ts";
 
 const MAX_CONFLICT_SAMPLES = 20;
 const topLevelFields = new Set(["manifest", "payloads", "summary"]);

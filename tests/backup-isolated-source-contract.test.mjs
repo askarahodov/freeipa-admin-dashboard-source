@@ -5,7 +5,7 @@ import { readFile } from "node:fs/promises";
 const productionFiles = [
   "src/backup/restore/backup-restore-selection.ts",
   "backup-restore-plan.ts",
-  "backup-isolated-store.ts",
+  "src/backup/restore/backup-isolated-store.ts",
   "backup-isolated-verification.ts",
   "backup-isolated-restore.ts",
   "worker/backup-isolated-restore-entry.ts",
@@ -31,7 +31,7 @@ test("isolated restore production modules contain no production mutation or exte
 });
 
 test("isolated store and verifier have no D1 Worker or SQL dependency", async () => {
-  for (const path of ["backup-isolated-store.ts", "backup-isolated-verification.ts"]) {
+  for (const path of ["src/backup/restore/backup-isolated-store.ts", "backup-isolated-verification.ts"]) {
     const source = await readFile(new URL(`../${path}`, import.meta.url), "utf8");
     assert.doesNotMatch(source, /BackupExportEnv|D1Database|\.prepare\s*\(|\bSQL\b/i, path);
   }

@@ -9,7 +9,7 @@ import {
   sha256Hex,
   type PortalBackupDomain,
 } from "./backup-manifest.ts";
-import { selectBackupRestoreDomains } from "./backup-restore-selection.ts";
+import { selectBackupRestoreDomains } from "./src/backup/restore/backup-restore-selection.ts";
 
 export const BACKUP_RESTORE_PLAN_VERSION = 1 as const;
 

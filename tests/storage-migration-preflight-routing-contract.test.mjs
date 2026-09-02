@@ -3,7 +3,7 @@ import test from "node:test";
 import { readFile } from "node:fs/promises";
 
 import { isAdminIntegrationPath } from "../admin-session-authorization.ts";
-import { STORAGE_MIGRATION_PREFLIGHT_PATH } from "../storage-migration-preflight-contract.ts";
+import { STORAGE_MIGRATION_PREFLIGHT_PATH } from "../src/storage/migration/preflight/storage-migration-preflight-contract.ts";
 
 const [
   localSecureSource,
@@ -20,7 +20,7 @@ const [
 ]);
 
 test("migration preflight is dispatched only after service-token or local-session authorization", () => {
-  assert.match(localSecureSource, /import \{ STORAGE_MIGRATION_PREFLIGHT_PATH \} from ["']\.\.\/storage-migration-preflight-contract\.ts["']/);
+  assert.match(localSecureSource, /import \{ STORAGE_MIGRATION_PREFLIGHT_PATH \} from ["']\.\.\/src\/storage\/migration\/preflight\/storage-migration-preflight-contract\.ts["']/);
   assert.match(localSecureSource, /import \{ handleStorageMigrationPreflightRequest \} from ["']\.\/storage-migration-preflight-entry\.ts["']/);
 
   const nonLocalPathIndex = localSecureSource.indexOf("url.pathname === STORAGE_MIGRATION_PREFLIGHT_PATH");

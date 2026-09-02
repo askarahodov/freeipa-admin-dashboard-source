@@ -7,7 +7,7 @@ import {
 } from "../backup-encrypted-export.ts";
 import { FULL_BACKUP_EXPORTERS, type FullBackupDomainExporter } from "../backup-full-domains.ts";
 import type { PortalBackupDomain } from "../backup-manifest.ts";
-import type { BackupExportEnv } from "../backup-export.ts";
+import type { BackupExportEnv } from "../src/backup/export/backup-export.ts";
 import { inspectPortalSchema, type PortalSchemaStatus } from "../db/portal-migrations.ts";
 
 const MAX_ENCRYPTED_EXPORT_REQUEST_BYTES = 16 * 1024;

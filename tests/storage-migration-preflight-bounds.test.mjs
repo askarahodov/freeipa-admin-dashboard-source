@@ -6,7 +6,7 @@ import { handleStorageMigrationPreflightRequest } from "../worker/storage-migrat
 
 const [entrySource, preflightSource] = await Promise.all([
   readFile(new URL("../worker/storage-migration-preflight-entry.ts", import.meta.url), "utf8"),
-  readFile(new URL("../storage-migration-preflight.ts", import.meta.url), "utf8"),
+  readFile(new URL("../src/storage/migration/preflight/storage-migration-preflight.ts", import.meta.url), "utf8"),
 ]);
 
 test("preflight cancels an oversized streaming body before evaluator work", async () => {

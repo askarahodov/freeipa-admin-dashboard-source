@@ -9,11 +9,9 @@ const legacyPath = "storage-migration-preflight-contract.ts";
 
 test("storage migration preflight contract has canonical storage-domain ownership", async () => {
   await access(new URL(`../${canonicalPath}`, import.meta.url));
-
-  assert.equal(
-    await read(legacyPath),
-    'export * from "./src/storage/migration/preflight/storage-migration-preflight-contract.ts";\n',
-    "root storage migration preflight contract must remain an exact compatibility shim",
+  await assert.rejects(
+    access(new URL(`../${legacyPath}`, import.meta.url)),
+    { code: "ENOENT" },
   );
 
   const source = await read(canonicalPath);

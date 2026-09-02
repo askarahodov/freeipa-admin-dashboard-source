@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { FULL_BACKUP_TABLES } from "../backup-full-domains.ts";
-import { stageIsolatedRestore } from "../backup-isolated-store.ts";
+import { stageIsolatedRestore } from "../src/backup/restore/backup-isolated-store.ts";
 import {
   BackupIsolatedVerificationError,
   verifyIsolatedRestore,

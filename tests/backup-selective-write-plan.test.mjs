@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { FULL_BACKUP_TABLES } from "../backup-full-domains.ts";
-import { validateSelectiveRestoreDomains } from "../backup-selective-restore-policy.ts";
+import { validateSelectiveRestoreDomains } from "../src/backup/restore/backup-selective-restore-policy.ts";
 import {
   MAX_SELECTIVE_RESTORE_JSON_BINDING_BYTES,
   buildSelectiveRestoreStatements,

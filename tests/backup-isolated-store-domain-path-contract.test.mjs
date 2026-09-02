@@ -7,12 +7,11 @@ test("backup isolated store implementation is canonical under src/backup/restore
     new URL("../src/backup/restore/backup-isolated-store.ts", import.meta.url),
     "utf8",
   );
-  const root = await readFile(new URL("../backup-isolated-store.ts", import.meta.url), "utf8");
 
   assert.match(canonical, /from "\.\.\/\.\.\/\.\.\/backup-full-domains\.ts"/);
   assert.match(canonical, /from "\.\.\/\.\.\/\.\.\/backup-manifest\.ts"/);
-  assert.equal(
-    root,
-    'export * from "./src/backup/restore/backup-isolated-store.ts";\n',
+  await assert.rejects(
+    readFile(new URL("../backup-isolated-store.ts", import.meta.url), "utf8"),
+    (error) => error?.code === "ENOENT",
   );
 });

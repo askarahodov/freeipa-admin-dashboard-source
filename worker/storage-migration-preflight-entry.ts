@@ -11,7 +11,7 @@ import {
 import {
   inspectStorageMigrationPreflight,
   unavailableStorageMigrationPreflightReport,
-} from "../storage-migration-preflight.ts";
+} from "../src/storage/migration/preflight/storage-migration-preflight.ts";
 import { encryptedBackupAccess } from "./backup-encrypted-root-entry.ts";
 
 const MAX_REQUEST_BYTES = 1024;

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { parseBackupExportRequest } from "../backup-export.ts";
+import { parseBackupExportRequest } from "../src/backup/export/backup-export.ts";
 
 test("normalizes requested backup domains into canonical order", () => {
   assert.deepEqual(

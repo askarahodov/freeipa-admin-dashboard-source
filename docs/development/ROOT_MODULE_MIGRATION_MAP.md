@@ -112,6 +112,8 @@ Risk: **high**. Recovery owns destructive/offline flows, atomic swap, locks, mai
 
 Risk: **medium-high**. This family is strongly coupled to canonical `db/` schema/migration ownership and recovery/backup prerequisites. `db/` remains canonical; moving these files must not relocate schema ownership into `src/storage/`.
 
+Current status: #263 and #264 are complete. Read-only storage contracts/inspectors and the storage migration preflight/apply/operation mutation path are canonical under `src/storage/`; their root compatibility entrypoints have been removed. `db/` remains the schema/migration source of truth.
+
 ### FreeIPA → `src/freeipa/`
 
 - `freeipa-group-member-query.ts`
@@ -148,9 +150,9 @@ Root project/tool entrypoints are intentionally not part of the production-domai
 
 1. **FreeIPA query helpers** — smallest cohesive family; verify Worker/UI imports and focused FreeIPA tests first.
 2. **Operations leaf modules** — move only leaf modules with low inbound fan-out; split approval/catalog/run subdomains if import evidence requires it.
-3. **Storage read-only contracts/inspectors** — status/integrity read paths before migration-apply machinery.
+3. **Storage read-only contracts/inspectors — completed (#263).** Status/integrity read paths are canonical under `src/storage/`.
 4. **Backup read/export contracts** — previews/manifests/export before restore/commit flows.
-5. **Storage migration mutation path** — preflight/apply/operation as a separate high-safety slice.
+5. **Storage migration mutation path — completed (#264).** Preflight/apply/operation ownership is canonical under `src/storage/migration/` with no root compatibility entrypoints.
 6. **Recovery/maintenance** — only after backup/storage paths are stable.
 7. **Auth/access/shared route contracts** — last, because of the widest security-sensitive fan-out.
 

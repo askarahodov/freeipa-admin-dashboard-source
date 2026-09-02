@@ -36,7 +36,7 @@ import {
 import {
   BackupSelectiveRestorePolicyError,
   validateSelectiveRestoreDomains,
-} from "./backup-selective-restore-policy.ts";
+} from "./src/backup/restore/backup-selective-restore-policy.ts";
 import {
   BackupSelectiveWritePlanError,
   validateSelectiveRestoreCandidate,

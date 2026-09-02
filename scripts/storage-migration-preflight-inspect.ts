@@ -2,7 +2,7 @@ import {
   parseStorageMigrationPreflightInspectCli,
   runStorageMigrationPreflightInspectCli,
   StorageMigrationPreflightInspectCliError,
-} from "../storage-migration-preflight-inspect-cli.ts";
+} from "../src/storage/migration/preflight/storage-migration-preflight-inspect-cli.ts";
 
 async function main(): Promise<void> {
   try {

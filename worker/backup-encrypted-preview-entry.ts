@@ -4,7 +4,7 @@ import {
   previewEncryptedBackupImport,
 } from "../backup-encrypted-preview.ts";
 import { SANITIZED_BACKUP_EXPORTERS } from "../backup-export-domains.ts";
-import type { BackupExportEnv, PortalBackupDomainExporter } from "../backup-export.ts";
+import type { BackupExportEnv, PortalBackupDomainExporter } from "../src/backup/export/backup-export.ts";
 import { PORTAL_BACKUP_DOMAINS, type PortalBackupDomain } from "../backup-manifest.ts";
 import { inspectPortalSchema, type PortalSchemaStatus } from "../db/portal-migrations.ts";
 

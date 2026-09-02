@@ -1,5 +1,5 @@
 import { appendAuditEvent, type AuditContext, type AuditEventInput } from "../audit-log.ts";
-import type { BackupExportEnv, PortalBackupDomainExporter } from "../backup-export.ts";
+import type { BackupExportEnv, PortalBackupDomainExporter } from "../src/backup/export/backup-export.ts";
 import { SANITIZED_BACKUP_EXPORTERS } from "../backup-export-domains.ts";
 import { FULL_BACKUP_EXPORTERS, type FullBackupDomainExporter } from "../backup-full-domains.ts";
 import {

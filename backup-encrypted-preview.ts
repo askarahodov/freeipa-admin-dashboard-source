@@ -27,7 +27,7 @@ import {
   type BackupImportPreviewResult,
   type BackupPreviewSchema,
 } from "./backup-import-preview.ts";
-import type { BackupExportEnv, PortalBackupDomainExporter } from "./backup-export.ts";
+import type { BackupExportEnv, PortalBackupDomainExporter } from "./src/backup/export/backup-export.ts";
 import type { EncryptedBackupDocument } from "./backup-encrypted-export.ts";
 import {
   BackupRestorePlanError,

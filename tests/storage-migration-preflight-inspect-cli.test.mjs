@@ -5,7 +5,7 @@ import {
   parseStorageMigrationPreflightInspectCli,
   runStorageMigrationPreflightInspectCli,
   StorageMigrationPreflightInspectCliError,
-} from "../storage-migration-preflight-inspect-cli.ts";
+} from "../src/storage/migration/preflight/storage-migration-preflight-inspect-cli.ts";
 
 function validPayload(state = "ready") {
   const notRequired = state === "not_required";

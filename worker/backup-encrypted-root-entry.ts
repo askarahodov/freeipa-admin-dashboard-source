@@ -1,5 +1,5 @@
 import { createAuditContext, type AuditContext } from "../audit-log.ts";
-import type { BackupExportEnv } from "../backup-export.ts";
+import type { BackupExportEnv } from "../src/backup/export/backup-export.ts";
 import {
   resolvePortalRole,
   roleHasPermission,

@@ -41,7 +41,6 @@ Risk: **high**. These modules participate in authorization, session and route co
 - `backup-export-domains.ts`
 - `backup-export.ts`
 - `backup-full-domains.ts`
-- `backup-full-projections.ts`
 - `backup-import-preview.ts`
 - `backup-isolated-restore.ts`
 - `backup-isolated-store.ts`
@@ -58,6 +57,8 @@ Risk: **high**. These modules participate in authorization, session and route co
 - `backup-selective-write-plan.ts`
 
 Risk: **medium-high**. The family is cohesive by naming but intersects recovery, storage/schema, encryption, maintenance and route/RBAC owners. Preserve one-way dependency direction; do not create a generic utility bucket while moving it.
+
+Current #265 checkpoint: the read-only full-backup projection owner is canonical at `src/backup/preview/backup-full-projections.ts`; its root implementation is removed and active consumers use the canonical path directly. The remaining root `backup-*.ts` modules listed above stay in explicit follow-up scope and must move only in dependency-closed slices.
 
 ### Recovery and maintenance → `src/recovery/`
 
@@ -151,7 +152,7 @@ Root project/tool entrypoints are intentionally not part of the production-domai
 1. **FreeIPA query helpers** — smallest cohesive family; verify Worker/UI imports and focused FreeIPA tests first.
 2. **Operations leaf modules** — move only leaf modules with low inbound fan-out; split approval/catalog/run subdomains if import evidence requires it.
 3. **Storage read-only contracts/inspectors — completed (#263).** Status/integrity read paths are canonical under `src/storage/`.
-4. **Backup read/export contracts** — previews/manifests/export before restore/commit flows.
+4. **Backup read/export contracts — in progress (#265).** Read-only preview/projection leaves move first; remaining manifest/export/restore modules stay in dependency-closed follow-up slices.
 5. **Storage migration mutation path — completed (#264).** Preflight/apply/operation ownership is canonical under `src/storage/migration/` with no root compatibility entrypoints.
 6. **Recovery/maintenance** — only after backup/storage paths are stable.
 7. **Auth/access/shared route contracts** — last, because of the widest security-sensitive fan-out.

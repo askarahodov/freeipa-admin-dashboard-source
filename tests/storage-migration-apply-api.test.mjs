@@ -6,7 +6,7 @@ import {
   STORAGE_MIGRATION_APPLY_PATH,
   STORAGE_MIGRATION_APPLY_STATUS_PATH,
   STORAGE_MIGRATION_RECONCILE_PATH,
-} from "../storage-migration-apply-contract.ts";
+} from "../src/storage/migration/apply/storage-migration-apply-contract.ts";
 
 const maintenanceOperationId = "maintenance_00000000-0000-4000-8000-000000000000";
 const controllerSecret = "a".repeat(43);

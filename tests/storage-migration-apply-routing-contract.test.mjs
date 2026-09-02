@@ -7,7 +7,7 @@ import {
   STORAGE_MIGRATION_APPLY_STATUS_PATH,
   STORAGE_MIGRATION_RECONCILE_PATH,
   isStorageMigrationApplyPath,
-} from "../storage-migration-apply-contract.ts";
+} from "../src/storage/migration/apply/storage-migration-apply-contract.ts";
 
 const [rootEntry, schemaEntry, handler] = await Promise.all([
   readFile(new URL("../worker/maintenance-mode-root-entry.ts", import.meta.url), "utf8"),

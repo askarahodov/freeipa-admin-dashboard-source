@@ -24,7 +24,7 @@ import {
   type LocalSession,
 } from "../local-auth";
 import { STORAGE_INTEGRITY_PATH } from "../src/storage/integrity/storage-integrity-contract.ts";
-import { STORAGE_MIGRATION_PREFLIGHT_PATH } from "../storage-migration-preflight-contract.ts";
+import { STORAGE_MIGRATION_PREFLIGHT_PATH } from "../src/storage/migration/preflight/storage-migration-preflight-contract.ts";
 import { handleStorageIntegrityRequest } from "./storage-integrity-entry.ts";
 import { handleStorageMigrationPreflightRequest } from "./storage-migration-preflight-entry.ts";
 import { handleStorageStatusRequest } from "./storage-status-entry.ts";

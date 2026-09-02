@@ -15,7 +15,7 @@ test("sanitized backup domain exporters remain read-only and secret-free", async
 });
 
 test("backup orchestration does not mutate data or call upstream services", async () => {
-  const orchestrationSource = await source("backup-export.ts");
+  const orchestrationSource = await source("src/backup/export/backup-export.ts");
   assert.doesNotMatch(orchestrationSource, /\b(?:INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|REINDEX)\b/i);
   assert.doesNotMatch(orchestrationSource, /\bfetch\s*\(/);
 });

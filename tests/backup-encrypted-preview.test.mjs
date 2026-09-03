@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { canonicalBackupJson, sha256Hex } from "../backup-manifest.ts";
 import { FULL_BACKUP_TABLES } from "../backup-full-domains.ts";
-import { exportEncryptedBackup } from "../backup-encrypted-export.ts";
+import { exportEncryptedBackup } from "../src/backup/export/backup-encrypted-export.ts";
 import {
   BackupEncryptedPreviewError,
   decryptEncryptedBackupDocument,

@@ -13,7 +13,7 @@ import {
   validateBackupPassword,
   validateEncryptedDocumentBytes,
   validateEncryptedEnvelope,
-} from "../backup-encryption.ts";
+} from "../src/backup/crypto/backup-encryption.ts";
 
 const context = { format: "freeipa-admin-dashboard-backup", version: 1, schemaVersion: 1, domain: "settings", path: "domains/settings.json" };
 const fixedRandom = (...chunks) => { let index = 0; return { randomBytes(length) { const chunk = chunks[index++]; assert.equal(chunk.length, length); return Uint8Array.from(chunk); } }; };

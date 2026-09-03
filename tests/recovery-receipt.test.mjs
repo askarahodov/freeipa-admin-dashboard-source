@@ -11,7 +11,7 @@ import {
   transitionRecoveryReceipt,
   validateRecoveryReceipt,
   writeRecoveryReceiptAtomic,
-} from "../recovery-receipt.ts";
+} from "../src/recovery/foundation/recovery-receipt.ts";
 
 const createdAt = "2026-08-04T08:00:00.000Z";
 const laterAt = "2026-08-04T08:01:00.000Z";

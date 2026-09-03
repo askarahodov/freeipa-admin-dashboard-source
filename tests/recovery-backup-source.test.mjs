@@ -7,8 +7,8 @@ import { PORTAL_BACKUP_DOMAINS } from "../src/backup/backup-manifest.ts";
 import {
   loadFullRestoreSource,
   verifyBackupAdministrator,
-} from "../recovery-backup-source.ts";
-import { resolveRecoverySchemaAdapter } from "../recovery-schema-adapters.ts";
+} from "../src/recovery/foundation/recovery-backup-source.ts";
+import { resolveRecoverySchemaAdapter } from "../src/recovery/adapters/recovery-schema-adapters.ts";
 
 const backupPassword = "offline backup password";
 const administratorPassword = "administrator password";

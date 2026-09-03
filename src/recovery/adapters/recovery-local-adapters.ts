@@ -2,10 +2,10 @@ import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { lstat, statfs } from "node:fs/promises";
 
-import type { FullBackupDomainPayload, FullBackupTable } from "./src/backup/export/backup-full-domains.ts";
-import type { FullRestoreSource } from "./recovery-backup-source.ts";
-import { RecoveryError } from "./recovery-errors.ts";
-import { runSqlite, type RecoverySqliteDependencies } from "./recovery-sqlite.ts";
+import type { FullBackupDomainPayload, FullBackupTable } from "../../backup/export/backup-full-domains.ts";
+import type { FullRestoreSource } from "../foundation/recovery-backup-source.ts";
+import { RecoveryError } from "../foundation/recovery-errors.ts";
+import { runSqlite, type RecoverySqliteDependencies } from "../foundation/recovery-sqlite.ts";
 
 const hashPattern = /^[a-f0-9]{64}$/u;
 const maintenanceOperationPattern = /^maintenance_[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;

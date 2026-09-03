@@ -56,30 +56,21 @@ Current #265 checkpoint: the read-only full-backup projection owner is canonical
 - `maintenance-mode.ts`
 - `maintenance-repository.ts`
 - `maintenance-verification-smoke.ts`
-- `recovery-backup-source.ts`
 - `recovery-candidate.ts`
 - `recovery-cli-runtime.ts`
 - `recovery-cli.ts`
 - `recovery-command-handlers.ts`
-- `recovery-discovery.ts`
-- `recovery-errors.ts`
-- `recovery-local-adapters.ts`
-- `recovery-lock.ts`
 - `recovery-maintenance.ts`
 - `recovery-online-verification.ts`
-- `recovery-paths.ts`
 - `recovery-point.ts`
 - `recovery-preflight.ts`
-- `recovery-receipt.ts`
 - `recovery-reconcile.ts`
-- `recovery-restore-policy.ts`
 - `recovery-runtime-command-handlers.ts`
-- `recovery-schema-adapters.ts`
-- `recovery-secrets.ts`
-- `recovery-sqlite.ts`
 - `recovery-swap.ts`
 
 Risk: **high**. Recovery owns destructive/offline flows, atomic swap, locks, maintenance state and secret handling. It should move only after backup/storage boundaries are explicit and recovery container/script entrypoints are mapped.
+
+Current #266 foundation checkpoint: shared recovery errors, path validation, receipts, bounded SQLite access, lock handling, restore policy, discovery, secret input handling and backup-source ownership are canonical under `src/recovery/foundation/`; schema/local restore adapters are canonical under `src/recovery/adapters/`. Their active CLI/script/runtime/test consumers use canonical paths and the corresponding root implementations are removed. Destructive orchestration, swap/reconcile and maintenance modules remain explicit follow-up slices.
 
 ### Storage and migrations → `src/storage/`
 

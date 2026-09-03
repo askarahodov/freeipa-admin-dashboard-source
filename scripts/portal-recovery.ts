@@ -9,8 +9,8 @@ import {
 import {
   canonicalRecoveryResult,
   safeRecoveryFailure,
-} from "../recovery-errors.ts";
-import { runWithRecoveryLock } from "../recovery-lock.ts";
+} from "../src/recovery/foundation/recovery-errors.ts";
+import { runWithRecoveryLock } from "../src/recovery/foundation/recovery-lock.ts";
 import { createRecoveryRuntimeCommandHandlers } from "../recovery-runtime-command-handlers.ts";
 
 function writeLine(stream: NodeJS.WriteStream, value: unknown): void {

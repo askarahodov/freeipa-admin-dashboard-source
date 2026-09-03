@@ -9,7 +9,7 @@ import test from "node:test";
 import {
   probeRecoveryLock,
   runWithRecoveryLock,
-} from "../recovery-lock.ts";
+} from "../src/recovery/foundation/recovery-lock.ts";
 
 async function waitForLine(stream, expected, timeoutMs = 5_000) {
   let value = "";

@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   bindRecoveryCandidateReceipt,
   createRecoveryReceipt,
-} from "../recovery-receipt.ts";
+} from "../src/recovery/foundation/recovery-receipt.ts";
 import { swapRecoveryCandidate } from "../recovery-swap.ts";
 import { classifyRecoveryFilesystem } from "../recovery-reconcile.ts";
 

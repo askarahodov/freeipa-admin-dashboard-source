@@ -3,16 +3,16 @@ import {
   PORTAL_BACKUP_DOMAINS,
   sha256Hex,
   type PortalBackupDomain,
-} from "./src/backup/backup-manifest.ts";
+} from "../../backup/backup-manifest.ts";
 import {
   decryptEncryptedBackupDomains,
   validateEncryptedBackupDocument,
-} from "./src/backup/preview/backup-encrypted-preview.ts";
+} from "../../backup/preview/backup-encrypted-preview.ts";
 import {
   FULL_BACKUP_TABLES,
   type FullBackupDomainPayload,
   type FullBackupTable,
-} from "./src/backup/export/backup-full-domains.ts";
+} from "../../backup/export/backup-full-domains.ts";
 import { RecoveryError } from "./recovery-errors.ts";
 
 export type FullRestoreSource = Readonly<{

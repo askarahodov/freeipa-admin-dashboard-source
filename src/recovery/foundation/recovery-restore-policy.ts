@@ -1,5 +1,5 @@
-import { FULL_BACKUP_TABLES } from "./src/backup/export/backup-full-domains.ts";
-import { PORTAL_BACKUP_DOMAINS, type PortalBackupDomain } from "./src/backup/backup-manifest.ts";
+import { FULL_BACKUP_TABLES } from "../../backup/export/backup-full-domains.ts";
+import { PORTAL_BACKUP_DOMAINS, type PortalBackupDomain } from "../../backup/backup-manifest.ts";
 import { RecoveryError } from "./recovery-errors.ts";
 
 export const RECOVERY_VALIDATE_ONLY_TABLES = Object.freeze([

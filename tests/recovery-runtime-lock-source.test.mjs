@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const lockSource = await readFile(new URL("../recovery-lock.ts", import.meta.url), "utf8");
+const lockSource = await readFile(new URL("../src/recovery/foundation/recovery-lock.ts", import.meta.url), "utf8");
 const wrapperSource = await readFile(new URL("../scripts/run-portal-runtime.mjs", import.meta.url), "utf8");
 const startupSource = await readFile(new URL("../scripts/start-worker.mjs", import.meta.url), "utf8");
 const dockerfile = await readFile(new URL("../Dockerfile", import.meta.url), "utf8");

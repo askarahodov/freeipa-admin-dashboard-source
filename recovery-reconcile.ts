@@ -3,14 +3,14 @@ import { createReadStream } from "node:fs";
 import { lstat, rename } from "node:fs/promises";
 import { dirname, isAbsolute } from "node:path";
 
-import { RecoveryError } from "./recovery-errors.ts";
+import { RecoveryError } from "./src/recovery/foundation/recovery-errors.ts";
 import {
   loadRecoveryReceipt,
   transitionRecoveryReceipt,
   writeRecoveryReceiptAtomic,
   type RecoveryReceipt,
   type RecoveryReceiptPhase,
-} from "./recovery-receipt.ts";
+} from "./src/recovery/foundation/recovery-receipt.ts";
 
 export type RecoveryFilesystemFile = Readonly<{
   exists: false;

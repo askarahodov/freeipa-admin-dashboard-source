@@ -3,9 +3,9 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const files = [
-  "recovery-errors.ts",
-  "recovery-paths.ts",
-  "recovery-secrets.ts",
+  "src/recovery/foundation/recovery-errors.ts",
+  "src/recovery/foundation/recovery-paths.ts",
+  "src/recovery/foundation/recovery-secrets.ts",
 ];
 
 const forbiddenBypassNames = [

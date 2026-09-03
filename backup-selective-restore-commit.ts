@@ -40,7 +40,7 @@ import {
   buildSelectiveRestoreStatements,
   validateSelectiveRestoreCandidate,
   type SelectiveRestoreAuditRow,
-} from "./backup-selective-write-plan.ts";
+} from "./src/backup/restore/backup-selective-write-plan.ts";
 
 export class BackupSelectiveRestoreCommitError extends Error {
   readonly code: string;

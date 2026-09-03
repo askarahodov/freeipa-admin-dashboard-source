@@ -23,6 +23,8 @@ test('root agent contract keeps the non-negotiable delivery gates', () => {
     /every AI agent/i,
     /docs\/AI_AGENT_WORKFLOW\.md/,
     /docs\/TESTING_POLICY\.md/,
+    /## Minimum lifecycle/,
+    /understand\s*->\s*inspect\s*->\s*coordinate\s*->\s*design\s*->\s*implement\s*->\s*focused tests\s*->\s*review\/security\s*->\s*documentation\s*->\s*PR\/CI\s*->\s*merge\s*->\s*post-merge verification\s*->\s*checkpoint/i,
     /dedicated branch and PR/i,
     /not directly on `main`/i,
     /relevant red tests must be investigated/i,
@@ -53,6 +55,7 @@ test('detailed workflow defines scalable risk levels and high-value engineering 
     /confirmed by test\/CI/i,
     /inferred/i,
     /not verified/i,
+    /Do not report inferred or unverified state as tested/i,
   ], 'docs/AI_AGENT_WORKFLOW.md');
 });
 

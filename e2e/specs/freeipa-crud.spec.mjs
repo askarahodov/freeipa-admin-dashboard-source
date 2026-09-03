@@ -105,7 +105,7 @@ test("FreeIPA user, group and membership CRUD works through the browser", async 
     await groupRow.getByRole("button", { name: "Открыть группу" }).click();
     const groupModal = page.locator(".identity-modal").filter({ hasText: group });
     await expect(groupModal).toBeVisible();
-    const memberRow = groupModal.locator(".member-table > div").filter({ hasText: uid });
+    const memberRow = groupModal.locator(".freeipa-group-member-row").filter({ hasText: uid });
     await expect(memberRow).toBeVisible();
     await expect(memberRow).toContainText("Updated User");
     await expect(memberRow).toContainText(updatedEmail);

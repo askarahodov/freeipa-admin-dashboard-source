@@ -2,37 +2,37 @@ import { randomUUID, timingSafeEqual } from "node:crypto";
 import { lstat, readFile, realpath, stat } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 
-import { MAX_ENCRYPTED_BACKUP_DOCUMENT_BYTES } from "./src/backup/crypto/backup-encryption.ts";
-import { loadFullRestoreSource } from "./src/recovery/foundation/recovery-backup-source.ts";
-import { buildRecoveryCandidate } from "./src/recovery/orchestration/recovery-candidate.ts";
+import { MAX_ENCRYPTED_BACKUP_DOCUMENT_BYTES } from "../../backup/crypto/backup-encryption.ts";
+import { loadFullRestoreSource } from "../foundation/recovery-backup-source.ts";
+import { buildRecoveryCandidate } from "../orchestration/recovery-candidate.ts";
 import type {
   RecoveryCliCommand,
   RecoveryCommandHandler,
   RecoveryCommandHandlers,
   RecoveryCommandInput,
 } from "./recovery-cli.ts";
-import { RecoveryError } from "./src/recovery/foundation/recovery-errors.ts";
+import { RecoveryError } from "../foundation/recovery-errors.ts";
 import {
   fingerprintRecoveryFile,
   inspectRecoveryDatabase,
   loadRecoveryMaintenance,
   statRecoveryDiskSpace,
   verifyRecoveryEncryptedMaterial,
-} from "./src/recovery/adapters/recovery-local-adapters.ts";
-import { probeRecoveryLock } from "./src/recovery/foundation/recovery-lock.ts";
-import { verifyMaintenanceControllerSecret } from "./src/recovery/maintenance/maintenance-mode.ts";
-import { resolveRecoveryRoots, type RecoveryRoots } from "./src/recovery/foundation/recovery-paths.ts";
-import { runRecoveryPreflight } from "./src/recovery/orchestration/recovery-preflight.ts";
-import { createRecoveryPoint } from "./src/recovery/artifacts/recovery-point.ts";
-import { reconcileRecoveryReceipt } from "./src/recovery/orchestration/recovery-reconcile.ts";
+} from "../adapters/recovery-local-adapters.ts";
+import { probeRecoveryLock } from "../foundation/recovery-lock.ts";
+import { verifyMaintenanceControllerSecret } from "../maintenance/maintenance-mode.ts";
+import { resolveRecoveryRoots, type RecoveryRoots } from "../foundation/recovery-paths.ts";
+import { runRecoveryPreflight } from "../orchestration/recovery-preflight.ts";
+import { createRecoveryPoint } from "../artifacts/recovery-point.ts";
+import { reconcileRecoveryReceipt } from "../orchestration/recovery-reconcile.ts";
 import {
   bindRecoveryCandidateReceipt,
   loadRecoveryReceipt,
   writeRecoveryReceiptAtomic,
   type RecoveryReceipt,
-} from "./src/recovery/foundation/recovery-receipt.ts";
-import { resolveRecoverySchemaAdapter } from "./src/recovery/adapters/recovery-schema-adapters.ts";
-import { rollbackRecoverySwap, swapRecoveryCandidate } from "./src/recovery/orchestration/recovery-swap.ts";
+} from "../foundation/recovery-receipt.ts";
+import { resolveRecoverySchemaAdapter } from "../adapters/recovery-schema-adapters.ts";
+import { rollbackRecoverySwap, swapRecoveryCandidate } from "../orchestration/recovery-swap.ts";
 
 export type RecoveryCommandHandlerOverrides = Partial<Record<RecoveryCliCommand, RecoveryCommandHandler>>;
 

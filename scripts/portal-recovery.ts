@@ -1,17 +1,17 @@
 import { fileURLToPath } from "node:url";
 
-import { createRecoveryCliRuntimeDependencies } from "../recovery-cli-runtime.ts";
+import { createRecoveryCliRuntimeDependencies } from "../src/recovery/cli/recovery-cli-runtime.ts";
 import {
   isMutatingRecoveryCommand,
   parseRecoveryCli,
   runRecoveryCli,
-} from "../recovery-cli.ts";
+} from "../src/recovery/cli/recovery-cli.ts";
 import {
   canonicalRecoveryResult,
   safeRecoveryFailure,
 } from "../src/recovery/foundation/recovery-errors.ts";
 import { runWithRecoveryLock } from "../src/recovery/foundation/recovery-lock.ts";
-import { createRecoveryRuntimeCommandHandlers } from "../recovery-runtime-command-handlers.ts";
+import { createRecoveryRuntimeCommandHandlers } from "../src/recovery/cli/recovery-runtime-command-handlers.ts";
 
 function writeLine(stream: NodeJS.WriteStream, value: unknown): void {
   stream.write(`${JSON.stringify(canonicalRecoveryResult(value))}\n`);

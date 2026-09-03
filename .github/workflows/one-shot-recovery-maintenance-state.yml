@@ -1,0 +1,48 @@
+name: One-shot recovery maintenance state
+
+on:
+  push:
+    branches: [refactor/266-recovery-maintenance-state]
+    paths: [.github/workflows/one-shot-recovery-maintenance-state.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version-file: package.json }
+      - name: Apply maintenance state move
+        run: python .github/scripts/apply-recovery-maintenance-state.py
+      - name: Run focused maintenance coverage
+        run: >-
+          node --experimental-strip-types --test
+          tests/recovery-maintenance-domain-path-contract.test.mjs
+          tests/maintenance-mode.test.mjs
+          tests/maintenance-repository.test.mjs
+          tests/maintenance-source-contract.test.mjs
+          tests/maintenance-control-api.test.mjs
+          tests/maintenance-gate.test.mjs
+          tests/maintenance-rbac.test.mjs
+          tests/maintenance-test-bypass.test.mjs
+          tests/recovery-verification-api.test.mjs
+          tests/storage-migration-apply-context.test.mjs
+      - name: Verify structural diff
+        run: |
+          git diff --check
+          test ! -e maintenance-mode.ts
+          test ! -e maintenance-repository.ts
+          test ! -e maintenance-verification-smoke.ts
+      - name: Remove one-shot tooling and commit batch
+        run: |
+          rm .github/scripts/apply-recovery-maintenance-state.py
+          rm .github/workflows/one-shot-recovery-maintenance-state.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "refactor(recovery): migrate maintenance state ownership"
+          git push origin HEAD:refactor/266-recovery-maintenance-state

@@ -4,7 +4,7 @@ import { isAbsolute, relative, resolve, sep } from "node:path";
 
 import { MAX_ENCRYPTED_BACKUP_DOCUMENT_BYTES } from "./src/backup/crypto/backup-encryption.ts";
 import { loadFullRestoreSource } from "./src/recovery/foundation/recovery-backup-source.ts";
-import { buildRecoveryCandidate } from "./recovery-candidate.ts";
+import { buildRecoveryCandidate } from "./src/recovery/orchestration/recovery-candidate.ts";
 import type {
   RecoveryCliCommand,
   RecoveryCommandHandler,
@@ -22,9 +22,9 @@ import {
 import { probeRecoveryLock } from "./src/recovery/foundation/recovery-lock.ts";
 import { verifyMaintenanceControllerSecret } from "./maintenance-mode.ts";
 import { resolveRecoveryRoots, type RecoveryRoots } from "./src/recovery/foundation/recovery-paths.ts";
-import { runRecoveryPreflight } from "./recovery-preflight.ts";
-import { createRecoveryPoint } from "./recovery-point.ts";
-import { reconcileRecoveryReceipt } from "./recovery-reconcile.ts";
+import { runRecoveryPreflight } from "./src/recovery/orchestration/recovery-preflight.ts";
+import { createRecoveryPoint } from "./src/recovery/artifacts/recovery-point.ts";
+import { reconcileRecoveryReceipt } from "./src/recovery/orchestration/recovery-reconcile.ts";
 import {
   bindRecoveryCandidateReceipt,
   loadRecoveryReceipt,
@@ -32,7 +32,7 @@ import {
   type RecoveryReceipt,
 } from "./src/recovery/foundation/recovery-receipt.ts";
 import { resolveRecoverySchemaAdapter } from "./src/recovery/adapters/recovery-schema-adapters.ts";
-import { rollbackRecoverySwap, swapRecoveryCandidate } from "./recovery-swap.ts";
+import { rollbackRecoverySwap, swapRecoveryCandidate } from "./src/recovery/orchestration/recovery-swap.ts";
 
 export type RecoveryCommandHandlerOverrides = Partial<Record<RecoveryCliCommand, RecoveryCommandHandler>>;
 

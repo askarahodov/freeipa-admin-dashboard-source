@@ -29,7 +29,7 @@ const ddlOwners = new Set([
   "db/portal-schema.ts",
 ]);
 const offlineRecoveryDdlOwners = new Set([
-  "recovery-candidate.ts",
+  "src/recovery/orchestration/recovery-candidate.ts",
 ]);
 const schemaChangingSql = /\b(?:CREATE\s+(?:UNIQUE\s+)?(?:TABLE|INDEX|TRIGGER)|ALTER\s+TABLE|DROP\s+(?:TABLE|INDEX|TRIGGER)|REINDEX)\b/gi;
 

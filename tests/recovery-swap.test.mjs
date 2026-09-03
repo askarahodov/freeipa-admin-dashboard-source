@@ -9,7 +9,7 @@ import {
 import {
   rollbackRecoverySwap,
   swapRecoveryCandidate,
-} from "../recovery-swap.ts";
+} from "../src/recovery/orchestration/recovery-swap.ts";
 
 const originalHash = "a".repeat(64);
 const candidateHash = "b".repeat(64);

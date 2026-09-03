@@ -1,18 +1,18 @@
 import { isAbsolute, relative, sep } from "node:path";
 
-import { discoverPortalDatabase } from "./src/recovery/foundation/recovery-discovery.ts";
-import { RecoveryError } from "./src/recovery/foundation/recovery-errors.ts";
-import { probeRecoveryLock } from "./src/recovery/foundation/recovery-lock.ts";
-import { resolveRecoveryRoots, type RecoveryRoots } from "./src/recovery/foundation/recovery-paths.ts";
+import { discoverPortalDatabase } from "../foundation/recovery-discovery.ts";
+import { RecoveryError } from "../foundation/recovery-errors.ts";
+import { probeRecoveryLock } from "../foundation/recovery-lock.ts";
+import { resolveRecoveryRoots, type RecoveryRoots } from "../foundation/recovery-paths.ts";
 import {
   loadFullRestoreSource,
   verifyBackupAdministrator,
   type FullRestoreSource,
-} from "./src/recovery/foundation/recovery-backup-source.ts";
+} from "../foundation/recovery-backup-source.ts";
 import {
   resolveRecoverySchemaAdapter,
   type RecoverySchemaAdapter,
-} from "./src/recovery/adapters/recovery-schema-adapters.ts";
+} from "../adapters/recovery-schema-adapters.ts";
 
 export type RecoveryPreflightInput = {
   dataRoot: string;

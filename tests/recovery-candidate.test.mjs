@@ -8,7 +8,7 @@ import {
   buildRecoveryCandidateScript,
   encodeRecoverySqliteLiteral,
   validateRecoveryRbacProjection,
-} from "../recovery-candidate.ts";
+} from "../src/recovery/orchestration/recovery-candidate.ts";
 import { createRecoveryRestorePolicy } from "../src/recovery/foundation/recovery-restore-policy.ts";
 
 function sourceFixture() {

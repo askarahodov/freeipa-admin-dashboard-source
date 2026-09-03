@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { PORTAL_BACKUP_DOMAINS } from "../src/backup/backup-manifest.ts";
-import { runRecoveryPreflight } from "../recovery-preflight.ts";
+import { runRecoveryPreflight } from "../src/recovery/orchestration/recovery-preflight.ts";
 
 const databaseSha256 = "a".repeat(64);
 const manifestSha256 = "b".repeat(64);

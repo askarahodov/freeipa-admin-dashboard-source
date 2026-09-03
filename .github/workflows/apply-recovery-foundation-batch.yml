@@ -1,0 +1,67 @@
+name: Apply recovery foundation batch
+
+on:
+  push:
+    branches:
+      - refactor/266-recovery-foundation-batch
+    paths:
+      - .github/workflows/apply-recovery-foundation-batch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout batch branch
+        uses: actions/checkout@v4
+        with:
+          ref: refactor/266-recovery-foundation-batch
+          fetch-depth: 0
+
+      - name: Apply dependency-closed recovery foundation move
+        run: python3 .github/scripts/apply-recovery-foundation-batch.py
+
+      - name: Validate generated source diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          for f in \
+            recovery-errors.ts recovery-paths.ts recovery-receipt.ts recovery-sqlite.ts \
+            recovery-lock.ts recovery-restore-policy.ts recovery-discovery.ts recovery-secrets.ts \
+            recovery-backup-source.ts recovery-schema-adapters.ts recovery-local-adapters.ts; do
+            test ! -e "$f"
+          done
+          node --experimental-strip-types --test \
+            tests/recovery-source-contract.test.mjs \
+            tests/recovery-input-contract.test.mjs \
+            tests/recovery-lock.test.mjs \
+            tests/recovery-restore-policy.test.mjs \
+            tests/recovery-discovery.test.mjs \
+            tests/recovery-sqlite.test.mjs \
+            tests/recovery-backup-source.test.mjs \
+            tests/recovery-local-adapters.test.mjs \
+            tests/recovery-receipt.test.mjs \
+            tests/recovery-runtime-lock-source.test.mjs \
+            tests/recovery-candidate.test.mjs \
+            tests/recovery-foundation-domain-path-contract.test.mjs
+
+      - name: Remove one-shot migration machinery
+        run: |
+          rm -f .github/scripts/apply-recovery-foundation-batch.py
+          rm -f .github/workflows/apply-recovery-foundation-batch.yml
+
+      - name: Commit recovery foundation ownership batch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git status --short
+          git commit -m "refactor(recovery): establish foundation and adapter ownership"
+          git push origin HEAD:refactor/266-recovery-foundation-batch

@@ -1,9 +1,10 @@
 import {
-  ensurePortalSchemaV4 as ensureBasePortalSchema,
-  inspectPortalSchemaV4 as inspectBasePortalSchema,
-  portalMigrationsV4 as portalMigrations,
-} from "./portal-migrations-v4.ts";
+  ensurePortalSchemaV5 as ensureBasePortalSchema,
+  inspectPortalSchemaV5 as inspectBasePortalSchema,
+  portalMigrationsV5 as portalMigrations,
+} from "./portal-migrations-v5.ts";
 import type { ManagedPortalSchemaStatus as PortalSchemaStatus } from "./portal-controlled-migrations.ts";
+import { portalLoginRateLimitsTable } from "./portal-login-rate-limit-schema.ts";
 import { portalMaintenanceStateTable } from "./portal-maintenance-schema.ts";
 import { portalMigrationOperationsTable } from "./portal-migration-v4.ts";
 import { portalRestoreStageTable } from "./portal-restore-stage-schema.ts";
@@ -101,7 +102,7 @@ function restrictiveConstraintDrift(actualSql: string, expectedSql: string): str
 export function classifyAdditionalCanonicalSchemaDrift(objects: readonly SchemaObjectRow[]): string[] {
   const incompatible = new Set<string>();
   const canonicalTables = new Map(
-    [...portalSchemaTables, portalRestoreStageTable, portalMaintenanceStateTable, portalMigrationOperationsTable]
+    [...portalSchemaTables, portalRestoreStageTable, portalMaintenanceStateTable, portalMigrationOperationsTable, portalLoginRateLimitsTable]
       .map((table) => [table.name.toLowerCase(), table]),
   );
   const canonicalTriggers = new Set(portalSchemaTriggers.map((trigger) => trigger.name.toLowerCase()));

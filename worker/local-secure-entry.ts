@@ -1,6 +1,12 @@
 import secureRuntime from "./settings-input-normalizer-entry";
 import { appendAuditEvent, createAuditContext } from "../audit-log";
 import {
+  checkLoginRateLimit,
+  recordLoginFailure,
+  recordLoginSuccess,
+  type LoginRateLimitDecision,
+} from "../login-rate-limit";
+import {
   isAdminIntegrationPath,
   localAdminSessionToken,
   sameOriginAdminMutation,
@@ -23,8 +29,8 @@ import {
   type LocalAuthEnv,
   type LocalSession,
 } from "../local-auth";
-import { STORAGE_INTEGRITY_PATH } from "../src/storage/integrity/storage-integrity-contract.ts";
-import { STORAGE_MIGRATION_PREFLIGHT_PATH } from "../src/storage/migration/preflight/storage-migration-preflight-contract.ts";
+import { STORAGE_INTEGRITY_PATH } from "../storage-integrity-contract.ts";
+import { STORAGE_MIGRATION_PREFLIGHT_PATH } from "../storage-migration-preflight-contract.ts";
 import { handleStorageIntegrityRequest } from "./storage-integrity-entry.ts";
 import { handleStorageMigrationPreflightRequest } from "./storage-migration-preflight-entry.ts";
 import { handleStorageStatusRequest } from "./storage-status-entry.ts";
@@ -41,6 +47,7 @@ type RuntimeContext = Parameters<typeof secureRuntime.fetch>[2];
 type ScheduledController = Parameters<NonNullable<typeof secureRuntime.scheduled>>[0];
 
 const jsonHeaders = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
+const LOGIN_FAILURE_MESSAGE = "Неверный логин или пароль";
 
 function json(data: unknown, status = 200, extraHeaders?: HeadersInit): Response {
   const headers = new Headers(jsonHeaders);
@@ -94,6 +101,25 @@ async function requireAdmin(env: RuntimeEnv, request: Request): Promise<LocalSes
   return session;
 }
 
+async function auditLoginRateLimit(env: RuntimeEnv, decision: LoginRateLimitDecision): Promise<void> {
+  if (!decision.limited) return;
+  const audit = createAuditContext({ identity: "unauthenticated@local.portal", role: "viewer", groups: [] });
+  await appendAuditEvent(env, audit, {
+    action: "auth.login.rate_limited",
+    resourceType: "portal_login",
+    outcome: "denied",
+    metadata: { scope: decision.scope, retryAfterSeconds: decision.retryAfterSeconds },
+  }).catch(() => {});
+}
+
+function rateLimitedResponse(decision: LoginRateLimitDecision): Response {
+  return json(
+    { enabled: true, authenticated: false, error: LOGIN_FAILURE_MESSAGE },
+    429,
+    { "retry-after": String(Math.max(1, decision.retryAfterSeconds)) },
+  );
+}
+
 async function handleAuthApi(request: Request, env: RuntimeEnv, url: URL): Promise<Response> {
   if (!localMode(env)) return json({ enabled: false, authenticated: true }, request.method === "GET" ? 200 : 409);
   if (!env.DB) return json({ enabled: true, authenticated: false, error: "Локальная база данных недоступна" }, 503);
@@ -111,16 +137,46 @@ async function handleAuthApi(request: Request, env: RuntimeEnv, url: URL): Promi
   }
 
   if (request.method === "POST" && url.pathname === "/api/auth/login") {
+    let body: Record<string, unknown> = {};
     try {
-      const body = await request.json() as Record<string, unknown>;
+      body = await request.json() as Record<string, unknown>;
+    } catch {
+      // Malformed payloads deliberately follow the same public authentication-failure contract.
+    }
+
+    try {
+      const before = await checkLoginRateLimit(env, request, body.username);
+      if (before.limited) {
+        await auditLoginRateLimit(env, before);
+        return rateLimitedResponse(before);
+      }
+    } catch {
+      return json({ enabled: true, authenticated: false, error: "Защита входа временно недоступна" }, 503);
+    }
+
+    try {
       const authenticated = await authenticateLocalUser(env, body.username, body.password, request.headers.get("user-agent") ?? "");
+      try {
+        await recordLoginSuccess(env, body.username);
+      } catch {
+        return json({ enabled: true, authenticated: false, error: "Защита входа временно недоступна" }, 503);
+      }
       return json(
         { enabled: true, authenticated: true, user: publicSession(authenticated.session) },
         200,
         { "set-cookie": localSessionCookie(request, authenticated.token, authenticated.maxAge) },
       );
-    } catch (error) {
-      return json({ enabled: true, authenticated: false, error: error instanceof Error ? error.message : "Не удалось выполнить вход" }, 401);
+    } catch {
+      try {
+        const after = await recordLoginFailure(env, request, body.username);
+        if (after.limited) {
+          await auditLoginRateLimit(env, after);
+          return rateLimitedResponse(after);
+        }
+      } catch {
+        return json({ enabled: true, authenticated: false, error: "Защита входа временно недоступна" }, 503);
+      }
+      return json({ enabled: true, authenticated: false, error: LOGIN_FAILURE_MESSAGE }, 401);
     }
   }
 
@@ -177,7 +233,7 @@ async function handleAuthApi(request: Request, env: RuntimeEnv, url: URL): Promi
         resourceType: "portal_user",
         resourceId: userId,
         outcome: "success",
-        metadata: { sessionsRevoked: true },
+        metadata: { sessionsRevoked: true, loginRateLimitCleared: true },
       }).catch(() => {});
       return json({ ok: true });
     } catch (error) {

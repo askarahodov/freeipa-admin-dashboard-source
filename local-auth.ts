@@ -1,3 +1,5 @@
+import { clearLoginRateLimitForUsername } from "./login-rate-limit.ts";
+
 export type LocalPortalRole = "viewer" | "operator" | "admin";
 
 export type LocalAuthEnv = {
@@ -6,6 +8,8 @@ export type LocalAuthEnv = {
   PORTAL_BOOTSTRAP_ADMIN_PASSWORD?: string;
   PORTAL_BOOTSTRAP_ADMIN_NAME?: string;
   PORTAL_SESSION_TTL_HOURS?: string;
+  PORTAL_CLIENT_IP_SOURCE?: string;
+  PORTAL_TRUSTED_PROXY_SECRET?: string;
 };
 
 export type LocalPortalUser = {
@@ -35,8 +39,8 @@ export type LocalSession = {
 
 const PASSWORD_ITERATIONS = 210_000;
 const SESSION_COOKIE = "portal_session";
-const MAX_FAILED_ATTEMPTS = 5;
-const LOCK_DURATION_MS = 15 * 60 * 1000;
+const DUMMY_PASSWORD_SALT = new Uint8Array(24);
+const DUMMY_PASSWORD_HASH = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
 
 function role(value: unknown): LocalPortalRole {
   return value === "admin" || value === "operator" ? value : "viewer";
@@ -214,6 +218,7 @@ export async function resetLocalUserPassword(env: LocalAuthEnv, id: string, pass
   await env.DB!.prepare("UPDATE portal_users SET password_hash = ?, password_salt = ?, password_iterations = ?, failed_attempts = 0, locked_until = NULL, updated_at = ? WHERE id = ?")
     .bind(credentials.hash, credentials.salt, credentials.iterations, Date.now(), id).run();
   await revokeLocalUserSessions(env, id);
+  await clearLoginRateLimitForUsername(env, current.username);
 }
 
 export async function deleteLocalUser(env: LocalAuthEnv, id: string): Promise<void> {
@@ -221,25 +226,32 @@ export async function deleteLocalUser(env: LocalAuthEnv, id: string): Promise<vo
   if (!current) throw new Error("Пользователь не найден");
   if (current.role === "admin" && await activeAdminCount(env, id) < 1) throw new Error("Нельзя удалить последнего активного администратора");
   await revokeLocalUserSessions(env, id);
+  await clearLoginRateLimitForUsername(env, current.username).catch(() => {});
   await env.DB!.prepare("DELETE FROM portal_users WHERE id = ?").bind(id).run();
 }
 
 export async function authenticateLocalUser(env: LocalAuthEnv, usernameValue: unknown, passwordValue: unknown, userAgent = ""): Promise<{ session: LocalSession; token: string; maxAge: number }> {
   await bootstrapLocalAdmin(env);
-  const username = cleanUsername(usernameValue);
-  const password = String(passwordValue ?? "");
-  const row = await env.DB!.prepare("SELECT id, username, display_name, password_hash, password_salt, password_iterations, role, disabled, failed_attempts, locked_until FROM portal_users WHERE username = ?").bind(username).first<Record<string, unknown>>();
-  if (!row) throw new Error("Неверный логин или пароль");
-  const now = Date.now();
-  if (Number(row.disabled ?? 0) === 1) throw new Error("Учётная запись отключена");
-  if (Number(row.locked_until ?? 0) > now) throw new Error("Учётная запись временно заблокирована после неудачных попыток входа");
-  const actual = await derivePassword(password, base64ToBytes(String(row.password_salt ?? "")), Number(row.password_iterations ?? PASSWORD_ITERATIONS));
-  if (!constantTimeEqual(actual, String(row.password_hash ?? ""))) {
-    const attempts = Number(row.failed_attempts ?? 0) + 1;
-    const lockedUntil = attempts >= MAX_FAILED_ATTEMPTS ? now + LOCK_DURATION_MS : null;
-    await env.DB!.prepare("UPDATE portal_users SET failed_attempts = ?, locked_until = ?, updated_at = ? WHERE id = ?").bind(lockedUntil ? 0 : attempts, lockedUntil, now, row.id).run();
-    throw new Error(lockedUntil ? "Учётная запись временно заблокирована после неудачных попыток входа" : "Неверный логин или пароль");
+  let username = "invalid-login";
+  let usernameValid = true;
+  try {
+    username = cleanUsername(usernameValue);
+  } catch {
+    usernameValid = false;
   }
+  const password = String(passwordValue ?? "");
+  const row = usernameValid
+    ? await env.DB!.prepare("SELECT id, username, display_name, password_hash, password_salt, password_iterations, role, disabled FROM portal_users WHERE username = ?").bind(username).first<Record<string, unknown>>()
+    : null;
+  const actual = await derivePassword(
+    password,
+    row ? base64ToBytes(String(row.password_salt ?? "")) : DUMMY_PASSWORD_SALT,
+    row ? Number(row.password_iterations ?? PASSWORD_ITERATIONS) : PASSWORD_ITERATIONS,
+  );
+  const credentialsMatch = constantTimeEqual(actual, row ? String(row.password_hash ?? "") : DUMMY_PASSWORD_HASH);
+  if (!row || Number(row.disabled ?? 0) === 1 || !credentialsMatch) throw new Error("Неверный логин или пароль");
+
+  const now = Date.now();
   const rawToken = bytesToBase64Url(crypto.getRandomValues(new Uint8Array(32)));
   const tokenHash = await sha256(rawToken);
   const ttl = sessionTtlMs(env);

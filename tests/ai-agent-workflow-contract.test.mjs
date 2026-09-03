@@ -12,40 +12,62 @@ const workflow = fs.readFileSync(workflowPath, 'utf8');
 const testingPolicy = fs.readFileSync(testingPolicyPath, 'utf8');
 const prTemplate = fs.readFileSync(prTemplatePath, 'utf8');
 
-test('repository-level agent instructions require the complete delivery lifecycle', () => {
-  assert.match(agents, /every AI agent/i);
-  assert.match(agents, /understand -> inspect -> plan -> implement -> focused tests -> review\/security -> documentation -> PR\/CI -> merge -> post-merge verification -> close\/checkpoint/);
-  assert.match(agents, /docs\/AI_AGENT_WORKFLOW\.md/);
-  assert.match(agents, /docs\/TESTING_POLICY\.md/);
-  assert.match(agents, /Do not make feature\/fix changes directly on `main`/);
-  assert.match(agents, /Do not merge while relevant required checks are still pending or failing/);
-  assert.match(agents, /Verify after merge/);
-  assert.match(agents, /Definition of done/i);
+function requireAll(source, patterns, label) {
+  for (const pattern of patterns) {
+    assert.match(source, pattern, `${label} is missing ${pattern}`);
+  }
+}
+
+test('root agent contract keeps the non-negotiable delivery gates', () => {
+  requireAll(agents, [
+    /every AI agent/i,
+    /docs\/AI_AGENT_WORKFLOW\.md/,
+    /docs\/TESTING_POLICY\.md/,
+    /dedicated branch and PR/i,
+    /not directly on `main`/i,
+    /relevant red tests must be investigated/i,
+    /review the final combined diff/i,
+    /required checks pending or failing/i,
+    /post-merge checks/i,
+    /Definition of done/i,
+  ], 'AGENTS.md');
 });
 
-test('detailed agent workflow protects multi-agent coordination and engineering risk classes', () => {
-  assert.match(workflow, /check open PRs and active branches for overlapping work/i);
-  assert.match(workflow, /conclusions from another agent are evidence to verify, not unquestionable truth/i);
-  assert.match(workflow, /review agent must inspect the actual diff/i);
-  assert.match(workflow, /coordinator must inspect actual CI\/check results/i);
-  assert.match(workflow, /Do not introduce a second authentication, migration, authorization, audit, scheduler, persistence or configuration mechanism/i);
-  assert.match(workflow, /concurrency, idempotency and retries/i);
-  assert.match(workflow, /persistence, restart and crash recovery/i);
-  assert.match(workflow, /fail-open versus fail-closed/i);
-  assert.match(workflow, /rollback and operator recovery/i);
-  assert.match(workflow, /Never make a test weaker just because it is red/i);
-  assert.match(workflow, /The merged repository is the final artifact, not the PR branch/i);
-  assert.match(workflow, /confirmed by test\/CI/i);
-  assert.match(workflow, /inferred/i);
-  assert.match(workflow, /not verified/i);
+test('detailed workflow defines scalable risk levels and high-value engineering safeguards', () => {
+  requireAll(workflow, [
+    /## Risk levels/,
+    /Level 1 — low risk/,
+    /Level 2 — normal product change/,
+    /Level 3 — high risk/,
+    /check open PRs and active branches for overlapping work/i,
+    /one workstream has one clear owner\/coordinator/i,
+    /actual final diff/i,
+    /actual CI\/check results/i,
+    /second authentication, authorization, migration, audit, scheduler, persistence, or configuration mechanism/i,
+    /concurrency\/idempotency/i,
+    /restart\/crash persistence/i,
+    /fail-open versus fail-closed/i,
+    /rollback\/operator recovery/i,
+    /Do not weaken a valid test merely because it is red/i,
+    /merged repository is the final artifact/i,
+    /confirmed by test\/CI/i,
+    /inferred/i,
+    /not verified/i,
+  ], 'docs/AI_AGENT_WORKFLOW.md');
 });
 
-test('agent workflow keeps test policy and PR evidence contracts connected', () => {
-  assert.match(testingPolicy, /risk/i);
-  assert.match(prTemplate, /## Validation/);
-  assert.match(prTemplate, /## Security and operational impact/);
-  assert.match(prTemplate, /## Documentation impact/);
-  assert.match(prTemplate, /## Coordination/);
-  assert.match(prTemplate, /## Source-of-truth review/);
-  assert.match(prTemplate, /## Rollback \/ recovery/);
+test('agent workflow remains connected to test and PR evidence sources of truth', () => {
+  requireAll(testingPolicy, [
+    /risk-based test selection/i,
+    /scripts\/auth-e2e-scope\.mjs/,
+  ], 'docs/TESTING_POLICY.md');
+
+  requireAll(prTemplate, [
+    /## Validation/,
+    /## Security and operational impact/,
+    /## Documentation impact/,
+    /## Coordination/,
+    /## Source-of-truth review/,
+    /## Rollback \/ recovery/,
+  ], '.github/pull_request_template.md');
 });

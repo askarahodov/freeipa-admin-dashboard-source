@@ -5,8 +5,8 @@ import {
   bindRecoveryCandidateReceipt,
   createRecoveryReceipt,
 } from "../src/recovery/foundation/recovery-receipt.ts";
-import { swapRecoveryCandidate } from "../recovery-swap.ts";
-import { classifyRecoveryFilesystem } from "../recovery-reconcile.ts";
+import { swapRecoveryCandidate } from "../src/recovery/orchestration/recovery-swap.ts";
+import { classifyRecoveryFilesystem } from "../src/recovery/orchestration/recovery-reconcile.ts";
 
 const originalHash = "a".repeat(64);
 const candidateHash = "b".repeat(64);
@@ -148,8 +148,8 @@ for (const boundary of boundaries) {
 
 test("fault injection is dependency-only and absent from production environment parsing", async () => {
   const sources = await Promise.all([
-    import("node:fs/promises").then(({ readFile }) => readFile(new URL("../recovery-swap.ts", import.meta.url), "utf8")),
-    import("node:fs/promises").then(({ readFile }) => readFile(new URL("../recovery-reconcile.ts", import.meta.url), "utf8")),
+    import("node:fs/promises").then(({ readFile }) => readFile(new URL("../src/recovery/orchestration/recovery-swap.ts", import.meta.url), "utf8")),
+    import("node:fs/promises").then(({ readFile }) => readFile(new URL("../src/recovery/orchestration/recovery-reconcile.ts", import.meta.url), "utf8")),
     import("node:fs/promises").then(({ readFile }) => readFile(new URL("../scripts/portal-recovery.ts", import.meta.url), "utf8")),
   ]);
   for (const source of sources) {

@@ -6,20 +6,20 @@ import { dirname, isAbsolute } from "node:path";
 import {
   FULL_BACKUP_TABLES,
   type FullBackupTable,
-} from "./src/backup/export/backup-full-domains.ts";
-import { PORTAL_BACKUP_DOMAINS } from "./src/backup/backup-manifest.ts";
-import { verifyBackupAdministrator, type FullRestoreSource } from "./src/recovery/foundation/recovery-backup-source.ts";
-import { RecoveryError } from "./src/recovery/foundation/recovery-errors.ts";
+} from "../../backup/export/backup-full-domains.ts";
+import { PORTAL_BACKUP_DOMAINS } from "../../backup/backup-manifest.ts";
+import { verifyBackupAdministrator, type FullRestoreSource } from "../foundation/recovery-backup-source.ts";
+import { RecoveryError } from "../foundation/recovery-errors.ts";
 import {
   createRecoveryRestorePolicy,
   type RecoveryRestorePolicy,
-} from "./src/recovery/foundation/recovery-restore-policy.ts";
+} from "../foundation/recovery-restore-policy.ts";
 import {
   backupSqliteDatabase,
   runSqlite,
   verifySqliteIntegrity,
-} from "./src/recovery/foundation/recovery-sqlite.ts";
-import { portalSchemaTriggers } from "./db/portal-schema.ts";
+} from "../foundation/recovery-sqlite.ts";
+import { portalSchemaTriggers } from "../../../db/portal-schema.ts";
 
 export type RecoveryCandidateChecks = Readonly<{
   integrity: "ok";

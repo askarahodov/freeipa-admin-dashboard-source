@@ -9,7 +9,7 @@ import {
   createRecoveryPoint,
   decryptRecoveryPointFile,
   encryptRecoveryPointFile,
-} from "../recovery-point.ts";
+} from "../src/recovery/artifacts/recovery-point.ts";
 
 const password = "offline recovery point password";
 const createdAt = "2026-08-04T08:00:00.000Z";

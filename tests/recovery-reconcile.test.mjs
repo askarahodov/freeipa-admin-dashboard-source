@@ -9,7 +9,7 @@ import {
 import {
   classifyRecoveryFilesystem,
   reconcileRecoveryReceipt,
-} from "../recovery-reconcile.ts";
+} from "../src/recovery/orchestration/recovery-reconcile.ts";
 
 const originalHash = "a".repeat(64);
 const candidateHash = "b".repeat(64);

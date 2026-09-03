@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const productionFiles = [
-  "backup-encryption.ts",
+  "src/backup/crypto/backup-encryption.ts",
   "backup-full-domains.ts",
   "src/backup/export/backup-encrypted-export.ts",
   "src/backup/preview/backup-full-projections.ts",
@@ -35,7 +35,7 @@ test("encrypted backup production code contains no mutation or maintenance path"
 
 test("only the crypto module invokes Web Crypto and no encrypted module calls upstream fetch", async () => {
   for (const { path, text } of await sources()) {
-    if (path !== "backup-encryption.ts") assert.doesNotMatch(text, /crypto\.subtle/, path);
+    if (path !== "src/backup/crypto/backup-encryption.ts") assert.doesNotMatch(text, /crypto\.subtle/, path);
     assert.doesNotMatch(text, /\bfetch\s*\(/, path);
   }
 });

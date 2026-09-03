@@ -4,12 +4,12 @@ import test from "node:test";
 
 const productionPaths = [
   "../src/backup/restore/backup-selective-restore-policy.ts",
-  "../backup-restore-stage.ts",
-  "../backup-restore-stage-repository.ts",
+  "../src/backup/restore/backup-restore-stage.ts",
+  "../src/backup/restore/backup-restore-stage-repository.ts",
   "../src/backup/restore/backup-selective-recovery-point.ts",
   "../src/backup/restore/backup-selective-write-plan.ts",
-  "../backup-selective-restore-prepare.ts",
-  "../backup-selective-restore-commit.ts",
+  "../src/backup/restore/backup-selective-restore-prepare.ts",
+  "../src/backup/restore/backup-selective-restore-commit.ts",
   "../worker/backup-selective-restore-entry.ts",
   "../worker/backup-selective-restore-dispatch.ts",
   "../worker/backup-selective-restore-root-entry.ts",

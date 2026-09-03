@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   BackupSelectiveRestoreCommitError,
   commitSelectiveProductionRestore,
-} from "../backup-selective-restore-commit.ts";
+} from "../src/backup/restore/backup-selective-restore-commit.ts";
 
 const sourceDocument = { manifest: { format: "source" } };
 const recoveryDocument = { manifest: { format: "recovery" } };

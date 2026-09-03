@@ -38,11 +38,12 @@ test("schema gate continues to block every non-ready state and scheduled work", 
   assert.match(source, /if \(schema\.state !== "ready"\) return;/);
 });
 
-test("public schema type and production hardened runtime include pending and v4", () => {
+test("public schema type and production hardened runtime include pending and v5", () => {
   const managedSource = fs.readFileSync(new URL("../db/portal-controlled-migrations.ts", import.meta.url), "utf8");
   const hardenedSource = fs.readFileSync(new URL("../db/portal-migrations-hardened.ts", import.meta.url), "utf8");
   assert.match(managedSource, /ManagedPortalSchemaState = [^;]*"pending"/);
-  assert.equal(hardenedSource.includes("portalMigrationsV4 as portalMigrations"), true);
-  assert.equal(hardenedSource.includes("ensurePortalSchemaV4"), true);
+  assert.equal(hardenedSource.includes("portalMigrationsV5 as portalMigrations"), true);
+  assert.equal(hardenedSource.includes("ensurePortalSchemaV5"), true);
   assert.equal(hardenedSource.includes("portalMigrationOperationsTable"), true);
+  assert.equal(hardenedSource.includes("portalLoginRateLimitsTable"), true);
 });

@@ -9,7 +9,7 @@ import {
   checkpointSqlite,
   runSqlite,
   verifySqliteIntegrity,
-} from "../recovery-sqlite.ts";
+} from "../src/recovery/foundation/recovery-sqlite.ts";
 
 const fakeSqliteSource = `#!/usr/bin/env node
 const fs = require("node:fs");

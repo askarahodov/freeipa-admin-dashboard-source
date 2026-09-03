@@ -30,7 +30,7 @@ function commandPlan(project, artifactRoot, secretsRoot) {
     "INSERT INTO portal_schema_migrations(version) VALUES (3);",
   ].join(" ");
   const discoveryCode = [
-    "import('./recovery-discovery.ts')",
+    "import('./src/recovery/foundation/recovery-discovery.ts')",
     ".then(async ({discoverPortalDatabase}) => {",
     "const value = await discoverPortalDatabase({dataRoot:'/portal-data'});",
     "process.stdout.write(JSON.stringify({database:value})+'\\n');",
@@ -38,7 +38,7 @@ function commandPlan(project, artifactRoot, secretsRoot) {
     ".catch((error)=>{process.stderr.write(String(error?.code||'smoke_failed')+'\\n');process.exit(1);});",
   ].join("");
   const integrityCode = [
-    "import('./recovery-sqlite.ts')",
+    "import('./src/recovery/foundation/recovery-sqlite.ts')",
     ".then(async ({verifySqliteIntegrity}) => {",
     "await verifySqliteIntegrity('/portal-data/state/v3/d1/fixture.sqlite');",
     "process.stdout.write(JSON.stringify({integrity:'ok'})+'\\n');",

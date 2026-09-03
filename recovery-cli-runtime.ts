@@ -1,5 +1,5 @@
-import { RecoveryError } from "./recovery-errors.ts";
-import { readSecretFile } from "./recovery-secrets.ts";
+import { RecoveryError } from "./src/recovery/foundation/recovery-errors.ts";
+import { readSecretFile } from "./src/recovery/foundation/recovery-secrets.ts";
 import type {
   RecoveryCliDependencies,
   RecoveryCliOptions,

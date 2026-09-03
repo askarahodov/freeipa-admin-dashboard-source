@@ -8,7 +8,7 @@ import {
   RECOVERY_PRESERVE_TABLES,
   RECOVERY_VALIDATE_ONLY_TABLES,
   createRecoveryRestorePolicy,
-} from "../recovery-restore-policy.ts";
+} from "../src/recovery/foundation/recovery-restore-policy.ts";
 
 const allBackupTables = FULL_BACKUP_TABLES.flatMap(([, tables]) => tables.map((table) => table.name));
 

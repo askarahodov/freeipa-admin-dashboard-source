@@ -1,7 +1,7 @@
-import { FULL_BACKUP_TABLES } from "./src/backup/export/backup-full-domains.ts";
-import { PORTAL_BACKUP_DOMAINS } from "./src/backup/backup-manifest.ts";
-import type { FullRestoreSource } from "./recovery-backup-source.ts";
-import { RecoveryError } from "./recovery-errors.ts";
+import { FULL_BACKUP_TABLES } from "../../backup/export/backup-full-domains.ts";
+import { PORTAL_BACKUP_DOMAINS } from "../../backup/backup-manifest.ts";
+import type { FullRestoreSource } from "../foundation/recovery-backup-source.ts";
+import { RecoveryError } from "../foundation/recovery-errors.ts";
 
 export type RecoverySchemaAdapter = Readonly<{
   sourceVersion: number;

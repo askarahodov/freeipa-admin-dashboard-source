@@ -3,7 +3,7 @@ import { lstat, readFile, realpath, stat } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 
 import { MAX_ENCRYPTED_BACKUP_DOCUMENT_BYTES } from "./src/backup/crypto/backup-encryption.ts";
-import { loadFullRestoreSource } from "./recovery-backup-source.ts";
+import { loadFullRestoreSource } from "./src/recovery/foundation/recovery-backup-source.ts";
 import { buildRecoveryCandidate } from "./recovery-candidate.ts";
 import type {
   RecoveryCliCommand,
@@ -11,17 +11,17 @@ import type {
   RecoveryCommandHandlers,
   RecoveryCommandInput,
 } from "./recovery-cli.ts";
-import { RecoveryError } from "./recovery-errors.ts";
+import { RecoveryError } from "./src/recovery/foundation/recovery-errors.ts";
 import {
   fingerprintRecoveryFile,
   inspectRecoveryDatabase,
   loadRecoveryMaintenance,
   statRecoveryDiskSpace,
   verifyRecoveryEncryptedMaterial,
-} from "./recovery-local-adapters.ts";
-import { probeRecoveryLock } from "./recovery-lock.ts";
+} from "./src/recovery/adapters/recovery-local-adapters.ts";
+import { probeRecoveryLock } from "./src/recovery/foundation/recovery-lock.ts";
 import { verifyMaintenanceControllerSecret } from "./maintenance-mode.ts";
-import { resolveRecoveryRoots, type RecoveryRoots } from "./recovery-paths.ts";
+import { resolveRecoveryRoots, type RecoveryRoots } from "./src/recovery/foundation/recovery-paths.ts";
 import { runRecoveryPreflight } from "./recovery-preflight.ts";
 import { createRecoveryPoint } from "./recovery-point.ts";
 import { reconcileRecoveryReceipt } from "./recovery-reconcile.ts";
@@ -30,8 +30,8 @@ import {
   loadRecoveryReceipt,
   writeRecoveryReceiptAtomic,
   type RecoveryReceipt,
-} from "./recovery-receipt.ts";
-import { resolveRecoverySchemaAdapter } from "./recovery-schema-adapters.ts";
+} from "./src/recovery/foundation/recovery-receipt.ts";
+import { resolveRecoverySchemaAdapter } from "./src/recovery/adapters/recovery-schema-adapters.ts";
 import { rollbackRecoverySwap, swapRecoveryCandidate } from "./recovery-swap.ts";
 
 export type RecoveryCommandHandlerOverrides = Partial<Record<RecoveryCliCommand, RecoveryCommandHandler>>;

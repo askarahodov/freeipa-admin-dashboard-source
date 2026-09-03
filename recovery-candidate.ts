@@ -8,17 +8,17 @@ import {
   type FullBackupTable,
 } from "./src/backup/export/backup-full-domains.ts";
 import { PORTAL_BACKUP_DOMAINS } from "./src/backup/backup-manifest.ts";
-import { verifyBackupAdministrator, type FullRestoreSource } from "./recovery-backup-source.ts";
-import { RecoveryError } from "./recovery-errors.ts";
+import { verifyBackupAdministrator, type FullRestoreSource } from "./src/recovery/foundation/recovery-backup-source.ts";
+import { RecoveryError } from "./src/recovery/foundation/recovery-errors.ts";
 import {
   createRecoveryRestorePolicy,
   type RecoveryRestorePolicy,
-} from "./recovery-restore-policy.ts";
+} from "./src/recovery/foundation/recovery-restore-policy.ts";
 import {
   backupSqliteDatabase,
   runSqlite,
   verifySqliteIntegrity,
-} from "./recovery-sqlite.ts";
+} from "./src/recovery/foundation/recovery-sqlite.ts";
 import { portalSchemaTriggers } from "./db/portal-schema.ts";
 
 export type RecoveryCandidateChecks = Readonly<{

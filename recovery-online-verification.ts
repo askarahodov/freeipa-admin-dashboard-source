@@ -1,4 +1,4 @@
-import { RecoveryError } from "./recovery-errors.ts";
+import { RecoveryError } from "./src/recovery/foundation/recovery-errors.ts";
 
 export type RecoveryOnlineVerificationInput = {
   baseUrl: string;

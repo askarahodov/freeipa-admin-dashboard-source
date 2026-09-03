@@ -12,18 +12,18 @@ import { Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { dirname, isAbsolute, join, relative, sep } from "node:path";
 
-import { RecoveryError } from "./recovery-errors.ts";
+import { RecoveryError } from "./src/recovery/foundation/recovery-errors.ts";
 import {
   createRecoveryReceipt,
   writeRecoveryReceiptAtomic,
   type RecoveryReceipt,
-} from "./recovery-receipt.ts";
+} from "./src/recovery/foundation/recovery-receipt.ts";
 import {
   backupSqliteDatabase,
   checkpointSqlite,
   runSqlite,
   verifySqliteIntegrity,
-} from "./recovery-sqlite.ts";
+} from "./src/recovery/foundation/recovery-sqlite.ts";
 
 const magic = Buffer.alloc(32);
 magic.write("PORTAL-RECOVERY-SQLITE-V1", 0, "ascii");

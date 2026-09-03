@@ -3,16 +3,16 @@ import { constants, createReadStream } from "node:fs";
 import { lstat, open, rename, rm } from "node:fs/promises";
 import { dirname, isAbsolute } from "node:path";
 
-import { RecoveryError } from "./recovery-errors.ts";
+import { RecoveryError } from "./src/recovery/foundation/recovery-errors.ts";
 import { decryptRecoveryPointFile } from "./recovery-point.ts";
 import {
   loadRecoveryReceipt,
   transitionRecoveryReceipt,
   writeRecoveryReceiptAtomic,
   type RecoveryReceipt,
-} from "./recovery-receipt.ts";
+} from "./src/recovery/foundation/recovery-receipt.ts";
 import type { RecoveryFilesystemFile } from "./recovery-reconcile.ts";
-import { verifySqliteIntegrity } from "./recovery-sqlite.ts";
+import { verifySqliteIntegrity } from "./src/recovery/foundation/recovery-sqlite.ts";
 
 export type RecoverySwapInput = {
   receiptPath: string;

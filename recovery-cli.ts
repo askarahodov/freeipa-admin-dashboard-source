@@ -2,7 +2,7 @@ import {
   RecoveryError,
   canonicalRecoveryResult,
   safeRecoveryFailure,
-} from "./recovery-errors.ts";
+} from "./src/recovery/foundation/recovery-errors.ts";
 
 export const RECOVERY_CLI_COMMANDS = Object.freeze([
   "preflight",

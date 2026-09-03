@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { RECOVERY_RECEIPT_PHASES } from "../recovery-receipt.ts";
+import { RECOVERY_RECEIPT_PHASES } from "../src/recovery/foundation/recovery-receipt.ts";
 
 const runbook = await readFile(new URL("../docs/OFFLINE_FULL_RESTORE.md", import.meta.url), "utf8");
 const maintenance = await readFile(new URL("../docs/MAINTENANCE_MODE.md", import.meta.url), "utf8");

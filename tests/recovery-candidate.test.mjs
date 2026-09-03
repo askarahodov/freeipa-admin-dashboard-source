@@ -9,7 +9,7 @@ import {
   encodeRecoverySqliteLiteral,
   validateRecoveryRbacProjection,
 } from "../recovery-candidate.ts";
-import { createRecoveryRestorePolicy } from "../recovery-restore-policy.ts";
+import { createRecoveryRestorePolicy } from "../src/recovery/foundation/recovery-restore-policy.ts";
 
 function sourceFixture() {
   const payloads = new Map();

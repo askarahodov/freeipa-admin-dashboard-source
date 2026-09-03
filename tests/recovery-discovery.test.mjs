@@ -6,7 +6,7 @@ import test from "node:test";
 
 import {
   discoverPortalDatabase,
-} from "../recovery-discovery.ts";
+} from "../src/recovery/foundation/recovery-discovery.ts";
 
 const sqliteHeader = Buffer.from("SQLite format 3\0", "binary");
 
@@ -125,7 +125,7 @@ test("caps disclosed ambiguous candidates", async (t) => {
 });
 
 test("source does not hardcode Wrangler D1 paths or filename extensions", async () => {
-  const source = await import("node:fs/promises").then(({ readFile }) => readFile(new URL("../recovery-discovery.ts", import.meta.url), "utf8"));
+  const source = await import("node:fs/promises").then(({ readFile }) => readFile(new URL("../src/recovery/foundation/recovery-discovery.ts", import.meta.url), "utf8"));
   assert.equal(source.includes(".wrangler/state/v3/d1"), false);
   assert.doesNotMatch(source, /endsWith\([^)]*\.sqlite/u);
   assert.doesNotMatch(source, /glob|fast-glob/u);

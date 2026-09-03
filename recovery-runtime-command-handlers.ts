@@ -2,16 +2,16 @@ import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 
 import { createRecoveryCommandHandlers } from "./recovery-command-handlers.ts";
 import type { RecoveryCommandHandler, RecoveryCommandHandlers, RecoveryCommandInput } from "./recovery-cli.ts";
-import { RecoveryError } from "./recovery-errors.ts";
+import { RecoveryError } from "./src/recovery/foundation/recovery-errors.ts";
 import { recoverFailedMaintenanceOffline } from "./recovery-maintenance.ts";
 import { verifyPortalRecoveryOnline } from "./recovery-online-verification.ts";
-import { resolveContainedRegularFile, resolveRecoveryRoots } from "./recovery-paths.ts";
+import { resolveContainedRegularFile, resolveRecoveryRoots } from "./src/recovery/foundation/recovery-paths.ts";
 import {
   loadRecoveryReceipt,
   transitionRecoveryReceipt,
   writeRecoveryReceiptAtomic,
   type RecoveryReceipt,
-} from "./recovery-receipt.ts";
+} from "./src/recovery/foundation/recovery-receipt.ts";
 
 function fail(code: string, message: string, exitCode = 2): never {
   throw new RecoveryError(code, exitCode, message);

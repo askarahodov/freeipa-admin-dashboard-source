@@ -7,8 +7,8 @@ import test from "node:test";
 import {
   resolveContainedRegularFile,
   resolveRecoveryRoots,
-} from "../recovery-paths.ts";
-import { readSecretFile } from "../recovery-secrets.ts";
+} from "../src/recovery/foundation/recovery-paths.ts";
+import { readSecretFile } from "../src/recovery/foundation/recovery-secrets.ts";
 
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), "portal-recovery-input-"));

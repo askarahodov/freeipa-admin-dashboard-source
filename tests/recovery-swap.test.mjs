@@ -5,7 +5,7 @@ import {
   bindRecoveryCandidateReceipt,
   createRecoveryReceipt,
   transitionRecoveryReceipt,
-} from "../recovery-receipt.ts";
+} from "../src/recovery/foundation/recovery-receipt.ts";
 import {
   rollbackRecoverySwap,
   swapRecoveryCandidate,

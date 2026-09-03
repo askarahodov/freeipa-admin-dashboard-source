@@ -13,7 +13,7 @@ import {
   loadRecoveryMaintenance,
   statRecoveryDiskSpace,
   verifyRecoveryEncryptedMaterial,
-} from "../recovery-local-adapters.ts";
+} from "../src/recovery/adapters/recovery-local-adapters.ts";
 
 const keyHex = "11".repeat(32);
 

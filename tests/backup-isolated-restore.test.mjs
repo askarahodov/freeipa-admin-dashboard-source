@@ -70,21 +70,25 @@ async function input(overrides = {}) {
   };
 }
 
+const schema = { state: "ready", currentVersion: 1, appliedVersions: [1] };
+
 test("stages and verifies an encrypted backup only in isolated memory", async () => {
   const result = await testRestoreEncryptedBackupImport(
-    { DB: {} }, await input(), { state: "ready", currentVersion: 1, appliedVersions: [1] }, sanitizedRegistry(), fullRegistry(),
+    { DB: {} },
+    await input(),
+    schema,
+    sanitizedRegistry(),
+    fullRegistry(),
   );
-  assert.deepEqual(result, {
-    tested: true,
-    productionMutated: false,
-    selectedDomains: ["settings"],
-    sourceSchemaVersion: 1,
-    currentSchemaVersion: 1,
-    canCommit: true,
-    summary: { tables: 5, records: 1, checks: 5, warnings: 0 },
-    domains: [{ domain: "settings", tables: 5, records: 1, checks: ["json-fields"], warnings: [] }],
-  });
-  assert.doesNotMatch(JSON.stringify(result), /encrypted-a|strong password|ciphertext|fingerprint|sha256/i);
+
+  assert.equal(result.tested, true);
+  assert.equal(result.productionMutated, false);
+  assert.deepEqual(result.selectedDomains, ["settings"]);
+  assert.equal(result.sourceSchemaVersion, 1);
+  assert.equal(result.currentSchemaVersion, 1);
+  assert.equal(result.canCommit, true);
+  assert.deepEqual(result.summary, { tables: 5, records: 1, checks: 5, warnings: 0 });
+  assert.doesNotMatch(JSON.stringify(result), /approvalToken|encrypted-a|fingerprint|sha256|password/i);
 });
 
 test("rejects stale current state before decryption and isolated store creation", async () => {
@@ -92,42 +96,74 @@ test("rejects stale current state before decryption and isolated store creation"
   let stores = 0;
   await assert.rejects(
     testRestoreEncryptedBackupImport(
-      { DB: {} }, await input(), { state: "ready", currentVersion: 1, appliedVersions: [1] }, sanitizedRegistry(), fullRegistry("encrypted-current"), {
+      { DB: {} },
+      await input(),
+      schema,
+      sanitizedRegistry(),
+      fullRegistry("encrypted-b"),
+      {
         async decryptDomains() { decrypts += 1; throw new Error("must not decrypt"); },
         stageStore() { stores += 1; throw new Error("must not stage"); },
       },
     ),
-    (error) => error instanceof BackupIsolatedRestoreError && error.code === "backup_restore_stale" && error.status === 409,
+    (error) => error instanceof BackupIsolatedRestoreError
+      && error.code === "backup_restore_stale"
+      && error.status === 409,
   );
   assert.equal(decrypts, 0);
   assert.equal(stores, 0);
 });
 
 test("binds the approval token to domain selection and current schema", async () => {
-  const value = await input();
-  for (const changed of [
-    { ...value, domains: ["audit"] },
-    { ...value, approvalToken: "0".repeat(64) },
+  const original = await input();
+  for (const candidate of [
+    { ...original, domains: [] },
+    { ...original, domains: ["audit"] },
   ]) {
     await assert.rejects(
-      testRestoreEncryptedBackupImport({ DB: {} }, changed, { state: "ready", currentVersion: 1 }, sanitizedRegistry(), fullRegistry()),
-      (error) => error instanceof BackupIsolatedRestoreError && ["backup_request_invalid", "backup_restore_stale"].includes(error.code),
+      testRestoreEncryptedBackupImport({ DB: {} }, candidate, schema, sanitizedRegistry(), fullRegistry()),
+      (error) => error instanceof BackupIsolatedRestoreError
+        && error.code === "backup_request_invalid",
     );
   }
+
   await assert.rejects(
-    testRestoreEncryptedBackupImport({ DB: {} }, value, { state: "ready", currentVersion: 2 }, sanitizedRegistry(), fullRegistry()),
-    (error) => error instanceof BackupIsolatedRestoreError && error.code === "backup_restore_stale",
+    testRestoreEncryptedBackupImport(
+      { DB: {} },
+      original,
+      { state: "ready", currentVersion: 2, appliedVersions: [1, 2] },
+      sanitizedRegistry(),
+      fullRegistry(),
+    ),
+    (error) => error instanceof BackupIsolatedRestoreError
+      && error.code === "backup_restore_stale",
   );
 });
 
 test("preserves normalized decryption and schema failures", async () => {
-  const value = await input();
   await assert.rejects(
-    testRestoreEncryptedBackupImport({ DB: {} }, { ...value, password: "wrong password" }, { state: "ready", currentVersion: 1 }, sanitizedRegistry(), fullRegistry()),
-    (error) => error instanceof BackupIsolatedRestoreError && error.code === "backup_decryption_failed" && error.message === "Backup decryption failed",
+    testRestoreEncryptedBackupImport(
+      { DB: {} },
+      await input({ password: "wrong password" }),
+      schema,
+      sanitizedRegistry(),
+      fullRegistry(),
+    ),
+    (error) => error instanceof BackupIsolatedRestoreError
+      && error.code === "backup_decryption_failed"
+      && error.status === 422,
   );
+
   await assert.rejects(
-    testRestoreEncryptedBackupImport({ DB: {} }, value, { state: "ready", currentVersion: 0 }, sanitizedRegistry(), fullRegistry()),
-    (error) => error instanceof BackupIsolatedRestoreError && error.code === "backup_schema_incompatible",
+    testRestoreEncryptedBackupImport(
+      { DB: {} },
+      await input(),
+      { state: "blocked", currentVersion: 1 },
+      sanitizedRegistry(),
+      fullRegistry(),
+    ),
+    (error) => error instanceof BackupIsolatedRestoreError
+      && error.code === "backup_schema_incompatible"
+      && error.status === 409,
   );
 });

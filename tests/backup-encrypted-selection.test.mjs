@@ -8,7 +8,7 @@ import {
   decryptEncryptedBackupDocument,
   decryptEncryptedBackupDomains,
   previewEncryptedBackupImport,
-} from "../backup-encrypted-preview.ts";
+} from "../src/backup/preview/backup-encrypted-preview.ts";
 
 const salt = Buffer.from(Array.from({ length: 16 }, (_, index) => index + 1)).toString("base64");
 const ivForDomain = (domain) => Buffer.from(Array.from({ length: 12 }, (_, index) => domain.length * 10 + index)).toString("base64");

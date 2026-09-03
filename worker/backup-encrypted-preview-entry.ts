@@ -2,7 +2,7 @@ import { appendAuditEvent, type AuditContext, type AuditEventInput } from "../au
 import {
   BackupEncryptedPreviewError,
   previewEncryptedBackupImport,
-} from "../backup-encrypted-preview.ts";
+} from "../src/backup/preview/backup-encrypted-preview.ts";
 import { SANITIZED_BACKUP_EXPORTERS } from "../backup-export-domains.ts";
 import type { BackupExportEnv, PortalBackupDomainExporter } from "../src/backup/export/backup-export.ts";
 import { PORTAL_BACKUP_DOMAINS, type PortalBackupDomain } from "../backup-manifest.ts";

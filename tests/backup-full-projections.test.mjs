@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { assertSanitizedBackupPayload } from "../backup-manifest.ts";
-import { FULL_BACKUP_TABLES } from "../backup-full-domains.ts";
+import { assertSanitizedBackupPayload } from "../src/backup/backup-manifest.ts";
+import { FULL_BACKUP_TABLES } from "../src/backup/export/backup-full-domains.ts";
 import { projectFullBackupDomain } from "../src/backup/preview/backup-full-projections.ts";
 
 function payload(domain, tableRows) {

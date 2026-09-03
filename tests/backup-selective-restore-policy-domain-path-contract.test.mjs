@@ -7,7 +7,7 @@ test("selective restore policy implementation is canonical under src/backup/rest
     new URL("../src/backup/restore/backup-selective-restore-policy.ts", import.meta.url),
     "utf8",
   );
-  assert.match(canonical, /from "\.\.\/\.\.\/\.\.\/backup-manifest\.ts"/);
+  assert.match(canonical, /from "\.\.\/backup-manifest\.ts"/);
   await assert.rejects(
     access(new URL("../backup-selective-restore-policy.ts", import.meta.url)),
     { code: "ENOENT" },

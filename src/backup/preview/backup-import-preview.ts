@@ -6,7 +6,7 @@ import {
   validateBackupManifest,
   type PortalBackupDomain,
   type PortalBackupManifest,
-} from "../../../backup-manifest.ts";
+} from "../backup-manifest.ts";
 import type { BackupExportEnv, PortalBackupDomainExporter } from "../export/backup-export.ts";
 
 const MAX_CONFLICT_SAMPLES = 20;

@@ -8,7 +8,7 @@ import {
   type PortalBackupDomain,
   type PortalBackupEntry,
   type PortalBackupManifest,
-} from "../../../backup-manifest.ts";
+} from "../backup-manifest.ts";
 
 export class BackupExportError extends Error {
   readonly code: string;

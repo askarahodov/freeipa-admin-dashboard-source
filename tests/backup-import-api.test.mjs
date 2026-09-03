@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createBackupEntry, PORTAL_BACKUP_FORMAT, PORTAL_BACKUP_VERSION } from "../backup-manifest.ts";
+import { createBackupEntry, PORTAL_BACKUP_FORMAT, PORTAL_BACKUP_VERSION } from "../src/backup/backup-manifest.ts";
 import { handleBackupImportPreviewRequest } from "../worker/backup-import-preview-entry.ts";
 
 const auditContext = {

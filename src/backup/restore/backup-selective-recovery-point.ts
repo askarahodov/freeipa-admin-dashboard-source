@@ -2,7 +2,7 @@ import {
   canonicalBackupJson,
   sha256Hex,
   type PortalBackupDomain,
-} from "../../../backup-manifest.ts";
+} from "../backup-manifest.ts";
 import {
   BackupEncryptedExportError,
   exportEncryptedBackup,
@@ -21,7 +21,7 @@ import {
   validateFullBackupDomainPayload,
   type FullBackupDomainExporter,
   type FullBackupDomainPayload,
-} from "../../../backup-full-domains.ts";
+} from "../export/backup-full-domains.ts";
 import type { SelectiveRestorePolicyResult } from "./backup-selective-restore-policy.ts";
 
 export class BackupSelectiveRecoveryPointError extends Error {

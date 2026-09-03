@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { canonicalBackupJson, sha256Hex } from "../backup-manifest.ts";
+import { canonicalBackupJson, sha256Hex } from "../src/backup/backup-manifest.ts";
 import { BackupExportError, exportSanitizedBackup } from "../src/backup/export/backup-export.ts";
 
 function exporter(domain, payload, records, calls) {

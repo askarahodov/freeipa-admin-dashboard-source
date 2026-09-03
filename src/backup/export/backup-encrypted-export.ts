@@ -7,7 +7,7 @@ import {
   type PortalBackupDomain,
   type PortalBackupEntry,
   type PortalBackupManifest,
-} from "../../../backup-manifest.ts";
+} from "../backup-manifest.ts";
 import {
   BACKUP_KDF_ITERATIONS,
   BackupEncryptionError,
@@ -19,7 +19,7 @@ import {
   type BackupCryptoRandom,
   type EncryptedPayloadEnvelope,
 } from "../crypto/backup-encryption.ts";
-import { validateFullBackupDomainPayload, type FullBackupDomainExporter } from "../../../backup-full-domains.ts";
+import { validateFullBackupDomainPayload, type FullBackupDomainExporter } from "./backup-full-domains.ts";
 import type { BackupExportEnv } from "./backup-export.ts";
 
 export class BackupEncryptedExportError extends Error {

@@ -10,7 +10,7 @@ test("backup restore plan implementation is canonical under src/backup/restore",
 
   assert.match(canonical, /from "\.\/backup-restore-selection\.ts"/);
   assert.match(canonical, /from "\.\.\/export\/backup-export\.ts"/);
-  assert.match(canonical, /from "\.\.\/\.\.\/\.\.\/backup-manifest\.ts"/);
+  assert.match(canonical, /from "\.\.\/backup-manifest\.ts"/);
   await assert.rejects(
     access(new URL("../backup-restore-plan.ts", import.meta.url)),
     { code: "ENOENT" },

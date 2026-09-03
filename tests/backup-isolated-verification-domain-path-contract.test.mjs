@@ -9,7 +9,7 @@ test("isolated verification implementation is canonical under src/backup/restore
   );
 
   assert.match(canonical, /from "\.\/backup-isolated-store\.ts"/);
-  assert.match(canonical, /from "\.\.\/\.\.\/\.\.\/backup-manifest\.ts"/);
+  assert.match(canonical, /from "\.\.\/backup-manifest\.ts"/);
   await assert.rejects(
     access(new URL("../backup-isolated-verification.ts", import.meta.url)),
     { code: "ENOENT" },

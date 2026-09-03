@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { lstat, statfs } from "node:fs/promises";
 
-import type { FullBackupDomainPayload, FullBackupTable } from "./backup-full-domains.ts";
+import type { FullBackupDomainPayload, FullBackupTable } from "./src/backup/export/backup-full-domains.ts";
 import type { FullRestoreSource } from "./recovery-backup-source.ts";
 import { RecoveryError } from "./recovery-errors.ts";
 import { runSqlite, type RecoverySqliteDependencies } from "./recovery-sqlite.ts";

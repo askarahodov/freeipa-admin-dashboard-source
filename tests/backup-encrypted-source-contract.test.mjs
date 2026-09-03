@@ -4,7 +4,7 @@ import { access, readFile } from "node:fs/promises";
 
 const productionFiles = [
   "src/backup/crypto/backup-encryption.ts",
-  "backup-full-domains.ts",
+  "src/backup/export/backup-full-domains.ts",
   "src/backup/export/backup-encrypted-export.ts",
   "src/backup/preview/backup-full-projections.ts",
   "src/backup/preview/backup-encrypted-preview.ts",

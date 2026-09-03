@@ -1,4 +1,4 @@
-import { PORTAL_BACKUP_DOMAINS, type PortalBackupDomain } from "../../../backup-manifest.ts";
+import { PORTAL_BACKUP_DOMAINS, type PortalBackupDomain } from "../backup-manifest.ts";
 
 export class BackupRestoreSelectionError extends Error {
   readonly code = "backup_request_invalid";

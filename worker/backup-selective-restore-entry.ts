@@ -17,12 +17,12 @@ import {
   prepareSelectiveProductionRestore,
 } from "../src/backup/restore/backup-selective-restore-prepare.ts";
 import type { BackupExportEnv, PortalBackupDomainExporter } from "../src/backup/export/backup-export.ts";
-import { SANITIZED_BACKUP_EXPORTERS } from "../backup-export-domains.ts";
+import { SANITIZED_BACKUP_EXPORTERS } from "../src/backup/export/backup-export-domains.ts";
 import {
   FULL_BACKUP_EXPORTERS,
   type FullBackupDomainExporter,
-} from "../backup-full-domains.ts";
-import { PORTAL_BACKUP_DOMAINS, type PortalBackupDomain } from "../backup-manifest.ts";
+} from "../src/backup/export/backup-full-domains.ts";
+import { PORTAL_BACKUP_DOMAINS, type PortalBackupDomain } from "../src/backup/backup-manifest.ts";
 import {
   inspectPortalSchema,
   type PortalSchemaStatus,

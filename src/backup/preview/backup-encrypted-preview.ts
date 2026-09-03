@@ -4,7 +4,7 @@ import {
   sha256Hex,
   validateBackupManifest,
   type PortalBackupDomain,
-} from "../../../backup-manifest.ts";
+} from "../backup-manifest.ts";
 import {
   BackupEncryptionError,
   decryptBackupPayload,
@@ -19,7 +19,7 @@ import {
   validateFullBackupDomainPayload,
   type FullBackupDomainExporter,
   type FullBackupDomainPayload,
-} from "../../../backup-full-domains.ts";
+} from "../export/backup-full-domains.ts";
 import { projectFullBackupDomain } from "./backup-full-projections.ts";
 import {
   previewBackupImport,

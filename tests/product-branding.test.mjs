@@ -41,7 +41,7 @@ test("active documentation has one canonical product name", () => {
 test("compatibility identifiers are not renamed by the branding change", () => {
   const pkg = JSON.parse(read("package.json"));
   assert.equal(pkg.name, "freeipa-admin-dashboard");
-  assert.match(read("backup-manifest.ts"), /freeipa-admin-dashboard-backup/);
+  assert.match(read("src/backup/backup-manifest.ts"), /freeipa-admin-dashboard-backup/);
   assert.match(read("worker/health-contracts.ts"), /freeipa-admin-dashboard/);
   assert.match(read("app/settings-storage.js"), /freeipa-admin-dashboard-settings/);
 });

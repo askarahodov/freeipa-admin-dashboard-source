@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { assertSanitizedBackupPayload, PORTAL_BACKUP_DOMAINS } from "../backup-manifest.ts";
-import { SANITIZED_BACKUP_EXPORTERS } from "../backup-export-domains.ts";
+import { assertSanitizedBackupPayload, PORTAL_BACKUP_DOMAINS } from "../src/backup/backup-manifest.ts";
+import { SANITIZED_BACKUP_EXPORTERS } from "../src/backup/export/backup-export-domains.ts";
 
 function fakeDb(rowsByTable) {
   const sql = [];

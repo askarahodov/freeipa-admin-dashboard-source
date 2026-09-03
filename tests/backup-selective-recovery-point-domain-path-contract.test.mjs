@@ -8,7 +8,7 @@ test("selective recovery point implementation is canonical under src/backup/rest
     "utf8",
   );
 
-  assert.match(canonical, /from "\.\.\/\.\.\/\.\.\/backup-manifest\.ts"/);
+  assert.match(canonical, /from "\.\.\/backup-manifest\.ts"/);
   assert.match(canonical, /from "\.\.\/export\/backup-export\.ts"/);
   assert.match(canonical, /from "\.\/backup-selective-restore-policy\.ts"/);
   await assert.rejects(

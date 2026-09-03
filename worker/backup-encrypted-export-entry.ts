@@ -5,8 +5,8 @@ import {
   parseEncryptedBackupExportRequest,
   type EncryptedBackupDocument,
 } from "../src/backup/export/backup-encrypted-export.ts";
-import { FULL_BACKUP_EXPORTERS, type FullBackupDomainExporter } from "../backup-full-domains.ts";
-import type { PortalBackupDomain } from "../backup-manifest.ts";
+import { FULL_BACKUP_EXPORTERS, type FullBackupDomainExporter } from "../src/backup/export/backup-full-domains.ts";
+import type { PortalBackupDomain } from "../src/backup/backup-manifest.ts";
 import type { BackupExportEnv } from "../src/backup/export/backup-export.ts";
 import { inspectPortalSchema, type PortalSchemaStatus } from "../db/portal-migrations.ts";
 

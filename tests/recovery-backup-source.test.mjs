@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { exportEncryptedBackup } from "../src/backup/export/backup-encrypted-export.ts";
-import { FULL_BACKUP_TABLES } from "../backup-full-domains.ts";
-import { PORTAL_BACKUP_DOMAINS } from "../backup-manifest.ts";
+import { FULL_BACKUP_TABLES } from "../src/backup/export/backup-full-domains.ts";
+import { PORTAL_BACKUP_DOMAINS } from "../src/backup/backup-manifest.ts";
 import {
   loadFullRestoreSource,
   verifyBackupAdministrator,

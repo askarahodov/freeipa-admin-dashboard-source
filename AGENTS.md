@@ -14,7 +14,7 @@ These instructions apply to **every AI agent** working in this repository, regar
 - Keep the diff focused; unrelated cleanup belongs in separate work unless it blocks correctness or safety.
 - Never weaken security controls, validation, tests, approvals, or assertions merely to obtain green CI.
 - Never place real secrets, credentials, tokens, cookies, private keys, or sensitive production data in code, fixtures, logs, PR text, or artifacts.
-- Run tests by risk according to `docs/TESTING_POLICY.md`; relevant red tests must be investigated, not bypassed.
+- Inspect the changed files, identify their affected functional/risk categories, and run tests by risk according to `docs/TESTING_POLICY.md`; relevant red tests must be investigated, not bypassed.
 - Review the final combined diff before merge. Security-sensitive work must consider abuse and bypass paths.
 - Keep active documentation truthful when behavior, configuration, operations, recovery, or developer workflow changes.
 - Do not merge with relevant required checks pending or failing, unresolved blocking review findings, or unmet acceptance criteria.

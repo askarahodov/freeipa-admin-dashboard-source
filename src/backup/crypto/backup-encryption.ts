@@ -1,4 +1,4 @@
-import { canonicalBackupJson } from "../../../backup-manifest.ts";
+import { canonicalBackupJson } from "../backup-manifest.ts";
 
 export const BACKUP_KDF_ITERATIONS = 310_000;
 export const MIN_BACKUP_KDF_ITERATIONS = 210_000;

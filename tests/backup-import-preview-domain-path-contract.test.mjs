@@ -9,7 +9,7 @@ test("backup import preview implementation is canonical under src/backup/preview
   const canonical = await readFile(canonicalPath, "utf8");
   assert.match(canonical, /export async function validateBackupImportDocument/);
   assert.match(canonical, /export async function previewBackupImport/);
-  assert.match(canonical, /from "\.\.\/\.\.\/\.\.\/backup-manifest\.ts"/);
+  assert.match(canonical, /from "\.\.\/backup-manifest\.ts"/);
   assert.match(canonical, /from "\.\.\/export\/backup-export\.ts"/);
   await assert.rejects(() => access(compatibilityPath), { code: "ENOENT" });
 });

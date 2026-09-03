@@ -6,8 +6,8 @@ import {
   type BackupExportEnv,
   type PortalBackupDomainExporter,
 } from "../src/backup/export/backup-export.ts";
-import { SANITIZED_BACKUP_EXPORTERS } from "../backup-export-domains.ts";
-import type { PortalBackupDomain } from "../backup-manifest.ts";
+import { SANITIZED_BACKUP_EXPORTERS } from "../src/backup/export/backup-export-domains.ts";
+import type { PortalBackupDomain } from "../src/backup/backup-manifest.ts";
 import { inspectPortalSchema, type PortalSchemaStatus } from "../db/portal-migrations.ts";
 
 const MAX_BACKUP_EXPORT_REQUEST_BYTES = 4_096;

@@ -4,11 +4,11 @@ import {
   type FullBackupDomainPayload,
   type FullBackupTable,
   type FullBackupTableDefinition,
-} from "../../../backup-full-domains.ts";
+} from "../export/backup-full-domains.ts";
 import {
   canonicalBackupJson,
   type PortalBackupDomain,
-} from "../../../backup-manifest.ts";
+} from "../backup-manifest.ts";
 import type { SelectiveRestorePolicyResult } from "./backup-selective-restore-policy.ts";
 
 export const MAX_SELECTIVE_RESTORE_JSON_BINDING_BYTES = 1_750_000;

@@ -8,8 +8,8 @@ test("backup isolated store implementation is canonical under src/backup/restore
     "utf8",
   );
 
-  assert.match(canonical, /from "\.\.\/\.\.\/\.\.\/backup-full-domains\.ts"/);
-  assert.match(canonical, /from "\.\.\/\.\.\/\.\.\/backup-manifest\.ts"/);
+  assert.match(canonical, /from "\.\.\/export\/backup-full-domains\.ts"/);
+  assert.match(canonical, /from "\.\.\/backup-manifest\.ts"/);
   await assert.rejects(
     readFile(new URL("../backup-isolated-store.ts", import.meta.url), "utf8"),
     (error) => error?.code === "ENOENT",

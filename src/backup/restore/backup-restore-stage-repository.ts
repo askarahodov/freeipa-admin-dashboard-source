@@ -1,4 +1,4 @@
-import type { PortalBackupDomain } from "../../../backup-manifest.ts";
+import type { PortalBackupDomain } from "../backup-manifest.ts";
 import {
   BackupSelectiveRestorePolicyError,
   validateSelectiveRestoreDomains,

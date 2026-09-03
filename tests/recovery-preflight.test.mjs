@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { PORTAL_BACKUP_DOMAINS } from "../backup-manifest.ts";
+import { PORTAL_BACKUP_DOMAINS } from "../src/backup/backup-manifest.ts";
 import { runRecoveryPreflight } from "../recovery-preflight.ts";
 
 const databaseSha256 = "a".repeat(64);

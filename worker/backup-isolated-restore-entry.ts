@@ -1,12 +1,12 @@
 import { appendAuditEvent, type AuditContext, type AuditEventInput } from "../audit-log.ts";
 import type { BackupExportEnv, PortalBackupDomainExporter } from "../src/backup/export/backup-export.ts";
-import { SANITIZED_BACKUP_EXPORTERS } from "../backup-export-domains.ts";
-import { FULL_BACKUP_EXPORTERS, type FullBackupDomainExporter } from "../backup-full-domains.ts";
+import { SANITIZED_BACKUP_EXPORTERS } from "../src/backup/export/backup-export-domains.ts";
+import { FULL_BACKUP_EXPORTERS, type FullBackupDomainExporter } from "../src/backup/export/backup-full-domains.ts";
 import {
   BackupIsolatedRestoreError,
   testRestoreEncryptedBackupImport,
 } from "../src/backup/restore/backup-isolated-restore.ts";
-import { PORTAL_BACKUP_DOMAINS, type PortalBackupDomain } from "../backup-manifest.ts";
+import { PORTAL_BACKUP_DOMAINS, type PortalBackupDomain } from "../src/backup/backup-manifest.ts";
 import { inspectPortalSchema, type PortalSchemaStatus } from "../db/portal-migrations.ts";
 
 const MAX_ISOLATED_RESTORE_REQUEST_BYTES = 20 * 1024 * 1024;

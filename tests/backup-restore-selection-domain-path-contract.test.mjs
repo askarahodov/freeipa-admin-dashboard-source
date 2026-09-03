@@ -8,7 +8,7 @@ test("backup restore selection implementation is canonical under src/backup/rest
     "utf8",
   );
 
-  assert.match(canonical, /from "\.\.\/\.\.\/\.\.\/backup-manifest\.ts"/);
+  assert.match(canonical, /from "\.\.\/backup-manifest\.ts"/);
   await assert.rejects(
     access(new URL("../backup-restore-selection.ts", import.meta.url)),
     { code: "ENOENT" },

@@ -2,12 +2,12 @@ import {
   validateFullBackupDomainPayload,
   type FullBackupDomainPayload,
   type FullBackupTable,
-} from "../../../backup-full-domains.ts";
+} from "../export/backup-full-domains.ts";
 import {
   PORTAL_BACKUP_DOMAINS,
   canonicalBackupJson,
   type PortalBackupDomain,
-} from "../../../backup-manifest.ts";
+} from "../backup-manifest.ts";
 
 export class BackupIsolatedStoreError extends Error {
   readonly code = "backup_test_restore_failed";

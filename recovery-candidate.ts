@@ -6,8 +6,8 @@ import { dirname, isAbsolute } from "node:path";
 import {
   FULL_BACKUP_TABLES,
   type FullBackupTable,
-} from "./backup-full-domains.ts";
-import { PORTAL_BACKUP_DOMAINS } from "./backup-manifest.ts";
+} from "./src/backup/export/backup-full-domains.ts";
+import { PORTAL_BACKUP_DOMAINS } from "./src/backup/backup-manifest.ts";
 import { verifyBackupAdministrator, type FullRestoreSource } from "./recovery-backup-source.ts";
 import { RecoveryError } from "./recovery-errors.ts";
 import {

@@ -1,5 +1,5 @@
-import { PORTAL_BACKUP_DOMAINS, type PortalBackupDomain } from "./backup-manifest.ts";
-import { BackupExportError, type BackupExportEnv, type PortalBackupDomainExporter } from "./src/backup/export/backup-export.ts";
+import { PORTAL_BACKUP_DOMAINS, type PortalBackupDomain } from "../backup-manifest.ts";
+import { BackupExportError, type BackupExportEnv, type PortalBackupDomainExporter } from "./backup-export.ts";
 
 type JsonRecord = Record<string, unknown>;
 

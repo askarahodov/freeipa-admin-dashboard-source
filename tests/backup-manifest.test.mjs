@@ -9,7 +9,7 @@ import {
   createBackupEntry,
   sha256Hex,
   validateBackupManifest,
-} from "../backup-manifest.ts";
+} from "../src/backup/backup-manifest.ts";
 
 test("canonical backup JSON and checksum are deterministic", async () => {
   const left = canonicalBackupJson({ z: 1, nested: { b: 2, a: 1 } });

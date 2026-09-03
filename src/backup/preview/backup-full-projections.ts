@@ -1,5 +1,5 @@
-import { assertSanitizedBackupPayload, type PortalBackupDomain } from "../../../backup-manifest.ts";
-import { validateFullBackupDomainPayload, type FullBackupDomainPayload, type FullBackupTable } from "../../../backup-full-domains.ts";
+import { assertSanitizedBackupPayload, type PortalBackupDomain } from "../backup-manifest.ts";
+import { validateFullBackupDomainPayload, type FullBackupDomainPayload, type FullBackupTable } from "../export/backup-full-domains.ts";
 
 type JsonRecord = Record<string, unknown>;
 

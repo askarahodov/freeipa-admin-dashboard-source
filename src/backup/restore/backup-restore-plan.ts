@@ -3,12 +3,12 @@ import type { BackupExportEnv } from "../export/backup-export.ts";
 import {
   validateFullBackupDomainPayload,
   type FullBackupDomainExporter,
-} from "../../../backup-full-domains.ts";
+} from "../export/backup-full-domains.ts";
 import {
   canonicalBackupJson,
   sha256Hex,
   type PortalBackupDomain,
-} from "../../../backup-manifest.ts";
+} from "../backup-manifest.ts";
 import { selectBackupRestoreDomains } from "./backup-restore-selection.ts";
 
 export const BACKUP_RESTORE_PLAN_VERSION = 1 as const;

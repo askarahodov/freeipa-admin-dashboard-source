@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { exportEncryptedBackup } from "../src/backup/export/backup-encrypted-export.ts";
-import { FULL_BACKUP_TABLES } from "../backup-full-domains.ts";
+import { FULL_BACKUP_TABLES } from "../src/backup/export/backup-full-domains.ts";
 import { createBackupRestorePlan } from "../src/backup/restore/backup-restore-plan.ts";
 import {
   BackupIsolatedRestoreError,

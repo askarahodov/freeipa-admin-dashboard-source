@@ -1,4 +1,4 @@
-import { PORTAL_BACKUP_DOMAINS } from "../../../../backup-manifest.ts";
+import { PORTAL_BACKUP_DOMAINS } from "../../../backup/backup-manifest.ts";
 import {
   DEFAULT_MIGRATION_LOCK_TTL_MS,
   inspectPortalMigrationLock,

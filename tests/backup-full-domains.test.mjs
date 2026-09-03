@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { PORTAL_BACKUP_DOMAINS } from "../backup-manifest.ts";
-import { FULL_BACKUP_EXPORTERS, FULL_BACKUP_TABLES, FullBackupValidationError, validateFullBackupDomainPayload } from "../backup-full-domains.ts";
+import { PORTAL_BACKUP_DOMAINS } from "../src/backup/backup-manifest.ts";
+import { FULL_BACKUP_EXPORTERS, FULL_BACKUP_TABLES, FullBackupValidationError, validateFullBackupDomainPayload } from "../src/backup/export/backup-full-domains.ts";
 
 const expectedTables = {
   settings: ["app_settings", "portal_settings_drafts", "portal_settings_apply_commits", "portal_settings_revisions", "portal_settings_draft_resets"],
@@ -43,7 +43,7 @@ test("full registry includes encrypted recovery material but no external encrypt
   assert.equal(descriptor("portal_settings_revisions").columns.includes("encrypted_secrets"), true);
   assert.equal(descriptor("operation_run_replays").columns.includes("encrypted_spec"), true);
   assert.equal(descriptor("operation_approvals").columns.includes("encrypted_spec"), true);
-  const source = fs.readFileSync(new URL("../backup-full-domains.ts", import.meta.url), "utf8");
+  const source = fs.readFileSync(new URL("../src/backup/export/backup-full-domains.ts", import.meta.url), "utf8");
   assert.doesNotMatch(source, /CONFIG_ENCRYPTION_KEY|backup_password|backup_key|ipa_password|xyops_api_key/i);
 });
 

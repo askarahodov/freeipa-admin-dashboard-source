@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { assertSanitizedBackupPayload, canonicalBackupJson } from "../backup-manifest.ts";
+import { assertSanitizedBackupPayload, canonicalBackupJson } from "../src/backup/backup-manifest.ts";
 
 test("canonical backup JSON rejects unsupported and non-finite values", () => {
   assert.throws(() => canonicalBackupJson({ missing: undefined }), /unsupported value/);

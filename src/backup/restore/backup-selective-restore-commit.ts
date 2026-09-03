@@ -5,14 +5,14 @@ import {
   type DecryptedEncryptedBackupSelection,
 } from "../preview/backup-encrypted-preview.ts";
 import type { BackupExportEnv, PortalBackupDomainExporter } from "../export/backup-export.ts";
-import type { FullBackupDomainExporter } from "../../../backup-full-domains.ts";
+import type { FullBackupDomainExporter } from "../export/backup-full-domains.ts";
 import {
   BackupIsolatedRestoreError,
   testRestoreEncryptedBackupImport,
   type BackupIsolatedRestoreResult,
 } from "./backup-isolated-restore.ts";
 import type { BackupPreviewSchema } from "../preview/backup-import-preview.ts";
-import type { PortalBackupDomain } from "../../../backup-manifest.ts";
+import type { PortalBackupDomain } from "../backup-manifest.ts";
 import {
   BackupRestoreStageError,
   createRestoreStageBinding,

@@ -2,7 +2,7 @@ import {
   IsolatedRestoreStore,
   type IsolatedRestoreTable,
 } from "./backup-isolated-store.ts";
-import type { PortalBackupDomain } from "../../../backup-manifest.ts";
+import type { PortalBackupDomain } from "../backup-manifest.ts";
 
 export class BackupIsolatedVerificationError extends Error {
   readonly code = "backup_test_restore_failed";

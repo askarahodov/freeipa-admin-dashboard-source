@@ -1,7 +1,7 @@
 import {
   PORTAL_BACKUP_DOMAINS,
   type PortalBackupDomain,
-} from "../../../backup-manifest.ts";
+} from "../backup-manifest.ts";
 
 export class BackupSelectiveRestorePolicyError extends Error {
   readonly code: string;

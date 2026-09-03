@@ -71,3 +71,15 @@ test("dedicated outer root composes a pure admin-only selective dispatch", () =>
   assert.equal(readOnlyRoot.includes("backup.restore.commit"), false);
   assert.equal(readOnlyRoot.includes("backup-selective-restore"), false);
 });
+
+test("restore staging implementations have no root compatibility shims", () => {
+  for (const path of [
+    "../backup-isolated-restore.ts",
+    "../backup-restore-stage.ts",
+    "../backup-restore-stage-repository.ts",
+    "../backup-selective-restore-prepare.ts",
+    "../backup-selective-restore-commit.ts",
+  ]) {
+    assert.equal(fs.existsSync(new URL(path, import.meta.url)), false, path);
+  }
+});

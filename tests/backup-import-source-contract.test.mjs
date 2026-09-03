@@ -8,7 +8,7 @@ async function source(path) {
 
 test("backup import preflight core and route remain read-only and offline", async () => {
   const combined = [
-    await source("backup-import-preview.ts"),
+    await source("src/backup/preview/backup-import-preview.ts"),
     await source("worker/backup-import-preview-entry.ts"),
     await source("worker/backup-import-preview-root-entry.ts"),
   ].join("\n");

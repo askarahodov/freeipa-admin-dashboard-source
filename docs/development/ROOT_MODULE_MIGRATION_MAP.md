@@ -116,6 +116,8 @@ Current status: #263 and #264 are complete. Read-only storage contracts/inspecto
 
 Risk: **medium**. Small root family and a likely early source-move candidate, but imports from Worker/UI and server query contracts must be preserved exactly.
 
+Current status: **completed (#253, implementation started in PR #255 and completed by subsequent consumer/shim cleanup).** All three implementations are canonical under `src/freeipa/`, active consumers use the domain paths, and no root compatibility copy remains.
+
 ### Operations, catalog and automation → `src/operations/`
 
 - `approval-gates.ts`
@@ -142,7 +144,7 @@ Root project/tool entrypoints are intentionally not part of the production-domai
 
 ## Ordered migration slices
 
-1. **FreeIPA query helpers** — smallest cohesive family; verify Worker/UI imports and focused FreeIPA tests first.
+1. **FreeIPA query helpers — completed (#253).** The three implementations are canonical under `src/freeipa/` with no root compatibility entrypoints.
 2. **Operations leaf modules** — move only leaf modules with low inbound fan-out; split approval/catalog/run subdomains if import evidence requires it.
 3. **Storage read-only contracts/inspectors — completed (#263).** Status/integrity read paths are canonical under `src/storage/`.
 4. **Backup read/export contracts — in progress (#265).** Read-only preview/projection leaves move first; remaining manifest/export/restore modules stay in dependency-closed follow-up slices.
@@ -174,6 +176,6 @@ After moving, search for the old literal path/name, then run lint/build plus the
 - Circular dependencies discovered during a move block that slice until ownership is clarified; do not hide a cycle with dynamic imports or path aliases.
 - Keep public behavior, stable error codes, RBAC, audit, recovery safety and storage semantics unchanged in structure-only PRs.
 
-## First implementation candidate
+## Completed first implementation slice
 
-The current preferred first production-code slice is the three-file FreeIPA root family. It has the smallest obvious domain surface and no destructive storage/recovery semantics. Before opening that move PR, enumerate exact inbound imports and path-contract tests for all three files; if that analysis reveals wider coupling, choose an even smaller leaf subset rather than broadening the PR.
+The three-file FreeIPA family is complete under `src/freeipa/`. The next structural work should follow the ordered slices above and re-inventory current `main` before every move, because parallel work may already have completed individual modules or consumers.

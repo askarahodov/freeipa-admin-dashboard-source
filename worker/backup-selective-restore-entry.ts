@@ -3,19 +3,19 @@ import { appendAuditEvent, type AuditContext, type AuditEventInput } from "../au
 import {
   BackupRestoreStageError,
   hashRestoreStageSecret,
-} from "../backup-restore-stage.ts";
+} from "../src/backup/restore/backup-restore-stage.ts";
 import {
   BackupRestoreStageRepositoryError,
   cancelRestoreStage,
-} from "../backup-restore-stage-repository.ts";
+} from "../src/backup/restore/backup-restore-stage-repository.ts";
 import {
   BackupSelectiveRestoreCommitError,
   commitSelectiveProductionRestore,
-} from "../backup-selective-restore-commit.ts";
+} from "../src/backup/restore/backup-selective-restore-commit.ts";
 import {
   BackupSelectiveRestorePrepareError,
   prepareSelectiveProductionRestore,
-} from "../backup-selective-restore-prepare.ts";
+} from "../src/backup/restore/backup-selective-restore-prepare.ts";
 import type { BackupExportEnv, PortalBackupDomainExporter } from "../src/backup/export/backup-export.ts";
 import { SANITIZED_BACKUP_EXPORTERS } from "../backup-export-domains.ts";
 import {

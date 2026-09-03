@@ -3,7 +3,7 @@ import {
   PORTAL_BACKUP_DOMAINS,
   sha256Hex,
   type PortalBackupDomain,
-} from "./backup-manifest.ts";
+} from "../../../backup-manifest.ts";
 
 export class BackupRestoreStageError extends Error {
   readonly code = "backup_restore_stage_invalid";

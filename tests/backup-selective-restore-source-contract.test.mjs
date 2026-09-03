@@ -4,12 +4,12 @@ import test from "node:test";
 
 const productionPaths = [
   "../src/backup/restore/backup-selective-restore-policy.ts",
-  "../backup-restore-stage.ts",
-  "../backup-restore-stage-repository.ts",
+  "../src/backup/restore/backup-restore-stage.ts",
+  "../src/backup/restore/backup-restore-stage-repository.ts",
   "../src/backup/restore/backup-selective-recovery-point.ts",
   "../src/backup/restore/backup-selective-write-plan.ts",
-  "../backup-selective-restore-prepare.ts",
-  "../backup-selective-restore-commit.ts",
+  "../src/backup/restore/backup-selective-restore-prepare.ts",
+  "../src/backup/restore/backup-selective-restore-commit.ts",
   "../worker/backup-selective-restore-entry.ts",
   "../worker/backup-selective-restore-dispatch.ts",
   "../worker/backup-selective-restore-root-entry.ts",
@@ -70,4 +70,16 @@ test("dedicated outer root composes a pure admin-only selective dispatch", () =>
   assert.equal(root.includes("return rootRuntime.fetch"), true);
   assert.equal(readOnlyRoot.includes("backup.restore.commit"), false);
   assert.equal(readOnlyRoot.includes("backup-selective-restore"), false);
+});
+
+test("restore staging implementations have no root compatibility shims", () => {
+  for (const path of [
+    "../backup-isolated-restore.ts",
+    "../backup-restore-stage.ts",
+    "../backup-restore-stage-repository.ts",
+    "../backup-selective-restore-prepare.ts",
+    "../backup-selective-restore-commit.ts",
+  ]) {
+    assert.equal(fs.existsSync(new URL(path, import.meta.url)), false, path);
+  }
 });

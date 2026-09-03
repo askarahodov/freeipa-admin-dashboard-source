@@ -3,16 +3,16 @@ import {
   decryptEncryptedBackupDomains,
   validateEncryptedBackupDocument,
   type DecryptedEncryptedBackupSelection,
-} from "./src/backup/preview/backup-encrypted-preview.ts";
-import type { BackupExportEnv, PortalBackupDomainExporter } from "./src/backup/export/backup-export.ts";
-import type { FullBackupDomainExporter } from "./backup-full-domains.ts";
+} from "../preview/backup-encrypted-preview.ts";
+import type { BackupExportEnv, PortalBackupDomainExporter } from "../export/backup-export.ts";
+import type { FullBackupDomainExporter } from "../../../backup-full-domains.ts";
 import {
   BackupIsolatedRestoreError,
   testRestoreEncryptedBackupImport,
   type BackupIsolatedRestoreResult,
 } from "./backup-isolated-restore.ts";
-import type { BackupPreviewSchema } from "./src/backup/preview/backup-import-preview.ts";
-import type { PortalBackupDomain } from "./backup-manifest.ts";
+import type { BackupPreviewSchema } from "../preview/backup-import-preview.ts";
+import type { PortalBackupDomain } from "../../../backup-manifest.ts";
 import {
   BackupRestoreStageError,
   createRestoreStageBinding,
@@ -29,18 +29,18 @@ import {
   BackupSelectiveRecoveryPointError,
   verifySelectiveRecoveryPoint,
   type VerifiedSelectiveRecoveryPoint,
-} from "./src/backup/restore/backup-selective-recovery-point.ts";
+} from "./backup-selective-recovery-point.ts";
 import {
   BackupSelectiveRestorePolicyError,
   validateSelectiveRestoreDomains,
   type SelectiveRestorePolicyResult,
-} from "./src/backup/restore/backup-selective-restore-policy.ts";
+} from "./backup-selective-restore-policy.ts";
 import {
   BackupSelectiveWritePlanError,
   buildSelectiveRestoreStatements,
   validateSelectiveRestoreCandidate,
   type SelectiveRestoreAuditRow,
-} from "./src/backup/restore/backup-selective-write-plan.ts";
+} from "./backup-selective-write-plan.ts";
 
 export class BackupSelectiveRestoreCommitError extends Error {
   readonly code: string;

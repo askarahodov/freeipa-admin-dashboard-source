@@ -7,7 +7,7 @@ import { createBackupRestorePlan } from "../src/backup/restore/backup-restore-pl
 import {
   BackupIsolatedRestoreError,
   testRestoreEncryptedBackupImport,
-} from "../backup-isolated-restore.ts";
+} from "../src/backup/restore/backup-isolated-restore.ts";
 
 const salt = Buffer.from(Array.from({ length: 16 }, (_, index) => index + 1)).toString("base64");
 const iv = Buffer.from(Array.from({ length: 12 }, (_, index) => index + 20)).toString("base64");

@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   BackupSelectiveRestorePrepareError,
   prepareSelectiveProductionRestore,
-} from "../backup-selective-restore-prepare.ts";
+} from "../src/backup/restore/backup-selective-restore-prepare.ts";
 
 const sourceDocument = { manifest: { format: "source" } };
 const recoveryDocument = { manifest: { format: "recovery" } };

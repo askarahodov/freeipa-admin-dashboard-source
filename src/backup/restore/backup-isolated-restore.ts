@@ -3,35 +3,35 @@ import {
   decryptEncryptedBackupDomains,
   validateEncryptedBackupDocument,
   type DecryptedEncryptedBackupSelection,
-} from "./src/backup/preview/backup-encrypted-preview.ts";
-import type { BackupExportEnv, PortalBackupDomainExporter } from "./src/backup/export/backup-export.ts";
-import type { FullBackupDomainExporter } from "./backup-full-domains.ts";
+} from "../preview/backup-encrypted-preview.ts";
+import type { BackupExportEnv, PortalBackupDomainExporter } from "../export/backup-export.ts";
+import type { FullBackupDomainExporter } from "../../../backup-full-domains.ts";
 import {
   BackupImportPreviewError,
   previewBackupImport,
   type BackupImportPreviewResult,
   type BackupPreviewSchema,
-} from "./src/backup/preview/backup-import-preview.ts";
+} from "../preview/backup-import-preview.ts";
 import {
   BackupIsolatedStoreError,
   stageIsolatedRestore,
   type IsolatedRestoreStore,
-} from "./src/backup/restore/backup-isolated-store.ts";
+} from "./backup-isolated-store.ts";
 import {
   BackupIsolatedVerificationError,
   verifyIsolatedRestore,
   type IsolatedRestoreVerificationResult,
-} from "./src/backup/restore/backup-isolated-verification.ts";
-import type { PortalBackupDomain } from "./backup-manifest.ts";
+} from "./backup-isolated-verification.ts";
+import type { PortalBackupDomain } from "../../../backup-manifest.ts";
 import {
   BackupRestorePlanError,
   createBackupRestorePlan,
   verifyBackupRestoreApprovalToken,
-} from "./src/backup/restore/backup-restore-plan.ts";
+} from "./backup-restore-plan.ts";
 import {
   BackupRestoreSelectionError,
   selectBackupRestoreDomains,
-} from "./src/backup/restore/backup-restore-selection.ts";
+} from "./backup-restore-selection.ts";
 
 export class BackupIsolatedRestoreError extends Error {
   readonly code: string;

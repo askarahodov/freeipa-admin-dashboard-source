@@ -5,7 +5,7 @@ import {
   BackupSelectiveRecoveryPointError,
   createSelectiveRecoveryPoint,
   verifySelectiveRecoveryPoint,
-} from "../backup-selective-recovery-point.ts";
+} from "../src/backup/restore/backup-selective-recovery-point.ts";
 import { validateSelectiveRestoreDomains } from "../src/backup/restore/backup-selective-restore-policy.ts";
 
 const manifest = {

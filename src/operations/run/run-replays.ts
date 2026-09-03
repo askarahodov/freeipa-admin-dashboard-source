@@ -1,5 +1,5 @@
-import type { CatalogEvent } from "./src/automation/automation-types";
-import { fieldConditionMatches } from "./src/automation/field-conditions";
+import type { CatalogEvent } from "../../automation/automation-types";
+import { fieldConditionMatches } from "../../automation/field-conditions";
 
 export type RunReplaySpec = {
   eventId: string;

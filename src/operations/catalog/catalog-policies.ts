@@ -1,4 +1,4 @@
-import type { CatalogEvent } from "./src/automation/automation-types";
+import type { CatalogEvent } from "../../automation/automation-types";
 
 export type CatalogPolicyEffect = "allow" | "deny";
 export type CatalogPolicyRole = "viewer" | "operator" | "admin";

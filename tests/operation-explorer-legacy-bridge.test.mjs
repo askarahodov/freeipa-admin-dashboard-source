@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { resolveLegacyOperationTarget } from "../src/operations/operation-explorer-legacy-bridge.ts";
+import { resolveLegacyOperationTarget } from "../src/operations/explorer/operation-explorer-legacy-bridge.ts";
 
 test("existing legacy target returns immediately without refresh or wait", async () => {
   const target = { id: "legacy-row" };

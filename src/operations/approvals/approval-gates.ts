@@ -1,4 +1,4 @@
-import type { CatalogEvent } from "./src/automation/automation-types";
+import type { CatalogEvent } from "../../automation/automation-types";
 
 export type ApprovalStatus = "pending" | "approved" | "rejected" | "cancelled" | "expired" | "executing" | "executed" | "failed" | "unknown";
 export type ApprovalDecision = "approve" | "reject";

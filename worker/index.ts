@@ -3,13 +3,13 @@ import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } fr
 import handler from "vinext/server/app-router-entry";
 import type { AutomationRoute, CatalogEvent, RouteField } from "../src/automation/automation-types";
 import { fieldConditionMatches, normalizeFieldCondition } from "../src/automation/field-conditions";
-import { listRunReplaySummaries, readRunReplay, saveRunReplay, type RunReplaySummary } from "../run-replays";
-import { listRunResults, readRunResultFile, saveRunResult, type PublicRunResult } from "../run-results";
-import { listRunNotifications, markRunNotificationsRead, saveRunNotification } from "../run-notifications";
-import { catalogEventAllowed, readCatalogPolicySet, saveCatalogPolicySet } from "../catalog-policies";
-import { approvalExecutionMatches, approvalRequirement, cancelApproval, claimApprovalExecution, createApprovalRequest, decideApproval, finishApprovalExecution, listApprovals, readApprovalPolicySet, readExecutingApproval, saveApprovalPolicySet } from "../approval-gates";
+import { listRunReplaySummaries, readRunReplay, saveRunReplay, type RunReplaySummary } from "../src/operations/run/run-replays";
+import { listRunResults, readRunResultFile, saveRunResult, type PublicRunResult } from "../src/operations/run/run-results";
+import { listRunNotifications, markRunNotificationsRead, saveRunNotification } from "../src/operations/run/run-notifications";
+import { catalogEventAllowed, readCatalogPolicySet, saveCatalogPolicySet } from "../src/operations/catalog/catalog-policies";
+import { approvalExecutionMatches, approvalRequirement, cancelApproval, claimApprovalExecution, createApprovalRequest, decideApproval, finishApprovalExecution, listApprovals, readApprovalPolicySet, readExecutingApproval, saveApprovalPolicySet } from "../src/operations/approvals/approval-gates";
 import { appendAuditEvent, auditCorrelationFor, auditErrorCode, createAuditContext, listAuditEvents, withAuditCorrelation, type AuditContext } from "../audit-log";
-import { applyProcessPresentation, availableProcessPresentationLocales, presentationLocalePreferences, readProcessPresentationSet, resolveProcessPresentationLocale, saveProcessPresentationSet } from "../process-presentation";
+import { applyProcessPresentation, availableProcessPresentationLocales, presentationLocalePreferences, readProcessPresentationSet, resolveProcessPresentationLocale, saveProcessPresentationSet } from "../src/operations/presentation/process-presentation";
 import { handleBackupExportRequest } from "./backup-export-entry";
 import { portalRolePermissions, resolvePortalRole, type PortalPermission, type PortalRole } from "../portal-permissions";
 

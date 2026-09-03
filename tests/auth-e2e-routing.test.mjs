@@ -31,6 +31,7 @@ test("RBAC changes select only RBAC coverage", () => {
 test("integration domains route to their own browser suites", () => {
   assert.deepEqual(buildE2ETestPlan(["freeipa-client.ts"]).categories, ["freeipa"]);
   assert.deepEqual(buildE2ETestPlan(["xyops-client.ts"]).categories, ["xyops"]);
+  assert.deepEqual(buildE2ETestPlan(["src/operations/run/run-results.ts"]).categories, ["xyops"]);
   assert.deepEqual(buildE2ETestPlan(["settings-service.ts"]).categories, ["settings"]);
 });
 

@@ -118,18 +118,12 @@ Current status: **completed (#253, implementation started in PR #255 and complet
 
 ### Operations, catalog and automation → `src/operations/`
 
-- `approval-gates.ts`
 - `automation-types.ts`
-- `catalog-policies.ts`
 - `field-conditions.ts`
-- `operation-explorer-legacy-bridge.ts`
-- `operation-explorer.ts`
-- `process-presentation.ts`
-- `run-notifications.ts`
-- `run-replays.ts`
-- `run-results.ts`
 
 Risk: **medium-high**. This is not necessarily one final module: approval, catalog/presentation and run lifecycle may become subdomains after import analysis. Keep this grouping provisional rather than forcing unrelated code behind one facade.
+
+Current #262 checkpoint: approval gates are canonical under `src/operations/approvals/`; catalog policy ownership under `src/operations/catalog/`; explorer model/legacy bridge under `src/operations/explorer/`; process presentation under `src/operations/presentation/`; and run notifications/replays/results under `src/operations/run/`. Root implementations/shims for these modules are removed. Shared automation contracts remain canonical under `src/automation/`.
 
 ## Files that stay at repository root
 

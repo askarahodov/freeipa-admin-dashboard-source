@@ -2,6 +2,8 @@
 
 These instructions apply to **every AI agent** working in this repository, regardless of model, tool, role, or entry point. Treat this file as the repository-level operating contract. Read it before starting work.
 
+Detailed execution rules and multi-agent coordination guidance are mandatory and live in [`docs/AI_AGENT_WORKFLOW.md`](docs/AI_AGENT_WORKFLOW.md). Test selection remains governed by [`docs/TESTING_POLICY.md`](docs/TESTING_POLICY.md).
+
 ## Mandatory delivery workflow
 
 Every task must move through the same lifecycle:

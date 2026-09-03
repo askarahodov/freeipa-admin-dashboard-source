@@ -3,7 +3,7 @@ import {
   decryptEncryptedBackupDomains,
   validateEncryptedBackupDocument,
   type DecryptedEncryptedBackupSelection,
-} from "./backup-encrypted-preview.ts";
+} from "./src/backup/preview/backup-encrypted-preview.ts";
 import type { BackupExportEnv, PortalBackupDomainExporter } from "./src/backup/export/backup-export.ts";
 import type { FullBackupDomainExporter } from "./backup-full-domains.ts";
 import {

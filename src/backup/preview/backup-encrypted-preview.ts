@@ -12,7 +12,7 @@ import {
   validateEncryptedDocumentBytes,
   validateEncryptedEnvelope,
   type EncryptedPayloadEnvelope,
-} from "../../../backup-encryption.ts";
+} from "../crypto/backup-encryption.ts";
 import {
   FULL_BACKUP_EXPORTERS,
   FullBackupValidationError,

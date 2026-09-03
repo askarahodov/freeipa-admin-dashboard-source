@@ -8,7 +8,7 @@ import {
   exportEncryptedBackup,
   type EncryptedBackupDocument,
   type EncryptedBackupExportOptions,
-} from "../../../backup-encrypted-export.ts";
+} from "../export/backup-encrypted-export.ts";
 import {
   BackupEncryptedPreviewError,
   decryptEncryptedBackupDomains,

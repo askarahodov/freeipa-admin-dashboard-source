@@ -18,7 +18,7 @@ import {
   validateEncryptedDocumentBytes,
   type BackupCryptoRandom,
   type EncryptedPayloadEnvelope,
-} from "../../../backup-encryption.ts";
+} from "../crypto/backup-encryption.ts";
 import { validateFullBackupDomainPayload, type FullBackupDomainExporter } from "../../../backup-full-domains.ts";
 import type { BackupExportEnv } from "./backup-export.ts";
 

@@ -3,7 +3,7 @@ import { sameOriginAdminMutation } from "../admin-session-authorization.ts";
 import {
   MaintenanceVerificationSmokeError,
   runMaintenanceVerificationSmoke,
-} from "../maintenance-verification-smoke.ts";
+} from "../src/recovery/maintenance/maintenance-verification-smoke.ts";
 
 export const MAINTENANCE_VERIFICATION_SMOKE_PATH = "/api/admin/maintenance/verification/smoke";
 

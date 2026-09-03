@@ -6,9 +6,9 @@ const gatePath = new URL("../worker/maintenance-mode-gate.ts", import.meta.url);
 const rootPath = new URL("../worker/maintenance-mode-root-entry.ts", import.meta.url);
 const schemaRootPath = new URL("../worker/schema-migrations-entry.ts", import.meta.url);
 const serviceRootPath = new URL("../worker/service-admin-root-entry.ts", import.meta.url);
-const repositoryPath = new URL("../maintenance-repository.ts", import.meta.url);
+const repositoryPath = new URL("../src/recovery/maintenance/maintenance-repository.ts", import.meta.url);
 const controlEntryPath = new URL("../worker/maintenance-control-entry.ts", import.meta.url);
-const modePath = new URL("../maintenance-mode.ts", import.meta.url);
+const modePath = new URL("../src/recovery/maintenance/maintenance-mode.ts", import.meta.url);
 
 function source(url) {
   return fs.readFileSync(url, "utf8");

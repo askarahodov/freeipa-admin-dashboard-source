@@ -10,7 +10,7 @@ import {
   loadMaintenanceState,
   prepareMaintenance,
   startMaintenanceVerification,
-} from "../maintenance-repository.ts";
+} from "../src/recovery/maintenance/maintenance-repository.ts";
 
 const operationId = "maintenance_11111111-1111-4111-8111-111111111111";
 const secret = "A".repeat(43);

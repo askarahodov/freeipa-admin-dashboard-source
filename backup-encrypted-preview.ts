@@ -26,7 +26,7 @@ import {
   type BackupImportDocument,
   type BackupImportPreviewResult,
   type BackupPreviewSchema,
-} from "./backup-import-preview.ts";
+} from "./src/backup/preview/backup-import-preview.ts";
 import type { BackupExportEnv, PortalBackupDomainExporter } from "./src/backup/export/backup-export.ts";
 import type { EncryptedBackupDocument } from "./backup-encrypted-export.ts";
 import {

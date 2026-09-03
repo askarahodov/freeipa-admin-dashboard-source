@@ -11,7 +11,7 @@ import {
   previewBackupImport,
   type BackupImportPreviewResult,
   type BackupPreviewSchema,
-} from "./backup-import-preview.ts";
+} from "./src/backup/preview/backup-import-preview.ts";
 import {
   BackupIsolatedStoreError,
   stageIsolatedRestore,

@@ -22,6 +22,11 @@ test("encrypted preview canonical owner exists without a root compatibility shim
   await assert.rejects(access(new URL("../backup-encrypted-preview.ts", import.meta.url)));
 });
 
+test("backup encryption canonical owner exists without a root compatibility shim", async () => {
+  await access(new URL("../src/backup/crypto/backup-encryption.ts", import.meta.url));
+  await assert.rejects(access(new URL("../backup-encryption.ts", import.meta.url)));
+});
+
 test("encrypted backup production code contains no mutation or maintenance path", async () => {
   for (const { path, text } of await sources()) {
     const runtimeText = text

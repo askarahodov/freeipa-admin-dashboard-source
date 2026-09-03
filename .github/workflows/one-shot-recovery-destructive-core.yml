@@ -1,0 +1,51 @@
+name: One-shot recovery destructive core
+
+on:
+  push:
+    branches:
+      - refactor/266-recovery-destructive-core
+    paths:
+      - .github/workflows/one-shot-recovery-destructive-core.yml
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: package.json
+      - name: Apply dependency-closed move
+        run: python .github/scripts/apply-recovery-destructive-core.py
+      - name: Run focused destructive recovery coverage
+        run: >-
+          node --experimental-strip-types --test
+          tests/recovery-orchestration-domain-path-contract.test.mjs
+          tests/recovery-candidate.test.mjs
+          tests/recovery-preflight.test.mjs
+          tests/recovery-point.test.mjs
+          tests/recovery-reconcile.test.mjs
+          tests/recovery-swap.test.mjs
+          tests/recovery-fault-matrix.test.mjs
+      - name: Verify structural diff
+        run: |
+          git diff --check
+          test ! -e recovery-candidate.ts
+          test ! -e recovery-preflight.ts
+          test ! -e recovery-point.ts
+          test ! -e recovery-reconcile.ts
+          test ! -e recovery-swap.ts
+      - name: Remove one-shot tooling and commit final batch
+        run: |
+          rm .github/scripts/apply-recovery-destructive-core.py
+          rm .github/workflows/one-shot-recovery-destructive-core.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "refactor(recovery): migrate destructive core ownership"
+          git push origin HEAD:refactor/266-recovery-destructive-core

@@ -24,6 +24,23 @@ jobs:
       - name: Apply dependency-closed operations move
         run: python3 .github/scripts/apply-operations-domain-batch.py
 
+      - name: Exclude ownership contract from legacy-literal scanner
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("tests/operation-explorer-domain-path-contract.test.mjs")
+          text = path.read_text()
+          old = '    if (relativePath === "tests/operation-explorer-domain-path-contract.test.mjs") continue;'
+          new = '''    if ([
+              "tests/operation-explorer-domain-path-contract.test.mjs",
+              "tests/operations-domain-path-contract.test.mjs",
+            ].includes(relativePath)) continue;'''
+          if old not in text:
+              raise SystemExit("legacy scanner exclusion anchor not found")
+          path.write_text(text.replace(old, new))
+          PY
+
       - name: Validate generated source diff
         shell: bash
         run: |

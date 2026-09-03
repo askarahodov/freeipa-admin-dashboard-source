@@ -20,7 +20,7 @@ import {
   verifyRecoveryEncryptedMaterial,
 } from "./src/recovery/adapters/recovery-local-adapters.ts";
 import { probeRecoveryLock } from "./src/recovery/foundation/recovery-lock.ts";
-import { verifyMaintenanceControllerSecret } from "./maintenance-mode.ts";
+import { verifyMaintenanceControllerSecret } from "./src/recovery/maintenance/maintenance-mode.ts";
 import { resolveRecoveryRoots, type RecoveryRoots } from "./src/recovery/foundation/recovery-paths.ts";
 import { runRecoveryPreflight } from "./src/recovery/orchestration/recovery-preflight.ts";
 import { createRecoveryPoint } from "./src/recovery/artifacts/recovery-point.ts";

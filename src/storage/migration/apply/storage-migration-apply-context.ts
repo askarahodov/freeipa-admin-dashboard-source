@@ -6,8 +6,8 @@ import {
 } from "../../../../db/portal-migration-registry.ts";
 import { portalMigrationsV4 } from "../../../../db/portal-migrations-v4.ts";
 import { inspectPortalSchemaWithManagedRegistry } from "../../../../db/portal-controlled-migrations.ts";
-import { loadMaintenanceState } from "../../../../maintenance-repository.ts";
-import { verifyMaintenanceControllerSecret } from "../../../../maintenance-mode.ts";
+import { loadMaintenanceState } from "../../../recovery/maintenance/maintenance-repository.ts";
+import { verifyMaintenanceControllerSecret } from "../../../recovery/maintenance/maintenance-mode.ts";
 import {
   loadMigrationOperation,
   type beginMigrationOperation,

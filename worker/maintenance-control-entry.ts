@@ -9,7 +9,7 @@ import {
   maintenanceConfirmation,
   type MaintenanceRow,
   type MaintenanceState,
-} from "../maintenance-mode.ts";
+} from "../src/recovery/maintenance/maintenance-mode.ts";
 import {
   MaintenanceRepositoryError,
   cancelMaintenance,
@@ -19,7 +19,7 @@ import {
   loadMaintenanceState,
   prepareMaintenance,
   startMaintenanceVerification,
-} from "../maintenance-repository.ts";
+} from "../src/recovery/maintenance/maintenance-repository.ts";
 
 export const MAINTENANCE_STATUS_PATH = "/api/admin/maintenance/status";
 export const MAINTENANCE_PREPARE_PATH = "/api/admin/maintenance/prepare";

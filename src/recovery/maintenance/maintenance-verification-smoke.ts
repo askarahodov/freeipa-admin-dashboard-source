@@ -1,4 +1,4 @@
-import type { AuditContext } from "./audit-log.ts";
+import type { AuditContext } from "../../../audit-log.ts";
 import { loadMaintenanceState } from "./maintenance-repository.ts";
 import { verifyMaintenanceControllerSecret, type MaintenanceRow } from "./maintenance-mode.ts";
 

@@ -11,7 +11,7 @@ import {
   publicMaintenanceStatus,
   validateMaintenanceVerification,
   verifyMaintenanceControllerSecret,
-} from "../maintenance-mode.ts";
+} from "../src/recovery/maintenance/maintenance-mode.ts";
 
 const activeRow = {
   id: "main",

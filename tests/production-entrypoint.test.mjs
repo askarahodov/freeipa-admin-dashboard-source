@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import { createProductionRuntimeOptions } from "../scripts/start-production.mjs";
+
+test("production entrypoint uses the hardened canonical schema registry", async () => {
+  const source = await readFile(new URL("../scripts/start-production.mjs", import.meta.url), "utf8");
+  assert.match(source, /from "\.\.\/db\/portal-migrations-hardened\.ts";/u);
+  assert.doesNotMatch(source, /from "\.\.\/db\/portal-migrations\.ts";/u);
+});
 
 test("production entrypoint composes the canonical runtime with one Worker artifact", async () => {
   const calls = [];

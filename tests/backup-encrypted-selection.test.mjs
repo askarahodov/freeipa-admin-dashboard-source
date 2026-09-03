@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { exportEncryptedBackup } from "../backup-encrypted-export.ts";
+import { exportEncryptedBackup } from "../src/backup/export/backup-encrypted-export.ts";
 import { FULL_BACKUP_TABLES } from "../backup-full-domains.ts";
 import {
   BackupEncryptedPreviewError,

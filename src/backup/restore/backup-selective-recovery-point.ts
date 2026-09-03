@@ -13,7 +13,7 @@ import {
   BackupEncryptedPreviewError,
   decryptEncryptedBackupDomains,
   validateEncryptedBackupDocument,
-} from "../../../backup-encrypted-preview.ts";
+} from "../preview/backup-encrypted-preview.ts";
 import type { BackupExportEnv } from "../export/backup-export.ts";
 import {
   FULL_BACKUP_TABLES,

@@ -7,7 +7,7 @@ import {
   MAX_SELECTIVE_RESTORE_JSON_BINDING_BYTES,
   buildSelectiveRestoreStatements,
   validateSelectiveRestoreCandidate,
-} from "../backup-selective-write-plan.ts";
+} from "../src/backup/restore/backup-selective-write-plan.ts";
 
 class FakeStatement {
   constructor(sql) {

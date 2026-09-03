@@ -40,7 +40,7 @@ import {
 import {
   BackupSelectiveWritePlanError,
   validateSelectiveRestoreCandidate,
-} from "./backup-selective-write-plan.ts";
+} from "./src/backup/restore/backup-selective-write-plan.ts";
 
 export class BackupSelectiveRestorePrepareError extends Error {
   readonly code: string;

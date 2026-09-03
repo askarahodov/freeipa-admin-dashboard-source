@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   parseRecoveryCli,
   runRecoveryCli,
-} from "../recovery-cli.ts";
+} from "../src/recovery/cli/recovery-cli.ts";
 
 const basePreflight = [
   "preflight",

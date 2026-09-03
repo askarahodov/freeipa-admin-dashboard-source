@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const core = await readFile(new URL("../recovery-cli.ts", import.meta.url), "utf8");
+const core = await readFile(new URL("../src/recovery/cli/recovery-cli.ts", import.meta.url), "utf8");
 const entry = await readFile(new URL("../scripts/portal-recovery.ts", import.meta.url), "utf8");
 
 test("recovery cli has no secret-value flags or bypass options", () => {

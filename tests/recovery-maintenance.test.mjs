@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   buildOfflineMaintenanceRecoveryScript,
   recoverFailedMaintenanceOffline,
-} from "../recovery-maintenance.ts";
+} from "../src/recovery/maintenance/recovery-maintenance.ts";
 
 const maintenanceOperationId = "maintenance_11111111-1111-4111-8111-111111111111";
 const recoveryHash = "a".repeat(64);

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { verifyPortalRecoveryOnline } from "../recovery-online-verification.ts";
+import { verifyPortalRecoveryOnline } from "../src/recovery/verification/recovery-online-verification.ts";
 
 const operationId = "maintenance_11111111-1111-4111-8111-111111111111";
 const controllerSecret = "A".repeat(43);

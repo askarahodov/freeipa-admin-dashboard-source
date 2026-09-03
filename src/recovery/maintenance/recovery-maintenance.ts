@@ -1,14 +1,14 @@
 import { randomUUID, timingSafeEqual } from "node:crypto";
 
-import { RecoveryError } from "./src/recovery/foundation/recovery-errors.ts";
+import { RecoveryError } from "../foundation/recovery-errors.ts";
 import {
   decryptPortalEnvelope,
   fingerprintRecoveryFile,
   inspectRecoveryDatabase,
   loadRecoveryMaintenance,
-} from "./src/recovery/adapters/recovery-local-adapters.ts";
-import { validateRecoveryReceipt, type RecoveryReceipt } from "./src/recovery/foundation/recovery-receipt.ts";
-import { runSqlite, verifySqliteIntegrity } from "./src/recovery/foundation/recovery-sqlite.ts";
+} from "../adapters/recovery-local-adapters.ts";
+import { validateRecoveryReceipt, type RecoveryReceipt } from "../foundation/recovery-receipt.ts";
+import { runSqlite, verifySqliteIntegrity } from "../foundation/recovery-sqlite.ts";
 
 export type OfflineMaintenanceRecoveryInput = {
   receipt: unknown;

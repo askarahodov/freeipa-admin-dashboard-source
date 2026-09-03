@@ -7,7 +7,7 @@ const productionPaths = [
   "../backup-restore-stage.ts",
   "../backup-restore-stage-repository.ts",
   "../src/backup/restore/backup-selective-recovery-point.ts",
-  "../backup-selective-write-plan.ts",
+  "../src/backup/restore/backup-selective-write-plan.ts",
   "../backup-selective-restore-prepare.ts",
   "../backup-selective-restore-commit.ts",
   "../worker/backup-selective-restore-entry.ts",

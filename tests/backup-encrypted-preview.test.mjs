@@ -62,7 +62,7 @@ test("decrypts once-derived key and projects plaintext immediately", async () =>
   const decrypted = await decryptEncryptedBackupDocument(original, "strong password", {
     async deriveKey(password, sourceSalt, iterations) {
       derives += 1;
-      const { deriveBackupKey } = await import("../backup-encryption.ts");
+      const { deriveBackupKey } = await import("../src/backup/crypto/backup-encryption.ts");
       return deriveBackupKey(password, sourceSalt, iterations);
     },
   });

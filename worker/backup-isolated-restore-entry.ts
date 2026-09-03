@@ -5,7 +5,7 @@ import { FULL_BACKUP_EXPORTERS, type FullBackupDomainExporter } from "../backup-
 import {
   BackupIsolatedRestoreError,
   testRestoreEncryptedBackupImport,
-} from "../backup-isolated-restore.ts";
+} from "../src/backup/restore/backup-isolated-restore.ts";
 import { PORTAL_BACKUP_DOMAINS, type PortalBackupDomain } from "../backup-manifest.ts";
 import { inspectPortalSchema, type PortalSchemaStatus } from "../db/portal-migrations.ts";
 

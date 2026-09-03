@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 
-const sourceUrl = new URL("../backup-selective-write-plan.ts", import.meta.url);
+const sourceUrl = new URL("../src/backup/restore/backup-selective-write-plan.ts", import.meta.url);
 
 test("selective restore write planner uses only fixed guarded DML", () => {
   const source = fs.readFileSync(sourceUrl, "utf8");

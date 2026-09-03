@@ -33,7 +33,7 @@ import {
   BackupRestorePlanError,
   createBackupRestorePlan,
   type BackupRestorePlan,
-} from "./backup-restore-plan.ts";
+} from "./src/backup/restore/backup-restore-plan.ts";
 import {
   BackupRestoreSelectionError,
   selectBackupRestoreDomains,

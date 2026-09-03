@@ -19,7 +19,9 @@ async function sources() {
 
 test("encrypted backup production code contains no mutation or maintenance path", async () => {
   for (const { path, text } of await sources()) {
-    const runtimeText = text.replaceAll("./src/backup/restore/backup-restore-selection.ts", "");
+    const runtimeText = text
+      .replaceAll("./src/backup/restore/backup-restore-selection.ts", "")
+      .replaceAll("./src/backup/restore/backup-restore-plan.ts", "");
     assert.doesNotMatch(text, /\b(?:INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|REINDEX)\b/i, path);
     assert.doesNotMatch(text, /SELECT\s+\*/i, path);
     assert.doesNotMatch(text, /maintenance[_ -]?mode/i, path);

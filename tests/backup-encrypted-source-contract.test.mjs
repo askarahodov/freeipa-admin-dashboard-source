@@ -17,6 +17,11 @@ async function sources() {
   return Promise.all(productionFiles.map(async (path) => ({ path, text: await readFile(new URL(`../${path}`, import.meta.url), "utf8") })));
 }
 
+test("backup encryption canonical owner exists without a root compatibility shim", async () => {
+  await access(new URL("../src/backup/crypto/backup-encryption.ts", import.meta.url));
+  await assert.rejects(access(new URL("../backup-encryption.ts", import.meta.url)));
+});
+
 test("encrypted preview canonical owner exists without a root compatibility shim", async () => {
   await access(new URL("../src/backup/preview/backup-encrypted-preview.ts", import.meta.url));
   await assert.rejects(access(new URL("../backup-encrypted-preview.ts", import.meta.url)));

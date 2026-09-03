@@ -59,15 +59,15 @@ test("accepts canonical SQLite DDL without IF NOT EXISTS", () => {
   );
 });
 
-test("migration three remains immutable while hardened production uses registry v4", () => {
+test("migration three remains immutable while hardened production uses registry v5", () => {
   const migrationSource = fs.readFileSync(new URL("../db/portal-migration-v3.ts", import.meta.url), "utf8");
   const hardenedSource = fs.readFileSync(new URL("../db/portal-migrations-hardened.ts", import.meta.url), "utf8");
   const registrySource = fs.readFileSync(new URL("../db/portal-migrations-v3.ts", import.meta.url), "utf8");
 
   assert.doesNotMatch(migrationSource, /\b(?:INSERT|UPDATE|DELETE|REPLACE)\b/i);
   assert.doesNotMatch(migrationSource, /\b(?:DROP|ALTER)\b/i);
-  assert.equal(hardenedSource.includes("portalMigrationsV4 as portalMigrations"), true);
-  assert.equal(hardenedSource.includes("ensurePortalSchemaV4"), true);
+  assert.equal(hardenedSource.includes("portalMigrationsV5 as portalMigrations"), true);
+  assert.equal(hardenedSource.includes("ensurePortalSchemaV5"), true);
   assert.equal(registrySource.includes("portalMaintenanceStateTable"), true);
   assert.equal(registrySource.includes("maintenance-mode-foundation"), true);
 });

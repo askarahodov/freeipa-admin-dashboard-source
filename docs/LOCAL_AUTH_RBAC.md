@@ -13,6 +13,7 @@ PORTAL_BOOTSTRAP_ADMIN_PASSWORD=replace-with-a-strong-password-at-least-12-chara
 PORTAL_BOOTSTRAP_ADMIN_NAME=Локальный администратор
 PORTAL_SESSION_TTL_HOURS=12
 PORTAL_DEFAULT_ROLE=viewer
+PORTAL_CLIENT_IP_SOURCE=none
 ```
 
 Перед запуском placeholder-пароль необходимо заменить. Runtime проверяет local bootstrap credentials до запуска FreeIPA Gateway/Worker и прекращает startup, если username/password отсутствуют, пароль короче 12 символов или оставлен документированный placeholder.
@@ -32,11 +33,21 @@ PORTAL_DEFAULT_ROLE=viewer
 - PBKDF2-SHA-256 hash и отдельную случайную salt;
 - число итераций PBKDF2;
 - роль `viewer`, `operator` или `admin`;
-- состояние блокировки;
-- счётчик неудачных попыток;
+- legacy-поля `failed_attempts` / `locked_until`, которые больше не используются для блокировки входа и очищаются после успешной аутентификации;
 - время последнего входа.
 
 Сырые пароли не сохраняются.
+
+### `portal_login_rate_limits`
+
+Persistent anti-abuse state создаётся сервером при первом local login. Таблица содержит только:
+
+- scope `client` или `username`;
+- SHA-256 subject hash;
+- число ошибок в текущем окне;
+- начало окна, `blocked_until` и `updated_at`.
+
+Сырые IP, username и пароли в limiter state не сохраняются. Записи старше 24 часов удаляются во время обработки последующих неудачных попыток.
 
 ### `portal_sessions`
 
@@ -49,7 +60,7 @@ PORTAL_DEFAULT_ROLE=viewer
 
 После смены пароля, блокировки пользователя или ручного отзыва сессий все его session tokens удаляются.
 
-## Вход
+## Вход и brute-force protection
 
 ```text
 POST /api/auth/login
@@ -57,7 +68,56 @@ GET  /api/auth/session
 POST /api/auth/logout
 ```
 
-После пяти неправильных паролей учётная запись блокируется на 15 минут. Неаутентифицированные API-запросы получают HTTP 401, а HTML-запросы перенаправляются на `/login`.
+Логин защищён двумя persistent лимитами: по trusted client identity и по нормализованному username. Ошибочный пароль больше не увеличивает счётчик внутри `portal_users` и не может заблокировать конкретную учётную запись на 15 минут.
+
+Текущая встроенная policy:
+
+- client: 20 ошибок за 60 секунд;
+- username: 8 ошибок за 5 минут;
+- после достижения лимита применяется bounded exponential cooldown от 1 до 60 секунд;
+- HTTP 429 содержит `Retry-After`;
+- после окончания cooldown корректный пароль снова может быть использован;
+- успешный вход очищает username limiter, но не client limiter;
+- limiter state сохраняется в D1/SQLite и переживает restart процесса.
+
+Неизвестный username, отключённый пользователь и неверный пароль проходят одинаковый PBKDF2 credential path и получают одинаковый публичный ответ `Неверный логин или пароль`. Это уменьшает возможность account enumeration по body/status и по очевидной разнице вычислительной работы.
+
+### Trusted client identity
+
+По умолчанию:
+
+```env
+PORTAL_CLIENT_IP_SOURCE=none
+```
+
+В этом режиме `X-Forwarded-For`, `Forwarded`, `X-Real-IP` и другие переданные клиентом адресные заголовки не используются. Client limiter работает с fail-closed anonymous bucket, а username limiter остаётся независимым.
+
+Для прямого Cloudflare Worker deployment допустим явный режим:
+
+```env
+PORTAL_CLIENT_IP_SOURCE=cloudflare
+```
+
+Он использует только `CF-Connecting-IP`, поэтому его нельзя включать для произвольного self-hosted HTTP origin, где этот заголовок может быть прислан самим клиентом.
+
+Для контролируемого reverse proxy используется authenticated boundary:
+
+```env
+PORTAL_CLIENT_IP_SOURCE=trusted-proxy
+PORTAL_TRUSTED_PROXY_SECRET=<long-random-server-side-secret>
+```
+
+Reverse proxy обязан удалить входящий `X-Portal-Proxy-Secret`, установить собственное значение этого заголовка и сформировать `X-Forwarded-For`. При неверном/отсутствующем proxy secret forwarded address игнорируется. Общий TLS/security-header proxy profile будет централизован в #53; до этого не следует вводить дополнительные доверенные forwarded-header пути.
+
+### Recovery последнего администратора
+
+Rate limiter не создаёт permanent account lockout: максимальный cooldown ограничен 60 секундами. Для последнего администратора сначала дождитесь `Retry-After` и повторите вход с корректным паролем.
+
+Смена пароля через серверный admin API одновременно отзывает sessions и очищает username limiter state. Это является штатным emergency unlock для учётной записи, когда доступна другая admin session. Если другой admin отсутствует, не удаляйте строки `portal_users` и не отключайте RBAC-проверки: дождитесь bounded cooldown и используйте штатный пароль/recovery workflow. Limiter не требует изменения или удаления admin account.
+
+Rate-limit audit event `auth.login.rate_limited` не содержит password, raw IP или username; в metadata записываются только limiter scope и `Retry-After`.
+
+Неаутентифицированные API-запросы получают HTTP 401, а HTML-запросы перенаправляются на `/login`.
 
 ## Управление доступом
 

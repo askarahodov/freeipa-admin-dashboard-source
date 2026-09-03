@@ -6,6 +6,7 @@ import { authenticateLocalUser, createLocalUser, localSessionCookie, resetLocalU
 class LocalAuthMemoryD1 {
   users = [];
   sessions = [];
+  usernameLimiterClears = 0;
 
   prepare(sql) {
     let values = [];
@@ -37,6 +38,9 @@ class LocalAuthMemoryD1 {
         }
         if (normalized.startsWith("DELETE FROM portal_users WHERE id")) {
           this.users = this.users.filter((item) => item.id !== values[0]); return { success: true };
+        }
+        if (normalized.startsWith("DELETE FROM portal_login_rate_limits WHERE scope = 'username' AND subject_hash = ?")) {
+          this.usernameLimiterClears += 1; return { success: true };
         }
         if (normalized.startsWith("UPDATE portal_sessions SET last_seen_at")) {
           const row = this.sessions.find((item) => item.id === values[1]); if (row) row.last_seen_at = values[0]; return { success: true };
@@ -102,13 +106,14 @@ test("protects the last active administrator", async () => {
   assert.equal(second.role, "admin");
 });
 
-test("password reset revokes sessions and invalidates the old password", async () => {
+test("password reset revokes sessions, clears username throttling and invalidates the old password", async () => {
   const context = env();
   const user = await createLocalUser(context, { username: "viewer01", password: "initial-password-strong", role: "viewer" });
   await authenticateLocalUser(context, "viewer01", "initial-password-strong");
   assert.equal(context.DB.sessions.length, 1);
   await resetLocalUserPassword(context, user.id, "replacement-password-strong");
   assert.equal(context.DB.sessions.length, 0);
+  assert.equal(context.DB.usernameLimiterClears, 1);
   await assert.rejects(() => authenticateLocalUser(context, "viewer01", "initial-password-strong"), /Неверный логин или пароль/);
   const login = await authenticateLocalUser(context, "viewer01", "replacement-password-strong");
   assert.equal(login.session.username, "viewer01");

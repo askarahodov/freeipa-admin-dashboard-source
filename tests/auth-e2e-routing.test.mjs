@@ -22,10 +22,12 @@ test("authentication changes select authentication coverage", () => {
   assert.deepEqual(buildE2ETestPlan(["app/login/page.tsx"]).browserSpecs, ["specs/auth.spec.mjs", "specs/ui-quality.spec.mjs"]);
 });
 
-test("RBAC changes select only RBAC coverage", () => {
-  const plan = buildE2ETestPlan(["portal-permissions.ts"]);
-  assert.deepEqual(plan.categories, ["rbac"]);
-  assert.deepEqual(plan.browserSpecs, ["specs/rbac-user.spec.mjs", "specs/role-restrictions.spec.mjs"]);
+test("RBAC changes select only RBAC coverage, including canonical auth contracts", () => {
+  for (const path of ["portal-permissions.ts", "src/auth/portal-permissions.ts", "src/auth/portal-route-contract.ts"]) {
+    const plan = buildE2ETestPlan([path]);
+    assert.deepEqual(plan.categories, ["rbac"], path);
+    assert.deepEqual(plan.browserSpecs, ["specs/rbac-user.spec.mjs", "specs/role-restrictions.spec.mjs"], path);
+  }
 });
 
 test("integration domains route to their own browser suites", () => {

@@ -76,7 +76,7 @@ test("decrypts and projects only the selected encrypted domains", async () => {
     {
       async decrypt(input) {
         decryptedDomains.push(input.context.domain);
-        const { decryptBackupPayload } = await import("../backup-encryption.ts");
+        const { decryptBackupPayload } = await import("../src/backup/crypto/backup-encryption.ts");
         return decryptBackupPayload(input);
       },
     },

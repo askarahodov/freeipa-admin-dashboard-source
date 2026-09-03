@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { resolveLegacyOperationTarget } from "../operation-explorer-legacy-bridge";
+import { resolveLegacyOperationTarget } from "../src/operations/explorer/operation-explorer-legacy-bridge";
 import {
   buildOperationTimeline,
   formatOperationDuration,
@@ -14,7 +14,7 @@ import {
   type OperationRunStatus,
   type OperationSort,
   type OperationStatusFilter,
-} from "../operation-explorer";
+} from "../src/operations/explorer/operation-explorer";
 
 type RunsPayload = { runs?: OperationRun[]; error?: string };
 type OperationsMount = { node: HTMLElement; page: HTMLElement };

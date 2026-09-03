@@ -6,7 +6,7 @@ import {
   formatOperationDuration,
   normalizeOperationQuery,
   queryOperationRuns,
-} from "../operation-explorer.ts";
+} from "../src/operations/explorer/operation-explorer.ts";
 
 function run(values = {}) {
   return {

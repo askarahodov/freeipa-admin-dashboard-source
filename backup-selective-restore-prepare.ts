@@ -11,7 +11,7 @@ import {
   testRestoreEncryptedBackupImport,
   type BackupIsolatedRestoreResult,
 } from "./backup-isolated-restore.ts";
-import type { BackupPreviewSchema } from "./backup-import-preview.ts";
+import type { BackupPreviewSchema } from "./src/backup/preview/backup-import-preview.ts";
 import type { PortalBackupDomain } from "./backup-manifest.ts";
 import {
   BackupRestoreStageError,

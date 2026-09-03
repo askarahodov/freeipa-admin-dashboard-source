@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { BackupIsolatedRestoreError } from "../backup-isolated-restore.ts";
+import { BackupIsolatedRestoreError } from "../src/backup/restore/backup-isolated-restore.ts";
 import { handleIsolatedBackupRestoreRequest } from "../worker/backup-isolated-restore-entry.ts";
 
 const context = { identity: "admin@example.test", role: "admin", groups: ["admins"] };

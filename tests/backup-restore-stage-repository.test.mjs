@@ -6,7 +6,7 @@ import {
   cancelRestoreStage,
   createRestoreStage,
   loadRestoreStage,
-} from "../backup-restore-stage-repository.ts";
+} from "../src/backup/restore/backup-restore-stage-repository.ts";
 
 function resultChanges(changes) {
   return { meta: { changes } };

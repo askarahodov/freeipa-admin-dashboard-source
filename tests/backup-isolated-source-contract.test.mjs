@@ -7,7 +7,7 @@ const productionFiles = [
   "src/backup/restore/backup-restore-plan.ts",
   "src/backup/restore/backup-isolated-store.ts",
   "src/backup/restore/backup-isolated-verification.ts",
-  "backup-isolated-restore.ts",
+  "src/backup/restore/backup-isolated-restore.ts",
   "worker/backup-isolated-restore-entry.ts",
 ];
 
@@ -60,7 +60,7 @@ test("production D1 access is limited to existing read-only registries and schem
       assert.doesNotMatch(source, /env\.DB\.(?:prepare|batch|exec)/);
       continue;
     }
-    if (path === "worker/backup-isolated-restore-entry.ts" || path === "backup-isolated-restore.ts") {
+    if (path === "worker/backup-isolated-restore-entry.ts" || path === "src/backup/restore/backup-isolated-restore.ts") {
       assert.doesNotMatch(source, /env\.DB\.(?:prepare|batch|exec)/);
       continue;
     }

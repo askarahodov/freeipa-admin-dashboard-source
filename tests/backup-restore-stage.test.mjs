@@ -6,7 +6,7 @@ import {
   createRestoreStageSecret,
   hashRestoreStageSecret,
   verifyRestoreStageSecret,
-} from "../backup-restore-stage.ts";
+} from "../src/backup/restore/backup-restore-stage.ts";
 
 const input = {
   operation: "restore",

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 
 const productionFiles = [
   "backup-encryption.ts",
@@ -16,6 +16,11 @@ const productionFiles = [
 async function sources() {
   return Promise.all(productionFiles.map(async (path) => ({ path, text: await readFile(new URL(`../${path}`, import.meta.url), "utf8") })));
 }
+
+test("encrypted preview canonical owner exists without a root compatibility shim", async () => {
+  await access(new URL("../src/backup/preview/backup-encrypted-preview.ts", import.meta.url));
+  await assert.rejects(access(new URL("../backup-encrypted-preview.ts", import.meta.url)));
+});
 
 test("encrypted backup production code contains no mutation or maintenance path", async () => {
   for (const { path, text } of await sources()) {

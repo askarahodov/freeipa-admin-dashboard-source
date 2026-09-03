@@ -29,7 +29,7 @@ import {
   BackupSelectiveRecoveryPointError,
   verifySelectiveRecoveryPoint,
   type VerifiedSelectiveRecoveryPoint,
-} from "./backup-selective-recovery-point.ts";
+} from "./src/backup/restore/backup-selective-recovery-point.ts";
 import {
   BackupSelectiveRestorePolicyError,
   validateSelectiveRestoreDomains,

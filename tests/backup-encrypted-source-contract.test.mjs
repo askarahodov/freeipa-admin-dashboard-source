@@ -5,7 +5,7 @@ import { readFile } from "node:fs/promises";
 const productionFiles = [
   "backup-encryption.ts",
   "backup-full-domains.ts",
-  "backup-encrypted-export.ts",
+  "src/backup/export/backup-encrypted-export.ts",
   "src/backup/preview/backup-full-projections.ts",
   "backup-encrypted-preview.ts",
   "worker/backup-encrypted-export-entry.ts",

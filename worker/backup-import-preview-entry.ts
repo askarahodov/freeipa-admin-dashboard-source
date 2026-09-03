@@ -7,7 +7,7 @@ import {
   previewBackupImport,
   validateBackupImportDocument,
   type BackupPreviewSchema,
-} from "../backup-import-preview.ts";
+} from "../src/backup/preview/backup-import-preview.ts";
 import { inspectPortalSchema, type PortalSchemaStatus } from "../db/portal-migrations.ts";
 
 const MAX_BACKUP_IMPORT_PREVIEW_BYTES = 10 * 1024 * 1024;

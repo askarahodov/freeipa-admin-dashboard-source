@@ -81,7 +81,7 @@ Current #265 checkpoint: the read-only full-backup projection owner is canonical
 - `recovery-sqlite.ts`
 - `recovery-swap.ts`
 
-Risk: **high**. Recovery owns destructive/offline flows, atomic swap, locks, maintenance state and secret handling. It should move only after backup/storage paths are stable and recovery container/script entrypoints are mapped.
+Risk: **high**. Recovery owns destructive/offline flows, atomic swap, locks, maintenance state and secret handling. It should move only after backup/storage boundaries are explicit and recovery container/script entrypoints are mapped.
 
 ### Storage and migrations → `src/storage/`
 

@@ -6,7 +6,7 @@ import {
   BackupEncryptedExportError,
   exportEncryptedBackup,
   parseEncryptedBackupExportRequest,
-} from "../backup-encrypted-export.ts";
+} from "../src/backup/export/backup-encrypted-export.ts";
 
 function emptyPayload(domain, schemaVersion = 1) {
   const tables = FULL_BACKUP_TABLES.find(([item]) => item === domain)[1];

@@ -4,7 +4,7 @@ import {
   exportEncryptedBackup,
   parseEncryptedBackupExportRequest,
   type EncryptedBackupDocument,
-} from "../backup-encrypted-export.ts";
+} from "../src/backup/export/backup-encrypted-export.ts";
 import { FULL_BACKUP_EXPORTERS, type FullBackupDomainExporter } from "../backup-full-domains.ts";
 import type { PortalBackupDomain } from "../backup-manifest.ts";
 import type { BackupExportEnv } from "../src/backup/export/backup-export.ts";

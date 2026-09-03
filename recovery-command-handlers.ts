@@ -2,7 +2,7 @@ import { randomUUID, timingSafeEqual } from "node:crypto";
 import { lstat, readFile, realpath, stat } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 
-import { MAX_ENCRYPTED_BACKUP_DOCUMENT_BYTES } from "./backup-encryption.ts";
+import { MAX_ENCRYPTED_BACKUP_DOCUMENT_BYTES } from "./src/backup/crypto/backup-encryption.ts";
 import { loadFullRestoreSource } from "./recovery-backup-source.ts";
 import { buildRecoveryCandidate } from "./recovery-candidate.ts";
 import type {

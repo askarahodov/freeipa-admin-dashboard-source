@@ -7,7 +7,7 @@ import {
 import {
   decryptEncryptedBackupDomains,
   validateEncryptedBackupDocument,
-} from "./backup-encrypted-preview.ts";
+} from "./src/backup/preview/backup-encrypted-preview.ts";
 import {
   FULL_BACKUP_TABLES,
   type FullBackupDomainPayload,

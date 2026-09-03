@@ -7,7 +7,7 @@ const productionFiles = [
   "backup-full-domains.ts",
   "src/backup/export/backup-encrypted-export.ts",
   "src/backup/preview/backup-full-projections.ts",
-  "backup-encrypted-preview.ts",
+  "src/backup/preview/backup-encrypted-preview.ts",
   "worker/backup-encrypted-export-entry.ts",
   "worker/backup-encrypted-preview-entry.ts",
   "worker/backup-encrypted-root-entry.ts",
@@ -21,7 +21,9 @@ test("encrypted backup production code contains no mutation or maintenance path"
   for (const { path, text } of await sources()) {
     const runtimeText = text
       .replaceAll("./src/backup/restore/backup-restore-selection.ts", "")
-      .replaceAll("./src/backup/restore/backup-restore-plan.ts", "");
+      .replaceAll("./src/backup/restore/backup-restore-plan.ts", "")
+      .replaceAll("../restore/backup-restore-selection.ts", "")
+      .replaceAll("../restore/backup-restore-plan.ts", "");
     assert.doesNotMatch(text, /\b(?:INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|REINDEX)\b/i, path);
     assert.doesNotMatch(text, /SELECT\s+\*/i, path);
     assert.doesNotMatch(text, /maintenance[_ -]?mode/i, path);

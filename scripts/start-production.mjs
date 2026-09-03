@@ -10,7 +10,7 @@ import { createWorkerScheduler } from "../runtime/worker-scheduler.mjs";
 import { createD1SqliteAdapter } from "../runtime/d1-sqlite-adapter.mjs";
 import { openNodeSqliteDriver } from "../runtime/node-sqlite-driver.mjs";
 import { configureSqliteRuntimeDatabase } from "../runtime/sqlite-runtime-store.mjs";
-import { ensurePortalSchema } from "../db/portal-migrations.ts";
+import { ensurePortalSchema } from "../db/portal-migrations-hardened.ts";
 import { startProductionRuntime } from "../runtime/production-runtime.mjs";
 
 async function startGateway({ env }) {

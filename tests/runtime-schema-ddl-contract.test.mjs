@@ -13,14 +13,17 @@ const ignoredDirectories = new Set([
   "tests",
 ]);
 const ddlOwners = new Set([
+  "db/portal-login-rate-limit-schema.ts",
   "db/portal-migration-v1.ts",
   "db/portal-migration-v2.ts",
   "db/portal-migration-v3.ts",
   "db/portal-migration-v4.ts",
+  "db/portal-migration-v5.ts",
   "db/portal-migrations.ts",
   "db/portal-migrations-v2.ts",
   "db/portal-migrations-v3.ts",
   "db/portal-migrations-v4.ts",
+  "db/portal-migrations-v5.ts",
   "db/portal-maintenance-schema.ts",
   "db/portal-restore-stage-schema.ts",
   "db/portal-schema.ts",

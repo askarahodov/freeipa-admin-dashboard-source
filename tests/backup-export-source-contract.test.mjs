@@ -7,7 +7,7 @@ async function source(path) {
 }
 
 test("sanitized backup domain exporters remain read-only and secret-free", async () => {
-  const exporterSource = await source("backup-export-domains.ts");
+  const exporterSource = await source("src/backup/export/backup-export-domains.ts");
   assert.doesNotMatch(exporterSource, /\b(?:INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|REINDEX)\b/i);
   assert.doesNotMatch(exporterSource, /SELECT\s+\*/i);
   assert.doesNotMatch(exporterSource, /\bfetch\s*\(/);

@@ -54,7 +54,7 @@ test("documentation navigation exposes the normalized reference layer as current
 });
 
 test("permissions reference tracks the canonical built-in permission order", async () => {
-  const [source, reference] = await Promise.all([read("portal-permissions.ts"), read("docs/reference/PERMISSIONS.md")]);
+  const [source, reference] = await Promise.all([read("src/auth/portal-permissions.ts"), read("docs/reference/PERMISSIONS.md")]);
   const codes = permissionCodes(source);
   assert.equal(codes.length, 14, "unexpected canonical permission count; review this contract intentionally");
   for (const code of codes) assert.match(reference, new RegExp(`\\\`${code.replaceAll(".", "\\.")}\\\``));

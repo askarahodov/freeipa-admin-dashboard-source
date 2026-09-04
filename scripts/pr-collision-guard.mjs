@@ -4,6 +4,8 @@ const HIGH_CONFLICT_EXACT_PATHS = new Set([
   "package.json",
   "package-lock.json",
   "portal-permissions.ts",
+  "src/auth/portal-permissions.ts",
+  "src/auth/portal-route-contract.ts",
   "local-auth.ts",
   "admin-session-authorization.ts",
   "docs/SOURCE_OF_TRUTH.md",

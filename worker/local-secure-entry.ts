@@ -11,7 +11,7 @@ import {
   localAdminSessionToken,
   sameOriginAdminMutation,
   serviceAdminTokenAuthorized,
-} from "../admin-session-authorization";
+} from "../src/auth/admin-session-authorization";
 import {
   authenticateLocalUser,
   bootstrapLocalAdmin,
@@ -28,7 +28,7 @@ import {
   updateLocalUser,
   type LocalAuthEnv,
   type LocalSession,
-} from "../local-auth";
+} from "../src/auth/local-auth";
 import { STORAGE_INTEGRITY_PATH } from "../src/storage/integrity/storage-integrity-contract.ts";
 import { STORAGE_MIGRATION_PREFLIGHT_PATH } from "../src/storage/migration/preflight/storage-migration-preflight-contract.ts";
 import { handleStorageIntegrityRequest } from "./storage-integrity-entry.ts";

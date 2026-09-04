@@ -18,7 +18,6 @@ test("ordinary UI changes run UI coverage but not unrelated RBAC or integrations
 });
 
 test("authentication changes select authentication coverage", () => {
-  assert.deepEqual(categoriesForPath("local-auth.ts"), ["auth"]);
   assert.deepEqual(categoriesForPath("src/auth/local-auth.ts"), ["auth"]);
   assert.deepEqual(categoriesForPath("src/auth/local-session-management.ts"), ["auth"]);
   assert.deepEqual(categoriesForPath("src/auth/admin-session-authorization.ts"), ["auth", "rbac"]);
@@ -26,7 +25,7 @@ test("authentication changes select authentication coverage", () => {
 });
 
 test("RBAC changes select only RBAC coverage, including canonical auth contracts", () => {
-  for (const path of ["portal-permissions.ts", "src/auth/portal-permissions.ts", "src/auth/portal-route-contract.ts"]) {
+  for (const path of ["src/auth/portal-permissions.ts", "src/auth/portal-route-contract.ts"]) {
     const plan = buildE2ETestPlan([path]);
     assert.deepEqual(plan.categories, ["rbac"], path);
     assert.deepEqual(plan.browserSpecs, ["specs/rbac-user.spec.mjs", "specs/role-restrictions.spec.mjs"], path);

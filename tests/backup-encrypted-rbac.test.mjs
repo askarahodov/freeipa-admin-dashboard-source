@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { handleEncryptedBackupRoute } from "../worker/backup-encrypted-root-entry.ts";
-import { portalPermissionOrder, portalRolePermissions } from "../portal-permissions.ts";
+import { portalPermissionOrder, portalRolePermissions } from "../src/auth/portal-permissions.ts";
 
 const request = (path) => new Request(`https://portal.test${path}`, { method: "POST", headers: { origin: "https://portal.test" }, body: "{}" });
 

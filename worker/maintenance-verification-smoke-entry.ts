@@ -1,5 +1,5 @@
 import type { AuditContext } from "../audit-log.ts";
-import { sameOriginAdminMutation } from "../admin-session-authorization.ts";
+import { sameOriginAdminMutation } from "../src/auth/admin-session-authorization.ts";
 import {
   MaintenanceVerificationSmokeError,
   runMaintenanceVerificationSmoke,

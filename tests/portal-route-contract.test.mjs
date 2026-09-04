@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { portalPermissionOrder } from "../portal-permissions.ts";
+import { portalPermissionOrder } from "../src/auth/portal-permissions.ts";
 import {
   findPortalRouteContract,
   portalRouteContracts,
-} from "../portal-route-contract.ts";
+} from "../src/auth/portal-route-contract.ts";
 
 const allowedMethods = new Set(["GET", "POST", "PUT", "DELETE"]);
 const allowedAuth = new Set([

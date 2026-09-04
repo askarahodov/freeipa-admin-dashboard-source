@@ -24,14 +24,16 @@ Existing `app/`, `runtime/`, `worker/`, `db/`, `scripts/`, `tests/` and `e2e/` r
 
 ### Auth, access and shared contracts → `src/auth/`
 
-- `admin-session-authorization.ts`
-- `local-auth.ts`
-- `local-session-management.ts`
-- `portal-permissions.ts`
-- `portal-route-contract.ts`
-- `stable-error-contract.ts`
+- `src/auth/admin-session-authorization.ts`
+- `src/auth/local-auth.ts`
+- `src/auth/local-session-management.ts`
+- `src/auth/portal-permissions.ts`
+- `src/auth/portal-route-contract.ts`
+- `src/auth/stable-error-contract.ts`
 
 Risk: **high**. These modules participate in authorization, session and route contracts. Move only after all `app/`, `worker/`, `runtime/`, tests and scripts importing them are enumerated. Do not combine this move with auth/RBAC behavior changes.
+
+Current #267 checkpoint: all six auth/access/contract implementations are canonical under `src/auth/`; active app/Worker/test/script consumers use canonical paths directly, auth/RBAC E2E routing and collision ownership are keyed to `src/auth/`, and the temporary root compatibility shims are removed. Authorization, cookie/session, RBAC, route metadata and stable-error semantics are unchanged.
 
 ### Backup → `src/backup/`
 

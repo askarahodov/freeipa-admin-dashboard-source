@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 
-import { sameOriginAdminMutation } from "../admin-session-authorization.ts";
+import { sameOriginAdminMutation } from "../src/auth/admin-session-authorization.ts";
 
 const runtime = fs.readFileSync(new URL("../worker/local-secure-entry.ts", import.meta.url), "utf8");
 const sessionRuntime = fs.readFileSync(new URL("../worker/session-management-entry.ts", import.meta.url), "utf8");

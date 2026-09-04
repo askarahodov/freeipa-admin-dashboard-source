@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
-import { stableErrorContracts, getStableErrorContract } from "../stable-error-contract.ts";
+import { stableErrorContracts, getStableErrorContract } from "../src/auth/stable-error-contract.ts";
 
 test("stable error registry has unique namespace/code ownership", () => {
   const seen = new Map();

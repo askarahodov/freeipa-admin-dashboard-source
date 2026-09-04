@@ -1,6 +1,6 @@
 import localRuntime from "./local-secure-entry";
 import { appendAuditEvent, createAuditContext } from "../audit-log";
-import { resolveLocalSession, type LocalAuthEnv } from "../local-auth";
+import { resolveLocalSession, type LocalAuthEnv } from "../src/auth/local-auth";
 
 type RuntimeEnv = NonNullable<Parameters<typeof localRuntime.fetch>[1]> & LocalAuthEnv & {
   DB?: D1Database;

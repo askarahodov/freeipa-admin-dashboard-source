@@ -6,7 +6,7 @@ import {
   portalPermissionOrder,
   portalRolePermissions,
   roleHasPermission,
-} from "../portal-permissions.ts";
+} from "../src/auth/portal-permissions.ts";
 import { backupPreviewAccess } from "../worker/backup-import-preview-root-entry.ts";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");

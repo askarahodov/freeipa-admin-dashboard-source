@@ -3,7 +3,7 @@ import {
   type AuditContext,
   type AuditEventInput,
 } from "../audit-log.ts";
-import { sameOriginAdminMutation } from "../admin-session-authorization.ts";
+import { sameOriginAdminMutation } from "../src/auth/admin-session-authorization.ts";
 import {
   adminMaintenanceStatus,
   maintenanceConfirmation,

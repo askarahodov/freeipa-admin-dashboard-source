@@ -1,8 +1,8 @@
 import diagnosticsRuntime from "./diagnostics-entry";
 import { appendAuditEvent, createAuditContext } from "../audit-log";
-import { sameOriginAdminMutation } from "../admin-session-authorization";
-import { resolveLocalSession, type LocalAuthEnv } from "../local-auth";
-import { listLocalPortalSessions, revokeLocalPortalSession } from "../local-session-management";
+import { sameOriginAdminMutation } from "../src/auth/admin-session-authorization";
+import { resolveLocalSession, type LocalAuthEnv } from "../src/auth/local-auth";
+import { listLocalPortalSessions, revokeLocalPortalSession } from "../src/auth/local-session-management";
 
 type RuntimeEnv = NonNullable<Parameters<typeof diagnosticsRuntime.fetch>[1]> & LocalAuthEnv & {
   PORTAL_IDENTITY_MODE?: string;

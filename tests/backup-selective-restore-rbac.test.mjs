@@ -5,7 +5,7 @@ import {
   portalPermissionMetadata,
   portalPermissionOrder,
   portalRolePermissions,
-} from "../portal-permissions.ts";
+} from "../src/auth/portal-permissions.ts";
 import { handleSelectiveBackupRoute } from "../worker/backup-selective-restore-dispatch.ts";
 
 const paths = [

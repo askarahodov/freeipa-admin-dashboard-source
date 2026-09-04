@@ -1,5 +1,5 @@
 import rootRuntime from "./maintenance-mode-root-entry.ts";
-import { serviceAdminTokenAuthorized } from "../admin-session-authorization.ts";
+import { serviceAdminTokenAuthorized } from "../src/auth/admin-session-authorization.ts";
 import { ensurePortalSchema, type PortalSchemaStatus } from "../db/portal-migrations-hardened.ts";
 import { STORAGE_INTEGRITY_PATH } from "../src/storage/integrity/storage-integrity-contract.ts";
 import { STORAGE_MIGRATION_PREFLIGHT_PATH } from "../src/storage/migration/preflight/storage-migration-preflight-contract.ts";

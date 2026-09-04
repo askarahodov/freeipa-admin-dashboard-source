@@ -96,7 +96,7 @@
 | [`reference/PERMISSIONS.md`](reference/PERMISSIONS.md) | Built-in roles and canonical permission codes |
 | [`reference/CONFIGURATION.md`](reference/CONFIGURATION.md) | Production/runtime/dynamic/recovery/test configuration classes |
 | [`reference/ERROR_CODES.md`](reference/ERROR_CODES.md) | Verified stable machine-readable error/status codes |
-| [`ERROR_CODE_OWNERSHIP.md`](ERROR_CODE_OWNERSHIP.md) | `stable-error-contract.ts` ownership/verification rules |
+| [`ERROR_CODE_OWNERSHIP.md`](ERROR_CODE_OWNERSHIP.md) | `src/auth/stable-error-contract.ts` ownership/verification rules |
 
 Machine-readable ownership work referenced by the documentation platform is complete: RBAC ownership #119, route registry #121, supported configuration contract #123 and stable error-code ownership #124. Domain code/tests remain behavioral owners.
 

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
 
-import { isAdminIntegrationPath } from "../admin-session-authorization.ts";
+import { isAdminIntegrationPath } from "../src/auth/admin-session-authorization.ts";
 import { STORAGE_MIGRATION_PREFLIGHT_PATH } from "../src/storage/migration/preflight/storage-migration-preflight-contract.ts";
 
 const [

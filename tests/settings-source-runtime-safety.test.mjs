@@ -7,7 +7,7 @@ import test from "node:test";
 import {
   portalRolePermissions,
   resolvePortalRole,
-} from "../portal-permissions.ts";
+} from "../src/auth/portal-permissions.ts";
 
 const safeSourceUrl = new URL("../worker/settings-source-safe-entry.ts", import.meta.url);
 const safeSource = fs.readFileSync(safeSourceUrl, "utf8");

@@ -4,7 +4,7 @@
 
 This document is the normalized **current-state HTTP API reference** for Admin Dashboard Softrust. It helps a developer or AI agent answer “does this capability already have a route, and who owns it?” before adding a new endpoint.
 
-It does **not** replace runtime routing. `portal-route-contract.ts` is the canonical machine-readable owner for normalized route metadata such as method, path pattern, handler owner, auth boundary, canonical permission, mutation classification and local-admin same-origin classification. Existing Worker handlers/wrappers remain the runtime owners of dispatch, validation and responses. When the registry, this document and current code disagree, treat that as drift and verify the exact handler/tests before changing behavior.
+It does **not** replace runtime routing. `src/auth/portal-route-contract.ts` is the canonical machine-readable owner for normalized route metadata such as method, path pattern, handler owner, auth boundary, canonical permission, mutation classification and local-admin same-origin classification. Existing Worker handlers/wrappers remain the runtime owners of dispatch, validation and responses. When the registry, this document and current code disagree, treat that as drift and verify the exact handler/tests before changing behavior.
 
 ## Authorization legend
 
@@ -186,12 +186,12 @@ Do not add a new route by bypassing an existing outer gate simply because the un
 
 ## Machine-readable route metadata
 
-`portal-route-contract.ts` is the canonical declarative inventory for stable HTTP route metadata. It intentionally does **not** dispatch requests or duplicate request/response schemas: routing behavior remains distributed across the current Worker wrapper chain and domain handlers until the separate #56 refactor changes that architecture.
+`src/auth/portal-route-contract.ts` is the canonical declarative inventory for stable HTTP route metadata. It intentionally does **not** dispatch requests or duplicate request/response schemas: routing behavior remains distributed across the current Worker wrapper chain and domain handlers until the separate #56 refactor changes that architecture.
 
 When a route changes:
 
 - update the runtime handler and behavior tests first;
-- update `portal-route-contract.ts` in the same PR;
+- update `src/auth/portal-route-contract.ts` in the same PR;
 - update this normalized human reference when the operator/developer-facing contract changes;
 - do not use `/api/integrations/routes` as an HTTP API registry — it is XYOps automation-routing configuration;
 - do not add a second endpoint when an existing capability can be extended.

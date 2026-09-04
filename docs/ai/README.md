@@ -14,7 +14,7 @@
 6. проверить [`SOURCE_OF_TRUTH.md`](../SOURCE_OF_TRUTH.md);
 7. для security-sensitive изменения прочитать [`SECURITY_MODEL.md`](../SECURITY_MODEL.md) до проектирования нового privileged/trust boundary;
 8. если изменение затрагивает HTTP route/method/auth boundary — свериться с [`reference/API.md`](../reference/API.md);
-9. если изменение затрагивает role/permission — свериться с [`reference/PERMISSIONS.md`](../reference/PERMISSIONS.md) и canonical `portal-permissions.ts`;
+9. если изменение затрагивает role/permission — свериться с [`reference/PERMISSIONS.md`](../reference/PERMISSIONS.md) и canonical `src/auth/portal-permissions.ts`;
 10. если изменение затрагивает ENV/dynamic/recovery configuration — свериться с [`reference/CONFIGURATION.md`](../reference/CONFIGURATION.md);
 11. если изменение вводит/меняет stable machine-readable code — свериться с [`reference/ERROR_CODES.md`](../reference/ERROR_CODES.md);
 12. прочитать профильный active-document затрагиваемого домена;
@@ -83,13 +83,13 @@ Issue, roadmap и implementation plan не являются доказатель
 4. обновить [`reference/PERMISSIONS.md`](../reference/PERMISSIONS.md) только если реально меняется permission contract;
 5. обновить [`reference/ERROR_CODES.md`](../reference/ERROR_CODES.md), если меняются stable machine codes.
 
-Не используйте `/api/integrations/routes` как глобальный HTTP registry: это XYOps routing configuration. Canonical machine-readable HTTP route metadata живёт в `portal-route-contract.ts`; runtime dispatch по-прежнему остаётся в текущих Worker handlers/wrappers.
+Не используйте `/api/integrations/routes` как глобальный HTTP registry: это XYOps routing configuration. Canonical machine-readable HTTP route metadata живёт в `src/auth/portal-route-contract.ts`; runtime dispatch по-прежнему остаётся в текущих Worker handlers/wrappers.
 
 ### Permissions
 
-Canonical built-in role/permission registry — `portal-permissions.ts`. [`reference/PERMISSIONS.md`](../reference/PERMISSIONS.md) должен его отражать, но не заменять.
+Canonical built-in role/permission registry — `src/auth/portal-permissions.ts`. [`reference/PERMISSIONS.md`](../reference/PERMISSIONS.md) должен его отражать, но не заменять.
 
-Canonical built-in RBAC ownership консолидирован в `portal-permissions.ts`. Не создавайте route-local permission vocabulary; если route требует отсутствующий permission, изменяйте canonical registry и behavior tests явно.
+Canonical built-in RBAC ownership консолидирован в `src/auth/portal-permissions.ts`. Не создавайте route-local permission vocabulary; если route требует отсутствующий permission, изменяйте canonical registry и behavior tests явно.
 
 ### Configuration
 

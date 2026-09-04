@@ -5,7 +5,7 @@ import {
   portalPermissionMetadata,
   portalPermissionOrder,
   portalRolePermissions,
-} from "../portal-permissions.ts";
+} from "../src/auth/portal-permissions.ts";
 import worker from "../dist/server/index.js";
 import { markSchemaTestBypass } from "../worker/schema-migrations-boundary.ts";
 

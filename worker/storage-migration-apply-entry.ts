@@ -12,8 +12,8 @@ import {
   reconcileControlledStorageMigration,
   type StorageMigrationApplyError,
 } from "../src/storage/migration/apply/storage-migration-apply.ts";
-import { sameOriginAdminMutation, serviceAdminTokenAuthorized } from "../admin-session-authorization.ts";
-import { resolveLocalSession, type LocalAuthEnv } from "../local-auth.ts";
+import { sameOriginAdminMutation, serviceAdminTokenAuthorized } from "../src/auth/admin-session-authorization.ts";
+import { resolveLocalSession, type LocalAuthEnv } from "../src/auth/local-auth.ts";
 import { encryptedBackupAccess } from "./backup-encrypted-root-entry.ts";
 
 const MAX_REQUEST_BYTES = 4096;

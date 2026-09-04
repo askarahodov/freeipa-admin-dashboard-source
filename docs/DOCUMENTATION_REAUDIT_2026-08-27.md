@@ -64,7 +64,7 @@ The documentation architecture test still required claims that AppShell/Home int
 
 ### AUDIT-207-07 — API and RBAC normalized references — verified
 
-`docs/reference/API.md` was checked against its canonical route-metadata owner `portal-route-contract.ts`, route handlers/wrappers and the documentation reference tests. `docs/reference/PERMISSIONS.md` was checked against `portal-permissions.ts` and the same reference-test layer. No new confirmed drift was found in these two references during this re-audit.
+`docs/reference/API.md` was checked against its canonical route-metadata owner `src/auth/portal-route-contract.ts`, route handlers/wrappers and the documentation reference tests. `docs/reference/PERMISSIONS.md` was checked against `src/auth/portal-permissions.ts` and the same reference-test layer. No new confirmed drift was found in these two references during this re-audit.
 
 The CI documentation-reference checks also verify canonical permission ordering and known literal storage route constants.
 

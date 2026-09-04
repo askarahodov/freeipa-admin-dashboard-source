@@ -3,5 +3,6 @@
 This section contains active operator-facing runbooks and operational safety contracts.
 
 - [`MAINTENANCE_MODE.md`](MAINTENANCE_MODE.md) — persistent maintenance state, guarded transitions, verification and recovery coordination.
+- [`OFFLINE_FULL_RESTORE.md`](OFFLINE_FULL_RESTORE.md) — destructive offline restore, recovery point, candidate verification, atomic swap, rollback and failed-maintenance recovery.
 
 Other operational families remain at their current canonical paths until migrated in dedicated #268 slices. Relocation PRs must preserve external compatibility pointers and must not rewrite operational policy while moving it.

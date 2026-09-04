@@ -1,0 +1,133 @@
+name: One-shot #268 storage schema operations v2
+
+on:
+  push:
+    branches:
+      - docs/268-storage-schema-operations-v2
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci
+      - name: Move storage/schema documentation family
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p docs/operations
+          cp docs/DATABASE_MIGRATIONS.md docs/operations/DATABASE_MIGRATIONS.md
+          cp docs/STORAGE_STATUS.md docs/operations/STORAGE_STATUS.md
+          cp docs/STORAGE_INTEGRITY.md docs/operations/STORAGE_INTEGRITY.md
+
+          cat > docs/DATABASE_MIGRATIONS.md <<'EOF'
+          # Relocated
+
+          The canonical document has moved to [`operations/DATABASE_MIGRATIONS.md`](operations/DATABASE_MIGRATIONS.md). This compatibility pointer is retained for existing external links; do not update schema/migration policy here.
+          EOF
+          cat > docs/STORAGE_STATUS.md <<'EOF'
+          # Relocated
+
+          The canonical document has moved to [`operations/STORAGE_STATUS.md`](operations/STORAGE_STATUS.md). This compatibility pointer is retained for existing external links; do not update storage-status policy here.
+          EOF
+          cat > docs/STORAGE_INTEGRITY.md <<'EOF'
+          # Relocated
+
+          The canonical document has moved to [`operations/STORAGE_INTEGRITY.md`](operations/STORAGE_INTEGRITY.md). This compatibility pointer is retained for existing external links; do not update storage-integrity policy here.
+          EOF
+
+          python <<'PY'
+          from pathlib import Path
+
+          root = Path('.')
+          skip_prefixes = ('docs/superpowers/', '.git/', 'node_modules/')
+          moved = {
+              'DATABASE_MIGRATIONS.md': 'operations/DATABASE_MIGRATIONS.md',
+              'STORAGE_STATUS.md': 'operations/STORAGE_STATUS.md',
+              'STORAGE_INTEGRITY.md': 'operations/STORAGE_INTEGRITY.md',
+          }
+          canonical = {
+              Path('docs/operations/DATABASE_MIGRATIONS.md'),
+              Path('docs/operations/STORAGE_STATUS.md'),
+              Path('docs/operations/STORAGE_INTEGRITY.md'),
+              Path('docs/DATABASE_MIGRATIONS.md'),
+              Path('docs/STORAGE_STATUS.md'),
+              Path('docs/STORAGE_INTEGRITY.md'),
+          }
+          text_suffixes = {'.md', '.mjs', '.js', '.ts', '.tsx', '.yml', '.yaml', '.json'}
+          for path in root.rglob('*'):
+              if not path.is_file() or path in canonical or path.suffix not in text_suffixes:
+                  continue
+              s = path.as_posix()
+              if s.startswith(skip_prefixes):
+                  continue
+              text = path.read_text(encoding='utf-8')
+              original = text
+              for old, new_rel in moved.items():
+                  text = text.replace(f'docs/{old}', f'docs/{new_rel}')
+                  if s.startswith('docs/'):
+                      text = text.replace(f']({old})', f']({new_rel})')
+                      text = text.replace(f'`{old}`', f'`{new_rel}`')
+              if text != original:
+                  path.write_text(text, encoding='utf-8')
+
+          readme = Path('docs/operations/README.md')
+          text = readme.read_text(encoding='utf-8')
+          anchor = '- [`OFFLINE_FULL_RESTORE.md`](OFFLINE_FULL_RESTORE.md) — destructive offline restore, recovery point, candidate verification, atomic swap, rollback and failed-maintenance recovery.\n'
+          additions = (
+              '- [`DATABASE_MIGRATIONS.md`](DATABASE_MIGRATIONS.md) — canonical schema migration lifecycle, journal, drift detection and controlled apply contract.\n'
+              '- [`STORAGE_STATUS.md`](STORAGE_STATUS.md) — bounded read-only storage status contract.\n'
+              '- [`STORAGE_INTEGRITY.md`](STORAGE_INTEGRITY.md) — read-only SQLite/index integrity diagnostics and operator boundary.\n'
+          )
+          if 'DATABASE_MIGRATIONS.md`](DATABASE_MIGRATIONS.md)' not in text:
+              if anchor not in text:
+                  raise SystemExit('operations README anchor not found')
+              text = text.replace(anchor, anchor + additions)
+              readme.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Validate documentation batch
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run docs:check
+          node --test tests/documentation-architecture-map.test.mjs
+          node --experimental-strip-types --test --test-concurrency=1 \
+            tests/storage-status-routing-contract.test.mjs \
+            tests/storage-integrity-inspect-cli.test.mjs \
+            tests/storage-migration-apply-routing-contract.test.mjs \
+            tests/storage-migration-preflight-schema-inspector-contract.test.mjs \
+            tests/node-sqlite-canonical-migrations.test.mjs \
+            tests/schema-migration-pending-contract.test.mjs
+          git diff --check
+          test -s docs/operations/DATABASE_MIGRATIONS.md
+          test -s docs/operations/STORAGE_STATUS.md
+          test -s docs/operations/STORAGE_INTEGRITY.md
+          grep -q 'operations/DATABASE_MIGRATIONS.md' docs/DATABASE_MIGRATIONS.md
+          grep -q 'operations/STORAGE_STATUS.md' docs/STORAGE_STATUS.md
+          grep -q 'operations/STORAGE_INTEGRITY.md' docs/STORAGE_INTEGRITY.md
+
+      - name: Commit final self-cleaned batch
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/one-shot-268-storage-schema-operations-v2.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if git diff --cached --quiet; then
+            echo 'No changes produced'
+            exit 1
+          fi
+          git commit -m 'docs: move storage schema family to operations owner'
+          git push origin HEAD:docs/268-storage-schema-operations-v2

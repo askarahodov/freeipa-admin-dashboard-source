@@ -16,7 +16,7 @@ const [
   readFile(new URL("../worker/schema-migrations-entry.ts", import.meta.url), "utf8"),
   readFile(new URL("../worker/maintenance-mode-gate.ts", import.meta.url), "utf8"),
   readFile(new URL("../worker/service-admin-root-entry.ts", import.meta.url), "utf8"),
-  readFile(new URL("../admin-session-authorization.ts", import.meta.url), "utf8"),
+  readFile(new URL("../src/auth/admin-session-authorization.ts", import.meta.url), "utf8"),
   readFile(new URL("../Dockerfile", import.meta.url), "utf8"),
   readFile(new URL("../src/storage/integrity/storage-integrity.ts", import.meta.url), "utf8"),
   readFile(new URL("../src/storage/integrity/storage-quick-check.ts", import.meta.url), "utf8"),

@@ -10,9 +10,9 @@
 
 1. [`../README.md`](../README.md) — назначение и quick start.
 2. [`architecture/README.md`](architecture/README.md) — canonical landing area for architecture and repository-boundary documentation.
-3. [`ARCHITECTURE.md`](ARCHITECTURE.md) — current runtime topology, trust/data boundaries и major ownership.
-4. [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md) — repository/module map и where-to-change routing.
-5. [`MODULE_COVERAGE.md`](MODULE_COVERAGE.md) — module ownership, dependency direction и scoped tests.
+3. [`ARCHITECTURE.md`](architecture/ARCHITECTURE.md) — current runtime topology, trust/data boundaries и major ownership.
+4. [`PROJECT_STRUCTURE.md`](architecture/PROJECT_STRUCTURE.md) — repository/module map и where-to-change routing.
+5. [`MODULE_COVERAGE.md`](architecture/MODULE_COVERAGE.md) — module ownership, dependency direction и scoped tests.
 6. [`DEPLOYMENT_MATRIX.md`](DEPLOYMENT_MATRIX.md) — supported/development/constrained/unsupported deployment modes.
 7. [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md) — authoritative owners и precedence.
 8. [`DOCUMENTATION_POLICY.md`](DOCUMENTATION_POLICY.md) — docs-as-code и правила нескольких агентов.
@@ -46,8 +46,8 @@
 
 Основной набор:
 
-- [`ARCHITECTURE.md`](ARCHITECTURE.md)
-- [`MODULE_COVERAGE.md`](MODULE_COVERAGE.md)
+- [`ARCHITECTURE.md`](architecture/ARCHITECTURE.md)
+- [`MODULE_COVERAGE.md`](architecture/MODULE_COVERAGE.md)
 - [`DEPLOYMENT_MATRIX.md`](DEPLOYMENT_MATRIX.md)
 - [`SECURITY_MODEL.md`](SECURITY_MODEL.md)
 - [`LOCAL_AUTH_RBAC.md`](LOCAL_AUTH_RBAC.md)
@@ -68,9 +68,9 @@
 | Документ | Назначение |
 | --- | --- |
 | [`architecture/README.md`](architecture/README.md) | Canonical landing area for architecture/repository-boundary documentation and #268 move rules |
-| [`ARCHITECTURE.md`](ARCHITECTURE.md) | Current topology/request/trust/data/failure boundaries |
-| [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md) | Repository ownership map and module boundaries |
-| [`MODULE_COVERAGE.md`](MODULE_COVERAGE.md) | Module documentation/test coverage and dependency direction |
+| [`ARCHITECTURE.md`](architecture/ARCHITECTURE.md) | Current topology/request/trust/data/failure boundaries |
+| [`PROJECT_STRUCTURE.md`](architecture/PROJECT_STRUCTURE.md) | Repository ownership map and module boundaries |
+| [`MODULE_COVERAGE.md`](architecture/MODULE_COVERAGE.md) | Module documentation/test coverage and dependency direction |
 | [`DEPLOYMENT_MATRIX.md`](DEPLOYMENT_MATRIX.md) | Supported and unsupported deployment models |
 | [`DOCUMENTATION_POLICY.md`](DOCUMENTATION_POLICY.md) | Docs-as-code, statuses, review and multi-agent rules |
 | [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md) | Authoritative source registry and precedence |

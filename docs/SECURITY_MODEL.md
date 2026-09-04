@@ -4,7 +4,7 @@
 
 This document describes the **current security model** of Admin Dashboard Softrust. It is an orientation document for developers, operators, security reviewers and AI agents. It does not replace exact security/reference documents or destructive-operation runbooks.
 
-For exact contract ownership, use [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md). For runtime topology and module placement, use [`ARCHITECTURE.md`](ARCHITECTURE.md) and [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md). For exact operational procedures, use the relevant active runbook.
+For exact contract ownership, use [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md). For runtime topology and module placement, use [`ARCHITECTURE.md`](architecture/ARCHITECTURE.md) and [`PROJECT_STRUCTURE.md`](architecture/PROJECT_STRUCTURE.md). For exact operational procedures, use the relevant active runbook.
 
 ## Security objectives
 
@@ -325,8 +325,8 @@ Always inspect current `main` before repeating this list in another document; me
 
 ## Related security documents
 
-- [`ARCHITECTURE.md`](ARCHITECTURE.md) — system topology and trust-boundary context;
-- [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md) — module/owner placement;
+- [`ARCHITECTURE.md`](architecture/ARCHITECTURE.md) — system topology and trust-boundary context;
+- [`PROJECT_STRUCTURE.md`](architecture/PROJECT_STRUCTURE.md) — module/owner placement;
 - [`LOCAL_AUTH_RBAC.md`](LOCAL_AUTH_RBAC.md) — exact portal authentication, sessions, roles and permissions;
 - [`AUDIT_LOG.md`](AUDIT_LOG.md) — audit contract/redaction/read boundary;
 - [`CONFIG_ENCRYPTION_KEY.md`](CONFIG_ENCRYPTION_KEY.md) — production encryption-key requirements;

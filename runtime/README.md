@@ -20,7 +20,7 @@
 - `scripts/start-production.mjs`
 - `runtime/production-runtime.mjs`
 - `runtime/d1-sqlite-adapter.mjs`
-- `docs/ARCHITECTURE.md`
+- `docs/architecture/ARCHITECTURE.md`
 - `docs/DEPLOYMENT_MATRIX.md`
 - `docs/reference/CONFIGURATION.md`
 - `docs/adr/README.md`

@@ -9,8 +9,8 @@ const HIGH_CONFLICT_EXACT_PATHS = new Set([
   "src/auth/local-session-management.ts",
   "src/auth/admin-session-authorization.ts",
   "docs/SOURCE_OF_TRUTH.md",
-  "docs/ARCHITECTURE.md",
-  "docs/PROJECT_STRUCTURE.md",
+  "docs/architecture/ARCHITECTURE.md",
+  "docs/architecture/PROJECT_STRUCTURE.md",
   "docs/SECURITY_MODEL.md",
   "docs/ai/README.md",
 ]);

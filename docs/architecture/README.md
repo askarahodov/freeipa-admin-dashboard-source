@@ -6,9 +6,9 @@ The normalization is intentionally incremental: active documents remain at their
 
 ## Current canonical owners
 
-- [`../ARCHITECTURE.md`](../ARCHITECTURE.md) — current runtime topology, trust/data boundaries and major ownership.
-- [`../PROJECT_STRUCTURE.md`](../PROJECT_STRUCTURE.md) — repository/module ownership and where-to-change routing.
-- [`../MODULE_COVERAGE.md`](../MODULE_COVERAGE.md) — module documentation/test coverage and dependency direction.
+- [`ARCHITECTURE.md`](ARCHITECTURE.md) — current runtime topology, trust/data boundaries and major ownership.
+- [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md) — repository/module ownership and where-to-change routing.
+- [`MODULE_COVERAGE.md`](MODULE_COVERAGE.md) — module documentation/test coverage and dependency direction.
 - [`../SOURCE_OF_TRUTH.md`](../SOURCE_OF_TRUTH.md) — authoritative owner registry and precedence.
 - [`../DEPLOYMENT_MATRIX.md`](../DEPLOYMENT_MATRIX.md) — supported and unsupported deployment models.
 - [`../adr/README.md`](../adr/README.md) — architecture decision records and decision-history policy.

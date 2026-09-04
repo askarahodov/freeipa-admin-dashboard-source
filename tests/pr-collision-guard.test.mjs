@@ -16,7 +16,7 @@ test("high-conflict policy recognizes exact canonical owners", () => {
   for (const path of [
     "app/page.tsx", "worker/index.ts", "package.json", "package-lock.json",
     "portal-permissions.ts", "src/auth/portal-permissions.ts", "src/auth/portal-route-contract.ts",
-    "local-auth.ts", "admin-session-authorization.ts", "docs/SOURCE_OF_TRUTH.md",
+    "local-auth.ts", "src/auth/local-auth.ts", "local-session-management.ts", "src/auth/local-session-management.ts", "admin-session-authorization.ts", "src/auth/admin-session-authorization.ts", "docs/SOURCE_OF_TRUTH.md",
     "docs/ARCHITECTURE.md", "docs/PROJECT_STRUCTURE.md", "docs/SECURITY_MODEL.md", "docs/ai/README.md",
   ]) assert.equal(isHighConflictPath(path), true, path);
 });

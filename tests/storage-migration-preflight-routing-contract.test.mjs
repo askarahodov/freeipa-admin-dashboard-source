@@ -15,7 +15,7 @@ const [
   readFile(new URL("../worker/local-secure-entry.ts", import.meta.url), "utf8"),
   readFile(new URL("../worker/schema-migrations-entry.ts", import.meta.url), "utf8"),
   readFile(new URL("../worker/maintenance-mode-gate.ts", import.meta.url), "utf8"),
-  readFile(new URL("../admin-session-authorization.ts", import.meta.url), "utf8"),
+  readFile(new URL("../src/auth/admin-session-authorization.ts", import.meta.url), "utf8"),
   readFile(new URL("../src/storage/migration/preflight/storage-migration-preflight.ts", import.meta.url), "utf8"),
 ]);
 

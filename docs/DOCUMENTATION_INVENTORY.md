@@ -53,8 +53,8 @@ Normalized references orient humans and agents; they do not replace runtime/doma
 | `docs/DATABASE_MIGRATIONS.md` | canonical migration registry/runtime/tests | `verified-active` |
 | `docs/MAINTENANCE_MODE.md` | maintenance runtime + persistent state | `verified-active` |
 | `docs/OFFLINE_FULL_RESTORE.md` | recovery CLI/scripts | `verified-active` |
-| `docs/HEALTH_CONTRACTS.md` | health handlers/contracts | `verified-active` |
-| `docs/HEALTH_METRICS.md` | health metrics owner/rules | `verified-active` |
+| `docs/operations/HEALTH_CONTRACTS.md` | health handlers/contracts | `verified-active` |
+| `docs/operations/HEALTH_METRICS.md` | health metrics owner/rules | `verified-active` |
 | `docs/STORAGE_STATUS.md` | storage status contract | `verified-active` |
 | `docs/STORAGE_INTEGRITY.md` | integrity contract/index registry | `verified-active` |
 | `docs/CONFIG_ENCRYPTION_KEY.md` | startup validator + Compose | `verified-active` |
@@ -125,4 +125,4 @@ Production persistence defect #209 is closed. The old Wrangler production-runtim
 
 The previously listed structural/documentation gaps are now implemented: index/policy/source-of-truth, architecture/project/module coverage, deployment matrix, security model, normalized references, ADR registry, AI entrypoint and coordination rules, docs consistency CI, and machine-readable route/permission/config/error ownership surfaces.
 
-Final closure is gated only by #240 / PR #242: active-doc reconciliation plus a green exact-head Required CI and final human/AI onboarding check. If that candidate remains green with no newly discovered material documentation gap, Epic #82 can be closed as completed.
+Final closure is gated only by #240 / PR #242: active-doc reconciliation plus a green exact-head Required CI and final human/AI onboarding check. If that candidate remains green with no newly discovered material documentation gap, Epic #82 can be закрыт как completed.

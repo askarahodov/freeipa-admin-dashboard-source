@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url";
 
 const BLOCKING_SEVERITIES = new Set(["high", "critical"]);
 const GHSA_PATTERN = /GHSA-[0-9a-z-]+/iu;
+const DEFAULT_AUDIT_TIMEOUT_MS = 90_000;
+const DEFAULT_AUDIT_ATTEMPTS = 2;
 
 function normalizeAdvisoryId(value) {
   const raw = String(value ?? "").trim();
@@ -106,27 +108,60 @@ function readJson(path) {
   return JSON.parse(readFileSync(path, "utf8"));
 }
 
-export function runDependencyAuditPolicy({
-  allowlistPath = fileURLToPath(new URL("../security/audit-allowlist.json", import.meta.url)),
-  now = new Date(),
-} = {}) {
-  const audit = spawnSync("npm", ["audit", "--omit=dev", "--json"], {
-    encoding: "utf8",
-    maxBuffer: 16 * 1024 * 1024,
-  });
-  if (audit.error) throw audit.error;
+function parseAuditReport(audit) {
+  if (audit.error) {
+    const code = String(audit.error.code ?? audit.error.name ?? "spawn-error");
+    throw new Error(`npm audit transport failure (${code})`);
+  }
 
   let report;
   try {
     report = JSON.parse(audit.stdout || "");
   } catch {
-    throw new Error(`npm audit did not return valid JSON${audit.stderr ? `: ${audit.stderr.trim().slice(0, 240)}` : ""}`);
-  }
-  if (!report || typeof report.vulnerabilities !== "object") {
-    const message = String(report?.error?.summary ?? report?.error?.code ?? "invalid audit report");
-    throw new Error(`npm audit failed: ${message}`);
+    const detail = audit.stderr ? `: ${audit.stderr.trim().slice(0, 240)}` : "";
+    throw new Error(`npm audit did not return valid JSON${detail}`);
   }
 
+  if (!report || typeof report.vulnerabilities !== "object") {
+    const message = String(report?.error?.summary ?? report?.error?.code ?? "invalid audit report");
+    throw new Error(`npm audit transport failure: ${message}`);
+  }
+  return report;
+}
+
+export function runNpmAudit({
+  attempts = DEFAULT_AUDIT_ATTEMPTS,
+  timeoutMs = DEFAULT_AUDIT_TIMEOUT_MS,
+} = {}) {
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const audit = spawnSync(
+      "npm",
+      ["audit", "--omit=dev", "--json", "--fetch-retries=1", "--fetch-retry-maxtimeout=10000", "--fetch-timeout=60000"],
+      {
+        encoding: "utf8",
+        maxBuffer: 16 * 1024 * 1024,
+        timeout: timeoutMs,
+      },
+    );
+    try {
+      return parseAuditReport(audit);
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts) {
+        process.stderr.write(`npm audit attempt ${attempt}/${attempts} failed; retrying: ${error instanceof Error ? error.message : String(error)}\n`);
+      }
+    }
+  }
+  throw new Error(`npm audit unavailable after ${attempts} attempts: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
+}
+
+export function runDependencyAuditPolicy({
+  allowlistPath = fileURLToPath(new URL("../security/audit-allowlist.json", import.meta.url)),
+  now = new Date(),
+  auditOptions,
+} = {}) {
+  const report = runNpmAudit(auditOptions);
   const allowlist = readJson(allowlistPath);
   const result = evaluateAuditReport(report, allowlist, now);
   for (const finding of result.allowed) {

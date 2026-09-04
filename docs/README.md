@@ -56,7 +56,7 @@
 - [`reference/API.md`](reference/API.md)
 - [`reference/CONFIGURATION.md`](reference/CONFIGURATION.md)
 - [`reference/ERROR_CODES.md`](reference/ERROR_CODES.md)
-- [`AUDIT_LOG.md`](AUDIT_LOG.md)
+- [`security/AUDIT_LOG.md`](security/AUDIT_LOG.md)
 - [`CONFIG_ENCRYPTION_KEY.md`](CONFIG_ENCRYPTION_KEY.md)
 - [`DATABASE_MIGRATIONS.md`](DATABASE_MIGRATIONS.md)
 - [`MAINTENANCE_MODE.md`](MAINTENANCE_MODE.md)
@@ -108,7 +108,7 @@ Machine-readable ownership work referenced by the documentation platform is comp
 | --- | --- |
 | [`SECURITY_MODEL.md`](SECURITY_MODEL.md) | Trust boundaries, identity classes, secret/recovery invariants |
 | [`LOCAL_AUTH_RBAC.md`](LOCAL_AUTH_RBAC.md) | Portal users, sessions, roles and FreeIPA identity separation |
-| [`AUDIT_LOG.md`](AUDIT_LOG.md) | Append-only audit, correlation, redaction and read API |
+| [`security/AUDIT_LOG.md`](security/AUDIT_LOG.md) | Append-only audit, correlation, redaction and read API |
 | [`security/DEPENDENCY_SECURITY.md`](security/DEPENDENCY_SECURITY.md) | Supply-chain audit, SBOM and runtime image security policy |
 
 ## Storage / schema / recovery

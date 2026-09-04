@@ -58,7 +58,7 @@ Normalized references orient humans and agents; they do not replace runtime/doma
 | `docs/STORAGE_STATUS.md` | storage status contract | `verified-active` |
 | `docs/STORAGE_INTEGRITY.md` | integrity contract/index registry | `verified-active` |
 | `docs/CONFIG_ENCRYPTION_KEY.md` | startup validator + Compose | `verified-active` |
-| `docs/AUDIT_LOG.md` | audit-log owner + route/schema | `verified-active` |
+| `docs/security/AUDIT_LOG.md` | audit-log owner + route/schema | `verified-active` |
 | `docs/LOCAL_ACCEPTANCE_TESTS.md` | local integration harness/scripts | `verified-active` |
 | `docs/P0_OPERATIONAL_ACCEPTANCE.md` | P0 acceptance runner | `verified-active` |
 | `docs/DEPLOYMENT_MATRIX.md` | Compose/Docker/runtime contracts | `verified-active` |

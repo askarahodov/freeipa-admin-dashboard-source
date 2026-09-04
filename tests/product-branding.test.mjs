@@ -25,7 +25,7 @@ test("active documentation has one canonical product name", () => {
     "docs/DOCUMENTATION_POLICY.md",
     "docs/GLOSSARY.md",
     "docs/SOURCE_OF_TRUTH.md",
-    "docs/HEALTH_METRICS.md",
+    "docs/operations/HEALTH_METRICS.md",
     "docs/STORAGE_STATUS.md",
     "docs/ai/README.md",
   ]) {

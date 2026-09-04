@@ -5,8 +5,8 @@ import test from "node:test";
 const read = (path) => fs.readFileSync(new URL(path, import.meta.url), "utf8");
 
 test("maintenance runbook documents the complete recovery operating contract", () => {
-  const runbookUrl = new URL("../docs/MAINTENANCE_MODE.md", import.meta.url);
-  assert.equal(fs.existsSync(runbookUrl), true, "docs/MAINTENANCE_MODE.md must exist");
+  const runbookUrl = new URL("../docs/operations/MAINTENANCE_MODE.md", import.meta.url);
+  assert.equal(fs.existsSync(runbookUrl), true, "docs/operations/MAINTENANCE_MODE.md must exist");
   const runbook = fs.readFileSync(runbookUrl, "utf8");
 
   for (const endpoint of [
@@ -52,7 +52,7 @@ test("README exposes current recovery capabilities and links authoritative runbo
 
   // Exact maintenance/restore endpoint inventories belong to their active runbooks,
   // not to the root overview. This protects README from becoming a duplicated API reference.
-  const maintenance = read("../docs/MAINTENANCE_MODE.md");
+  const maintenance = read("../docs/operations/MAINTENANCE_MODE.md");
   for (const endpoint of [
     "/api/admin/maintenance/status",
     "/api/admin/maintenance/prepare",

@@ -5,7 +5,7 @@ import test from "node:test";
 import { RECOVERY_RECEIPT_PHASES } from "../src/recovery/foundation/recovery-receipt.ts";
 
 const runbook = await readFile(new URL("../docs/OFFLINE_FULL_RESTORE.md", import.meta.url), "utf8");
-const maintenance = await readFile(new URL("../docs/MAINTENANCE_MODE.md", import.meta.url), "utf8");
+const maintenance = await readFile(new URL("../docs/operations/MAINTENANCE_MODE.md", import.meta.url), "utf8");
 const roadmap = await readFile(new URL("../docs/PRODUCT_ROADMAP.md", import.meta.url), "utf8");
 
 test("offline restore runbook documents the complete bounded lifecycle", () => {

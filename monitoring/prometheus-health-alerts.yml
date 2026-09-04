@@ -11,7 +11,7 @@ groups:
         annotations:
           summary: Portal health metrics are missing
           description: The monitoring system has not received the portal liveness series for two minutes. Check scrape reachability and the portal process.
-          runbook_url: /docs/HEALTH_CONTRACTS.md#probe-configuration
+          runbook_url: /docs/operations/HEALTH_CONTRACTS.md#probe-configuration
 
       - alert: PortalNotReady
         expr: portal_health_ready == 0
@@ -22,7 +22,7 @@ groups:
         annotations:
           summary: Portal is not ready
           description: A mandatory local component has remained unready for five minutes. Inspect the fixed readiness check gauges and the health runbook.
-          runbook_url: /docs/HEALTH_CONTRACTS.md#operational-interpretation
+          runbook_url: /docs/operations/HEALTH_CONTRACTS.md#operational-interpretation
 
       - alert: PortalSchemaLagging
         expr: portal_health_schema_lag > 0
@@ -33,7 +33,7 @@ groups:
         annotations:
           summary: Portal schema version is behind
           description: The current canonical schema version has remained behind the latest known version for five minutes.
-          runbook_url: /docs/HEALTH_CONTRACTS.md#operational-interpretation
+          runbook_url: /docs/operations/HEALTH_CONTRACTS.md#operational-interpretation
 
       - alert: PortalEncryptionUnavailable
         expr: portal_health_readiness_check{check="encryption"} == 0
@@ -44,7 +44,7 @@ groups:
         annotations:
           summary: Portal encryption self-test is unavailable
           description: The mandatory local encryption self-test has failed or cannot be evaluated for five minutes.
-          runbook_url: /docs/HEALTH_CONTRACTS.md#operational-interpretation
+          runbook_url: /docs/operations/HEALTH_CONTRACTS.md#operational-interpretation
 
       - alert: PortalGatewayUnavailable
         expr: portal_health_readiness_check{check="gateway"} == 0
@@ -55,4 +55,4 @@ groups:
         annotations:
           summary: Portal local gateway is unavailable
           description: The mandatory local gateway readiness check has failed for five minutes. Inspect the local process boundary and configuration coordination.
-          runbook_url: /docs/HEALTH_CONTRACTS.md#operational-interpretation
+          runbook_url: /docs/operations/HEALTH_CONTRACTS.md#operational-interpretation

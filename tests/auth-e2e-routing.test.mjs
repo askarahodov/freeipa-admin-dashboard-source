@@ -19,6 +19,9 @@ test("ordinary UI changes run UI coverage but not unrelated RBAC or integrations
 
 test("authentication changes select authentication coverage", () => {
   assert.deepEqual(categoriesForPath("local-auth.ts"), ["auth"]);
+  assert.deepEqual(categoriesForPath("src/auth/local-auth.ts"), ["auth"]);
+  assert.deepEqual(categoriesForPath("src/auth/local-session-management.ts"), ["auth"]);
+  assert.deepEqual(categoriesForPath("src/auth/admin-session-authorization.ts"), ["auth", "rbac"]);
   assert.deepEqual(buildE2ETestPlan(["app/login/page.tsx"]).browserSpecs, ["specs/auth.spec.mjs", "specs/ui-quality.spec.mjs"]);
 });
 

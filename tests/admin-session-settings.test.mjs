@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 
-const authorization = fs.readFileSync(new URL("../admin-session-authorization.ts", import.meta.url), "utf8");
+const authorization = fs.readFileSync(new URL("../src/auth/admin-session-authorization.ts", import.meta.url), "utf8");
 const runtime = fs.readFileSync(new URL("../worker/local-secure-entry.ts", import.meta.url), "utf8");
 const selectiveRoot = fs.readFileSync(new URL("../worker/backup-selective-restore-root-entry.ts", import.meta.url), "utf8");
 const maintenanceControlRoot = fs.readFileSync(new URL("../worker/maintenance-control-root-entry.ts", import.meta.url), "utf8");

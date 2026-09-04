@@ -14,8 +14,8 @@ import {
   portalPermissionMetadata,
   portalPermissionOrder,
   portalRolePermissions,
-} from "../portal-permissions.ts";
-import { isAdminIntegrationPath } from "../admin-session-authorization.ts";
+} from "../src/auth/portal-permissions.ts";
+import { isAdminIntegrationPath } from "../src/auth/admin-session-authorization.ts";
 
 function request(path, headers = {}) {
   return new Request(`https://portal.example${path}`, {

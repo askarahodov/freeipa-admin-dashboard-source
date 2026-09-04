@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { authenticateLocalUser, createLocalUser, localSessionCookie, resetLocalUserPassword, resolveLocalSession, updateLocalUser } from "../local-auth.ts";
+import { authenticateLocalUser, createLocalUser, localSessionCookie, resetLocalUserPassword, resolveLocalSession, updateLocalUser } from "../src/auth/local-auth.ts";
 
 class LocalAuthMemoryD1 {
   users = [];

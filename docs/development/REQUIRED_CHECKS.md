@@ -48,7 +48,7 @@ A blocking collision must be resolved by establishing explicit merge/dependency 
 
 | Representative change | Stable Auth E2E check | Chromium |
 | --- | --- | --- |
-| `local-auth.ts`, auth/RBAC/security middleware | yes | full |
+| `src/auth/local-auth.ts`, auth/RBAC/security middleware | yes | full |
 | `app/**`, `worker/**`, `db/**` | yes | full |
 | FreeIPA/XYOps runtime or E2E specs | yes | full |
 | `Dockerfile`, Compose, env examples, startup scripts | yes | full |

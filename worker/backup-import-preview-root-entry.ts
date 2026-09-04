@@ -5,7 +5,7 @@ import {
   roleHasPermission,
   type PortalPermission,
   type PortalRole,
-} from "../portal-permissions.ts";
+} from "../src/auth/portal-permissions.ts";
 import { handleBackupImportPreviewRequest } from "./backup-import-preview-entry.ts";
 
 export type BackupPreviewAccessEnv = BackupExportEnv & {

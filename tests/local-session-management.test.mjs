@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { listLocalPortalSessions, revokeLocalPortalSession } from "../local-session-management.ts";
+import { listLocalPortalSessions, revokeLocalPortalSession } from "../src/auth/local-session-management.ts";
 
 class SessionMemoryD1 {
   users = [

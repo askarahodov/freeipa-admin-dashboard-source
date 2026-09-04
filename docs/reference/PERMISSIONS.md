@@ -4,7 +4,7 @@
 
 This document is the normalized **current-state permission reference** for Admin Dashboard Softrust. It explains the built-in portal roles, canonical permission codes and capability families without creating a second RBAC implementation.
 
-The runtime source of truth for built-in roles and canonical permission codes is [`../../portal-permissions.ts`](../../portal-permissions.ts). Server-side authorization remains authoritative; UI visibility is not an authorization boundary.
+The runtime source of truth for built-in roles and canonical permission codes is [`../../src/auth/portal-permissions.ts`](../../src/auth/portal-permissions.ts). Server-side authorization remains authoritative; UI visibility is not an authorization boundary.
 
 ## Built-in roles
 
@@ -16,7 +16,7 @@ The current built-in roles are:
 | `operator` | Operational user allowed to change ordinary FreeIPA objects and launch XYOps processes | `directory.read`, `freeipa.write`, `xyops.run` |
 | `admin` | Full built-in portal administrator | all canonical permissions listed below |
 
-Role labels and the exact role-to-permission arrays are owned by `portal-permissions.ts`.
+Role labels and the exact role-to-permission arrays are owned by `src/auth/portal-permissions.ts`.
 
 ## Canonical permissions
 
@@ -37,7 +37,7 @@ Role labels and the exact role-to-permission arrays are owned by `portal-permiss
 | `backup.restore.cancel` | Selective restore cancellation | Cancel a prepared restore stage before commit. |
 | `maintenance.manage` | Maintenance / recovery | Prepare, enter, inspect and safely exit supported maintenance/recovery mode. |
 
-The descriptions above normalize the canonical metadata in `portal-permissions.ts`; exact route enforcement still belongs to the relevant server handler/wrapper and tests.
+The descriptions above normalize the canonical metadata in `src/auth/portal-permissions.ts`; exact route enforcement still belongs to the relevant server handler/wrapper and tests.
 
 ## Effective authorization model
 
@@ -92,13 +92,13 @@ This table is an orientation map, not a substitute for route-level tests.
 
 Issue **#119 — consolidate duplicate and orphan portal RBAC owners** established the consolidation rule used by the current implementation:
 
-- `portal-permissions.ts` is the only runtime owner of portal role names, canonical permission vocabulary and built-in role-to-permission mappings;
+- `src/auth/portal-permissions.ts` is the only runtime owner of portal role names, canonical permission vocabulary and built-in role-to-permission mappings;
 - `backup.restore.preview` is intentionally a distinct canonical capability because read-only restore preview is different from isolated test restore; it remains built-in `admin` only;
 - route roots consume canonical role/permission helpers instead of maintaining private permission maps;
 - identity/session adapters such as local-session and service-administrator wrappers may adapt identity or establish a purpose-specific trust boundary, but they must not create a second portal permission vocabulary;
 - `ADMIN_TOKEN`, recovery credentials and other service authorization mechanisms remain separate from portal RBAC.
 
-If a route requires a permission that is absent from `portal-permissions.ts`, treat that as RBAC drift and resolve it deliberately rather than introducing a route-local permission string.
+If a route requires a permission that is absent from `src/auth/portal-permissions.ts`, treat that as RBAC drift and resolve it deliberately rather than introducing a route-local permission string.
 
 ## Change checklist
 
@@ -120,4 +120,4 @@ A permission/RBAC change is incomplete until all applicable items are addressed:
 - [`../ARCHITECTURE.md`](../ARCHITECTURE.md) — current request architecture.
 - [`../SOURCE_OF_TRUTH.md`](../SOURCE_OF_TRUTH.md) — canonical owner registry.
 
-If this reference and current runtime disagree, verify `portal-permissions.ts`, the exact server handler and its tests first, then treat the mismatch as documentation/RBAC drift rather than inventing a third interpretation.
+If this reference and current runtime disagree, verify `src/auth/portal-permissions.ts`, the exact server handler and its tests first, then treat the mismatch as documentation/RBAC drift rather than inventing a third interpretation.

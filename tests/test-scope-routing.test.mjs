@@ -8,7 +8,7 @@ const policy = await readFile(new URL("../docs/TESTING_POLICY.md", import.meta.u
 const agents = await readFile(new URL("../AGENTS.md", import.meta.url), "utf8");
 
 test("mixed changes union affected categories without expanding to full suite", () => {
-  const plan = buildE2ETestPlan(["portal-permissions.ts", "xyops-client.ts"]);
+  const plan = buildE2ETestPlan(["src/auth/portal-permissions.ts", "xyops-client.ts"]);
   assert.deepEqual(plan.categories, ["rbac", "xyops"]);
   assert.deepEqual(plan.browserSpecs, [
     "specs/rbac-user.spec.mjs",

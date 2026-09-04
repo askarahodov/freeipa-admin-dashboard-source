@@ -11,7 +11,7 @@ import { approvalExecutionMatches, approvalRequirement, cancelApproval, claimApp
 import { appendAuditEvent, auditCorrelationFor, auditErrorCode, createAuditContext, listAuditEvents, withAuditCorrelation, type AuditContext } from "../audit-log";
 import { applyProcessPresentation, availableProcessPresentationLocales, presentationLocalePreferences, readProcessPresentationSet, resolveProcessPresentationLocale, saveProcessPresentationSet } from "../src/operations/presentation/process-presentation";
 import { handleBackupExportRequest } from "./backup-export-entry";
-import { portalRolePermissions, resolvePortalRole, type PortalPermission, type PortalRole } from "../portal-permissions";
+import { portalRolePermissions, resolvePortalRole, type PortalPermission, type PortalRole } from "../src/auth/portal-permissions";
 
 interface Env {
   ASSETS: Fetcher;

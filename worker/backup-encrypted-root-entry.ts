@@ -5,7 +5,7 @@ import {
   roleHasPermission,
   type PortalPermission,
   type PortalRole,
-} from "../portal-permissions.ts";
+} from "../src/auth/portal-permissions.ts";
 import { handleEncryptedBackupExportRequest } from "./backup-encrypted-export-entry.ts";
 import { handleEncryptedBackupPreviewRequest } from "./backup-encrypted-preview-entry.ts";
 import { handleIsolatedBackupRestoreRequest } from "./backup-isolated-restore-entry.ts";

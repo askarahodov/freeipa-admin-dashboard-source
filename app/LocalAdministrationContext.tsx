@@ -14,7 +14,7 @@ import {
   roleHasPermission,
   type PortalPermission,
   type PortalRole,
-} from "../portal-permissions";
+} from "../src/auth/portal-permissions";
 
 type SessionPayload = {
   enabled?: boolean;

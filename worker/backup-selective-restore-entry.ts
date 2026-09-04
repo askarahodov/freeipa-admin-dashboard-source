@@ -1,4 +1,4 @@
-import { sameOriginAdminMutation } from "../admin-session-authorization.ts";
+import { sameOriginAdminMutation } from "../src/auth/admin-session-authorization.ts";
 import { appendAuditEvent, type AuditContext, type AuditEventInput } from "../audit-log.ts";
 import {
   BackupRestoreStageError,

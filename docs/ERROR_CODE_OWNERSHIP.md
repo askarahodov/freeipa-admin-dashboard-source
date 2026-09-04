@@ -1,6 +1,6 @@
 # Stable error-code ownership
 
-`stable-error-contract.ts` is the machine-readable ownership and verification surface for stable error/status codes already verified as contracts. Domain handlers and their tests remain authoritative for emitted behavior and semantics.
+`src/auth/stable-error-contract.ts` is the machine-readable ownership and verification surface for stable error/status codes already verified as contracts. Domain handlers and their tests remain authoritative for emitted behavior and semantics.
 
 Namespaces remain separate: `api`, `status`, and `audit-evidence`. Audit action names, human-readable error messages, exception text, and transient identifiers are not promoted into stable machine contracts.
 

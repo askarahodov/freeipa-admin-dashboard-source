@@ -5,7 +5,7 @@ import test from "node:test";
 const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 
 test("Home consumes canonical portal RBAC types and labels", () => {
-  assert.match(page, /from\s+["']\.\.\/portal-permissions["']/u);
+  assert.match(page, /from\s+["']\.\.\/src\/auth\/portal-permissions["']/u);
   assert.match(page, /type\s+PortalRole/u);
   assert.match(page, /type\s+PortalPermission/u);
   assert.match(page, /\bportalRoleLabels\b/u);

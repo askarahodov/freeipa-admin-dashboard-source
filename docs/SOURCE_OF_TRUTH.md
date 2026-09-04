@@ -26,7 +26,7 @@
 | Versioned schema migrations | migration registry/modules under `db/`, migration journal runtime | `DATABASE_MIGRATIONS.md` | Выпущенные migration definitions/checksums immutable |
 | Schema startup/adoption/drift behavior | schema migration runtime modules and tests | `DATABASE_MIGRATIONS.md` | Issue #57 может описывать ещё не завершённые этапы и не переопределяет runtime |
 | Local portal users and sessions | local-auth runtime + canonical DB schema | `LOCAL_AUTH_RBAC.md` | Portal user и FreeIPA user являются разными сущностями |
-| Built-in roles/permissions | `portal-permissions.ts` | `LOCAL_AUTH_RBAC.md`, `reference/PERMISSIONS.md` | Route handlers consume canonical role/permission helpers; purpose-specific service/recovery authorization остаётся отдельным механизмом |
+| Built-in roles/permissions | `src/auth/portal-permissions.ts` | `LOCAL_AUTH_RBAC.md`, `reference/PERMISSIONS.md` | Route handlers consume canonical role/permission helpers; purpose-specific service/recovery authorization остаётся отдельным механизмом |
 | Maintenance state machine | maintenance runtime + `portal_maintenance_state` schema | `MAINTENANCE_MODE.md` | Maintenance transitions и recovery должны считаться security-sensitive contract |
 | Health semantics | health handlers/contracts in runtime | `HEALTH_CONTRACTS.md` | Liveness, readiness и dependencies нельзя взаимозаменять |
 | Storage read-only status | storage status contract/handler | `STORAGE_STATUS.md` | Endpoint не является migration или repair API |
@@ -37,7 +37,7 @@
 | Operation runs/results/replay/notifications | соответствующие runtime modules + DB schema | README overview / профильные docs | Module placement is described by `PROJECT_STRUCTURE.md`; exact runtime behavior remains with code/tests |
 | Audit | audit runtime module + append-only schema/triggers | `AUDIT_LOG.md`, security/operations docs | Exact audit contract is documented; runtime/schema remain authoritative |
 | Effective integration settings and encryption | settings lifecycle/runtime + DB schema + crypto helpers | `reference/CONFIGURATION.md` + профильные settings/security docs | Secret values никогда не должны становиться documentation/reference output |
-| HTTP/API route metadata | `portal-route-contract.ts` для method/path/owner/auth/permission/mutation metadata; фактические Worker handlers/tests для поведения | `reference/API.md` | Registry не является runtime router и не владеет request/response schemas; #56 может использовать его как parity inventory |
+| HTTP/API route metadata | `src/auth/portal-route-contract.ts` для method/path/owner/auth/permission/mutation metadata; фактические Worker handlers/tests для поведения | `reference/API.md` | Registry не является runtime router и не владеет request/response schemas; #56 может использовать его как parity inventory |
 | Authentication mechanisms | local session boundary + service-admin boundary | `LOCAL_AUTH_RBAC.md` и recovery/security runbook | Нельзя выводить auth requirements только из UI visibility |
 | Docker deployment | `compose.yaml`, `Dockerfile`, `scripts/start-production.mjs`, `runtime/**` | `README.md`, `ARCHITECTURE.md`, `PROJECT_STRUCTURE.md` | Current canonical Node runtime is implemented; Compose persistence mismatch is separately tracked by #209 and host networking by #52 |
 | Environment/configuration | `.env.example`, Compose, `scripts/start-production.mjs`, startup validation and settings code | `reference/CONFIGURATION.md` + README | `reference/CONFIGURATION.md` is the current normalized human reference; #123 tracks a future machine-readable global registry, not the absence of documentation |
@@ -50,7 +50,7 @@
 
 ### Routes and permissions
 
-Built-in roles/permissions имеют единый runtime owner `portal-permissions.ts`. Stable route metadata имеет единый machine-readable owner `portal-route-contract.ts`. При этом фактический dispatch, middleware order, request validation и response behavior пока остаются распределены по Worker entry/wrapper chain и подтверждаются handler/tests. До #56 нельзя трактовать metadata registry как runtime router или переносить поведение в него.
+Built-in roles/permissions имеют единый runtime owner `src/auth/portal-permissions.ts`. Stable route metadata имеет единый machine-readable owner `src/auth/portal-route-contract.ts`. При этом фактический dispatch, middleware order, request validation и response behavior пока остаются распределены по Worker entry/wrapper chain и подтверждаются handler/tests. До #56 нельзя трактовать metadata registry как runtime router или переносить поведение в него.
 
 ### Configuration
 

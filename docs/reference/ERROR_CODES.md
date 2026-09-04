@@ -4,14 +4,14 @@
 
 This document describes **stable machine-readable codes that are already emitted or consumed as contracts** by Admin Dashboard Softrust.
 
-`stable-error-contract.ts` is the normalized machine-readable ownership and verification surface for the verified stable subset. Runtime/domain owners and their tests remain authoritative for emitted behavior and semantics; the registry does not replace domain handlers or typed domain contracts.
+`src/auth/stable-error-contract.ts` is the normalized machine-readable ownership and verification surface for the verified stable subset. Runtime/domain owners and their tests remain authoritative for emitted behavior and semantics; the registry does not replace domain handlers or typed domain contracts.
 
 It intentionally does not promote arbitrary human-readable `error` strings, audit action names, exception messages, or transient identifiers into permanent API contracts.
 
 ## Reading this reference
 
 - `code` is a machine-readable value intentionally suitable for programmatic branching, monitoring, diagnostics, or bounded operator handling.
-- `stable-error-contract.ts` records namespace/domain/owner and bounded metadata for the verified stable subset.
+- `src/auth/stable-error-contract.ts` records namespace/domain/owner and bounded metadata for the verified stable subset.
 - HTTP status is listed only where the current owner fixes it as part of the contract.
 - Audit `action` values such as `maintenance.enter` or `backup.selective.commit.failed` are **not** API error codes.
 - Audit `errorCode` fields may carry domain codes as evidence, but the `audit-evidence` namespace remains distinct from API response codes.
@@ -224,7 +224,7 @@ Verified stable machine codes include:
 | `settings_rollback_conflict` | 409 | Automatic rollback stopped because active configuration changed concurrently. |
 | `settings_source_busy` | 409 | Another operation owns the settings-source mutation lock. |
 
-This remains a **verified subset**, not a claim that every settings response is globally enumerated. Stable values that are intentionally part of the composed machine contract belong in `stable-error-contract.ts`; other domain-local/transient strings remain with their domain owner.
+This remains a **verified subset**, not a claim that every settings response is globally enumerated. Stable values that are intentionally part of the composed machine contract belong in `src/auth/stable-error-contract.ts`; other domain-local/transient strings remain with their domain owner.
 
 ## Codes intentionally excluded
 
@@ -240,12 +240,12 @@ Do not add these categories unless they become explicit machine contracts:
 
 ## Ownership and drift rules
 
-Stable codes may still be **implemented** in typed unions, fixed maps, or handler-local constants owned by their domains. `stable-error-contract.ts` composes the intentionally stable subset so tooling can verify namespace/domain ownership without centralizing runtime behavior.
+Stable codes may still be **implemented** in typed unions, fixed maps, or handler-local constants owned by their domains. `src/auth/stable-error-contract.ts` composes the intentionally stable subset so tooling can verify namespace/domain ownership without centralizing runtime behavior.
 
 When changing a stable code:
 
 1. verify and change the exact domain owner/test first;
-2. update `stable-error-contract.ts` when the value is intentionally in the stable machine contract;
+2. update `src/auth/stable-error-contract.ts` when the value is intentionally in the stable machine contract;
 3. never reuse an existing `namespace + code` for a different semantic condition or conflicting owner;
 4. keep `api`, `status`, and `audit-evidence` namespaces distinct;
 5. update this reference when public/operator-facing semantics change;

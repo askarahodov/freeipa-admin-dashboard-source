@@ -36,11 +36,11 @@
 
 | Path | Owner / source of truth | Status | Notes |
 | --- | --- | --- | --- |
-| `docs/reference/API.md` | `portal-route-contract.ts` + handlers/tests | `verified-active` | Route families/auth/owners |
-| `docs/reference/PERMISSIONS.md` | `portal-permissions.ts` + enforcement/tests | `verified-active` | Built-in roles and canonical permissions |
+| `docs/reference/API.md` | `src/auth/portal-route-contract.ts` + handlers/tests | `verified-active` | Route families/auth/owners |
+| `docs/reference/PERMISSIONS.md` | `src/auth/portal-permissions.ts` + enforcement/tests | `verified-active` | Built-in roles and canonical permissions |
 | `docs/reference/CONFIGURATION.md` | `.env.example`, Compose, `scripts/start-production.mjs`, validators/settings/recovery owners | `verified-active` | Current configuration classes and ownership |
-| `docs/reference/ERROR_CODES.md` | `stable-error-contract.ts` + domain handlers/contracts/tests | `verified-active` | Verified stable machine codes; human strings/audit actions excluded |
-| `docs/ERROR_CODE_OWNERSHIP.md` | `stable-error-contract.ts` + `tests/stable-error-contract.test.mjs` | `verified-active` | Machine-readable ownership/verification policy |
+| `docs/reference/ERROR_CODES.md` | `src/auth/stable-error-contract.ts` + domain handlers/contracts/tests | `verified-active` | Verified stable machine codes; human strings/audit actions excluded |
+| `docs/ERROR_CODE_OWNERSHIP.md` | `src/auth/stable-error-contract.ts` + `tests/stable-error-contract.test.mjs` | `verified-active` | Machine-readable ownership/verification policy |
 
 Normalized references orient humans and agents; they do not replace runtime/domain behavior owners. When they conflict, canonical code/tests win.
 
@@ -89,7 +89,7 @@ Normalized references orient humans and agents; they do not replace runtime/doma
 - **DOC-013:** #209/#220 aligned Compose persistence with canonical `/data` SQLite storage and added regression coverage.
 - **DOC-014:** #230/#232 added ADR registry and initial decision records.
 - **DOC-015:** #235/#236 added module-level coverage and focused local guides for `runtime/`, `worker/`, and `db/`.
-- **DOC-016:** #124/#239 added `stable-error-contract.ts` and registry contract tests; #240/#242 reconciles active documentation with that completed ownership model.
+- **DOC-016:** #124/#239 added `src/auth/stable-error-contract.ts` and registry contract tests; #240/#242 reconciles active documentation with that completed ownership model.
 
 ## Проверенные группы
 

@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { LOCAL_ADMIN_SESSION_MARKER } from "../admin-session-authorization";
+import { LOCAL_ADMIN_SESSION_MARKER } from "../src/auth/admin-session-authorization";
 
 type SessionPayload = {
   enabled?: boolean;

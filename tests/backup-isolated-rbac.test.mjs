@@ -6,7 +6,7 @@ import {
   portalPermissionMetadata,
   portalPermissionOrder,
   portalRolePermissions,
-} from "../portal-permissions.ts";
+} from "../src/auth/portal-permissions.ts";
 
 const request = (path) => new Request(`https://portal.test${path}`, {
   method: "POST",

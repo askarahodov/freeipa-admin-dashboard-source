@@ -32,13 +32,13 @@ test("reference layer contains all four normalized entrypoints and current owner
   ]);
   assert.match(api, /^# API reference/m); assert.match(permissions, /^# Permissions reference/m);
   assert.match(configuration, /^# Configuration reference/m); assert.match(errors, /^# Error-code reference/m);
-  assert.match(api, /`portal-route-contract\.ts` is the canonical machine-readable owner/);
-  assert.match(sourceOfTruth, /HTTP\/API route metadata[^\n]+`portal-route-contract\.ts`/);
-  assert.match(ai, /Canonical machine-readable HTTP route metadata.*`portal-route-contract\.ts`/);
+  assert.match(api, /`src\/auth\/portal-route-contract\.ts` is the canonical machine-readable owner/);
+  assert.match(sourceOfTruth, /HTTP\/API route metadata[^\n]+`src\/auth\/portal-route-contract\.ts`/);
+  assert.match(ai, /Canonical machine-readable HTTP route metadata.*`src\/auth\/portal-route-contract\.ts`/);
   assert.doesNotMatch(ai, /Машиночитаемый HTTP registry остаётся отдельной задачей #121/);
   assert.doesNotMatch(ai, /distributed\/orphan RBAC drift отслеживается в #119/);
   assert.match(configuration, /#123/);
-  assert.match(errors, /`stable-error-contract\.ts` is the normalized machine-readable ownership and verification surface/);
+  assert.match(errors, /`src\/auth\/stable-error-contract\.ts` is the normalized machine-readable ownership and verification surface/);
   assert.doesNotMatch(errors, /normalization is tracked by \*\*#124\*\*|#124 owns normalization|Follow-up \*\*#124\*\*/);
 });
 

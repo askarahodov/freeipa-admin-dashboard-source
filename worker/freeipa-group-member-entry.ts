@@ -8,7 +8,7 @@ import type { FreeIpaDirectoryUser } from "../src/freeipa/freeipa-user-query";
 import {
   isPortalRole,
   portalRolePermissions,
-} from "../portal-permissions";
+} from "../src/auth/portal-permissions";
 import { handleBackupImportPreviewRoute, type BackupPreviewAccessEnv } from "./backup-import-preview-root-entry";
 import { handleEncryptedBackupRoute, type EncryptedBackupAccessEnv } from "./backup-encrypted-root-entry";
 

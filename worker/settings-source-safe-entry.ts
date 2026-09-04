@@ -5,7 +5,7 @@ import {
   portalRolePermissions,
   resolvePortalRole,
   type PortalPermission,
-} from "../portal-permissions";
+} from "../src/auth/portal-permissions";
 
 type RuntimeEnv = NonNullable<Parameters<typeof lifecycleRuntime.fetch>[1]> & {
   DB?: D1Database;

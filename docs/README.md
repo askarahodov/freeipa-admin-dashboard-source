@@ -29,8 +29,8 @@
 Основной набор:
 
 - [`DEPLOYMENT_MATRIX.md`](DEPLOYMENT_MATRIX.md)
-- [`HEALTH_CONTRACTS.md`](HEALTH_CONTRACTS.md)
-- [`HEALTH_METRICS.md`](HEALTH_METRICS.md)
+- [`operations/HEALTH_CONTRACTS.md`](operations/HEALTH_CONTRACTS.md)
+- [`operations/HEALTH_METRICS.md`](operations/HEALTH_METRICS.md)
 - [`STORAGE_STATUS.md`](STORAGE_STATUS.md)
 - [`STORAGE_INTEGRITY.md`](STORAGE_INTEGRITY.md)
 - [`DATABASE_MIGRATIONS.md`](DATABASE_MIGRATIONS.md)
@@ -126,8 +126,8 @@ Machine-readable ownership work referenced by the documentation platform is comp
 
 | Документ | Назначение |
 | --- | --- |
-| [`HEALTH_CONTRACTS.md`](HEALTH_CONTRACTS.md) | Liveness, readiness, dependency health and diagnostics |
-| [`HEALTH_METRICS.md`](HEALTH_METRICS.md) | Prometheus-compatible baseline health metrics |
+| [`operations/HEALTH_CONTRACTS.md`](operations/HEALTH_CONTRACTS.md) | Liveness, readiness, dependency health and diagnostics |
+| [`operations/HEALTH_METRICS.md`](operations/HEALTH_METRICS.md) | Prometheus-compatible baseline health metrics |
 
 ## XYOps / process presentation
 

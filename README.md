@@ -125,8 +125,8 @@ GET /diagnostics/health
 
 Документация:
 
-- [`docs/HEALTH_CONTRACTS.md`](docs/HEALTH_CONTRACTS.md)
-- [`docs/HEALTH_METRICS.md`](docs/HEALTH_METRICS.md)
+- [`docs/operations/HEALTH_CONTRACTS.md`](docs/operations/HEALTH_CONTRACTS.md)
+- [`docs/operations/HEALTH_METRICS.md`](docs/operations/HEALTH_METRICS.md)
 - [`docs/STORAGE_STATUS.md`](docs/STORAGE_STATUS.md)
 - [`docs/STORAGE_INTEGRITY.md`](docs/STORAGE_INTEGRITY.md)
 

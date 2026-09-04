@@ -26,7 +26,7 @@ test("active documentation has one canonical product name", () => {
     "docs/GLOSSARY.md",
     "docs/SOURCE_OF_TRUTH.md",
     "docs/HEALTH_METRICS.md",
-    "docs/STORAGE_STATUS.md",
+    "docs/operations/STORAGE_STATUS.md",
     "docs/ai/README.md",
   ]) {
     const document = read(path);

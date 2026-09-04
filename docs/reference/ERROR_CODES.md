@@ -122,7 +122,7 @@ Owners: `storage-status.ts`, `worker/storage-status-entry.ts`.
 - `schema_unavailable`
 - fallback `schema_unready`
 
-Exact schema state/error semantics remain owned by the canonical migration runtime and `DATABASE_MIGRATIONS.md`.
+Exact schema state/error semantics remain owned by the canonical migration runtime and `operations/DATABASE_MIGRATIONS.md`.
 
 ## Storage integrity
 

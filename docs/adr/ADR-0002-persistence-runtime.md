@@ -36,7 +36,7 @@ Constraints:
 - `compose.yaml` — named volume mounted at `/data`;
 - `tests/compose-persistence-contract.test.mjs` — regression contract tying Compose, Dockerfile and SQLite defaults together;
 - `docs/DEPLOYMENT_MATRIX.md` — supported deployment consequences;
-- `docs/DATABASE_MIGRATIONS.md` — schema/migration lifecycle.
+- `docs/operations/DATABASE_MIGRATIONS.md` — schema/migration lifecycle.
 
 ## Supersession
 

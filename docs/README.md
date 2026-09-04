@@ -31,9 +31,9 @@
 - [`DEPLOYMENT_MATRIX.md`](DEPLOYMENT_MATRIX.md)
 - [`HEALTH_CONTRACTS.md`](HEALTH_CONTRACTS.md)
 - [`HEALTH_METRICS.md`](HEALTH_METRICS.md)
-- [`STORAGE_STATUS.md`](STORAGE_STATUS.md)
-- [`STORAGE_INTEGRITY.md`](STORAGE_INTEGRITY.md)
-- [`DATABASE_MIGRATIONS.md`](DATABASE_MIGRATIONS.md)
+- [`operations/STORAGE_STATUS.md`](operations/STORAGE_STATUS.md)
+- [`operations/STORAGE_INTEGRITY.md`](operations/STORAGE_INTEGRITY.md)
+- [`operations/DATABASE_MIGRATIONS.md`](operations/DATABASE_MIGRATIONS.md)
 - [`MAINTENANCE_MODE.md`](MAINTENANCE_MODE.md)
 - [`OFFLINE_FULL_RESTORE.md`](OFFLINE_FULL_RESTORE.md)
 - [`CONFIG_ENCRYPTION_KEY.md`](CONFIG_ENCRYPTION_KEY.md)
@@ -58,7 +58,7 @@
 - [`reference/ERROR_CODES.md`](reference/ERROR_CODES.md)
 - [`security/AUDIT_LOG.md`](security/AUDIT_LOG.md)
 - [`CONFIG_ENCRYPTION_KEY.md`](CONFIG_ENCRYPTION_KEY.md)
-- [`DATABASE_MIGRATIONS.md`](DATABASE_MIGRATIONS.md)
+- [`operations/DATABASE_MIGRATIONS.md`](operations/DATABASE_MIGRATIONS.md)
 - [`MAINTENANCE_MODE.md`](MAINTENANCE_MODE.md)
 - [`OFFLINE_FULL_RESTORE.md`](OFFLINE_FULL_RESTORE.md)
 - [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md)
@@ -115,9 +115,9 @@ Machine-readable ownership work referenced by the documentation platform is comp
 
 | Документ | Назначение |
 | --- | --- |
-| [`DATABASE_MIGRATIONS.md`](DATABASE_MIGRATIONS.md) | Canonical schema/migrations/journal/drift/recovery semantics |
-| [`STORAGE_STATUS.md`](STORAGE_STATUS.md) | Bounded read-only storage status |
-| [`STORAGE_INTEGRITY.md`](STORAGE_INTEGRITY.md) | Read-only SQLite/index diagnostics |
+| [`operations/DATABASE_MIGRATIONS.md`](operations/DATABASE_MIGRATIONS.md) | Canonical schema/migrations/journal/drift/recovery semantics |
+| [`operations/STORAGE_STATUS.md`](operations/STORAGE_STATUS.md) | Bounded read-only storage status |
+| [`operations/STORAGE_INTEGRITY.md`](operations/STORAGE_INTEGRITY.md) | Read-only SQLite/index diagnostics |
 | [`MAINTENANCE_MODE.md`](MAINTENANCE_MODE.md) | Persistent maintenance state machine |
 | [`OFFLINE_FULL_RESTORE.md`](OFFLINE_FULL_RESTORE.md) | Offline destructive restore, atomic swap, verify, rollback |
 | [`CONFIG_ENCRYPTION_KEY.md`](CONFIG_ENCRYPTION_KEY.md) | Production encryption-key requirements |

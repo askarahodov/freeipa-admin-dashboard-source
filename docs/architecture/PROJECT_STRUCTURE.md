@@ -123,7 +123,7 @@ Production/recovery persistence paths must address the same underlying data cont
 2. Use the existing `runtime/` database/SQLite boundary for production persistence behavior.
 3. Preserve immutable released migration checksums/definitions.
 4. Use the existing schema lock/journal/preflight/apply boundaries.
-5. Update `DATABASE_MIGRATIONS.md`, configuration and storage runbooks when behavior changes.
+5. Update `operations/DATABASE_MIGRATIONS.md`, configuration and storage runbooks when behavior changes.
 
 ### Backup, maintenance or restore
 

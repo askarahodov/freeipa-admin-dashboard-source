@@ -50,13 +50,13 @@ Normalized references orient humans and agents; they do not replace runtime/doma
 | --- | --- | --- |
 | `docs/SECURITY_MODEL.md` | auth/session/service-admin/integration/recovery owners + security tests | `verified-active` |
 | `docs/LOCAL_AUTH_RBAC.md` | local auth/session boundary + DB schema | `verified-active` |
-| `docs/DATABASE_MIGRATIONS.md` | canonical migration registry/runtime/tests | `verified-active` |
+| `docs/operations/DATABASE_MIGRATIONS.md` | canonical migration registry/runtime/tests | `verified-active` |
 | `docs/MAINTENANCE_MODE.md` | maintenance runtime + persistent state | `verified-active` |
 | `docs/OFFLINE_FULL_RESTORE.md` | recovery CLI/scripts | `verified-active` |
 | `docs/HEALTH_CONTRACTS.md` | health handlers/contracts | `verified-active` |
 | `docs/HEALTH_METRICS.md` | health metrics owner/rules | `verified-active` |
-| `docs/STORAGE_STATUS.md` | storage status contract | `verified-active` |
-| `docs/STORAGE_INTEGRITY.md` | integrity contract/index registry | `verified-active` |
+| `docs/operations/STORAGE_STATUS.md` | storage status contract | `verified-active` |
+| `docs/operations/STORAGE_INTEGRITY.md` | integrity contract/index registry | `verified-active` |
 | `docs/CONFIG_ENCRYPTION_KEY.md` | startup validator + Compose | `verified-active` |
 | `docs/security/AUDIT_LOG.md` | audit-log owner + route/schema | `verified-active` |
 | `docs/LOCAL_ACCEPTANCE_TESTS.md` | local integration harness/scripts | `verified-active` |

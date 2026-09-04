@@ -127,8 +127,8 @@ GET /diagnostics/health
 
 - [`docs/HEALTH_CONTRACTS.md`](docs/HEALTH_CONTRACTS.md)
 - [`docs/HEALTH_METRICS.md`](docs/HEALTH_METRICS.md)
-- [`docs/STORAGE_STATUS.md`](docs/STORAGE_STATUS.md)
-- [`docs/STORAGE_INTEGRITY.md`](docs/STORAGE_INTEGRITY.md)
+- [`docs/operations/STORAGE_STATUS.md`](docs/operations/STORAGE_STATUS.md)
+- [`docs/operations/STORAGE_INTEGRITY.md`](docs/operations/STORAGE_INTEGRITY.md)
 
 ## Schema и migrations
 
@@ -144,7 +144,7 @@ GET  /api/admin/storage/migrations/apply/status
 POST /api/admin/storage/migrations/apply/reconcile
 ```
 
-Полный contract: [`docs/DATABASE_MIGRATIONS.md`](docs/DATABASE_MIGRATIONS.md).
+Полный contract: [`docs/operations/DATABASE_MIGRATIONS.md`](docs/operations/DATABASE_MIGRATIONS.md).
 
 ## Backup, restore и maintenance
 

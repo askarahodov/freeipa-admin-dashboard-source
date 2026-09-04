@@ -47,7 +47,7 @@ test("README exposes current recovery capabilities and links authoritative runbo
   for (const ownerDocument of [
     "docs/MAINTENANCE_MODE.md",
     "docs/OFFLINE_FULL_RESTORE.md",
-    "docs/DATABASE_MIGRATIONS.md",
+    "docs/operations/DATABASE_MIGRATIONS.md",
   ]) assert.equal(readme.includes(ownerDocument), true, ownerDocument);
 
   // Exact maintenance/restore endpoint inventories belong to their active runbooks,

@@ -125,4 +125,4 @@ Production persistence defect #209 is closed. The old Wrangler production-runtim
 
 The previously listed structural/documentation gaps are now implemented: index/policy/source-of-truth, architecture/project/module coverage, deployment matrix, security model, normalized references, ADR registry, AI entrypoint and coordination rules, docs consistency CI, and machine-readable route/permission/config/error ownership surfaces.
 
-Final closure is gated only by #240 / PR #242: active-doc reconciliation plus a green exact-head Required CI and final human/AI onboarding check. If that candidate remains green with no newly discovered material documentation gap, Epic #82 can be закрыт как completed.
+Final closure is gated only by #240 / PR #242: active-doc reconciliation plus a green exact-head Required CI and final human/AI onboarding check. If that candidate remains green with no newly discovered material documentation gap, Epic #82 can be closed as completed.

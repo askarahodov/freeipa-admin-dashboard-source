@@ -19,7 +19,7 @@
 - `db/portal-schema.ts`
 - `db/portal-migration-registry.ts`
 - versioned `db/portal-migration-v*.ts` definitions
-- `docs/DATABASE_MIGRATIONS.md`
+- `docs/operations/DATABASE_MIGRATIONS.md`
 - storage/recovery runbooks
 - `docs/adr/ADR-0005-forward-only-migrations.md`
 

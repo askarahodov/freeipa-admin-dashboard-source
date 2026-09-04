@@ -6,7 +6,7 @@ Persistent maintenance mode — внешний safety boundary портала п
 
 Состояние хранится в `portal_maintenance_state`, сохраняется после перезапуска и работает fail-closed при повреждении или недоступности строки.
 
-Полная file-level процедура: [OFFLINE_FULL_RESTORE.md](OFFLINE_FULL_RESTORE.md).
+Полная file-level процедура: [OFFLINE_FULL_RESTORE.md](../OFFLINE_FULL_RESTORE.md).
 
 ## Доступ и endpoints
 
@@ -52,7 +52,7 @@ POST /api/admin/maintenance/cancel
 1. `GET /api/admin/maintenance/status` — продолжать только из `inactive`.
 2. `POST /api/admin/maintenance/prepare` — сохранить `operationId`, `controllerSecret` и challenge.
 3. `POST /api/admin/maintenance/enter` — exact `ENTER:<operationId>`; guarded batch переводит state в `active` и отзывает локальные sessions.
-4. Остановить `dashboard` и выполнить offline `preflight`, `backup-current`, `restore` по [OFFLINE_FULL_RESTORE.md](OFFLINE_FULL_RESTORE.md).
+4. Остановить `dashboard` и выполнить offline `preflight`, `backup-current`, `restore` по [OFFLINE_FULL_RESTORE.md](../OFFLINE_FULL_RESTORE.md).
 5. Запустить `dashboard`.
 6. Recovery CLI вызывает `verification/smoke`, затем `verification/start`, `exit` и `complete`.
 7. Только успешный online verifier возвращает state в `inactive`; startup и таймер этого не делают.

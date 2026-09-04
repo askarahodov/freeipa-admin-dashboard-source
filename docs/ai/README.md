@@ -8,8 +8,8 @@
 
 1. прочитать корневой [`README.md`](../../README.md);
 2. прочитать [`docs/README.md`](../README.md);
-3. прочитать [`ARCHITECTURE.md`](../ARCHITECTURE.md) — фактическая runtime/trust/data topology;
-4. прочитать [`PROJECT_STRUCTURE.md`](../PROJECT_STRUCTURE.md) — module ownership и where-to-change routing;
+3. прочитать [`ARCHITECTURE.md`](../architecture/ARCHITECTURE.md) — фактическая runtime/trust/data topology;
+4. прочитать [`PROJECT_STRUCTURE.md`](../architecture/PROJECT_STRUCTURE.md) — module ownership и where-to-change routing;
 5. прочитать [`DOCUMENTATION_POLICY.md`](../DOCUMENTATION_POLICY.md);
 6. проверить [`SOURCE_OF_TRUTH.md`](../SOURCE_OF_TRUTH.md);
 7. для security-sensitive изменения прочитать [`SECURITY_MODEL.md`](../SECURITY_MODEL.md) до проектирования нового privileged/trust boundary;
@@ -30,7 +30,7 @@
 - какой домен владеет данными;
 - где находится текущий source of truth;
 - существует ли уже аналогичная реализация;
-- какой layer/path должен владеть изменением по [`PROJECT_STRUCTURE.md`](../PROJECT_STRUCTURE.md);
+- какой layer/path должен владеть изменением по [`PROJECT_STRUCTURE.md`](../architecture/PROJECT_STRUCTURE.md);
 - какой active-document описывает контракт;
 - какой normalized reference затронут;
 - какие tests доказывают поведение;
@@ -166,7 +166,7 @@ agent/<short-scope>
 
 Следуйте [`DOCUMENTATION_POLICY.md`](../DOCUMENTATION_POLICY.md). Не создавайте новый Markdown-файл, если существующий документ уже владеет темой.
 
-Если изменена system topology/trust boundary — актуализируйте [`ARCHITECTURE.md`](../ARCHITECTURE.md). Если изменился module/path ownership — актуализируйте [`PROJECT_STRUCTURE.md`](../PROJECT_STRUCTURE.md). Если изменился security trust/identity/secret/authorization/recovery boundary — актуализируйте [`SECURITY_MODEL.md`](../SECURITY_MODEL.md) и профильный exact contract.
+Если изменена system topology/trust boundary — актуализируйте [`ARCHITECTURE.md`](../architecture/ARCHITECTURE.md). Если изменился module/path ownership — актуализируйте [`PROJECT_STRUCTURE.md`](../architecture/PROJECT_STRUCTURE.md). Если изменился security trust/identity/secret/authorization/recovery boundary — актуализируйте [`SECURITY_MODEL.md`](../SECURITY_MODEL.md) и профильный exact contract.
 
 Если изменился route/permission/config/stable-code contract — актуализируйте соответствующий файл в [`../reference/`](../reference/).
 
@@ -232,8 +232,8 @@ agent/<short-scope>
 ## Куда смотреть дальше
 
 - [`../README.md`](../README.md) — навигация;
-- [`../ARCHITECTURE.md`](../ARCHITECTURE.md) — current runtime architecture;
-- [`../PROJECT_STRUCTURE.md`](../PROJECT_STRUCTURE.md) — current repository/module map;
+- [`../ARCHITECTURE.md`](../architecture/ARCHITECTURE.md) — current runtime architecture;
+- [`../PROJECT_STRUCTURE.md`](../architecture/PROJECT_STRUCTURE.md) — current repository/module map;
 - [`../SECURITY_MODEL.md`](../SECURITY_MODEL.md) — current security/trust model;
 - [`../reference/API.md`](../reference/API.md) — normalized route reference;
 - [`../reference/PERMISSIONS.md`](../reference/PERMISSIONS.md) — normalized canonical RBAC reference;

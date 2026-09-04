@@ -19,9 +19,9 @@
 | --- | --- | --- | --- |
 | `README.md` | runtime + Compose + package/config | `verified-active` | Product overview / quick start |
 | `docs/README.md` | documentation policy + inventory | `verified-active` | Main engineering-doc index |
-| `docs/ARCHITECTURE.md` | current runtime, Compose/startup, canonical owners/tests | `verified-active` | Production runtime and persistence resynced |
-| `docs/PROJECT_STRUCTURE.md` | repository paths + `SOURCE_OF_TRUTH.md` | `verified-active` | Module ownership map |
-| `docs/MODULE_COVERAGE.md` | module boundaries + local READMEs + scoped tests | `verified-active` | Central-vs-local documentation coverage |
+| `docs/architecture/ARCHITECTURE.md` | current runtime, Compose/startup, canonical owners/tests | `verified-active` | Production runtime and persistence resynced |
+| `docs/architecture/PROJECT_STRUCTURE.md` | repository paths + `SOURCE_OF_TRUTH.md` | `verified-active` | Module ownership map |
+| `docs/architecture/MODULE_COVERAGE.md` | module boundaries + local READMEs + scoped tests | `verified-active` | Central-vs-local documentation coverage |
 | `runtime/README.md` | canonical Node runtime + runtime tests | `verified-active` | Runtime lifecycle/persistence/gateway/scheduler |
 | `worker/README.md` | Worker/API/security contracts/tests | `verified-active` | Request/scheduled orchestration boundary |
 | `db/README.md` | schema/migration registry/tests | `verified-active` | Canonical schema/migration ownership |

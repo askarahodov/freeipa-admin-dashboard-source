@@ -45,7 +45,7 @@ The initial registry intentionally records only decisions with strong current im
 
 ## ADR-0001 reconciliation
 
-ADR-0001 predates this registry and was authored before the runtime cutover. Its detailed alternatives, migration strategy and rationale remain valuable historical decision evidence, so the body is preserved instead of rewritten into a retrospective summary. The implementation subsequently selected its Option B and shipped the canonical Node runtime. Current implementation evidence is `Dockerfile`, `scripts/start-production.mjs`, `runtime/production-runtime.mjs`, `compose.yaml`, `docs/ARCHITECTURE.md`, `docs/DEPLOYMENT_MATRIX.md` and the runtime/persistence contract tests.
+ADR-0001 predates this registry and was authored before the runtime cutover. Its detailed alternatives, migration strategy and rationale remain valuable historical decision evidence, so the body is preserved instead of rewritten into a retrospective summary. The implementation subsequently selected its Option B and shipped the canonical Node runtime. Current implementation evidence is `Dockerfile`, `scripts/start-production.mjs`, `runtime/production-runtime.mjs`, `compose.yaml`, `docs/architecture/ARCHITECTURE.md`, `docs/DEPLOYMENT_MATRIX.md` and the runtime/persistence contract tests.
 
 ## Change policy
 

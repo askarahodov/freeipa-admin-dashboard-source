@@ -117,7 +117,7 @@ A permission/RBAC change is incomplete until all applicable items are addressed:
 
 - [`../SECURITY_MODEL.md`](../SECURITY_MODEL.md) — identities and trust boundaries.
 - [`../LOCAL_AUTH_RBAC.md`](../LOCAL_AUTH_RBAC.md) — local authentication/session behavior.
-- [`../ARCHITECTURE.md`](../ARCHITECTURE.md) — current request architecture.
+- [`../ARCHITECTURE.md`](../architecture/ARCHITECTURE.md) — current request architecture.
 - [`../SOURCE_OF_TRUTH.md`](../SOURCE_OF_TRUTH.md) — canonical owner registry.
 
 If this reference and current runtime disagree, verify `src/auth/portal-permissions.ts`, the exact server handler and its tests first, then treat the mismatch as documentation/RBAC drift rather than inventing a third interpretation.

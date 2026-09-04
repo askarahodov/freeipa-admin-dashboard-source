@@ -7,8 +7,8 @@ function read(path) {
 }
 
 test("architecture and project structure are active documentation entrypoints", () => {
-  const architecture = read("docs/ARCHITECTURE.md");
-  const projectStructure = read("docs/PROJECT_STRUCTURE.md");
+  const architecture = read("docs/architecture/ARCHITECTURE.md");
+  const projectStructure = read("docs/architecture/PROJECT_STRUCTURE.md");
   const index = read("docs/README.md");
   const inventory = read("docs/DOCUMENTATION_INVENTORY.md");
   const aiEntrypoint = read("docs/ai/README.md");
@@ -16,22 +16,22 @@ test("architecture and project structure are active documentation entrypoints", 
   assert.match(architecture, /^# Architecture/m);
   assert.match(projectStructure, /^# Project structure and module boundaries/m);
 
-  assert.match(index, /\[`ARCHITECTURE\.md`\]\(ARCHITECTURE\.md\)/);
-  assert.match(index, /\[`PROJECT_STRUCTURE\.md`\]\(PROJECT_STRUCTURE\.md\)/);
+  assert.match(index, /\[`ARCHITECTURE\.md`\]\(architecture\/ARCHITECTURE\.md\)/);
+  assert.match(index, /\[`PROJECT_STRUCTURE\.md`\]\(architecture\/PROJECT_STRUCTURE\.md\)/);
 
-  assert.match(aiEntrypoint, /\[`ARCHITECTURE\.md`\]\(\.\.\/ARCHITECTURE\.md\)/);
-  assert.match(aiEntrypoint, /\[`PROJECT_STRUCTURE\.md`\]\(\.\.\/PROJECT_STRUCTURE\.md\)/);
+  assert.match(aiEntrypoint, /\[`ARCHITECTURE\.md`\]\(\.\.\/architecture\/ARCHITECTURE\.md\)/);
+  assert.match(aiEntrypoint, /\[`PROJECT_STRUCTURE\.md`\]\(\.\.\/architecture\/PROJECT_STRUCTURE\.md\)/);
 
-  assert.match(inventory, /`docs\/ARCHITECTURE\.md`[\s\S]*`verified-active`/);
-  assert.match(inventory, /`docs\/PROJECT_STRUCTURE\.md`[\s\S]*`verified-active`/);
+  assert.match(inventory, /`docs\/architecture\/ARCHITECTURE\.md`[\s\S]*`verified-active`/);
+  assert.match(inventory, /`docs\/architecture\/PROJECT_STRUCTURE\.md`[\s\S]*`verified-active`/);
 
   assert.doesNotMatch(index, /`ARCHITECTURE\.md`;\s*\n- `PROJECT_STRUCTURE\.md`/);
   assert.doesNotMatch(aiEntrypoint, /Architecture overview, project structure .*will be added/i);
 });
 
 test("architecture map reflects current AppShell and extracted screen ownership", () => {
-  const architecture = read("docs/ARCHITECTURE.md");
-  const projectStructure = read("docs/PROJECT_STRUCTURE.md");
+  const architecture = read("docs/architecture/ARCHITECTURE.md");
+  const projectStructure = read("docs/architecture/PROJECT_STRUCTURE.md");
 
   assert.match(architecture, /reusable product shell\/navigation foundation under `app\/shell\/`/);
   assert.match(architecture, /extracted additional presentation responsibilities from the former monolithic Home page/);

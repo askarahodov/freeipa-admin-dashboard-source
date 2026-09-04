@@ -2,22 +2,23 @@
 
 Этот каталог — главный индекс инженерной документации **Admin Dashboard Softrust** для разработчиков, операторов, security reviewers и ИИ-агентов.
 
-Корневой [`README.md`](../README.md) остаётся краткой входной точкой. Current audit status: [`DOCUMENTATION_INVENTORY.md`](DOCUMENTATION_INVENTORY.md).
+Корневой [`README.md`](../README.md) остаётся краткой входной точкой. Current audit status: [`DOCUMENTATION_INVENTORY.md`](DOCUMENTATION_INVENTORY.md). Canonical architecture/repository-boundary navigation starts at [`architecture/README.md`](architecture/README.md); active documents remain at their current canonical paths until an explicit #268 move updates every inbound link.
 
 ## С чего начать
 
 ### Новый разработчик
 
 1. [`../README.md`](../README.md) — назначение и quick start.
-2. [`ARCHITECTURE.md`](ARCHITECTURE.md) — current runtime topology, trust/data boundaries и major ownership.
-3. [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md) — repository/module map и where-to-change routing.
-4. [`MODULE_COVERAGE.md`](MODULE_COVERAGE.md) — module ownership, dependency direction и scoped tests.
-5. [`DEPLOYMENT_MATRIX.md`](DEPLOYMENT_MATRIX.md) — supported/development/constrained/unsupported deployment modes.
-6. [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md) — authoritative owners и precedence.
-7. [`DOCUMENTATION_POLICY.md`](DOCUMENTATION_POLICY.md) — docs-as-code и правила нескольких агентов.
-8. [`development/README.md`](development/README.md) — repository governance, branch lifecycle, required checks and dependency-update policy.
-9. При изменении внешнего/операционного контракта свериться с [`reference/API.md`](reference/API.md), [`reference/PERMISSIONS.md`](reference/PERMISSIONS.md), [`reference/CONFIGURATION.md`](reference/CONFIGURATION.md) и [`reference/ERROR_CODES.md`](reference/ERROR_CODES.md).
-10. Затем читать профильный документ и фактический code/tests текущего ref.
+2. [`architecture/README.md`](architecture/README.md) — canonical landing area for architecture and repository-boundary documentation.
+3. [`ARCHITECTURE.md`](ARCHITECTURE.md) — current runtime topology, trust/data boundaries и major ownership.
+4. [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md) — repository/module map и where-to-change routing.
+5. [`MODULE_COVERAGE.md`](MODULE_COVERAGE.md) — module ownership, dependency direction и scoped tests.
+6. [`DEPLOYMENT_MATRIX.md`](DEPLOYMENT_MATRIX.md) — supported/development/constrained/unsupported deployment modes.
+7. [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md) — authoritative owners и precedence.
+8. [`DOCUMENTATION_POLICY.md`](DOCUMENTATION_POLICY.md) — docs-as-code и правила нескольких агентов.
+9. [`development/README.md`](development/README.md) — repository governance, branch lifecycle, required checks and dependency-update policy.
+10. При изменении внешнего/операционного контракта свериться с [`reference/API.md`](reference/API.md), [`reference/PERMISSIONS.md`](reference/PERMISSIONS.md), [`reference/CONFIGURATION.md`](reference/CONFIGURATION.md) и [`reference/ERROR_CODES.md`](reference/ERROR_CODES.md).
+11. Затем читать профильный документ и фактический code/tests текущего ref.
 
 ### ИИ-агент
 
@@ -66,6 +67,7 @@
 
 | Документ | Назначение |
 | --- | --- |
+| [`architecture/README.md`](architecture/README.md) | Canonical landing area for architecture/repository-boundary documentation and #268 move rules |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | Current topology/request/trust/data/failure boundaries |
 | [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md) | Repository ownership map and module boundaries |
 | [`MODULE_COVERAGE.md`](MODULE_COVERAGE.md) | Module documentation/test coverage and dependency direction |

@@ -42,9 +42,21 @@ jobs:
             tests/documentation-reference-layer.test.mjs
       - name: Verify no active root auth imports remain
         run: |
-          ! grep -RIn --exclude-dir=.git --exclude-dir=superpowers \
-            -E 'from ["'"']\.\./(admin-session-authorization|local-auth|local-session-management|portal-permissions|portal-route-contract|stable-error-contract)(\.ts)?["'"']' \
-            app worker tests scripts docs
+          python - <<'PY'
+          import re
+          from pathlib import Path
+          pattern = re.compile(r'from\s+["\']\.\./(?:admin-session-authorization|local-auth|local-session-management|portal-permissions|portal-route-contract|stable-error-contract)(?:\.ts)?["\']')
+          hits = []
+          for root in ("app", "worker", "tests", "scripts", "docs"):
+              for path in Path(root).rglob("*"):
+                  if not path.is_file() or "docs/superpowers/" in path.as_posix():
+                      continue
+                  text = path.read_text(errors="ignore")
+                  if pattern.search(text):
+                      hits.append(path.as_posix())
+          if hits:
+              raise SystemExit("stale root auth imports: " + ", ".join(sorted(hits)))
+          PY
       - name: Remove one-shot transport
         run: rm scripts/auth-finalize-cleanup.py .github/workflows/auth-finalize-cleanup.yml
       - name: Commit final tree

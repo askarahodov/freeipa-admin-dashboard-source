@@ -210,7 +210,7 @@ Security rules:
 - treat audit-read authorization separately from normal UI visibility;
 - do not weaken append-only or redaction behavior to simplify tests or debugging.
 
-Exact fields/read API/permissions belong to [`AUDIT_LOG.md`](AUDIT_LOG.md).
+Exact fields/read API/permissions belong to [`security/AUDIT_LOG.md`](security/AUDIT_LOG.md).
 
 ## Approval boundary
 
@@ -328,7 +328,7 @@ Always inspect current `main` before repeating this list in another document; me
 - [`ARCHITECTURE.md`](architecture/ARCHITECTURE.md) — system topology and trust-boundary context;
 - [`PROJECT_STRUCTURE.md`](architecture/PROJECT_STRUCTURE.md) — module/owner placement;
 - [`LOCAL_AUTH_RBAC.md`](LOCAL_AUTH_RBAC.md) — exact portal authentication, sessions, roles and permissions;
-- [`AUDIT_LOG.md`](AUDIT_LOG.md) — audit contract/redaction/read boundary;
+- [`security/AUDIT_LOG.md`](security/AUDIT_LOG.md) — audit contract/redaction/read boundary;
 - [`CONFIG_ENCRYPTION_KEY.md`](CONFIG_ENCRYPTION_KEY.md) — production encryption-key requirements;
 - [`DATABASE_MIGRATIONS.md`](DATABASE_MIGRATIONS.md) — schema/migration fail-closed lifecycle;
 - [`MAINTENANCE_MODE.md`](MAINTENANCE_MODE.md) — persistent maintenance boundary;

@@ -1,0 +1,107 @@
+name: One-shot #268 audit security family
+
+on:
+  push:
+    branches:
+      - docs/268-audit-security-family
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+      - name: Move audit documentation family
+        shell: bash
+        run: |
+          set -euo pipefail
+          python <<'PY'
+          from pathlib import Path
+
+          docs = Path('docs')
+          security = docs / 'security'
+          security.mkdir(parents=True, exist_ok=True)
+
+          moves = {
+              docs / 'AUDIT_LOG.md': security / 'AUDIT_LOG.md',
+              docs / 'AUDIT_QUERY_EXAMPLES.md': security / 'AUDIT_QUERY_EXAMPLES.md',
+          }
+          for src, dst in moves.items():
+              dst.write_text(src.read_text(), encoding='utf-8')
+
+          (docs / 'AUDIT_LOG.md').write_text(
+              '# Relocated\n\nThe canonical document has moved to [`security/AUDIT_LOG.md`](security/AUDIT_LOG.md). '
+              'This compatibility pointer is retained for existing external links; do not update policy here.\n',
+              encoding='utf-8',
+          )
+          (docs / 'AUDIT_QUERY_EXAMPLES.md').write_text(
+              '# Relocated\n\nThe canonical document has moved to [`security/AUDIT_QUERY_EXAMPLES.md`](security/AUDIT_QUERY_EXAMPLES.md). '
+              'This compatibility pointer is retained for existing external links; do not update examples here.\n',
+              encoding='utf-8',
+          )
+
+          replacements = {
+              docs / 'README.md': [
+                  ('[`AUDIT_LOG.md`](AUDIT_LOG.md)', '[`security/AUDIT_LOG.md`](security/AUDIT_LOG.md)'),
+              ],
+              docs / 'SOURCE_OF_TRUTH.md': [
+                  ('`AUDIT_LOG.md`, security/operations docs', '`security/AUDIT_LOG.md`, security/operations docs'),
+              ],
+              docs / 'DOCUMENTATION_INVENTORY.md': [
+                  ('`docs/AUDIT_LOG.md`', '`docs/security/AUDIT_LOG.md`'),
+              ],
+              docs / 'SECURITY_MODEL.md': [
+                  ('[`AUDIT_LOG.md`](AUDIT_LOG.md)', '[`security/AUDIT_LOG.md`](security/AUDIT_LOG.md)'),
+              ],
+          }
+          for path, pairs in replacements.items():
+              text = path.read_text(encoding='utf-8')
+              for old, new in pairs:
+                  if old not in text:
+                      raise SystemExit(f'missing expected text in {path}: {old}')
+                  text = text.replace(old, new)
+              path.write_text(text, encoding='utf-8')
+
+          sec_index = security / 'README.md'
+          text = sec_index.read_text(encoding='utf-8')
+          anchor = '- [`DEPENDENCY_SECURITY.md`](DEPENDENCY_SECURITY.md) — production dependency audit, SBOM, runtime image scanning, temporary exceptions and upgrade/rollback policy.\n'
+          addition = (
+              anchor
+              + '- [`AUDIT_LOG.md`](AUDIT_LOG.md) — append-only audit contract, correlation, redaction and authorized read boundary.\n'
+              + '- [`AUDIT_QUERY_EXAMPLES.md`](AUDIT_QUERY_EXAMPLES.md) — practical audit query scenarios for the canonical audit contract.\n'
+          )
+          if anchor not in text:
+              raise SystemExit('security README anchor not found')
+          text = text.replace(anchor, addition)
+          sec_index.write_text(text, encoding='utf-8')
+          PY
+      - name: Validate documentation batch
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run docs:check
+          node --test tests/documentation-architecture-map.test.mjs
+          git diff --check
+          test -f docs/security/AUDIT_LOG.md
+          test -f docs/security/AUDIT_QUERY_EXAMPLES.md
+          grep -Fq 'security/AUDIT_LOG.md' docs/AUDIT_LOG.md
+          grep -Fq 'security/AUDIT_QUERY_EXAMPLES.md' docs/AUDIT_QUERY_EXAMPLES.md
+          grep -Fq 'LOCAL_AUTH_RBAC.md' docs/security/README.md
+      - name: Commit final self-cleaned batch
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/one-shot-268-audit-security.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          git commit -m 'docs: move audit family to security owner'
+          git push

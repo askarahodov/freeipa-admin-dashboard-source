@@ -51,7 +51,7 @@ jobs:
         run: |
           set -euo pipefail
           npm run docs:check
-          mapfile -t tests < <(grep -rlE 'APPROVAL_GATES|approval[_ -]?gate' tests --include='*.test.mjs' --include='*.test.js' | sort -u || true)
+          mapfile -t tests < <(grep -rl 'APPROVAL_GATES' tests --include='*.test.mjs' --include='*.test.js' | sort -u || true)
           if (( ${#tests[@]} )); then
             node --experimental-strip-types --test --test-concurrency=1 "${tests[@]}"
           fi

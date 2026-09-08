@@ -244,3 +244,7 @@ agent/<short-scope>
 - профильные runbook — фактические operational/security contracts.
 
 Если architecture/project/security/reference map и текущий код расходятся, не выдумывайте новое boundary: проверьте current ref/canonical owner и исправьте подтверждённый documentation drift.
+## Canonical AI delivery policy
+
+- [`AI_AGENT_WORKFLOW.md`](AI_AGENT_WORKFLOW.md) — mandatory AI-agent delivery workflow, testing, review and checkpoint policy.
+- [`APPROVAL_GATES.md`](APPROVAL_GATES.md) — approval boundaries and execution gates for automated/agent work.

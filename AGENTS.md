@@ -2,7 +2,7 @@
 
 These instructions apply to **every AI agent** working in this repository, regardless of model, tool, role, or entry point. Read this file before starting work.
 
-`AGENTS.md` defines the non-negotiable repository contract. Detailed execution guidance lives in [`docs/AI_AGENT_WORKFLOW.md`](docs/AI_AGENT_WORKFLOW.md). Test selection is governed by [`docs/TESTING_POLICY.md`](docs/TESTING_POLICY.md). The pull-request template defines the evidence expected at review time.
+`AGENTS.md` defines the non-negotiable repository contract. Detailed execution guidance lives in [`docs/ai/AI_AGENT_WORKFLOW.md`](docs/ai/AI_AGENT_WORKFLOW.md). Test selection is governed by [`docs/TESTING_POLICY.md`](docs/TESTING_POLICY.md). The pull-request template defines the evidence expected at review time.
 
 ## Non-negotiable rules
 
@@ -26,7 +26,7 @@ Every meaningful task follows this lifecycle:
 
 **understand -> inspect -> coordinate -> design -> implement -> focused tests -> review/security -> documentation -> PR/CI -> merge -> post-merge verification -> checkpoint**
 
-The depth of each stage is proportional to risk. A documentation typo and an authentication migration do not require the same amount of analysis, but neither may skip applicable safety gates. See `docs/AI_AGENT_WORKFLOW.md` for the risk levels and execution details.
+The depth of each stage is proportional to risk. A documentation typo and an authentication migration do not require the same amount of analysis, but neither may skip applicable safety gates. See `docs/ai/AI_AGENT_WORKFLOW.md` for the risk levels and execution details.
 
 ## Roles
 

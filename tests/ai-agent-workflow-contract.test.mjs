@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import test from 'node:test';
 
 const agentsPath = new URL('../AGENTS.md', import.meta.url);
-const workflowPath = new URL('../docs/AI_AGENT_WORKFLOW.md', import.meta.url);
+const workflowPath = new URL('../docs/ai/AI_AGENT_WORKFLOW.md', import.meta.url);
 const testingPolicyPath = new URL('../docs/TESTING_POLICY.md', import.meta.url);
 const prTemplatePath = new URL('../.github/pull_request_template.md', import.meta.url);
 
@@ -21,7 +21,7 @@ function requireAll(source, patterns, label) {
 test('root agent contract keeps the non-negotiable delivery gates', () => {
   requireAll(agents, [
     /every AI agent/i,
-    /docs\/AI_AGENT_WORKFLOW\.md/,
+    /docs\/ai\/AI_AGENT_WORKFLOW\.md/,
     /docs\/TESTING_POLICY\.md/,
     /## Minimum lifecycle/,
     /understand\s*->\s*inspect\s*->\s*coordinate\s*->\s*design\s*->\s*implement\s*->\s*focused tests\s*->\s*review\/security\s*->\s*documentation\s*->\s*PR\/CI\s*->\s*merge\s*->\s*post-merge verification\s*->\s*checkpoint/i,
@@ -56,7 +56,7 @@ test('detailed workflow defines scalable risk levels and high-value engineering 
     /inferred/i,
     /not verified/i,
     /Do not report inferred or unverified state as tested/i,
-  ], 'docs/AI_AGENT_WORKFLOW.md');
+  ], 'docs/ai/AI_AGENT_WORKFLOW.md');
 });
 
 test('agent workflow remains connected to test and PR evidence sources of truth', () => {

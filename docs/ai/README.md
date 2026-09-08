@@ -10,7 +10,7 @@
 2. прочитать [`docs/README.md`](../README.md);
 3. прочитать [`ARCHITECTURE.md`](../architecture/ARCHITECTURE.md) — фактическая runtime/trust/data topology;
 4. прочитать [`PROJECT_STRUCTURE.md`](../architecture/PROJECT_STRUCTURE.md) — module ownership и where-to-change routing;
-5. прочитать [`DOCUMENTATION_POLICY.md`](../DOCUMENTATION_POLICY.md);
+5. прочитать [`DOCUMENTATION_POLICY.md`](../development/DOCUMENTATION_POLICY.md);
 6. проверить [`SOURCE_OF_TRUTH.md`](../reference/SOURCE_OF_TRUTH.md);
 7. для security-sensitive изменения прочитать [`SECURITY_MODEL.md`](../security/SECURITY_MODEL.md) до проектирования нового privileged/trust boundary;
 8. если изменение затрагивает HTTP route/method/auth boundary — свериться с [`reference/API.md`](../reference/API.md);
@@ -164,7 +164,7 @@ agent/<short-scope>
 - устарел ли существующий пример или runbook;
 - появился ли новый термин/decision, который нужно оформить.
 
-Следуйте [`DOCUMENTATION_POLICY.md`](../DOCUMENTATION_POLICY.md). Не создавайте новый Markdown-файл, если существующий документ уже владеет темой.
+Следуйте [`DOCUMENTATION_POLICY.md`](../development/DOCUMENTATION_POLICY.md). Не создавайте новый Markdown-файл, если существующий документ уже владеет темой.
 
 Если изменена system topology/trust boundary — актуализируйте [`ARCHITECTURE.md`](../architecture/ARCHITECTURE.md). Если изменился module/path ownership — актуализируйте [`PROJECT_STRUCTURE.md`](../architecture/PROJECT_STRUCTURE.md). Если изменился security trust/identity/secret/authorization/recovery boundary — актуализируйте [`SECURITY_MODEL.md`](../security/SECURITY_MODEL.md) и профильный exact contract.
 

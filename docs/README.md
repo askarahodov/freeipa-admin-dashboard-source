@@ -15,7 +15,7 @@
 5. [`MODULE_COVERAGE.md`](architecture/MODULE_COVERAGE.md) — module ownership, dependency direction и scoped tests.
 6. [`DEPLOYMENT_MATRIX.md`](architecture/DEPLOYMENT_MATRIX.md) — supported/development/constrained/unsupported deployment modes.
 7. [`SOURCE_OF_TRUTH.md`](reference/SOURCE_OF_TRUTH.md) — authoritative owners и precedence.
-8. [`DOCUMENTATION_POLICY.md`](DOCUMENTATION_POLICY.md) — docs-as-code и правила нескольких агентов.
+8. [`DOCUMENTATION_POLICY.md`](development/DOCUMENTATION_POLICY.md) — docs-as-code и правила нескольких агентов.
 9. [`development/README.md`](development/README.md) — repository governance, branch lifecycle, required checks and dependency-update policy.
 10. При изменении внешнего/операционного контракта свериться с [`reference/API.md`](reference/API.md), [`reference/PERMISSIONS.md`](reference/PERMISSIONS.md), [`reference/CONFIGURATION.md`](reference/CONFIGURATION.md) и [`reference/ERROR_CODES.md`](reference/ERROR_CODES.md).
 11. Затем читать профильный документ и фактический code/tests текущего ref.
@@ -73,7 +73,7 @@
 | [`MODULE_COVERAGE.md`](architecture/MODULE_COVERAGE.md) | Module documentation/test coverage and dependency direction |
 | [`D1_SQLITE_ADAPTER.md`](architecture/D1_SQLITE_ADAPTER.md) | D1-compatible SQLite runtime adapter boundary |
 | [`DEPLOYMENT_MATRIX.md`](architecture/DEPLOYMENT_MATRIX.md) | Supported and unsupported deployment models |
-| [`DOCUMENTATION_POLICY.md`](DOCUMENTATION_POLICY.md) | Docs-as-code, statuses, review and multi-agent rules |
+| [`DOCUMENTATION_POLICY.md`](development/DOCUMENTATION_POLICY.md) | Docs-as-code, statuses, review and multi-agent rules |
 | [`SOURCE_OF_TRUTH.md`](reference/SOURCE_OF_TRUTH.md) | Authoritative source registry and precedence |
 | [`DOCUMENTATION_INVENTORY.md`](DOCUMENTATION_INVENTORY.md) | Current audit status |
 | [`development/README.md`](development/README.md) | Development/repository governance policies |

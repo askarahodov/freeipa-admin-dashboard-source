@@ -26,7 +26,7 @@
 | `runtime/README.md` | canonical Node runtime + runtime tests | `verified-active` | Runtime lifecycle/persistence/gateway/scheduler |
 | `worker/README.md` | Worker/API/security contracts/tests | `verified-active` | Request/scheduled orchestration boundary |
 | `db/README.md` | schema/migration registry/tests | `verified-active` | Canonical schema/migration ownership |
-| `docs/DOCUMENTATION_POLICY.md` | docs-as-code policy + `scripts/documentation-consistency.mjs` | `verified-active` | Human/AI rules and required `npm run docs:check` |
+| `docs/development/DOCUMENTATION_POLICY.md` | docs-as-code policy + `scripts/documentation-consistency.mjs` | `verified-active` | Human/AI rules and required `npm run docs:check` |
 | `docs/reference/SOURCE_OF_TRUTH.md` | canonical runtime owners | `verified-active` | Precedence/source registry |
 | `docs/adr/README.md` | ADR policy + implementation evidence | `verified-active` | Why-level decisions; code/tests remain what-level authority |
 | `docs/GLOSSARY.md` | active runtime/domain semantics | `verified-active` | Common terminology |

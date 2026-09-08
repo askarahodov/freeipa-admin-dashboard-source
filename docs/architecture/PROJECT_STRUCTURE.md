@@ -193,7 +193,7 @@ Those are tracked architecture gaps, not permission to create additional paralle
 
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) — runtime, trust and data-flow architecture.
 - [`SOURCE_OF_TRUTH.md`](../reference/SOURCE_OF_TRUTH.md) — authoritative contract-owner registry.
-- [`DOCUMENTATION_POLICY.md`](../DOCUMENTATION_POLICY.md) — documentation lifecycle and verification rules.
+- [`DOCUMENTATION_POLICY.md`](../development/DOCUMENTATION_POLICY.md) — documentation lifecycle and verification rules.
 - [`GLOSSARY.md`](../GLOSSARY.md) — stable terminology.
 - [`ai/README.md`](../ai/README.md) — mandatory AI-agent workflow.
 

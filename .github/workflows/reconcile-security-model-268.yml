@@ -77,10 +77,10 @@ jobs:
 
           test -f docs/security/SECURITY_MODEL.md
           test -f docs/SECURITY_MODEL.md
-          grep -q 'security/SECURITY_MODEL.md' docs/README.md
-          grep -q 'docs/security/SECURITY_MODEL.md' docs/DOCUMENTATION_INVENTORY.md
-          grep -q '\[SECURITY_MODEL.md\](SECURITY_MODEL.md)' docs/security/README.md
-          ! grep -q '](../SECURITY_MODEL.md)' docs/security/SECURITY_MODEL.md
+          grep -Fq 'security/SECURITY_MODEL.md' docs/README.md
+          grep -Fq 'docs/security/SECURITY_MODEL.md' docs/DOCUMENTATION_INVENTORY.md
+          grep -Fq '[`SECURITY_MODEL.md`](SECURITY_MODEL.md)' docs/security/README.md
+          ! grep -Fq '](../SECURITY_MODEL.md)' docs/security/SECURITY_MODEL.md
 
           git add -A
           git diff --cached --check

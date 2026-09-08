@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { contrastRatio, cssPolicyViolations, parseHexTokens, scanSharedUiCss } from "../scripts/ui-quality-policy.mjs";
+import { contrastRatio, cssPolicyViolations, parseHexTokens, scanSharedUiCss } from "../../scripts/ui-quality-policy.mjs";
 
-const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
+const read = (path) => readFile(new URL(`../../${path}`, import.meta.url), "utf8");
 
 test("canonical UI text and semantic colors meet WCAG AA normal-text contrast", async () => {
   const tokens = parseHexTokens(await read("app/styles/tokens.css"));
@@ -28,7 +28,7 @@ test("canonical UI text and semantic colors meet WCAG AA normal-text contrast", 
 });
 
 test("shared redesign CSS stays within the calm visual policy", async () => {
-  const result = await scanSharedUiCss(new URL("..", import.meta.url).pathname);
+  const result = await scanSharedUiCss(new URL("../..", import.meta.url).pathname);
   assert.ok(result.files.length > 0, "expected at least the #93 shared UI stylesheet");
   assert.deepEqual(result.violations, []);
 });

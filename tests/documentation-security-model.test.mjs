@@ -28,6 +28,7 @@ test("documentation navigation treats the security model as active current state
   assert.doesNotMatch(index, /SECURITY_MODEL\.md` пока остаётся отдельным gap/);
   assert.match(inventory, /`docs\/security\/SECURITY_MODEL\.md`[^\n]+`verified-active`/);
   assert.match(ai, /\[`SECURITY_MODEL\.md`\]\(\.\.\/security\/SECURITY_MODEL\.md\)/);
+  assert.doesNotMatch(ai, /\[`SECURITY_MODEL\.md`\]\(\.\.\/SECURITY_MODEL\.md\)/);
   assert.match(ai, /не превращать `ADMIN_TOKEN`[^\n]+generic admin bypass/);
 });
 
@@ -41,7 +42,6 @@ test("security model keeps exact owners and operational runbooks authoritative",
   assert.match(security, /OFFLINE_FULL_RESTORE\.md/);
   assert.match(security, /DATABASE_MIGRATIONS\.md/);
 });
-
 
 test("former security model path remains a compatibility pointer", () => {
   const pointer = text("docs/SECURITY_MODEL.md");

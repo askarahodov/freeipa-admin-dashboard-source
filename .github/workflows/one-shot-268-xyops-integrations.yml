@@ -72,7 +72,6 @@ jobs:
               if text != old:
                   p.write_text(text, encoding='utf-8')
           PY
-          # Rebase root-relative docs links inside moved documents when present.
           python <<'PY'
           from pathlib import Path
           for p in Path('docs/integrations').glob('*.md'):
@@ -102,15 +101,17 @@ jobs:
         run: |
           set -euo pipefail
           npm run docs:check
-          mapfile -t tests < <(grep -rlE 'CATALOG_POLICIES|CATALOG_SYNC|XYOPS_EXECUTION_OWNERSHIP|XYOPS_INSPECTOR|PROCESS_PRESENTATION_METADATA' tests --include='*.test.mjs' --include='*.test.js' | sort -u || true)
-          if (( ${#tests[@]} )); then
-            node --experimental-strip-types --test --test-concurrency=1 "${tests[@]}"
-          fi
+          node --test tests/documentation-architecture-map.test.mjs
           git diff --check
           for f in CATALOG_POLICIES.md CATALOG_SYNC.md XYOPS_EXECUTION_OWNERSHIP.md XYOPS_INSPECTOR.md PROCESS_PRESENTATION_METADATA.md; do
             test -s "docs/integrations/$f"
             grep -q '^# Relocated' "docs/$f"
           done
+          grep -q 'integrations/README.md' docs/README.md
+          if grep -RIl --exclude-dir=superpowers --exclude-dir=node_modules --exclude='one-shot-268-xyops-integrations.yml' -E 'docs/(CATALOG_POLICIES|CATALOG_SYNC|XYOPS_EXECUTION_OWNERSHIP|XYOPS_INSPECTOR|PROCESS_PRESENTATION_METADATA)\.md' . | grep -v '^./docs/\(CATALOG_POLICIES\|CATALOG_SYNC\|XYOPS_EXECUTION_OWNERSHIP\|XYOPS_INSPECTOR\|PROCESS_PRESENTATION_METADATA\)\.md$'; then
+            echo 'Found stale active root documentation references'
+            exit 1
+          fi
       - name: Commit final self-cleaned batch
         shell: bash
         run: |

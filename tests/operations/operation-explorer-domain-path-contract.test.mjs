@@ -4,7 +4,7 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const scanRoots = ["app", "worker", "tests", "scripts", "e2e", "src"];
 const sourceExtensions = new Set([".js", ".mjs", ".cjs", ".ts", ".tsx"]);
 
@@ -39,8 +39,8 @@ test("legacy operation explorer bridge imports are absent", async () => {
   const offenders = [];
   for (const relativePath of files) {
     if ([
-    "tests/operation-explorer-domain-path-contract.test.mjs",
-    "tests/operations-domain-path-contract.test.mjs",
+    "tests/operations/operation-explorer-domain-path-contract.test.mjs",
+    "tests/operations/operations-domain-path-contract.test.mjs",
   ].includes(relativePath)) continue;
     const content = await readFile(path.join(repoRoot, relativePath), "utf8");
     if (/(?:\.\.\/|\.\/)+operation-explorer-legacy-bridge(?:\.ts)?["']/.test(content)) offenders.push(relativePath);

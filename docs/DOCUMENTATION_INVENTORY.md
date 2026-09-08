@@ -29,7 +29,7 @@
 | `docs/development/DOCUMENTATION_POLICY.md` | docs-as-code policy + `scripts/documentation-consistency.mjs` | `verified-active` | Human/AI rules and required `npm run docs:check` |
 | `docs/reference/SOURCE_OF_TRUTH.md` | canonical runtime owners | `verified-active` | Precedence/source registry |
 | `docs/adr/README.md` | ADR policy + implementation evidence | `verified-active` | Why-level decisions; code/tests remain what-level authority |
-| `docs/GLOSSARY.md` | active runtime/domain semantics | `verified-active` | Common terminology |
+| `docs/reference/GLOSSARY.md` | active runtime/domain semantics | `verified-active` | Common terminology |
 | `docs/ai/README.md` | documentation policy + source registry | `verified-active` | Mandatory AI-agent entrypoint |
 | `.github/pull_request_template.md` | documentation policy | `verified-active` | Documentation/security/source-of-truth checklist |
 
@@ -50,18 +50,18 @@ Normalized references orient humans and agents; they do not replace runtime/doma
 | Path | Owner / source of truth | Status |
 | --- | --- | --- |
 | `docs/security/SECURITY_MODEL.md` | auth/session/service-admin/integration/recovery owners + security tests | `verified-active` |
-| `docs/LOCAL_AUTH_RBAC.md` | local auth/session boundary + DB schema | `verified-active` |
+| `docs/security/LOCAL_AUTH_RBAC.md` | local auth/session boundary + DB schema | `verified-active` |
 | `docs/operations/DATABASE_MIGRATIONS.md` | canonical migration registry/runtime/tests | `verified-active` |
-| `docs/MAINTENANCE_MODE.md` | maintenance runtime + persistent state | `verified-active` |
-| `docs/OFFLINE_FULL_RESTORE.md` | recovery CLI/scripts | `verified-active` |
+| `docs/operations/MAINTENANCE_MODE.md` | maintenance runtime + persistent state | `verified-active` |
+| `docs/operations/OFFLINE_FULL_RESTORE.md` | recovery CLI/scripts | `verified-active` |
 | `docs/operations/HEALTH_CONTRACTS.md` | health handlers/contracts | `verified-active` |
 | `docs/operations/HEALTH_METRICS.md` | health metrics owner/rules | `verified-active` |
 | `docs/operations/STORAGE_STATUS.md` | storage status contract | `verified-active` |
 | `docs/operations/STORAGE_INTEGRITY.md` | integrity contract/index registry | `verified-active` |
 | `docs/security/CONFIG_ENCRYPTION_KEY.md` | startup validator + Compose | `verified-active` |
 | `docs/security/AUDIT_LOG.md` | audit-log owner + route/schema | `verified-active` |
-| `docs/LOCAL_ACCEPTANCE_TESTS.md` | local integration harness/scripts | `verified-active` |
-| `docs/P0_OPERATIONAL_ACCEPTANCE.md` | P0 acceptance runner | `verified-active` |
+| `docs/operations/LOCAL_ACCEPTANCE_TESTS.md` | local integration harness/scripts | `verified-active` |
+| `docs/operations/P0_OPERATIONAL_ACCEPTANCE.md` | P0 acceptance runner | `verified-active` |
 | `docs/architecture/DEPLOYMENT_MATRIX.md` | Compose/Docker/runtime contracts | `verified-active` |
 
 ## Integrations/product contracts

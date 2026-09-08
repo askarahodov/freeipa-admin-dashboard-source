@@ -171,9 +171,9 @@ XYOps остаётся источником истины для process executio
 
 Документация:
 
-- [`docs/XYOPS_EXECUTION_OWNERSHIP.md`](docs/XYOPS_EXECUTION_OWNERSHIP.md)
-- [`docs/XYOPS_INSPECTOR.md`](docs/XYOPS_INSPECTOR.md)
-- [`docs/PROCESS_PRESENTATION_METADATA.md`](docs/PROCESS_PRESENTATION_METADATA.md)
+- [`docs/integrations/XYOPS_EXECUTION_OWNERSHIP.md`](docs/integrations/XYOPS_EXECUTION_OWNERSHIP.md)
+- [`docs/integrations/XYOPS_INSPECTOR.md`](docs/integrations/XYOPS_INSPECTOR.md)
+- [`docs/integrations/PROCESS_PRESENTATION_METADATA.md`](docs/integrations/PROCESS_PRESENTATION_METADATA.md)
 
 ## Тестирование
 

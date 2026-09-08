@@ -79,6 +79,7 @@
 | [`adr/README.md`](adr/README.md) | ADR policy/registry — why-level decisions |
 | [`GLOSSARY.md`](GLOSSARY.md) | Common terminology |
 | [`ai/README.md`](ai/README.md) | Mandatory AI-agent entrypoint |
+| [`integrations/README.md`](integrations/README.md) | Canonical external integration product/runtime contracts |
 
 ## Development / repository governance
 
@@ -133,9 +134,9 @@ Machine-readable ownership work referenced by the documentation platform is comp
 
 | Документ | Назначение |
 | --- | --- |
-| [`XYOPS_EXECUTION_OWNERSHIP.md`](XYOPS_EXECUTION_OWNERSHIP.md) | Portal/XYOps execution ownership split |
-| [`XYOPS_INSPECTOR.md`](XYOPS_INSPECTOR.md) | Safe read-only installed-version inspector |
-| [`PROCESS_PRESENTATION_METADATA.md`](PROCESS_PRESENTATION_METADATA.md) | Presentation overrides, locale/fallback and boundaries |
+| [`XYOPS_EXECUTION_OWNERSHIP.md`](integrations/XYOPS_EXECUTION_OWNERSHIP.md) | Portal/XYOps execution ownership split |
+| [`XYOPS_INSPECTOR.md`](integrations/XYOPS_INSPECTOR.md) | Safe read-only installed-version inspector |
+| [`PROCESS_PRESENTATION_METADATA.md`](integrations/PROCESS_PRESENTATION_METADATA.md) | Presentation overrides, locale/fallback and boundaries |
 
 ## Testing / acceptance
 

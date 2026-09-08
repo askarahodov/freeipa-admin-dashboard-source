@@ -67,9 +67,9 @@ Normalized references orient humans and agents; they do not replace runtime/doma
 
 | Path | Owner / source of truth | Status |
 | --- | --- | --- |
-| `docs/XYOPS_EXECUTION_OWNERSHIP.md` | XYOps client/catalog/run runtime | `verified-active` |
-| `docs/XYOPS_INSPECTOR.md` | `scripts/xyops-inspect.mjs` | `verified-active` |
-| `docs/PROCESS_PRESENTATION_METADATA.md` | process presentation runtime + Worker + DB | `verified-active` |
+| `docs/integrations/XYOPS_EXECUTION_OWNERSHIP.md` | XYOps client/catalog/run runtime | `verified-active` |
+| `docs/integrations/XYOPS_INSPECTOR.md` | `scripts/xyops-inspect.mjs` | `verified-active` |
+| `docs/integrations/PROCESS_PRESENTATION_METADATA.md` | process presentation runtime + Worker + DB | `verified-active` |
 
 ## Roadmap/historical material
 

@@ -28,7 +28,7 @@ function tableCodes(markdown) {
 test("reference layer contains all four normalized entrypoints and current ownership signals", async () => {
   const [api, permissions, configuration, errors, sourceOfTruth, ai] = await Promise.all([
     read("docs/reference/API.md"), read("docs/reference/PERMISSIONS.md"), read("docs/reference/CONFIGURATION.md"),
-    read("docs/reference/ERROR_CODES.md"), read("docs/SOURCE_OF_TRUTH.md"), read("docs/ai/README.md"),
+    read("docs/reference/ERROR_CODES.md"), read("docs/reference/SOURCE_OF_TRUTH.md"), read("docs/ai/README.md"),
   ]);
   assert.match(api, /^# API reference/m); assert.match(permissions, /^# Permissions reference/m);
   assert.match(configuration, /^# Configuration reference/m); assert.match(errors, /^# Error-code reference/m);

@@ -20,7 +20,7 @@
 2. **Epic #82** — программа инженерной документации;
 3. [`PRODUCT_ROADMAP.md`](PRODUCT_ROADMAP.md) — продуктовый roadmap/snapshot, но не доказательство runtime;
 4. [`DOCUMENTATION_INVENTORY.md`](DOCUMENTATION_INVENTORY.md) — статус актуальности инженерных документов;
-5. [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md) — authoritative owners текущих контрактов.
+5. [`SOURCE_OF_TRUTH.md`](reference/SOURCE_OF_TRUTH.md) — authoritative owners текущих контрактов.
 
 Перед началом задачи ИИ-агент обязан проверить актуальный `main`, открытые PR по тому же owner-topic и профильный active-document.
 

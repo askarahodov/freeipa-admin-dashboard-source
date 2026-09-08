@@ -153,7 +153,7 @@ Fail-closed boundary, ограничивающий обычные operations в�
 
 ## Source of truth
 
-Authoritative владелец конкретного контракта — обычно кодовый registry/schema/runtime module плюс owner-document. Текущий registry находится в [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md).
+Authoritative владелец конкретного контракта — обычно кодовый registry/schema/runtime module плюс owner-document. Текущий registry находится в [`SOURCE_OF_TRUTH.md`](reference/SOURCE_OF_TRUTH.md).
 
 ## ADR
 

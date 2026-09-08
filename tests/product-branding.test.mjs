@@ -24,7 +24,7 @@ test("active documentation has one canonical product name", () => {
     "docs/README.md",
     "docs/DOCUMENTATION_POLICY.md",
     "docs/GLOSSARY.md",
-    "docs/SOURCE_OF_TRUTH.md",
+    "docs/reference/SOURCE_OF_TRUTH.md",
     "docs/operations/HEALTH_METRICS.md",
     "docs/operations/STORAGE_STATUS.md",
     "docs/ai/README.md",
@@ -34,7 +34,7 @@ test("active documentation has one canonical product name", () => {
   }
 
   assert.match(read("README.md"), /^# Admin Dashboard Softrust$/m);
-  assert.match(read("docs/SOURCE_OF_TRUTH.md"), /Admin Dashboard Softrust/);
+  assert.match(read("docs/reference/SOURCE_OF_TRUTH.md"), /Admin Dashboard Softrust/);
   assert.match(read("docs/GLOSSARY.md"), /\*\*Admin Dashboard Softrust/);
 });
 

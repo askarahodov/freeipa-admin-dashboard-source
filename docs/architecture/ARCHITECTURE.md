@@ -4,7 +4,7 @@
 
 This document describes the **current runtime architecture** of Admin Dashboard Softrust. It is an orientation document, not a roadmap and not a replacement for domain runbooks.
 
-For exact ownership of a contract, use [`SOURCE_OF_TRUTH.md`](../SOURCE_OF_TRUTH.md). For repository placement, use [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md). For operational procedures, use the corresponding active runbook.
+For exact ownership of a contract, use [`SOURCE_OF_TRUTH.md`](../reference/SOURCE_OF_TRUTH.md). For repository placement, use [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md). For operational procedures, use the corresponding active runbook.
 
 ## System context
 
@@ -260,7 +260,7 @@ These are current-state constraints, not recommendations:
 Use this file to understand system shape and boundaries. Then follow the canonical owner:
 
 - repository placement: [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md);
-- owner registry: [`SOURCE_OF_TRUTH.md`](../SOURCE_OF_TRUTH.md);
+- owner registry: [`SOURCE_OF_TRUTH.md`](../reference/SOURCE_OF_TRUTH.md);
 - terminology: [`GLOSSARY.md`](../GLOSSARY.md);
 - AI-agent rules: [`ai/README.md`](../ai/README.md);
 - operational details: the relevant active runbook.

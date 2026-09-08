@@ -205,4 +205,4 @@ The route contract is intended to become an input to #56 route/middleware parity
 - [`ERROR_CODES.md`](ERROR_CODES.md)
 - [`../SECURITY_MODEL.md`](../SECURITY_MODEL.md)
 - [`../ARCHITECTURE.md`](../architecture/ARCHITECTURE.md)
-- [`../SOURCE_OF_TRUTH.md`](../SOURCE_OF_TRUTH.md)
+- [`../SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md)

@@ -24,8 +24,8 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
 
           echo '=== inbound refs before relocation ==='
-          git grep -n 'CONFIG_ENCRYPTION_KEY\.md' -- ':!docs/superpowers/**' || true
-          git grep -l 'CONFIG_ENCRYPTION_KEY\.md' -- ':!docs/superpowers/**' > /tmp/config-key-refs.txt || true
+          git grep -n 'CONFIG_ENCRYPTION_KEY\.md' -- ':!docs/superpowers/**' ':!.github/workflows/stage-config-encryption-doc.yml' || true
+          git grep -l 'CONFIG_ENCRYPTION_KEY\.md' -- ':!docs/superpowers/**' ':!.github/workflows/stage-config-encryption-doc.yml' > /tmp/config-key-refs.txt || true
           cat /tmp/config-key-refs.txt
 
           cp docs/CONFIG_ENCRYPTION_KEY.md docs/security/CONFIG_ENCRYPTION_KEY.md
@@ -44,21 +44,17 @@ jobs:
                   continue
               text = p.read_text()
               old = text
-              # Explicit repository-path literals used by source-reading tests/docs.
               text = text.replace('docs/CONFIG_ENCRYPTION_KEY.md', 'docs/security/CONFIG_ENCRYPTION_KEY.md')
-              # Markdown links are relative to the file owning the link.
               if p.parent == Path('docs'):
                   text = text.replace('](CONFIG_ENCRYPTION_KEY.md)', '](security/CONFIG_ENCRYPTION_KEY.md)')
               elif p.parent == Path('docs/security'):
                   text = text.replace('](../CONFIG_ENCRYPTION_KEY.md)', '](CONFIG_ENCRYPTION_KEY.md)')
-                  text = text.replace('](CONFIG_ENCRYPTION_KEY.md)', '](CONFIG_ENCRYPTION_KEY.md)')
               elif str(p).startswith('docs/'):
                   text = text.replace('](../CONFIG_ENCRYPTION_KEY.md)', '](../security/CONFIG_ENCRYPTION_KEY.md)')
                   text = text.replace('](../../docs/CONFIG_ENCRYPTION_KEY.md)', '](../../docs/security/CONFIG_ENCRYPTION_KEY.md)')
               if text != old:
                   p.write_text(text)
 
-          # Ensure canonical indexes expose the owner even if they had no old literal link.
           sec = Path('docs/security/README.md')
           s = sec.read_text()
           if '- [`CONFIG_ENCRYPTION_KEY.md`](CONFIG_ENCRYPTION_KEY.md)' not in s:
@@ -71,23 +67,22 @@ jobs:
           PY
 
           echo '=== refs after relocation ==='
-          git grep -n 'CONFIG_ENCRYPTION_KEY\.md' -- ':!docs/superpowers/**' || true
+          git grep -n 'CONFIG_ENCRYPTION_KEY\.md' -- ':!docs/superpowers/**' ':!.github/workflows/stage-config-encryption-doc.yml' || true
 
           test -f docs/security/CONFIG_ENCRYPTION_KEY.md
           grep -Fq '# Relocated' docs/CONFIG_ENCRYPTION_KEY.md
           grep -Fq 'security/CONFIG_ENCRYPTION_KEY.md' docs/CONFIG_ENCRYPTION_KEY.md
           grep -Fq 'CONFIG_ENCRYPTION_KEY.md' docs/security/README.md
 
-          # No active Markdown navigation outside the compatibility pointer may still target the old docs-root owner.
-          if git grep -nE '\]\((\.\./)?CONFIG_ENCRYPTION_KEY\.md\)' -- 'docs/**/*.md' 'docs/*.md' ':!docs/CONFIG_ENCRYPTION_KEY.md' ':!docs/superpowers/**'; then
-            echo 'stale CONFIG_ENCRYPTION_KEY markdown link remains' >&2
+          # Outside docs/security, no active Markdown navigation may still target CONFIG_ENCRYPTION_KEY.md as a sibling/root owner.
+          if git grep -nE '\]\((\.\./)?CONFIG_ENCRYPTION_KEY\.md\)' -- 'docs/*.md' 'docs/architecture/*.md' 'docs/operations/*.md' 'docs/ai/*.md' 'docs/reference/*.md' ':!docs/CONFIG_ENCRYPTION_KEY.md' ':!docs/superpowers/**'; then
+            echo 'stale CONFIG_ENCRYPTION_KEY markdown link remains outside security owner' >&2
             exit 1
           fi
 
           npm ci --ignore-scripts
           npm run docs:check
 
-          # Run only source/contract tests that actually mention this documentation owner.
           mapfile -t tests < <(git grep -l 'CONFIG_ENCRYPTION_KEY\.md' -- 'tests/*.test.mjs' || true)
           if ((${#tests[@]})); then
             printf 'focused tests: %s\n' "${tests[*]}"

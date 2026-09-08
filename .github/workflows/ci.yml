@@ -220,7 +220,7 @@ jobs:
         run: npm ci
 
       - name: Run recovery contracts
-        run: node --experimental-strip-types --test tests/recovery-container-contract.test.mjs tests/recovery-compose-smoke.test.mjs tests/recovery-fault-matrix.test.mjs
+        run: node --experimental-strip-types --test tests/recovery/recovery-container-contract.test.mjs tests/recovery/recovery-compose-smoke.test.mjs tests/recovery/recovery-fault-matrix.test.mjs
 
       - name: Build isolated recovery image
         run: docker build --target recovery -t portal-recovery-ci .

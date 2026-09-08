@@ -4,9 +4,9 @@ import test from "node:test";
 import {
   MAINTENANCE_VERIFICATION_SMOKE_PATH,
   handleMaintenanceVerificationSmokeRequest,
-} from "../worker/maintenance-verification-smoke-entry.ts";
-import { handleMaintenanceControlRoute } from "../worker/maintenance-control-dispatch.ts";
-import { runMaintenanceVerificationSmoke } from "../src/recovery/maintenance/maintenance-verification-smoke.ts";
+} from "../../worker/maintenance-verification-smoke-entry.ts";
+import { handleMaintenanceControlRoute } from "../../worker/maintenance-control-dispatch.ts";
+import { runMaintenanceVerificationSmoke } from "../../src/recovery/maintenance/maintenance-verification-smoke.ts";
 
 const operationId = "maintenance_11111111-1111-4111-8111-111111111111";
 const controllerSecret = "A".repeat(43);

@@ -5,11 +5,11 @@ import {
   bindRecoveryCandidateReceipt,
   createRecoveryReceipt,
   transitionRecoveryReceipt,
-} from "../src/recovery/foundation/recovery-receipt.ts";
+} from "../../src/recovery/foundation/recovery-receipt.ts";
 import {
   classifyRecoveryFilesystem,
   reconcileRecoveryReceipt,
-} from "../src/recovery/orchestration/recovery-reconcile.ts";
+} from "../../src/recovery/orchestration/recovery-reconcile.ts";
 
 const originalHash = "a".repeat(64);
 const candidateHash = "b".repeat(64);

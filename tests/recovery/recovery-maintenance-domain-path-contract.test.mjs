@@ -3,9 +3,9 @@ import { access } from "node:fs/promises";
 import test from "node:test";
 
 const moved = [
-  ["../src/recovery/maintenance/maintenance-mode.ts", "../maintenance-mode.ts"],
-  ["../src/recovery/maintenance/maintenance-repository.ts", "../maintenance-repository.ts"],
-  ["../src/recovery/maintenance/maintenance-verification-smoke.ts", "../maintenance-verification-smoke.ts"],
+  ["../../src/recovery/maintenance/maintenance-mode.ts", "../../maintenance-mode.ts"],
+  ["../../src/recovery/maintenance/maintenance-repository.ts", "../../maintenance-repository.ts"],
+  ["../../src/recovery/maintenance/maintenance-verification-smoke.ts", "../../maintenance-verification-smoke.ts"],
 ];
 
 test("maintenance state ownership is canonical under src/recovery with no root copies", async () => {

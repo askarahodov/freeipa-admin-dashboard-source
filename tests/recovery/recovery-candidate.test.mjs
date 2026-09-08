@@ -1,15 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { FULL_BACKUP_TABLES } from "../src/backup/export/backup-full-domains.ts";
-import { PORTAL_BACKUP_DOMAINS } from "../src/backup/backup-manifest.ts";
+import { FULL_BACKUP_TABLES } from "../../src/backup/export/backup-full-domains.ts";
+import { PORTAL_BACKUP_DOMAINS } from "../../src/backup/backup-manifest.ts";
 import {
   buildRecoveryCandidate,
   buildRecoveryCandidateScript,
   encodeRecoverySqliteLiteral,
   validateRecoveryRbacProjection,
-} from "../src/recovery/orchestration/recovery-candidate.ts";
-import { createRecoveryRestorePolicy } from "../src/recovery/foundation/recovery-restore-policy.ts";
+} from "../../src/recovery/orchestration/recovery-candidate.ts";
+import { createRecoveryRestorePolicy } from "../../src/recovery/foundation/recovery-restore-policy.ts";
 
 function sourceFixture() {
   const payloads = new Map();

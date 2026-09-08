@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
-const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
-const lock = JSON.parse(readFileSync(new URL("../package-lock.json", import.meta.url), "utf8"));
-const ci = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
-const dockerfile = readFileSync(new URL("../Dockerfile", import.meta.url), "utf8");
+const packageJson = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8"));
+const lock = JSON.parse(readFileSync(new URL("../../package-lock.json", import.meta.url), "utf8"));
+const ci = readFileSync(new URL("../../.github/workflows/ci.yml", import.meta.url), "utf8");
+const dockerfile = readFileSync(new URL("../../Dockerfile", import.meta.url), "utf8");
 
 function versionTuple(value) {
   return String(value ?? "").replace(/^[^0-9]*/u, "").split(".").slice(0, 3).map((part) => Number(part) || 0);
@@ -51,8 +51,8 @@ test("production runtime keeps the verified dependency line and canonical harden
 test("package scripts expose deterministic production audit and lockfile-only SBOM commands", () => {
   assert.equal(packageJson.scripts?.["security:audit"], "node scripts/dependency-audit-policy.mjs");
   assert.equal(packageJson.scripts?.["security:sbom"], "npm sbom --omit=dev --package-lock-only --sbom-format=cyclonedx");
-  assert.equal(existsSync(new URL("../scripts/dependency-audit-policy.mjs", import.meta.url)), true);
-  assert.equal(existsSync(new URL("../security/audit-allowlist.json", import.meta.url)), true);
+  assert.equal(existsSync(new URL("../../scripts/dependency-audit-policy.mjs", import.meta.url)), true);
+  assert.equal(existsSync(new URL("../../security/audit-allowlist.json", import.meta.url)), true);
 });
 
 test("CI makes dependency security a required aggregate gate, validates the installed graph and publishes an SBOM", () => {

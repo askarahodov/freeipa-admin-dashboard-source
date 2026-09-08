@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 test('central documentation index names and links canonical moved owners directly', async () => {
-  const index = await readFile(new URL('../docs/README.md', import.meta.url), 'utf8');
+  const index = await readFile(new URL('../../docs/README.md', import.meta.url), 'utf8');
   const canonicalEntries = [
     '[`operations/MAINTENANCE_MODE.md`](operations/MAINTENANCE_MODE.md)',
     '[`operations/OFFLINE_FULL_RESTORE.md`](operations/OFFLINE_FULL_RESTORE.md)',

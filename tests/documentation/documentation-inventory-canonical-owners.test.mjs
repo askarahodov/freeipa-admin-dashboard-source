@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 test('documentation inventory names canonical owners for relocated active docs', async () => {
-  const inventory = await readFile(new URL('../docs/DOCUMENTATION_INVENTORY.md', import.meta.url), 'utf8');
+  const inventory = await readFile(new URL('../../docs/DOCUMENTATION_INVENTORY.md', import.meta.url), 'utf8');
   const canonical = [
     '`docs/reference/GLOSSARY.md`',
     '`docs/security/LOCAL_AUTH_RBAC.md`',

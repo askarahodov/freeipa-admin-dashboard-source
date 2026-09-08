@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 function text(path) {
-  return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+  return readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
 }
 
 test("security model documents current trust boundaries and invariants", () => {

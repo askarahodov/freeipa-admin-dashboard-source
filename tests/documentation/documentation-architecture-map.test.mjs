@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 function read(path) {
-  return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+  return readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
 }
 
 test("architecture and project structure are active documentation entrypoints", () => {

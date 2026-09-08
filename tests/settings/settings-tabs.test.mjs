@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 
-const component = fs.readFileSync(new URL("../app/LocalAdministrationContext.tsx", import.meta.url), "utf8");
-const styles = fs.readFileSync(new URL("../app/settings-tabs.css", import.meta.url), "utf8");
-const layout = fs.readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
+const component = fs.readFileSync(new URL("../../app/LocalAdministrationContext.tsx", import.meta.url), "utf8");
+const styles = fs.readFileSync(new URL("../../app/settings-tabs.css", import.meta.url), "utf8");
+const layout = fs.readFileSync(new URL("../../app/layout.tsx", import.meta.url), "utf8");
 
 const expectedTabs = ["general", "freeipa", "xyops", "access", "policies", "catalog", "diagnostics"];
 

@@ -3,29 +3,29 @@ import fs from "node:fs";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { shouldRunAuthE2E } from "../scripts/auth-e2e-scope.mjs";
+import { shouldRunAuthE2E } from "../../scripts/auth-e2e-scope.mjs";
 
-const lifecycleUrl = new URL("../worker/settings-lifecycle-entry.ts", import.meta.url);
-const revisionsUrl = new URL("../worker/settings-revisions-entry.ts", import.meta.url);
-const sourceUrl = new URL("../worker/settings-source-entry.ts", import.meta.url);
-const safeSourceUrl = new URL("../worker/settings-source-safe-entry.ts", import.meta.url);
-const sourceContextUrl = new URL("../worker/settings-source-context-entry.ts", import.meta.url);
-const normalizerEntryUrl = new URL("../worker/settings-input-normalizer-entry.ts", import.meta.url);
-const normalizerUrl = new URL("../worker/settings-input-normalizer.ts", import.meta.url);
-const portalSchemaUrl = new URL("../db/portal-schema.ts", import.meta.url);
+const lifecycleUrl = new URL("../../worker/settings-lifecycle-entry.ts", import.meta.url);
+const revisionsUrl = new URL("../../worker/settings-revisions-entry.ts", import.meta.url);
+const sourceUrl = new URL("../../worker/settings-source-entry.ts", import.meta.url);
+const safeSourceUrl = new URL("../../worker/settings-source-safe-entry.ts", import.meta.url);
+const sourceContextUrl = new URL("../../worker/settings-source-context-entry.ts", import.meta.url);
+const normalizerEntryUrl = new URL("../../worker/settings-input-normalizer-entry.ts", import.meta.url);
+const normalizerUrl = new URL("../../worker/settings-input-normalizer.ts", import.meta.url);
+const portalSchemaUrl = new URL("../../db/portal-schema.ts", import.meta.url);
 const lifecycle = fs.readFileSync(lifecycleUrl, "utf8");
 const revisions = fs.readFileSync(revisionsUrl, "utf8");
 const source = fs.readFileSync(sourceUrl, "utf8");
 const safeSource = fs.readFileSync(safeSourceUrl, "utf8");
 const sourceContext = fs.readFileSync(sourceContextUrl, "utf8");
 const normalizerEntry = fs.readFileSync(normalizerEntryUrl, "utf8");
-const diagnostics = fs.readFileSync(new URL("../worker/diagnostics-entry.ts", import.meta.url), "utf8");
-const localBoundary = fs.readFileSync(new URL("../worker/local-secure-entry.ts", import.meta.url), "utf8");
-const authorization = fs.readFileSync(new URL("../src/auth/admin-session-authorization.ts", import.meta.url), "utf8");
-const wizard = fs.readFileSync(new URL("../app/SettingsLifecycleWizard.tsx", import.meta.url), "utf8");
-const layout = fs.readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
-const styles = fs.readFileSync(new URL("../app/settings-lifecycle.css", import.meta.url), "utf8");
-const resetStyles = fs.readFileSync(new URL("../app/settings-source-resets.css", import.meta.url), "utf8");
+const diagnostics = fs.readFileSync(new URL("../../worker/diagnostics-entry.ts", import.meta.url), "utf8");
+const localBoundary = fs.readFileSync(new URL("../../worker/local-secure-entry.ts", import.meta.url), "utf8");
+const authorization = fs.readFileSync(new URL("../../src/auth/admin-session-authorization.ts", import.meta.url), "utf8");
+const wizard = fs.readFileSync(new URL("../../app/SettingsLifecycleWizard.tsx", import.meta.url), "utf8");
+const layout = fs.readFileSync(new URL("../../app/layout.tsx", import.meta.url), "utf8");
+const styles = fs.readFileSync(new URL("../../app/settings-lifecycle.css", import.meta.url), "utf8");
+const resetStyles = fs.readFileSync(new URL("../../app/settings-source-resets.css", import.meta.url), "utf8");
 const portalSchema = fs.readFileSync(portalSchemaUrl, "utf8");
 const { normalizeSettingsRequestBody } = await import(normalizerUrl.href);
 
@@ -210,7 +210,7 @@ test("rollback and source reset changes trigger Auth E2E", () => {
     "worker/settings-revisions-entry.ts",
     "worker/settings-input-normalizer-entry.ts",
     "worker/settings-input-normalizer.ts",
-    "tests/settings-source-runtime-safety.test.mjs",
+    "tests/settings/settings-source-runtime-safety.test.mjs",
     "app/SettingsLifecycleWizard.tsx",
     "app/settings-source-resets.css",
   ]) assert.equal(shouldRunAuthE2E([path]), true, path);

@@ -41,9 +41,9 @@ const schemaContractTests = [
   "tests/local-diagnostics-schema.test.mjs",
 ];
 const settingsContractTests = [
-  "tests/settings-draft-lifecycle.test.mjs",
-  "tests/settings-reset-fallback-refresh.test.mjs",
-  "tests/settings-source-runtime-safety.test.mjs",
+  "tests/settings/settings-draft-lifecycle.test.mjs",
+  "tests/settings/settings-reset-fallback-refresh.test.mjs",
+  "tests/settings/settings-source-runtime-safety.test.mjs",
 ];
 
 function normalizePath(value) {

@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 
-const boundary = fs.readFileSync(new URL("../worker/settings-input-normalizer-entry.ts", import.meta.url), "utf8");
-const safeSource = fs.readFileSync(new URL("../worker/settings-source-safe-entry.ts", import.meta.url), "utf8");
-const sourceContext = fs.readFileSync(new URL("../worker/settings-source-context-entry.ts", import.meta.url), "utf8");
-const localBoundary = fs.readFileSync(new URL("../worker/local-secure-entry.ts", import.meta.url), "utf8");
+const boundary = fs.readFileSync(new URL("../../worker/settings-input-normalizer-entry.ts", import.meta.url), "utf8");
+const safeSource = fs.readFileSync(new URL("../../worker/settings-source-safe-entry.ts", import.meta.url), "utf8");
+const sourceContext = fs.readFileSync(new URL("../../worker/settings-source-context-entry.ts", import.meta.url), "utf8");
+const localBoundary = fs.readFileSync(new URL("../../worker/local-secure-entry.ts", import.meta.url), "utf8");
 
 test("reset mutations run after local session and same-origin authorization", () => {
   assert.equal(localBoundary.includes('import secureRuntime from "./settings-input-normalizer-entry"'), true);

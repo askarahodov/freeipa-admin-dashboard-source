@@ -7,11 +7,11 @@ import test from "node:test";
 import {
   portalRolePermissions,
   resolvePortalRole,
-} from "../src/auth/portal-permissions.ts";
+} from "../../src/auth/portal-permissions.ts";
 
-const safeSourceUrl = new URL("../worker/settings-source-safe-entry.ts", import.meta.url);
+const safeSourceUrl = new URL("../../worker/settings-source-safe-entry.ts", import.meta.url);
 const safeSource = fs.readFileSync(safeSourceUrl, "utf8");
-const normalizerUrl = new URL("../worker/settings-input-normalizer.ts", import.meta.url);
+const normalizerUrl = new URL("../../worker/settings-input-normalizer.ts", import.meta.url);
 const { normalizeSettingsRequestBody } = await import(normalizerUrl.href);
 
 test("operational integration requests resolve inherited ENV without writing settings", () => {

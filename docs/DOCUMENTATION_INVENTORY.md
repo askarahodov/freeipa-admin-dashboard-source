@@ -41,7 +41,7 @@
 | `docs/reference/PERMISSIONS.md` | `src/auth/portal-permissions.ts` + enforcement/tests | `verified-active` | Built-in roles and canonical permissions |
 | `docs/reference/CONFIGURATION.md` | `.env.example`, Compose, `scripts/start-production.mjs`, validators/settings/recovery owners | `verified-active` | Current configuration classes and ownership |
 | `docs/reference/ERROR_CODES.md` | `src/auth/stable-error-contract.ts` + domain handlers/contracts/tests | `verified-active` | Verified stable machine codes; human strings/audit actions excluded |
-| `docs/ERROR_CODE_OWNERSHIP.md` | `src/auth/stable-error-contract.ts` + `tests/stable-error-contract.test.mjs` | `verified-active` | Machine-readable ownership/verification policy |
+| `docs/reference/ERROR_CODE_OWNERSHIP.md` | `src/auth/stable-error-contract.ts` + `tests/stable-error-contract.test.mjs` | `verified-active` | Machine-readable ownership/verification policy |
 
 Normalized references orient humans and agents; they do not replace runtime/domain behavior owners. When they conflict, canonical code/tests win.
 

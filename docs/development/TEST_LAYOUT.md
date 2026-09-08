@@ -4,13 +4,14 @@ This document defines the target ownership model for `tests/` and `e2e/` under #
 
 ## Current executable discovery
 
-- Node tests are discovered by `.github/workflows/ci.yml` with `find tests -maxdepth 1 -name '*.test.mjs'` and then sharded by `scripts/ci-test-shards.mjs`.
-- `npm test` also executes only `tests/*.test.mjs` after the production build.
-- Recovery has additional explicit entrypoints such as `tests/recovery-*.test.mjs` and the dedicated recovery CI job.
+- Node tests are discovered recursively and deterministically by `scripts/discover-node-tests.mjs`.
+- `.github/workflows/ci.yml` feeds that shared list into `scripts/ci-test-shards.mjs` for sharding.
+- `npm test` uses `scripts/run-node-tests.mjs`, which executes the same discovered list after the production build.
+- Recovery keeps additional explicit entrypoints such as `tests/recovery-*.test.mjs` and the dedicated recovery CI job.
 - Browser E2E lives under `e2e/specs/` and is routed by `scripts/auth-e2e-scope.mjs`.
 - The supported E2E categories remain exactly: `auth`, `rbac`, `freeipa`, `xyops`, `settings`, `ui`.
 
-Because discovery is currently flat, moving a Node test into a subdirectory before changing both local and CI discovery would silently remove it from normal coverage. Such moves are forbidden.
+Recursive discovery is now a prerequisite rather than a blocker for domain subdirectories: moving a Node test still requires a dependency-closed slice, but it must remain visible to the shared discovery helper and existing sharding contracts.
 
 ## Target ownership model
 
@@ -44,12 +45,12 @@ e2e/
   support/
 ```
 
-This is a target, not permission for a bulk move. Existing flat paths remain canonical until a dependency-closed migration slice updates discovery, scripts, routing contracts and every literal path consumer.
+This is a target, not permission for a bulk move. Existing flat paths remain canonical until a dependency-closed migration slice updates scripts, routing contracts and every literal path consumer.
 
 ## Migration order
 
-1. Make Node test discovery recursive and deterministic without changing the executed test set.
-2. Add contract coverage proving that recursive discovery sees the same baseline set before any test is moved.
+1. Keep Node test discovery recursive and deterministic through the shared helper used by local and CI execution.
+2. Preserve contract coverage proving nested files remain discoverable and the current baseline remains covered.
 3. Move one coherent Node test family per PR and verify that every moved file remains in CI sharding and local `npm test` discovery.
 4. Keep E2E category names stable. Before moving E2E specs into category subdirectories, update `scripts/auth-e2e-scope.mjs`, Playwright paths and routing contract tests in the same PR.
 5. Move E2E support files (`freeipa-mock.mjs`, `xyops-mock.mjs`, setup helpers) only after all literal consumers are inventoried; support-file relocation must not broaden browser coverage.
@@ -64,6 +65,6 @@ This is a target, not permission for a bulk move. Existing flat paths remain can
 - A migration PR moves one coherent family only; it must not weaken assertions or delete coverage.
 - Focused tests, router-selected coverage, lint/build as required by repository policy, and `git diff --check` must pass.
 
-## First implementation slice after this design
+## First implementation slice
 
-The safest first implementation is discovery-only: replace flat `tests/*.test.mjs` / `find tests -maxdepth 1` assumptions with one shared deterministic recursive test-file discovery contract while keeping every test at its current path. Only after that gate is green should the first domain family be moved.
+Recursive deterministic Node-test discovery is the first implementation slice. It changes only discovery ownership, not test placement or assertions. The next slice may move one coherent Node test family because both local execution and CI sharding now consume the same recursive list.

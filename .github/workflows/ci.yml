@@ -30,7 +30,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          find tests -maxdepth 1 -name '*.test.mjs' -print | sort > "$RUNNER_TEMP/server-tests.txt"
+          node scripts/discover-node-tests.mjs > "$RUNNER_TEMP/server-tests.txt"
           node scripts/ci-test-shards.mjs \
             --input "$RUNNER_TEMP/server-tests.txt" \
             --github-output "$GITHUB_OUTPUT" \

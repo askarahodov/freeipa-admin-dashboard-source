@@ -47,6 +47,9 @@ jobs:
                       line = line.replace("from '../", "from '../../")
                       line = line.replace('new URL("../', 'new URL("../../')
                       line = line.replace("new URL('../", "new URL('../../")
+                      line = line.replace('new URL(`../', 'new URL(`../../')
+                      line = line.replace('fileURLToPath(import.meta.url)), "..")', 'fileURLToPath(import.meta.url)), "../..")')
+                      line = line.replace("fileURLToPath(import.meta.url)), '..')", "fileURLToPath(import.meta.url)), '../..')")
                   out.append(line)
               path.write_text(''.join(out))
           PY
@@ -69,7 +72,6 @@ jobs:
           test "$(find tests -maxdepth 1 -type f -name 'storage-*.test.mjs' | wc -l)" -eq 0
           node - <<'NODE'
           const fs = require('node:fs');
-          const path = require('node:path');
           const files = fs.readdirSync('tests/storage').filter((name) => /^storage-.*\.test\.mjs$/.test(name));
           if (files.length !== 43) throw new Error(`expected 43 storage tests, got ${files.length}`);
           NODE

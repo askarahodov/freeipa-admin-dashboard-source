@@ -136,6 +136,7 @@ Machine-readable ownership work referenced by the documentation platform is comp
 | Документ | Назначение |
 | --- | --- |
 | [`XYOPS_EXECUTION_OWNERSHIP.md`](integrations/XYOPS_EXECUTION_OWNERSHIP.md) | Portal/XYOps execution ownership split |
+| [`APPROVAL_GATES.md`](integrations/APPROVAL_GATES.md) | Dangerous XYOps process approval lifecycle and policy |
 | [`XYOPS_INSPECTOR.md`](integrations/XYOPS_INSPECTOR.md) | Safe read-only installed-version inspector |
 | [`PROCESS_PRESENTATION_METADATA.md`](integrations/PROCESS_PRESENTATION_METADATA.md) | Presentation overrides, locale/fallback and boundaries |
 

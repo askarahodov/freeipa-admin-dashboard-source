@@ -5,7 +5,7 @@ import test from 'node:test';
 const agentsPath = new URL('../AGENTS.md', import.meta.url);
 const workflowPath = new URL('../docs/ai/AI_AGENT_WORKFLOW.md', import.meta.url);
 const aiIndexPath = new URL('../docs/ai/README.md', import.meta.url);
-const approvalGatesPath = new URL('../docs/APPROVAL_GATES.md', import.meta.url);
+const approvalGatesPath = new URL('../docs/integrations/APPROVAL_GATES.md', import.meta.url);
 const testingPolicyPath = new URL('../docs/TESTING_POLICY.md', import.meta.url);
 const prTemplatePath = new URL('../.github/pull_request_template.md', import.meta.url);
 

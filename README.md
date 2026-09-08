@@ -52,7 +52,7 @@ ADMIN_TOKEN=replace-with-a-long-random-service-admin-token
 CONFIG_ENCRYPTION_KEY=<unique-32-byte-key>
 ```
 
-Правила генерации и ротационного/операционного обращения с encryption key: [`docs/CONFIG_ENCRYPTION_KEY.md`](docs/CONFIG_ENCRYPTION_KEY.md).
+Правила генерации и ротационного/операционного обращения с encryption key: [`docs/security/CONFIG_ENCRYPTION_KEY.md`](docs/security/CONFIG_ENCRYPTION_KEY.md).
 
 Запуск:
 

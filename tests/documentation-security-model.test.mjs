@@ -30,6 +30,7 @@ test("documentation navigation treats the security model as active current state
   assert.match(ai, /\[`SECURITY_MODEL\.md`\]\(\.\.\/security\/SECURITY_MODEL\.md\)/);
   assert.doesNotMatch(ai, /\[`SECURITY_MODEL\.md`\]\(\.\.\/SECURITY_MODEL\.md\)/);
   assert.match(ai, /не превращать `ADMIN_TOKEN`[^\n]+generic admin bypass/);
+  assert.match(ai, /Product runtime\/security contracts[^\n]+product-domain documentation owners/);
 });
 
 test("security model keeps exact owners and operational runbooks authoritative", () => {

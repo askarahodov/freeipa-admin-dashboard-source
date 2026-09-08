@@ -1,0 +1,135 @@
+name: Stage D1 SQLite documentation
+
+on:
+  push:
+    branches:
+      - docs/268-d1-sqlite-architecture-3e14
+
+permissions:
+  contents: write
+
+jobs:
+  stage:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Audit and relocate D1 SQLite documentation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          echo '=== inbound refs before relocation ==='
+          git grep -n 'D1_SQLITE_ADAPTER\.md' -- ':!docs/superpowers/**' ':!.github/workflows/stage-d1-sqlite-doc.yml' || true
+          git grep -l 'D1_SQLITE_ADAPTER\.md' -- ':!docs/superpowers/**' ':!.github/workflows/stage-d1-sqlite-doc.yml' > /tmp/d1-doc-refs.txt || true
+          cat /tmp/d1-doc-refs.txt
+
+          cp docs/D1_SQLITE_ADAPTER.md docs/architecture/D1_SQLITE_ADAPTER.md
+          cat > docs/D1_SQLITE_ADAPTER.md <<'EOF'
+          # Relocated
+
+          The canonical D1-compatible SQLite adapter architecture contract has moved to [`architecture/D1_SQLITE_ADAPTER.md`](architecture/D1_SQLITE_ADAPTER.md). This compatibility pointer is retained for existing external links; do not update runtime/storage policy here.
+          EOF
+
+          python - <<'PY'
+          from pathlib import Path
+
+          refs = [Path(x.strip()) for x in Path('/tmp/d1-doc-refs.txt').read_text().splitlines() if x.strip()]
+          for p in refs:
+              if p == Path('docs/D1_SQLITE_ADAPTER.md'):
+                  continue
+              text = p.read_text()
+              old = text
+              text = text.replace('docs/D1_SQLITE_ADAPTER.md', 'docs/architecture/D1_SQLITE_ADAPTER.md')
+              if p.parent == Path('docs'):
+                  text = text.replace('](D1_SQLITE_ADAPTER.md)', '](architecture/D1_SQLITE_ADAPTER.md)')
+              elif p.parent == Path('docs/architecture'):
+                  text = text.replace('](../D1_SQLITE_ADAPTER.md)', '](D1_SQLITE_ADAPTER.md)')
+              elif str(p).startswith('docs/'):
+                  text = text.replace('](../D1_SQLITE_ADAPTER.md)', '](../architecture/D1_SQLITE_ADAPTER.md)')
+                  text = text.replace('](../../docs/D1_SQLITE_ADAPTER.md)', '](../../docs/architecture/D1_SQLITE_ADAPTER.md)')
+              if text != old:
+                  p.write_text(text)
+
+          arch = Path('docs/architecture/README.md')
+          s = arch.read_text()
+          entry = '- [`D1_SQLITE_ADAPTER.md`](D1_SQLITE_ADAPTER.md) — D1-compatible SQLite adapter boundary, supported surface and runtime persistence contract.\n'
+          if entry not in s:
+              marker = '- [`MODULE_COVERAGE.md`](MODULE_COVERAGE.md) — module documentation/test coverage and dependency direction.\n'
+              if marker not in s:
+                  raise SystemExit('architecture README insertion marker missing')
+              s = s.replace(marker, marker + entry)
+              arch.write_text(s)
+
+          runtime = Path('runtime/README.md')
+          s = runtime.read_text()
+          ref = '- `docs/architecture/D1_SQLITE_ADAPTER.md`\n'
+          if ref not in s:
+              marker = '- `docs/architecture/ARCHITECTURE.md`\n'
+              if marker not in s:
+                  raise SystemExit('runtime README insertion marker missing')
+              s = s.replace(marker, marker + ref)
+              runtime.write_text(s)
+
+          inventory = Path('docs/DOCUMENTATION_INVENTORY.md')
+          s = inventory.read_text()
+          row = '| `docs/architecture/D1_SQLITE_ADAPTER.md` | `runtime/d1-sqlite-adapter.mjs` + runtime persistence tests | `verified-active` | D1-compatible SQLite adapter boundary |\n'
+          if row not in s:
+              marker = '| `docs/architecture/MODULE_COVERAGE.md` | module boundaries + local READMEs + scoped tests | `verified-active` | Central-vs-local documentation coverage |\n'
+              if marker not in s:
+                  raise SystemExit('inventory insertion marker missing')
+              s = s.replace(marker, marker + row)
+              inventory.write_text(s)
+
+          docs = Path('docs/README.md')
+          s = docs.read_text()
+          row = '| [`D1_SQLITE_ADAPTER.md`](architecture/D1_SQLITE_ADAPTER.md) | D1-compatible SQLite runtime adapter boundary |\n'
+          if row not in s:
+              marker = '| [`MODULE_COVERAGE.md`](architecture/MODULE_COVERAGE.md) | Module documentation/test coverage and dependency direction |\n'
+              if marker not in s:
+                  raise SystemExit('docs README insertion marker missing')
+              s = s.replace(marker, marker + row)
+              docs.write_text(s)
+          PY
+
+          echo '=== refs after relocation ==='
+          git grep -n 'D1_SQLITE_ADAPTER\.md' -- ':!docs/superpowers/**' ':!.github/workflows/stage-d1-sqlite-doc.yml' || true
+
+          test -f docs/architecture/D1_SQLITE_ADAPTER.md
+          grep -Fq '# Relocated' docs/D1_SQLITE_ADAPTER.md
+          grep -Fq 'architecture/D1_SQLITE_ADAPTER.md' docs/D1_SQLITE_ADAPTER.md
+          grep -Fq 'D1_SQLITE_ADAPTER.md' docs/architecture/README.md
+          grep -Fq 'docs/architecture/D1_SQLITE_ADAPTER.md' runtime/README.md
+
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          stale = []
+          for p in Path('docs').rglob('*.md'):
+              if 'superpowers' in p.parts or p == Path('docs/D1_SQLITE_ADAPTER.md') or p.parent == Path('docs/architecture'):
+                  continue
+              text = p.read_text()
+              if re.search(r'\]\((?:\.\./)?D1_SQLITE_ADAPTER\.md\)', text):
+                  stale.append(str(p))
+          if stale:
+              raise SystemExit('stale D1_SQLITE_ADAPTER links remain: ' + ', '.join(stale))
+          PY
+
+          npm ci --ignore-scripts
+          npm run docs:check
+
+          mapfile -t tests < <(git grep -l 'D1_SQLITE_ADAPTER\.md' -- 'tests/*.test.mjs' || true)
+          if ((${#tests[@]})); then
+            printf 'focused tests: %s\n' "${tests[*]}"
+            node --test "${tests[@]}"
+          fi
+
+          rm .github/workflows/stage-d1-sqlite-doc.yml
+          git add -A
+          git diff --cached --check
+          git commit -m 'docs: move D1 SQLite adapter contract to architecture owner'
+          git push origin HEAD:docs/268-d1-sqlite-architecture-3e14

@@ -21,6 +21,7 @@
 - `runtime/production-runtime.mjs`
 - `runtime/d1-sqlite-adapter.mjs`
 - `docs/architecture/ARCHITECTURE.md`
+- `docs/architecture/D1_SQLITE_ADAPTER.md`
 - `docs/DEPLOYMENT_MATRIX.md`
 - `docs/reference/CONFIGURATION.md`
 - `docs/adr/README.md`

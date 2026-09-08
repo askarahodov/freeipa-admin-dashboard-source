@@ -6,14 +6,14 @@ function normalizePath(value) {
   return String(value).split(sep).join('/');
 }
 
-async function walk(directory, root, output) {
+async function walk(directory, output) {
   const entries = await readdir(directory, { withFileTypes: true });
   entries.sort((left, right) => left.name.localeCompare(right.name, 'en'));
 
   for (const entry of entries) {
     const absolutePath = resolve(directory, entry.name);
     if (entry.isDirectory()) {
-      await walk(absolutePath, root, output);
+      await walk(absolutePath, output);
       continue;
     }
     if (!entry.isFile() || !entry.name.endsWith('.test.mjs')) continue;
@@ -24,7 +24,7 @@ async function walk(directory, root, output) {
 export async function discoverNodeTests(rootDirectory = 'tests') {
   const root = resolve(rootDirectory);
   const discovered = [];
-  await walk(root, root, discovered);
+  await walk(root, discovered);
   return discovered.sort();
 }
 

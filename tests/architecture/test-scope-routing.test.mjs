@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { buildE2ETestPlan } from "../scripts/auth-e2e-scope.mjs";
+import { buildE2ETestPlan } from "../../scripts/auth-e2e-scope.mjs";
 
-const policy = await readFile(new URL("../docs/TESTING_POLICY.md", import.meta.url), "utf8");
-const agents = await readFile(new URL("../AGENTS.md", import.meta.url), "utf8");
+const policy = await readFile(new URL("../../docs/TESTING_POLICY.md", import.meta.url), "utf8");
+const agents = await readFile(new URL("../../AGENTS.md", import.meta.url), "utf8");
 
 test("mixed changes union affected categories without expanding to full suite", () => {
   const plan = buildE2ETestPlan(["src/auth/portal-permissions.ts", "xyops-client.ts"]);

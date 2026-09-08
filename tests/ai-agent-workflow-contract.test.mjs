@@ -4,11 +4,15 @@ import test from 'node:test';
 
 const agentsPath = new URL('../AGENTS.md', import.meta.url);
 const workflowPath = new URL('../docs/ai/AI_AGENT_WORKFLOW.md', import.meta.url);
+const aiIndexPath = new URL('../docs/ai/README.md', import.meta.url);
+const approvalGatesPath = new URL('../docs/APPROVAL_GATES.md', import.meta.url);
 const testingPolicyPath = new URL('../docs/TESTING_POLICY.md', import.meta.url);
 const prTemplatePath = new URL('../.github/pull_request_template.md', import.meta.url);
 
 const agents = fs.readFileSync(agentsPath, 'utf8');
 const workflow = fs.readFileSync(workflowPath, 'utf8');
+const aiIndex = fs.readFileSync(aiIndexPath, 'utf8');
+const approvalGates = fs.readFileSync(approvalGatesPath, 'utf8');
 const testingPolicy = fs.readFileSync(testingPolicyPath, 'utf8');
 const prTemplate = fs.readFileSync(prTemplatePath, 'utf8');
 
@@ -57,6 +61,13 @@ test('detailed workflow defines scalable risk levels and high-value engineering 
     /not verified/i,
     /Do not report inferred or unverified state as tested/i,
   ], 'docs/ai/AI_AGENT_WORKFLOW.md');
+});
+
+test('AI policy index does not own product approval contracts', () => {
+  assert.doesNotMatch(aiIndex, /APPROVAL_GATES\.md/);
+  assert.match(aiIndex, /Product runtime\/security contracts[^\n]+product-domain documentation owners/i);
+  assert.doesNotMatch(approvalGates, /^# Relocated/m);
+  assert.match(approvalGates, /XYOps/i);
 });
 
 test('agent workflow remains connected to test and PR evidence sources of truth', () => {

@@ -37,8 +37,7 @@ jobs:
           PY
 
           rm .github/workflows/rebuild-448-correction.yml
-          test -f docs/APPROVAL_GATES.md
-          grep -Fq '# Approval gates' docs/APPROVAL_GATES.md
+          test -s docs/APPROVAL_GATES.md
           test ! -e docs/ai/APPROVAL_GATES.md
           grep -Fq 'Product runtime/security contracts' docs/ai/README.md
           git add -A

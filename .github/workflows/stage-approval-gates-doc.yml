@@ -1,0 +1,124 @@
+name: Stage approval gates documentation
+
+on:
+  push:
+    branches:
+      - docs/268-approval-gates-integrations-5b1d
+
+permissions:
+  contents: write
+
+jobs:
+  stage:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Audit and relocate approval gates documentation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          echo '=== inbound refs before relocation ==='
+          git grep -n 'APPROVAL_GATES\.md' -- ':!docs/superpowers/**' ':!.github/workflows/stage-approval-gates-doc.yml' || true
+          git grep -l 'APPROVAL_GATES\.md' -- ':!docs/superpowers/**' ':!.github/workflows/stage-approval-gates-doc.yml' > /tmp/approval-gates-refs.txt || true
+          cat /tmp/approval-gates-refs.txt
+
+          cp docs/APPROVAL_GATES.md docs/integrations/APPROVAL_GATES.md
+          cat > docs/APPROVAL_GATES.md <<'EOF'
+          # Relocated
+
+          The canonical XYOps approval-gates contract has moved to [`integrations/APPROVAL_GATES.md`](integrations/APPROVAL_GATES.md). This compatibility pointer is retained for existing external links; do not update approval policy here.
+          EOF
+
+          python - <<'PY'
+          from pathlib import Path
+
+          refs = [Path(x.strip()) for x in Path('/tmp/approval-gates-refs.txt').read_text().splitlines() if x.strip()]
+          for p in refs:
+              if p == Path('docs/APPROVAL_GATES.md'):
+                  continue
+              text = p.read_text()
+              old = text
+              text = text.replace('docs/APPROVAL_GATES.md', 'docs/integrations/APPROVAL_GATES.md')
+              if p.parent == Path('docs'):
+                  text = text.replace('](APPROVAL_GATES.md)', '](integrations/APPROVAL_GATES.md)')
+              elif p.parent == Path('docs/integrations'):
+                  text = text.replace('](../APPROVAL_GATES.md)', '](APPROVAL_GATES.md)')
+              elif str(p).startswith('docs/'):
+                  text = text.replace('](../APPROVAL_GATES.md)', '](../integrations/APPROVAL_GATES.md)')
+                  text = text.replace('](../../docs/APPROVAL_GATES.md)', '](../../docs/integrations/APPROVAL_GATES.md)')
+              if text != old:
+                  p.write_text(text)
+
+          integrations = Path('docs/integrations/README.md')
+          s = integrations.read_text()
+          entry = '- [`APPROVAL_GATES.md`](APPROVAL_GATES.md) — portal-side four-eyes approval lifecycle for dangerous XYOps processes.\n'
+          if entry not in s:
+              marker = '- [`XYOPS_EXECUTION_OWNERSHIP.md`](XYOPS_EXECUTION_OWNERSHIP.md) — portal/XYOps execution ownership boundary.\n'
+              if marker not in s:
+                  raise SystemExit('integrations README insertion marker missing')
+              s = s.replace(marker, marker + entry)
+              integrations.write_text(s)
+
+          docs = Path('docs/README.md')
+          s = docs.read_text()
+          row = '| [`APPROVAL_GATES.md`](integrations/APPROVAL_GATES.md) | Dangerous XYOps process approval lifecycle and policy |\n'
+          if row not in s:
+              marker = '| [`XYOPS_EXECUTION_OWNERSHIP.md`](integrations/XYOPS_EXECUTION_OWNERSHIP.md) | Portal/XYOps execution ownership split |\n'
+              if marker not in s:
+                  raise SystemExit('docs README XYOps insertion marker missing')
+              s = s.replace(marker, marker + row)
+              docs.write_text(s)
+
+          inventory = Path('docs/DOCUMENTATION_INVENTORY.md')
+          s = inventory.read_text()
+          row = '| `docs/integrations/APPROVAL_GATES.md` | approval policy/runtime + XYOps catalog/run owners | `verified-active` |\n'
+          if row not in s:
+              marker = '| `docs/integrations/XYOPS_EXECUTION_OWNERSHIP.md` | XYOps client/catalog/run runtime | `verified-active` |\n'
+              if marker not in s:
+                  raise SystemExit('inventory integrations insertion marker missing')
+              s = s.replace(marker, marker + row)
+              inventory.write_text(s)
+          PY
+
+          echo '=== refs after relocation ==='
+          git grep -n 'APPROVAL_GATES\.md' -- ':!docs/superpowers/**' ':!.github/workflows/stage-approval-gates-doc.yml' || true
+
+          test -f docs/integrations/APPROVAL_GATES.md
+          grep -Fq '# Relocated' docs/APPROVAL_GATES.md
+          grep -Fq 'integrations/APPROVAL_GATES.md' docs/APPROVAL_GATES.md
+          grep -Fq '[`APPROVAL_GATES.md`](APPROVAL_GATES.md)' docs/integrations/README.md
+
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          stale = []
+          for p in Path('docs').rglob('*.md'):
+              if 'superpowers' in p.parts or p == Path('docs/APPROVAL_GATES.md') or p.parent == Path('docs/integrations'):
+                  continue
+              text = p.read_text()
+              if re.search(r'\]\((?:\.\./)?APPROVAL_GATES\.md\)', text):
+                  stale.append(str(p))
+          if stale:
+              raise SystemExit('stale APPROVAL_GATES links remain: ' + ', '.join(stale))
+          PY
+
+          npm ci --ignore-scripts
+          npm run docs:check
+
+          mapfile -t tests < <(git grep -l 'APPROVAL_GATES\.md' -- 'tests/*.test.mjs' || true)
+          if ((${#tests[@]})); then
+            printf 'focused tests: %s\n' "${tests[*]}"
+            node --test "${tests[@]}"
+          fi
+
+          rm .github/workflows/stage-approval-gates-doc.yml
+          git add -A
+          git diff --cached --check
+          git commit -m 'docs: move approval gates contract to integrations owner'
+          git push origin HEAD:docs/268-approval-gates-integrations-5b1d

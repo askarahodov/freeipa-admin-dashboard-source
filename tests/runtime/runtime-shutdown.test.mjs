@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createRuntimeShutdownCoordinator } from "../runtime/shutdown.mjs";
+import { createRuntimeShutdownCoordinator } from "../../runtime/shutdown.mjs";
 
 function deferred() {
   let resolve;

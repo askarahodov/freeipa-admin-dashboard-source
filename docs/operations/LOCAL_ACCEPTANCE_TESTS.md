@@ -180,9 +180,17 @@ Bootstrap-переменные не должны перезаписать сущ
 
 ## 8. Автоматический smoke-прогон
 
+Для local-integration smoke используйте canonical fixture:
+
 ```bash
-cp .env.test.example .env.test
+cp fixtures/env/local-integration.example .env.test
 npm run test:local
+```
+
+Проверить Compose-конфигурацию без запуска можно так:
+
+```bash
+docker compose --env-file .env.test -f fixtures/compose/local-integration.yaml config >/dev/null
 ```
 
 Для реальных мутаций включите только в тестовой среде:
@@ -201,6 +209,18 @@ LOCAL_TEST_XYOPS_EVENT_ID=<безопасный тестовый процесс>
 LOCAL_TEST_XYOPS_VALUES_JSON={"message":"local acceptance smoke"}
 LOCAL_TEST_XYOPS_WAIT_TERMINAL=true
 ```
+
+Для отдельного автоматического local-auth acceptance против уже запущенного изолированного портала используйте его собственный fixture:
+
+```bash
+cp fixtures/env/local-auth-acceptance.example .env.local-auth-acceptance
+set -a
+. ./.env.local-auth-acceptance
+set +a
+npm run test:local-auth:acceptance
+```
+
+Перед запуском замените `PORTAL_TEST_ADMIN_PASSWORD` на пароль текущего локального администратора и убедитесь, что `PORTAL_TEST_BASE_URL` указывает только на disposable/test-контур.
 
 ## 9. Результаты
 

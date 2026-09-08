@@ -25,7 +25,7 @@ jobs:
           fetch-depth: 0
 
       - name: Validate test routing policy
-        run: node --test tests/auth-e2e-routing.test.mjs tests/architecture/test-scope-routing.test.mjs
+        run: node --test tests/auth/auth-e2e-routing.test.mjs tests/architecture/test-scope-routing.test.mjs
 
       - name: Determine affected test categories
         id: scope

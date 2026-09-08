@@ -42,7 +42,7 @@ test("environment ownership indexes document justified root entrypoints and cano
 });
 
 test("development identity contract consumes the canonical development env example", async () => {
-  const secureDefaults = await readFile(new URL("tests/local-auth-secure-default.test.mjs", rootUrl), "utf8");
+  const secureDefaults = await readFile(new URL("tests/auth/local-auth-secure-default.test.mjs", rootUrl), "utf8");
 
   assert.match(secureDefaults, /config\/development\/runtime\.env\.example/u);
   assert.doesNotMatch(secureDefaults, /\.env\.dev\.example/u);

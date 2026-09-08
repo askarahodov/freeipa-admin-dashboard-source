@@ -1,14 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { PORTAL_BACKUP_DOMAINS } from "../src/backup/backup-manifest.ts";
-import { FULL_BACKUP_TABLES } from "../src/backup/export/backup-full-domains.ts";
+import { PORTAL_BACKUP_DOMAINS } from "../../src/backup/backup-manifest.ts";
+import { FULL_BACKUP_TABLES } from "../../src/backup/export/backup-full-domains.ts";
 import {
   RECOVERY_CLEAR_TABLES,
   RECOVERY_PRESERVE_TABLES,
   RECOVERY_VALIDATE_ONLY_TABLES,
   createRecoveryRestorePolicy,
-} from "../src/recovery/foundation/recovery-restore-policy.ts";
+} from "../../src/recovery/foundation/recovery-restore-policy.ts";
 
 const allBackupTables = FULL_BACKUP_TABLES.flatMap(([, tables]) => tables.map((table) => table.name));
 

@@ -5,7 +5,7 @@ import test from "node:test";
 function runDry() {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, ["scripts/recovery-compose-smoke.mjs", "--dry-run"], {
-      cwd: new URL("..", import.meta.url),
+      cwd: new URL("../..", import.meta.url),
       stdio: ["ignore", "pipe", "pipe"],
     });
     let stdout = "";
@@ -42,7 +42,7 @@ test("compose smoke dry-run is deterministic and shell-free", async () => {
 
 test("compose smoke source never invokes a shell or prints environment values", async () => {
   const { readFile } = await import("node:fs/promises");
-  const source = await readFile(new URL("../scripts/recovery-compose-smoke.mjs", import.meta.url), "utf8");
+  const source = await readFile(new URL("../../scripts/recovery-compose-smoke.mjs", import.meta.url), "utf8");
   assert.doesNotMatch(source, /shell\s*:\s*true/u);
   assert.doesNotMatch(source, /exec\s*\(/u);
   assert.doesNotMatch(source, /console\.log\(process\.env/u);

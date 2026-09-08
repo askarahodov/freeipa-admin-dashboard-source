@@ -2,11 +2,11 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { RECOVERY_RECEIPT_PHASES } from "../src/recovery/foundation/recovery-receipt.ts";
+import { RECOVERY_RECEIPT_PHASES } from "../../src/recovery/foundation/recovery-receipt.ts";
 
-const runbook = await readFile(new URL("../docs/operations/OFFLINE_FULL_RESTORE.md", import.meta.url), "utf8");
-const maintenance = await readFile(new URL("../docs/operations/MAINTENANCE_MODE.md", import.meta.url), "utf8");
-const roadmap = await readFile(new URL("../docs/PRODUCT_ROADMAP.md", import.meta.url), "utf8");
+const runbook = await readFile(new URL("../../docs/operations/OFFLINE_FULL_RESTORE.md", import.meta.url), "utf8");
+const maintenance = await readFile(new URL("../../docs/operations/MAINTENANCE_MODE.md", import.meta.url), "utf8");
+const roadmap = await readFile(new URL("../../docs/PRODUCT_ROADMAP.md", import.meta.url), "utf8");
 
 test("offline restore runbook documents the complete bounded lifecycle", () => {
   for (const command of [

@@ -18,7 +18,7 @@ const forbiddenBypassNames = [
 
 test("recovery input modules stay isolated from Worker runtime composition", async () => {
   for (const file of files) {
-    const source = await readFile(new URL(`../${file}`, import.meta.url), "utf8");
+    const source = await readFile(new URL(`../../${file}`, import.meta.url), "utf8");
     assert.equal(source.includes("worker/"), false, `${file} imports Worker runtime`);
     assert.equal(source.includes("maintenance-control"), false, `${file} imports maintenance HTTP composition`);
     assert.equal(source.includes("service-admin-root-entry"), false, `${file} imports service-admin root`);
@@ -26,7 +26,7 @@ test("recovery input modules stay isolated from Worker runtime composition", asy
 });
 
 test("recovery input modules contain no bypass flags or secret logging", async () => {
-  const source = (await Promise.all(files.map((file) => readFile(new URL(`../${file}`, import.meta.url), "utf8")))).join("\n");
+  const source = (await Promise.all(files.map((file) => readFile(new URL(`../../${file}`, import.meta.url), "utf8")))).join("\n");
   for (const forbidden of forbiddenBypassNames) {
     assert.equal(source.includes(forbidden), false, `recovery input source contains ${forbidden}`);
   }

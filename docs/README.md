@@ -71,6 +71,7 @@
 | [`ARCHITECTURE.md`](architecture/ARCHITECTURE.md) | Current topology/request/trust/data/failure boundaries |
 | [`PROJECT_STRUCTURE.md`](architecture/PROJECT_STRUCTURE.md) | Repository ownership map and module boundaries |
 | [`MODULE_COVERAGE.md`](architecture/MODULE_COVERAGE.md) | Module documentation/test coverage and dependency direction |
+| [`D1_SQLITE_ADAPTER.md`](architecture/D1_SQLITE_ADAPTER.md) | D1-compatible SQLite runtime adapter boundary |
 | [`DEPLOYMENT_MATRIX.md`](DEPLOYMENT_MATRIX.md) | Supported and unsupported deployment models |
 | [`DOCUMENTATION_POLICY.md`](DOCUMENTATION_POLICY.md) | Docs-as-code, statuses, review and multi-agent rules |
 | [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md) | Authoritative source registry and precedence |

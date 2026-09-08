@@ -22,6 +22,7 @@
 | `docs/architecture/ARCHITECTURE.md` | current runtime, Compose/startup, canonical owners/tests | `verified-active` | Production runtime and persistence resynced |
 | `docs/architecture/PROJECT_STRUCTURE.md` | repository paths + `SOURCE_OF_TRUTH.md` | `verified-active` | Module ownership map |
 | `docs/architecture/MODULE_COVERAGE.md` | module boundaries + local READMEs + scoped tests | `verified-active` | Central-vs-local documentation coverage |
+| `docs/architecture/D1_SQLITE_ADAPTER.md` | `runtime/d1-sqlite-adapter.mjs` + runtime persistence tests | `verified-active` | D1-compatible SQLite adapter boundary |
 | `runtime/README.md` | canonical Node runtime + runtime tests | `verified-active` | Runtime lifecycle/persistence/gateway/scheduler |
 | `worker/README.md` | Worker/API/security contracts/tests | `verified-active` | Request/scheduled orchestration boundary |
 | `db/README.md` | schema/migration registry/tests | `verified-active` | Canonical schema/migration ownership |

@@ -4,8 +4,8 @@ import test from "node:test";
 import {
   handleMaintenanceGate,
   handleMaintenanceScheduledGate,
-} from "../worker/maintenance-mode-gate.ts";
-import { markSchemaTestBypass } from "../worker/schema-migrations-boundary.ts";
+} from "../../worker/maintenance-mode-gate.ts";
+import { markSchemaTestBypass } from "../../worker/schema-migrations-boundary.ts";
 
 test("explicit process-local schema bypass delegates fetch without a database", async () => {
   const calls = [];

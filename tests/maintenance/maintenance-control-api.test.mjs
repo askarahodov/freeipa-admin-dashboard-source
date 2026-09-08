@@ -10,7 +10,7 @@ import {
   MAINTENANCE_STATUS_PATH,
   MAINTENANCE_VERIFICATION_START_PATH,
   handleMaintenanceControlRequest,
-} from "../worker/maintenance-control-entry.ts";
+} from "../../worker/maintenance-control-entry.ts";
 
 const operationId = "maintenance_11111111-1111-4111-8111-111111111111";
 const controllerSecret = "A".repeat(43);

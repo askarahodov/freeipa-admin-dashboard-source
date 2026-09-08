@@ -4,18 +4,18 @@ import test from "node:test";
 
 import {
   handleMaintenanceControlRoute,
-} from "../worker/maintenance-control-dispatch.ts";
+} from "../../worker/maintenance-control-dispatch.ts";
 import {
   MAINTENANCE_ENTER_PATH,
   MAINTENANCE_PREPARE_PATH,
   MAINTENANCE_STATUS_PATH,
-} from "../worker/maintenance-control-entry.ts";
+} from "../../worker/maintenance-control-entry.ts";
 import {
   portalPermissionMetadata,
   portalPermissionOrder,
   portalRolePermissions,
-} from "../src/auth/portal-permissions.ts";
-import { isAdminIntegrationPath } from "../src/auth/admin-session-authorization.ts";
+} from "../../src/auth/portal-permissions.ts";
+import { isAdminIntegrationPath } from "../../src/auth/admin-session-authorization.ts";
 
 function request(path, headers = {}) {
   return new Request(`https://portal.example${path}`, {
@@ -98,8 +98,8 @@ test("every maintenance control path is inside the service-admin allowlist", () 
 });
 
 test("service-admin root composes the maintenance control root", () => {
-  const serviceRoot = fs.readFileSync(new URL("../worker/service-admin-root-entry.ts", import.meta.url), "utf8");
-  const maintenanceRoot = fs.readFileSync(new URL("../worker/maintenance-control-root-entry.ts", import.meta.url), "utf8");
+  const serviceRoot = fs.readFileSync(new URL("../../worker/service-admin-root-entry.ts", import.meta.url), "utf8");
+  const maintenanceRoot = fs.readFileSync(new URL("../../worker/maintenance-control-root-entry.ts", import.meta.url), "utf8");
   assert.equal(serviceRoot.includes('from "./maintenance-control-root-entry.ts"'), true);
   assert.equal(maintenanceRoot.includes('from "./backup-selective-restore-root-entry.ts"'), true);
   assert.equal(maintenanceRoot.includes("handleMaintenanceControlRoute"), true);

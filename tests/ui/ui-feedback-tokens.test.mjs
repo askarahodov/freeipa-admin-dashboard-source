@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-const css = readFileSync(new URL("../app/ui/ui.module.css", import.meta.url), "utf8");
-const tokens = readFileSync(new URL("../app/styles/tokens.css", import.meta.url), "utf8");
+const css = readFileSync(new URL("../../app/ui/ui.module.css", import.meta.url), "utf8");
+const tokens = readFileSync(new URL("../../app/styles/tokens.css", import.meta.url), "utf8");
 
 test("feedback surfaces consume semantic design tokens", () => {
   for (const token of [

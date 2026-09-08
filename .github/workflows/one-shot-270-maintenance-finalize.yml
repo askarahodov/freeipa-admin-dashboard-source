@@ -1,0 +1,91 @@
+name: One-shot 270 maintenance finalize
+
+on:
+  push:
+    branches:
+      - repo/270-maintenance-test-family
+
+permissions:
+  contents: write
+
+jobs:
+  finalize-and-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Apply relocation-required maintenance paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find tests/maintenance -maxdepth 1 -type f -name 'maintenance-*.test.mjs' | wc -l)" -eq 8
+          test "$(find tests -maxdepth 1 -type f -name 'maintenance-*.test.mjs' | wc -l)" -eq 0
+          python - <<'PY'
+          from pathlib import Path
+          for path in Path('tests/maintenance').glob('maintenance-*.test.mjs'):
+              text = path.read_text()
+              text = text.replace('"../README.md"', '"../../README.md"')
+              text = text.replace("'../README.md'", "'../../README.md'")
+              text = text.replace('"../docs/', '"../../docs/')
+              text = text.replace("'../docs/", "'../../docs/")
+              text = text.replace('"../src/', '"../../src/')
+              text = text.replace("'../src/", "'../../src/")
+              text = text.replace('"../worker/', '"../../worker/')
+              text = text.replace("'../worker/", "'../../worker/")
+              path.write_text(text)
+          PY
+
+      - name: Build
+        run: npm run build
+
+      - name: Run complete maintenance family and layout contracts
+        run: node --experimental-strip-types --test tests/maintenance/*.test.mjs tests/node-test-discovery.test.mjs tests/test-layout-policy.test.mjs
+
+      - name: Validate relocation invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          stale = []
+          needles = (
+              '"../README.md"', "'../README.md'",
+              'new URL("../docs/', "new URL('../docs/",
+              'new URL("../src/', "new URL('../src/",
+              'new URL("../worker/', "new URL('../worker/",
+              'from "../src/', "from '../src/",
+              'from "../worker/', "from '../worker/",
+          )
+          for path in Path('tests/maintenance').glob('maintenance-*.test.mjs'):
+              text = path.read_text()
+              for needle in needles:
+                  if needle in text:
+                      stale.append(f'{path}: {needle}')
+          if stale:
+              raise SystemExit('stale relocation paths:\n' + '\n'.join(stale))
+          PY
+          git diff --check
+
+      - name: Commit validated final state and self-clean
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/one-shot-270-maintenance-finalize.yml
+          git add -A
+          git diff --cached --check
+          git commit -m 'test: fix maintenance relocation paths'
+          git push origin HEAD:${GITHUB_REF_NAME}

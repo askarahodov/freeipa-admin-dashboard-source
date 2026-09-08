@@ -82,8 +82,7 @@ jobs:
               '- [`APPROVAL_GATES.md`](APPROVAL_GATES.md) — approval boundaries and execution gates for automated/agent work.\n'
           )
           if 'AI_AGENT_WORKFLOW.md`](AI_AGENT_WORKFLOW.md)' not in text:
-              text = text.rstrip() + additions
-              readme.write_text(text + '\n', encoding='utf-8')
+              readme.write_text(text.rstrip() + additions, encoding='utf-8')
           PY
 
       - name: Validate AI policy documentation batch

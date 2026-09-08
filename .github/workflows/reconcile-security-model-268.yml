@@ -1,0 +1,88 @@
+name: Reconcile security model relocation
+
+on:
+  push:
+    branches:
+      - docs/268-security-model-family
+
+permissions:
+  contents: write
+
+jobs:
+  relocate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Relocate security model and update canonical links
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          mv docs/SECURITY_MODEL.md docs/security/SECURITY_MODEL.md
+
+          cat > docs/SECURITY_MODEL.md <<'EOF'
+          # Relocated
+
+          The canonical security model has moved to [`security/SECURITY_MODEL.md`](security/SECURITY_MODEL.md). This compatibility pointer is retained for existing external links; do not update security policy here.
+          EOF
+
+          python - <<'PY'
+          from pathlib import Path
+
+          moved = Path('docs/security/SECURITY_MODEL.md')
+          text = moved.read_text()
+          replacements = {
+              '(SOURCE_OF_TRUTH.md)': '(../SOURCE_OF_TRUTH.md)',
+              '(architecture/ARCHITECTURE.md)': '(../architecture/ARCHITECTURE.md)',
+              '(architecture/PROJECT_STRUCTURE.md)': '(../architecture/PROJECT_STRUCTURE.md)',
+              '(CONFIG_ENCRYPTION_KEY.md)': '(../CONFIG_ENCRYPTION_KEY.md)',
+              '(XYOPS_EXECUTION_OWNERSHIP.md)': '(../XYOPS_EXECUTION_OWNERSHIP.md)',
+              '(security/AUDIT_LOG.md)': '(AUDIT_LOG.md)',
+              '(operations/DATABASE_MIGRATIONS.md)': '(../operations/DATABASE_MIGRATIONS.md)',
+              '(operations/STORAGE_STATUS.md)': '(../operations/STORAGE_STATUS.md)',
+              '(operations/STORAGE_INTEGRITY.md)': '(../operations/STORAGE_INTEGRITY.md)',
+              '(MAINTENANCE_MODE.md)': '(../MAINTENANCE_MODE.md)',
+              '(OFFLINE_FULL_RESTORE.md)': '(../OFFLINE_FULL_RESTORE.md)',
+              '(HEALTH_CONTRACTS.md)': '(../operations/HEALTH_CONTRACTS.md)',
+              '(HEALTH_METRICS.md)': '(../operations/HEALTH_METRICS.md)',
+          }
+          for old, new in replacements.items():
+              text = text.replace(old, new)
+          moved.write_text(text)
+
+          docs_readme = Path('docs/README.md')
+          text = docs_readme.read_text().replace('](SECURITY_MODEL.md)', '](security/SECURITY_MODEL.md)')
+          docs_readme.write_text(text)
+
+          inventory = Path('docs/DOCUMENTATION_INVENTORY.md')
+          text = inventory.read_text().replace('`docs/SECURITY_MODEL.md`', '`docs/security/SECURITY_MODEL.md`')
+          inventory.write_text(text)
+
+          security_index = Path('docs/security/README.md')
+          text = security_index.read_text()
+          marker = '- [`LOCAL_AUTH_RBAC.md`](LOCAL_AUTH_RBAC.md) — canonical local portal authentication, session, brute-force protection, role and access-management contract.\n'
+          if '- [`SECURITY_MODEL.md`](SECURITY_MODEL.md)' not in text:
+              text = text.replace(marker, '- [`SECURITY_MODEL.md`](SECURITY_MODEL.md) — current product security model, trust boundaries, identity classes and secret/recovery invariants.\n' + marker)
+          text = text.replace('`SECURITY_MODEL.md` and operational recovery/security runbooks remain at their current canonical paths until their own explicit #268 migration slice. ', 'Operational recovery/security runbooks remain at their current canonical paths until their own explicit #268 migration slices. ')
+          text = text.replace('The former root `docs/LOCAL_AUTH_RBAC.md` path is retained only as a relocation pointer for existing external links.', 'The former root `docs/SECURITY_MODEL.md` and `docs/LOCAL_AUTH_RBAC.md` paths are retained only as relocation pointers for existing external links.')
+          security_index.write_text(text)
+          PY
+
+          rm .github/workflows/reconcile-security-model-268.yml
+
+          test -f docs/security/SECURITY_MODEL.md
+          test -f docs/SECURITY_MODEL.md
+          grep -q 'security/SECURITY_MODEL.md' docs/README.md
+          grep -q 'docs/security/SECURITY_MODEL.md' docs/DOCUMENTATION_INVENTORY.md
+          grep -q '\[SECURITY_MODEL.md\](SECURITY_MODEL.md)' docs/security/README.md
+          ! grep -q '](../SECURITY_MODEL.md)' docs/security/SECURITY_MODEL.md
+
+          git add -A
+          git diff --cached --check
+          git commit -m 'docs: move security model to security owner'
+          git push origin HEAD:docs/268-security-model-family

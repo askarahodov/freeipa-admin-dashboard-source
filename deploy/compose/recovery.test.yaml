@@ -2,7 +2,7 @@ services:
   recovery:
     profiles: ["recovery-test"]
     build:
-      context: .
+      context: ../..
       target: recovery
     image: freeipa-admin-dashboard-recovery:test
     network_mode: host

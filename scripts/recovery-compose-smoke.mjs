@@ -10,7 +10,7 @@ const dryRun = process.argv.includes("--dry-run");
 function commandPlan(project, artifactRoot, secretsRoot) {
   const base = [
     "docker", "compose",
-    "-f", "compose.recovery.test.yaml",
+    "-f", "deploy/compose/recovery.test.yaml",
     "--project-name", project,
     "--profile", "recovery-test",
   ];

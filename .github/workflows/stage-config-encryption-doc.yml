@@ -37,6 +37,7 @@ jobs:
 
           python - <<'PY'
           from pathlib import Path
+          import re
 
           files = [Path(line.strip()) for line in Path('/tmp/config-key-refs.txt').read_text().splitlines() if line.strip()]
           for p in files:
@@ -64,6 +65,17 @@ jobs:
                   raise SystemExit('security README insertion marker missing')
               s = s.replace(marker, marker + entry)
               sec.write_text(s)
+
+          stale = []
+          pattern = re.compile(r'\]\((?:\.\./)?CONFIG_ENCRYPTION_KEY\.md\)')
+          for p in Path('docs').rglob('*.md'):
+              if p == Path('docs/CONFIG_ENCRYPTION_KEY.md') or str(p).startswith('docs/superpowers/') or p.parent == Path('docs/security'):
+                  continue
+              for lineno, line in enumerate(p.read_text().splitlines(), 1):
+                  if pattern.search(line):
+                      stale.append(f'{p}:{lineno}:{line}')
+          if stale:
+              raise SystemExit('stale CONFIG_ENCRYPTION_KEY markdown links outside security owner:\n' + '\n'.join(stale))
           PY
 
           echo '=== refs after relocation ==='
@@ -73,12 +85,6 @@ jobs:
           grep -Fq '# Relocated' docs/CONFIG_ENCRYPTION_KEY.md
           grep -Fq 'security/CONFIG_ENCRYPTION_KEY.md' docs/CONFIG_ENCRYPTION_KEY.md
           grep -Fq 'CONFIG_ENCRYPTION_KEY.md' docs/security/README.md
-
-          # Outside docs/security, no active Markdown navigation may still target CONFIG_ENCRYPTION_KEY.md as a sibling/root owner.
-          if git grep -nE '\]\((\.\./)?CONFIG_ENCRYPTION_KEY\.md\)' -- 'docs/*.md' 'docs/architecture/*.md' 'docs/operations/*.md' 'docs/ai/*.md' 'docs/reference/*.md' ':!docs/CONFIG_ENCRYPTION_KEY.md' ':!docs/superpowers/**'; then
-            echo 'stale CONFIG_ENCRYPTION_KEY markdown link remains outside security owner' >&2
-            exit 1
-          fi
 
           npm ci --ignore-scripts
           npm run docs:check

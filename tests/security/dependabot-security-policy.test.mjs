@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
-const configUrl = new URL("../.github/dependabot.yml", import.meta.url);
+const configUrl = new URL("../../.github/dependabot.yml", import.meta.url);
 
 test("Dependabot separates security remediation from routine version groups", () => {
   assert.equal(existsSync(configUrl), true, "dependabot.yml must exist");

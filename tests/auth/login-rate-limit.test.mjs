@@ -9,7 +9,7 @@ import {
   normalizeLoginSubject,
   recordLoginFailure,
   recordLoginSuccess,
-} from "../login-rate-limit.ts";
+} from "../../login-rate-limit.ts";
 
 class RateLimitMemoryD1 {
   rows = new Map();

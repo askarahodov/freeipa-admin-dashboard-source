@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
 
-const source = await readFile(new URL("../db/portal-migrations.ts", import.meta.url), "utf8");
+const source = await readFile(new URL("../../db/portal-migrations.ts", import.meta.url), "utf8");
 
 test("startup migration uses only the shared portal migration lock implementation", () => {
   const sharedLockImport = source.match(

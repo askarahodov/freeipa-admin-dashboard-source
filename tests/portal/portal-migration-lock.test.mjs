@@ -8,7 +8,7 @@ import {
   inspectPortalMigrationLock,
   releasePortalMigrationLock,
   renewPortalMigrationLock,
-} from "../db/portal-migration-lock.ts";
+} from "../../db/portal-migration-lock.ts";
 
 function database(handler) {
   const calls = [];

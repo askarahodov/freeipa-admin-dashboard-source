@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   ensurePortalSchemaWithManagedRegistry,
   inspectPortalSchemaWithManagedRegistry,
-} from "../db/portal-controlled-migrations.ts";
+} from "../../db/portal-controlled-migrations.ts";
 
 function migration(version, mode) {
   return {

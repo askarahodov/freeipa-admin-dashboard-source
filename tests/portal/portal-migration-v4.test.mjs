@@ -6,7 +6,7 @@ import {
   portalMigrationV4SecondaryStatements,
   portalMigrationV4Statements,
   portalMigrationV4TableStatements,
-} from "../db/portal-migration-v4.ts";
+} from "../../db/portal-migration-v4.ts";
 
 const expectedColumns = [
   "id",

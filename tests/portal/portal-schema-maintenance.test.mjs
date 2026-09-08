@@ -5,17 +5,17 @@ import test from "node:test";
 import {
   portalMaintenanceStateIndex,
   portalMaintenanceStateTable,
-} from "../db/portal-maintenance-schema.ts";
+} from "../../db/portal-maintenance-schema.ts";
 import {
   portalMigrationV3SecondaryStatements,
   portalMigrationV3Statements,
   portalMigrationV3TableStatements,
-} from "../db/portal-migration-v3.ts";
+} from "../../db/portal-migration-v3.ts";
 import {
   normalizePortalMaintenanceSql,
   portalMigrationsV3,
-} from "../db/portal-migrations-v3.ts";
-import { portalMigrationsV2 } from "../db/portal-migrations-v2.ts";
+} from "../../db/portal-migrations-v3.ts";
+import { portalMigrationsV2 } from "../../db/portal-migrations-v2.ts";
 
 test("adds immutable maintenance migration after unchanged version two registry", async () => {
   assert.deepEqual(portalMigrationsV2.map((migration) => migration.version), [1, 2]);
@@ -60,9 +60,9 @@ test("accepts canonical SQLite DDL without IF NOT EXISTS", () => {
 });
 
 test("migration three remains immutable while hardened production uses registry v5", () => {
-  const migrationSource = fs.readFileSync(new URL("../db/portal-migration-v3.ts", import.meta.url), "utf8");
-  const hardenedSource = fs.readFileSync(new URL("../db/portal-migrations-hardened.ts", import.meta.url), "utf8");
-  const registrySource = fs.readFileSync(new URL("../db/portal-migrations-v3.ts", import.meta.url), "utf8");
+  const migrationSource = fs.readFileSync(new URL("../../db/portal-migration-v3.ts", import.meta.url), "utf8");
+  const hardenedSource = fs.readFileSync(new URL("../../db/portal-migrations-hardened.ts", import.meta.url), "utf8");
+  const registrySource = fs.readFileSync(new URL("../../db/portal-migrations-v3.ts", import.meta.url), "utf8");
 
   assert.doesNotMatch(migrationSource, /\b(?:INSERT|UPDATE|DELETE|REPLACE)\b/i);
   assert.doesNotMatch(migrationSource, /\b(?:DROP|ALTER)\b/i);

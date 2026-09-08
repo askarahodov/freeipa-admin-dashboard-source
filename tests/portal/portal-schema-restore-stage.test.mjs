@@ -6,16 +6,16 @@ import {
   portalMigrationV2SecondaryStatements,
   portalMigrationV2Statements,
   portalMigrationV2TableStatements,
-} from "../db/portal-migration-v2.ts";
+} from "../../db/portal-migration-v2.ts";
 import {
   normalizePortalRestoreStageSql,
   portalMigrationsV2,
-} from "../db/portal-migrations-v2.ts";
-import { portalMigrations } from "../db/portal-migrations.ts";
+} from "../../db/portal-migrations-v2.ts";
+import { portalMigrations } from "../../db/portal-migrations.ts";
 import {
   portalRestoreStageIndex,
   portalRestoreStageTable,
-} from "../db/portal-restore-stage-schema.ts";
+} from "../../db/portal-restore-stage-schema.ts";
 
 test("adds an immutable metadata-only migration after the unchanged baseline", async () => {
   assert.deepEqual(portalMigrations.map((migration) => migration.version), [1]);
@@ -62,10 +62,10 @@ test("accepts the canonical SQLite index form without IF NOT EXISTS", () => {
 });
 
 test("migration two remains immutable while production advances to the version five registry", () => {
-  const migrationSource = fs.readFileSync(new URL("../db/portal-migration-v2.ts", import.meta.url), "utf8");
-  const hardenedSource = fs.readFileSync(new URL("../db/portal-migrations-hardened.ts", import.meta.url), "utf8");
-  const registrySource = fs.readFileSync(new URL("../db/portal-migrations-v2.ts", import.meta.url), "utf8");
-  const schemaSource = fs.readFileSync(new URL("../db/portal-restore-stage-schema.ts", import.meta.url), "utf8");
+  const migrationSource = fs.readFileSync(new URL("../../db/portal-migration-v2.ts", import.meta.url), "utf8");
+  const hardenedSource = fs.readFileSync(new URL("../../db/portal-migrations-hardened.ts", import.meta.url), "utf8");
+  const registrySource = fs.readFileSync(new URL("../../db/portal-migrations-v2.ts", import.meta.url), "utf8");
+  const schemaSource = fs.readFileSync(new URL("../../db/portal-restore-stage-schema.ts", import.meta.url), "utf8");
 
   assert.doesNotMatch(migrationSource, /\b(?:INSERT|UPDATE|DELETE|REPLACE)\b/i);
   assert.doesNotMatch(migrationSource, /\b(?:DROP|ALTER)\b/i);

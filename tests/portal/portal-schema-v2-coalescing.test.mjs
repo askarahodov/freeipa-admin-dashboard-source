@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   clearPortalSchemaV2CacheForTests,
   coalescePortalSchemaV2Ensure,
-} from "../db/portal-migrations-v2.ts";
+} from "../../db/portal-migrations-v2.ts";
 
 function ready(verifiedAt = 1_000) {
   return {

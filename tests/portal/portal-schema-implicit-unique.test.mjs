@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { portalSchemaTables } from "../db/portal-schema.ts";
-import { classifyAdditionalCanonicalSchemaDrift } from "../db/portal-migrations-hardened.ts";
+import { portalSchemaTables } from "../../db/portal-schema.ts";
+import { classifyAdditionalCanonicalSchemaDrift } from "../../db/portal-migrations-hardened.ts";
 
 function canonicalTable(name) {
   const table = portalSchemaTables.find((item) => item.name === name);

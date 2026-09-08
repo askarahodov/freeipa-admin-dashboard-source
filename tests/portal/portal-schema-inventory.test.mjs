@@ -4,7 +4,7 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const schemaPath = path.join(root, "db", "portal-schema.ts");
 const restoreStageSchemaPath = path.join(root, "db", "portal-restore-stage-schema.ts");
 const maintenanceSchemaPath = path.join(root, "db", "portal-maintenance-schema.ts");

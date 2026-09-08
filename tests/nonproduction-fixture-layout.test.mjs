@@ -39,10 +39,12 @@ test("non-production Compose and env examples have canonical fixture owners", as
 test("fixture runners keep runtime env precedence while consuming canonical fixtures", async () => {
   const e2eRunner = await readFile(new URL("scripts/run-auth-e2e.sh", rootUrl), "utf8");
   const localRunner = await readFile(new URL("scripts/run-local-integration.sh", rootUrl), "utf8");
+  const e2eWorkflow = await readFile(new URL(".github/workflows/e2e-auth.yml", rootUrl), "utf8");
 
   assert.match(e2eRunner, /ENV_FILE="\$\{E2E_ENV_FILE:-\.env\.e2e\}"/u);
   assert.match(e2eRunner, /COMPOSE_FILE="\$\{E2E_COMPOSE_FILE:-fixtures\/compose\/e2e\.yaml\}"/u);
   assert.match(e2eRunner, /cp fixtures\/env\/e2e\.example \.env\.e2e/u);
+  assert.match(e2eWorkflow, /run: cp fixtures\/env\/e2e\.example \.env\.e2e/u);
 
   assert.match(localRunner, /ENV_FILE="\$\{LOCAL_TEST_ENV_FILE:-\.env\.test\}"/u);
   assert.match(localRunner, /COMPOSE_FILE="\$\{LOCAL_TEST_COMPOSE_FILE:-fixtures\/compose\/local-integration\.yaml\}"/u);

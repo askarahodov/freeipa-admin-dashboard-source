@@ -12,7 +12,6 @@ The normalization is intentionally incremental: active documents remain at their
 - [`D1_SQLITE_ADAPTER.md`](D1_SQLITE_ADAPTER.md) — D1-compatible SQLite adapter boundary, supported surface and runtime persistence contract.
 - [`DEPLOYMENT_MATRIX.md`](DEPLOYMENT_MATRIX.md) — supported and unsupported deployment models.
 - [`../SOURCE_OF_TRUTH.md`](../SOURCE_OF_TRUTH.md) — authoritative owner registry and precedence.
-- [`../DEPLOYMENT_MATRIX.md`](DEPLOYMENT_MATRIX.md) — supported and unsupported deployment models.
 - [`../adr/README.md`](../adr/README.md) — architecture decision records and decision-history policy.
 
 ## Migration rule

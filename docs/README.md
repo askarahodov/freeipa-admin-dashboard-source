@@ -36,7 +36,7 @@
 - [`operations/DATABASE_MIGRATIONS.md`](operations/DATABASE_MIGRATIONS.md)
 - [`MAINTENANCE_MODE.md`](MAINTENANCE_MODE.md)
 - [`OFFLINE_FULL_RESTORE.md`](OFFLINE_FULL_RESTORE.md)
-- [`CONFIG_ENCRYPTION_KEY.md`](CONFIG_ENCRYPTION_KEY.md)
+- [`CONFIG_ENCRYPTION_KEY.md`](security/CONFIG_ENCRYPTION_KEY.md)
 - [`reference/CONFIGURATION.md`](reference/CONFIGURATION.md)
 - [`reference/ERROR_CODES.md`](reference/ERROR_CODES.md)
 
@@ -57,7 +57,7 @@
 - [`reference/CONFIGURATION.md`](reference/CONFIGURATION.md)
 - [`reference/ERROR_CODES.md`](reference/ERROR_CODES.md)
 - [`security/AUDIT_LOG.md`](security/AUDIT_LOG.md)
-- [`CONFIG_ENCRYPTION_KEY.md`](CONFIG_ENCRYPTION_KEY.md)
+- [`CONFIG_ENCRYPTION_KEY.md`](security/CONFIG_ENCRYPTION_KEY.md)
 - [`operations/DATABASE_MIGRATIONS.md`](operations/DATABASE_MIGRATIONS.md)
 - [`MAINTENANCE_MODE.md`](MAINTENANCE_MODE.md)
 - [`OFFLINE_FULL_RESTORE.md`](OFFLINE_FULL_RESTORE.md)
@@ -121,7 +121,7 @@ Machine-readable ownership work referenced by the documentation platform is comp
 | [`operations/STORAGE_INTEGRITY.md`](operations/STORAGE_INTEGRITY.md) | Read-only SQLite/index diagnostics |
 | [`MAINTENANCE_MODE.md`](MAINTENANCE_MODE.md) | Persistent maintenance state machine |
 | [`OFFLINE_FULL_RESTORE.md`](OFFLINE_FULL_RESTORE.md) | Offline destructive restore, atomic swap, verify, rollback |
-| [`CONFIG_ENCRYPTION_KEY.md`](CONFIG_ENCRYPTION_KEY.md) | Production encryption-key requirements |
+| [`CONFIG_ENCRYPTION_KEY.md`](security/CONFIG_ENCRYPTION_KEY.md) | Production encryption-key requirements |
 
 ## Health / monitoring
 

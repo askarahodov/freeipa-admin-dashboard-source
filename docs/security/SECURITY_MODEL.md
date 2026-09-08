@@ -162,7 +162,7 @@ Destructive confirmation UI, typed confirmation phrases and similar interaction 
 | Backup encryption material | backup/recovery workflow | ordinary API payloads, logs, audit | purpose-specific encryption/decryption boundary |
 | Maintenance/restore/recovery controller secrets | guarded maintenance/recovery workflows | normal browser state, generic admin API, logs | purpose-specific state transition/recovery authorization |
 
-For exact production encryption-key requirements use [`CONFIG_ENCRYPTION_KEY.md`](../CONFIG_ENCRYPTION_KEY.md).
+For exact production encryption-key requirements use [`CONFIG_ENCRYPTION_KEY.md`](CONFIG_ENCRYPTION_KEY.md).
 
 ## Integration isolation
 
@@ -329,7 +329,7 @@ Always inspect current `main` before repeating this list in another document; me
 - [`PROJECT_STRUCTURE.md`](../architecture/PROJECT_STRUCTURE.md) — module/owner placement;
 - [`LOCAL_AUTH_RBAC.md`](LOCAL_AUTH_RBAC.md) — exact portal authentication, sessions, roles and permissions;
 - [`security/AUDIT_LOG.md`](AUDIT_LOG.md) — audit contract/redaction/read boundary;
-- [`CONFIG_ENCRYPTION_KEY.md`](../CONFIG_ENCRYPTION_KEY.md) — production encryption-key requirements;
+- [`CONFIG_ENCRYPTION_KEY.md`](CONFIG_ENCRYPTION_KEY.md) — production encryption-key requirements;
 - [`operations/DATABASE_MIGRATIONS.md`](../operations/DATABASE_MIGRATIONS.md) — schema/migration fail-closed lifecycle;
 - [`MAINTENANCE_MODE.md`](../MAINTENANCE_MODE.md) — persistent maintenance boundary;
 - [`OFFLINE_FULL_RESTORE.md`](../OFFLINE_FULL_RESTORE.md) — destructive offline recovery procedure;

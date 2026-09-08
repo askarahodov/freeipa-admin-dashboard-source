@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createD1SqliteAdapter } from "../runtime/d1-sqlite-adapter.mjs";
+import { createD1SqliteAdapter } from "../../runtime/d1-sqlite-adapter.mjs";
 
 function fakeDatabase({ exposeReader = true, nullPrototypeRows = false } = {}) {
   const rows = new Map([

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import worker from "../dist/server/index.js";
-import { markSchemaTestBypass } from "../worker/schema-migrations-boundary.ts";
+import worker from "../../dist/server/index.js";
+import { markSchemaTestBypass } from "../../worker/schema-migrations-boundary.ts";
 
 test("extends the users API with one normalized user_find call", async () => {
   const originalFetch = globalThis.fetch;

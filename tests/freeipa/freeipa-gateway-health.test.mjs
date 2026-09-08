@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createFreeIpaGateway } from "../scripts/freeipa-gateway.mjs";
+import { createFreeIpaGateway } from "../../scripts/freeipa-gateway.mjs";
 
 async function listen(server) {
   await new Promise((resolve, reject) => {

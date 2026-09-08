@@ -3,16 +3,16 @@ import fs from "node:fs";
 import test from "node:test";
 
 test("group member browser uses direct FreeIPA actions and the paginated API", () => {
-  const component = fs.readFileSync(new URL("../app/FreeIpaGroupMemberBrowser.tsx", import.meta.url), "utf8");
-  const events = fs.readFileSync(new URL("../src/freeipa/freeipa-ui-events.ts", import.meta.url), "utf8");
-  const wrapper = fs.readFileSync(new URL("../worker/freeipa-group-member-entry.ts", import.meta.url), "utf8");
-  const selectiveRoot = fs.readFileSync(new URL("../worker/backup-selective-restore-root-entry.ts", import.meta.url), "utf8");
-  const maintenanceControlRoot = fs.readFileSync(new URL("../worker/maintenance-control-root-entry.ts", import.meta.url), "utf8");
-  const serviceRoot = fs.readFileSync(new URL("../worker/service-admin-root-entry.ts", import.meta.url), "utf8");
-  const maintenanceGate = fs.readFileSync(new URL("../worker/maintenance-mode-root-entry.ts", import.meta.url), "utf8");
-  const schemaRoot = fs.readFileSync(new URL("../worker/schema-migrations-entry.ts", import.meta.url), "utf8");
-  const layout = fs.readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
-  const vite = fs.readFileSync(new URL("../vite.config.ts", import.meta.url), "utf8");
+  const component = fs.readFileSync(new URL("../../app/FreeIpaGroupMemberBrowser.tsx", import.meta.url), "utf8");
+  const events = fs.readFileSync(new URL("../../src/freeipa/freeipa-ui-events.ts", import.meta.url), "utf8");
+  const wrapper = fs.readFileSync(new URL("../../worker/freeipa-group-member-entry.ts", import.meta.url), "utf8");
+  const selectiveRoot = fs.readFileSync(new URL("../../worker/backup-selective-restore-root-entry.ts", import.meta.url), "utf8");
+  const maintenanceControlRoot = fs.readFileSync(new URL("../../worker/maintenance-control-root-entry.ts", import.meta.url), "utf8");
+  const serviceRoot = fs.readFileSync(new URL("../../worker/service-admin-root-entry.ts", import.meta.url), "utf8");
+  const maintenanceGate = fs.readFileSync(new URL("../../worker/maintenance-mode-root-entry.ts", import.meta.url), "utf8");
+  const schemaRoot = fs.readFileSync(new URL("../../worker/schema-migrations-entry.ts", import.meta.url), "utf8");
+  const layout = fs.readFileSync(new URL("../../app/layout.tsx", import.meta.url), "utf8");
+  const vite = fs.readFileSync(new URL("../../vite.config.ts", import.meta.url), "utf8");
 
   for (const value of ["/api/integrations/groups/members", "status", "sort", "direction", "pageSize", "Без карточки", "openFreeIpaAction", "FREEIPA_DIRECTORY_CHANGED_EVENT", "loadFreeIpaAccess"]) {
     assert.equal(component.includes(value), true, value);

@@ -8,7 +8,7 @@ import {
   announceFreeIpaDirectoryChanged,
   loadFreeIpaAccess,
   openFreeIpaAction,
-} from "../src/freeipa/freeipa-ui-events.ts";
+} from "../../src/freeipa/freeipa-ui-events.ts";
 
 function installWindowTarget() {
   const previousWindow = globalThis.window;
@@ -90,9 +90,9 @@ test("FreeIPA UI permissions come from the server-side access contract", async (
 
 test("layout and enhanced browsers no longer depend on legacy FreeIPA action bridges", async () => {
   const [layout, users, members] = await Promise.all([
-    readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/FreeIpaUserBrowser.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/FreeIpaGroupMemberBrowser.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../../app/layout.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../../app/FreeIpaUserBrowser.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../../app/FreeIpaGroupMemberBrowser.tsx", import.meta.url), "utf8"),
   ]);
 
   assert.doesNotMatch(layout, /FreeIpaDirectorySync|FreeIpaLegacyActionBridge/);

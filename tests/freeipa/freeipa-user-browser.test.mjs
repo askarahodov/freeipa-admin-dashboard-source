@@ -3,18 +3,18 @@ import fs from "node:fs";
 import test from "node:test";
 
 test("user browser uses the shared FreeIPA action contract and exposes server query controls", () => {
-  const component = fs.readFileSync(new URL("../app/FreeIpaUserBrowser.tsx", import.meta.url), "utf8");
-  const events = fs.readFileSync(new URL("../src/freeipa/freeipa-ui-events.ts", import.meta.url), "utf8");
-  const wrapper = fs.readFileSync(new URL("../worker/freeipa-user-query-entry.ts", import.meta.url), "utf8");
-  const bulkWrapper = fs.readFileSync(new URL("../worker/freeipa-user-bulk-entry.ts", import.meta.url), "utf8");
-  const topWrapper = fs.readFileSync(new URL("../worker/freeipa-group-member-entry.ts", import.meta.url), "utf8");
-  const selectiveRoot = fs.readFileSync(new URL("../worker/backup-selective-restore-root-entry.ts", import.meta.url), "utf8");
-  const maintenanceControlRoot = fs.readFileSync(new URL("../worker/maintenance-control-root-entry.ts", import.meta.url), "utf8");
-  const serviceRoot = fs.readFileSync(new URL("../worker/service-admin-root-entry.ts", import.meta.url), "utf8");
-  const maintenanceGate = fs.readFileSync(new URL("../worker/maintenance-mode-root-entry.ts", import.meta.url), "utf8");
-  const schemaRoot = fs.readFileSync(new URL("../worker/schema-migrations-entry.ts", import.meta.url), "utf8");
-  const layout = fs.readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
-  const vite = fs.readFileSync(new URL("../vite.config.ts", import.meta.url), "utf8");
+  const component = fs.readFileSync(new URL("../../app/FreeIpaUserBrowser.tsx", import.meta.url), "utf8");
+  const events = fs.readFileSync(new URL("../../src/freeipa/freeipa-ui-events.ts", import.meta.url), "utf8");
+  const wrapper = fs.readFileSync(new URL("../../worker/freeipa-user-query-entry.ts", import.meta.url), "utf8");
+  const bulkWrapper = fs.readFileSync(new URL("../../worker/freeipa-user-bulk-entry.ts", import.meta.url), "utf8");
+  const topWrapper = fs.readFileSync(new URL("../../worker/freeipa-group-member-entry.ts", import.meta.url), "utf8");
+  const selectiveRoot = fs.readFileSync(new URL("../../worker/backup-selective-restore-root-entry.ts", import.meta.url), "utf8");
+  const maintenanceControlRoot = fs.readFileSync(new URL("../../worker/maintenance-control-root-entry.ts", import.meta.url), "utf8");
+  const serviceRoot = fs.readFileSync(new URL("../../worker/service-admin-root-entry.ts", import.meta.url), "utf8");
+  const maintenanceGate = fs.readFileSync(new URL("../../worker/maintenance-mode-root-entry.ts", import.meta.url), "utf8");
+  const schemaRoot = fs.readFileSync(new URL("../../worker/schema-migrations-entry.ts", import.meta.url), "utf8");
+  const layout = fs.readFileSync(new URL("../../app/layout.tsx", import.meta.url), "utf8");
+  const vite = fs.readFileSync(new URL("../../vite.config.ts", import.meta.url), "utf8");
 
   for (const value of ["q:", "status:", "group:", "sort:", "direction:", "page:", "pageSize:"]) {
     assert.equal(component.includes(value), true, value);

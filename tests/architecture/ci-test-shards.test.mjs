@@ -5,9 +5,9 @@ import test from "node:test";
 import {
   assertCompleteShardCoverage,
   buildTestShards,
-} from "../scripts/ci-test-shards.mjs";
+} from "../../scripts/ci-test-shards.mjs";
 
-const ciWorkflow = await readFile(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
+const ciWorkflow = await readFile(new URL("../../.github/workflows/ci.yml", import.meta.url), "utf8");
 
 test("builds deterministic round-robin shards from normalized sorted paths", () => {
   const shards = buildTestShards([

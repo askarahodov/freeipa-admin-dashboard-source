@@ -22,7 +22,7 @@ test("active documentation has one canonical product name", () => {
   for (const path of [
     "README.md",
     "docs/README.md",
-    "docs/DOCUMENTATION_POLICY.md",
+    "docs/development/DOCUMENTATION_POLICY.md",
     "docs/GLOSSARY.md",
     "docs/reference/SOURCE_OF_TRUTH.md",
     "docs/operations/HEALTH_METRICS.md",

@@ -203,7 +203,7 @@ npm run test:recovery:compose
 
 Обязательные meta-docs:
 
-- [`docs/DOCUMENTATION_POLICY.md`](docs/DOCUMENTATION_POLICY.md)
+- [`docs/development/DOCUMENTATION_POLICY.md`](docs/development/DOCUMENTATION_POLICY.md)
 - [`docs/reference/SOURCE_OF_TRUTH.md`](docs/reference/SOURCE_OF_TRUTH.md)
 - [`docs/DOCUMENTATION_INVENTORY.md`](docs/DOCUMENTATION_INVENTORY.md)
 - [`docs/GLOSSARY.md`](docs/GLOSSARY.md)

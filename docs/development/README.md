@@ -1,5 +1,7 @@
 # Development and repository governance
 
+
+- [`DOCUMENTATION_POLICY.md`](DOCUMENTATION_POLICY.md) — docs-as-code policy, active-document rules and multi-agent documentation governance.
 This section contains development-process and repository-governance documentation that is not GitHub-native configuration.
 
 - [`AGENT_BRANCH_POLICY.md`](AGENT_BRANCH_POLICY.md) — short-lived AI-agent branch lifecycle, safe cleanup and parallel-work coordination.

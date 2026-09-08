@@ -32,7 +32,6 @@ jobs:
           The canonical stable error-code ownership contract has moved to [`reference/ERROR_CODE_OWNERSHIP.md`](reference/ERROR_CODE_OWNERSHIP.md). This compatibility pointer is retained for existing external links; do not update the ownership contract here.
           EOF
           python <<'PY'
-          from pathlib import import_module
           from pathlib import Path
           suffixes={'.md','.mjs','.js','.ts','.tsx','.yml','.yaml','.json'}
           for p in Path('.').rglob('*'):

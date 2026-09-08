@@ -1,0 +1,70 @@
+name: One-shot #270 backup test family
+
+on:
+  push:
+    branches: [repo/270-backup-test-family]
+
+permissions:
+  contents: write
+
+jobs:
+  relocate-and-validate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci
+      - name: Move complete backup test family
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p tests/backup
+          mapfile -t files < <(find tests -maxdepth 1 -type f -name 'backup-*.test.mjs' | sort)
+          test "${#files[@]}" -eq 52
+          git mv "${files[@]}" tests/backup/
+          python - <<'PY'
+          from pathlib import Path
+          for p in sorted(Path('tests/backup').glob('backup-*.test.mjs')):
+              s=p.read_text()
+              for a,b in [
+                ('from "../','from "../../'), ("from '../", "from '../../"),
+                ('import("../','import("../../'), ("import('../", "import('../../"),
+                ('new URL("../','new URL("../../'), ("new URL('../", "new URL('../../"),
+                ('new URL(`../${path}','new URL(`../../${path}'),
+                ('"../src/','"../../src/'), ("'../src/", "'../../src/"),
+                ('"../worker/','"../../worker/'), ("'../worker/", "'../../worker/"),
+                ('"../backup-','"../../backup-'), ("'../backup-", "'../../backup-")]:
+                  s=s.replace(a,b)
+              p.write_text(s)
+          PY
+      - name: Build
+        run: npm run build
+      - name: Run complete backup family
+        run: node --experimental-strip-types --test tests/backup/backup-*.test.mjs
+      - name: Validate recursive discovery contracts
+        run: node --experimental-strip-types --test tests/node-test-discovery.test.mjs tests/test-layout-policy.test.mjs
+      - name: Validate relocation invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find tests/backup -maxdepth 1 -type f -name 'backup-*.test.mjs' | wc -l)" -eq 52
+          test "$(find tests -maxdepth 1 -type f -name 'backup-*.test.mjs' | wc -l)" -eq 0
+          node scripts/discover-node-tests.mjs | grep -q '^tests/backup/backup-manifest.test.mjs$'
+          git diff --check
+      - name: Commit validated relocation and self-clean
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/one-shot-270-backup-family.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m 'test: move backup test family under domain owner'
+          git push

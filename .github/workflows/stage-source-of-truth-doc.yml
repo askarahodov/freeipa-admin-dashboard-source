@@ -1,0 +1,92 @@
+name: Stage source-of-truth documentation
+on:
+  push:
+    branches:
+      - docs/268-source-of-truth-reference-5c55
+jobs:
+  stage:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Audit and relocate source-of-truth documentation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          echo '=== inbound refs before relocation ==='
+          git grep -n 'SOURCE_OF_TRUTH\.md' -- ':!docs/superpowers/**' ':!.github/workflows/stage-source-of-truth-doc.yml' || true
+          git grep -l 'SOURCE_OF_TRUTH\.md' -- ':!docs/superpowers/**' ':!.github/workflows/stage-source-of-truth-doc.yml' > /tmp/source-truth-refs.txt || true
+
+          cp docs/SOURCE_OF_TRUTH.md docs/reference/SOURCE_OF_TRUTH.md
+          cat > docs/SOURCE_OF_TRUTH.md <<'EOF'
+          # Relocated
+
+          The canonical source-of-truth registry has moved to [`reference/SOURCE_OF_TRUTH.md`](reference/SOURCE_OF_TRUTH.md). This compatibility pointer is retained for existing external links; do not update ownership precedence here.
+          EOF
+
+          python - <<'PY'
+          from pathlib import Path
+
+          refs = [Path(x.strip()) for x in Path('/tmp/source-truth-refs.txt').read_text().splitlines() if x.strip()]
+          for p in refs:
+              if p == Path('docs/SOURCE_OF_TRUTH.md'):
+                  continue
+              text = p.read_text()
+              old = text
+              text = text.replace('docs/SOURCE_OF_TRUTH.md', 'docs/reference/SOURCE_OF_TRUTH.md')
+              if p.parent == Path('docs'):
+                  text = text.replace('](SOURCE_OF_TRUTH.md)', '](reference/SOURCE_OF_TRUTH.md)')
+              elif p.parent == Path('docs/reference'):
+                  text = text.replace('](../SOURCE_OF_TRUTH.md)', '](SOURCE_OF_TRUTH.md)')
+              elif str(p).startswith('docs/'):
+                  text = text.replace('](../SOURCE_OF_TRUTH.md)', '](../reference/SOURCE_OF_TRUTH.md)')
+                  text = text.replace('](../../docs/SOURCE_OF_TRUTH.md)', '](../../docs/reference/SOURCE_OF_TRUTH.md)')
+              if text != old:
+                  p.write_text(text)
+
+          docs = Path('docs/README.md')
+          s = docs.read_text()
+          s = s.replace('[`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md)', '[`SOURCE_OF_TRUTH.md`](reference/SOURCE_OF_TRUTH.md)')
+          docs.write_text(s)
+
+          inventory = Path('docs/DOCUMENTATION_INVENTORY.md')
+          s = inventory.read_text()
+          s = s.replace('`docs/SOURCE_OF_TRUTH.md`', '`docs/reference/SOURCE_OF_TRUTH.md`')
+          inventory.write_text(s)
+
+          arch = Path('docs/architecture/README.md')
+          s = arch.read_text().replace('[`../SOURCE_OF_TRUTH.md`](../SOURCE_OF_TRUTH.md)', '[`../reference/SOURCE_OF_TRUTH.md`](../reference/SOURCE_OF_TRUTH.md)')
+          arch.write_text(s)
+
+          ref_index = Path('docs/reference/README.md')
+          ref_index.write_text('''# Reference documentation\n\nCanonical stable reference contracts for operators, developers and integrations.\n\n- [`API.md`](API.md) — HTTP/API reference.\n- [`CONFIGURATION.md`](CONFIGURATION.md) — effective configuration and environment contract.\n- [`ERROR_CODES.md`](ERROR_CODES.md) — stable error-code reference.\n- [`PERMISSIONS.md`](PERMISSIONS.md) — roles and permissions reference.\n- [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md) — authoritative owner registry and precedence.\n''')
+          PY
+
+          echo '=== refs after relocation ==='
+          git grep -n 'SOURCE_OF_TRUTH\.md' -- ':!docs/superpowers/**' ':!.github/workflows/stage-source-of-truth-doc.yml' || true
+
+          test -f docs/reference/SOURCE_OF_TRUTH.md
+          grep -Fq '# Relocated' docs/SOURCE_OF_TRUTH.md
+          grep -Fq 'reference/SOURCE_OF_TRUTH.md' docs/SOURCE_OF_TRUTH.md
+          grep -Fq '[`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md)' docs/reference/README.md
+
+          npm ci --ignore-scripts
+          npm run docs:check
+
+          mapfile -t tests < <(git grep -l 'SOURCE_OF_TRUTH\.md' -- 'tests/*.test.mjs' || true)
+          if ((${#tests[@]})); then
+            printf 'focused tests: %s\n' "${tests[*]}"
+            node --test "${tests[@]}"
+          fi
+
+          rm .github/workflows/stage-source-of-truth-doc.yml
+          git add -A
+          git diff --cached --check
+          git commit -m 'docs: move source-of-truth registry to reference owner'
+          git push origin HEAD:docs/268-source-of-truth-reference-5c55

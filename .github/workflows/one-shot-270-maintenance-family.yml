@@ -1,0 +1,76 @@
+name: One-shot 270 maintenance test family
+
+on:
+  push:
+    branches:
+      - repo/270-maintenance-test-family
+
+permissions:
+  contents: write
+
+jobs:
+  relocate-and-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Move complete maintenance test family
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(tests/maintenance-*.test.mjs)
+          test "${#files[@]}" -eq 8
+          mkdir -p tests/maintenance
+          git mv "${files[@]}" tests/maintenance/
+          python - <<'PY'
+          from pathlib import Path
+          for path in Path('tests/maintenance').glob('maintenance-*.test.mjs'):
+              text = path.read_text()
+              text = text.replace('"../docs/', '"../../docs/')
+              text = text.replace("'../docs/", "'../../docs/")
+              text = text.replace('"../src/', '"../../src/')
+              text = text.replace("'../src/", "'../../src/")
+              text = text.replace('"../worker/', '"../../worker/')
+              text = text.replace("'../worker/", "'../../worker/")
+              path.write_text(text)
+          PY
+
+      - name: Build
+        run: npm run build
+
+      - name: Run complete maintenance family and layout contracts
+        run: node --experimental-strip-types --test tests/maintenance/*.test.mjs tests/node-test-discovery.test.mjs tests/test-layout-policy.test.mjs
+
+      - name: Validate relocation invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find tests/maintenance -maxdepth 1 -type f -name 'maintenance-*.test.mjs' | wc -l)" -eq 8
+          test "$(find tests -maxdepth 1 -type f -name 'maintenance-*.test.mjs' | wc -l)" -eq 0
+          ! grep -RIn -E 'new URL\(["'"']\.\./(docs|src|worker)/|from ["'"']\.\./(src|worker)/' tests/maintenance
+          git diff --check
+
+      - name: Commit validated relocation and self-clean
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/one-shot-270-maintenance-family.yml
+          git add tests/maintenance tests/maintenance-*.test.mjs || true
+          git diff --cached --check
+          git commit -m 'test: move maintenance test family under domain owner'
+          git push origin HEAD:${GITHUB_REF_NAME}

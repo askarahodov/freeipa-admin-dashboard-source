@@ -40,6 +40,20 @@ test("test-only changes route to the category owned by that test", () => {
   assert.deepEqual(buildE2ETestPlan(["e2e/specs/ui-quality.spec.mjs"]).categories, ["ui"]);
 });
 
+test("domain directories do not create false browser categories for unrelated test filenames", () => {
+  const dependencyHealthPlan = buildE2ETestPlan([
+    "tests/operations/dependency-health-contracts.test.mjs",
+    "tests/operations/dependency-health-routing-contract.test.mjs",
+  ]);
+  assert.deepEqual(dependencyHealthPlan.categories, []);
+  assert.deepEqual(dependencyHealthPlan.browserSpecs, []);
+
+  assert.deepEqual(
+    buildE2ETestPlan(["tests/operations/operation-runs.test.mjs"]).categories,
+    ["xyops"],
+  );
+});
+
 test("policy tells agents to select tests by changed risk boundary", () => {
   assert.match(policy, /risk-based/iu);
   assert.match(policy, /auth.*rbac.*freeipa.*xyops.*settings.*ui/isu);

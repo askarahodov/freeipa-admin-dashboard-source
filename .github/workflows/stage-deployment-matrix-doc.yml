@@ -1,0 +1,111 @@
+name: Stage deployment matrix documentation
+
+on:
+  push:
+    branches:
+      - docs/268-deployment-matrix-architecture-9809
+
+permissions:
+  contents: write
+
+jobs:
+  stage:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Audit and relocate deployment matrix documentation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          echo '=== inbound refs before relocation ==='
+          git grep -n 'DEPLOYMENT_MATRIX\.md' -- ':!docs/superpowers/**' ':!.github/workflows/stage-deployment-matrix-doc.yml' || true
+          git grep -l 'DEPLOYMENT_MATRIX\.md' -- ':!docs/superpowers/**' ':!.github/workflows/stage-deployment-matrix-doc.yml' > /tmp/deployment-matrix-refs.txt || true
+          cat /tmp/deployment-matrix-refs.txt
+
+          cp docs/DEPLOYMENT_MATRIX.md docs/architecture/DEPLOYMENT_MATRIX.md
+          cat > docs/DEPLOYMENT_MATRIX.md <<'EOF'
+          # Relocated
+
+          The canonical deployment support matrix has moved to [`architecture/DEPLOYMENT_MATRIX.md`](architecture/DEPLOYMENT_MATRIX.md). This compatibility pointer is retained for existing external links; do not update deployment policy here.
+          EOF
+
+          python - <<'PY'
+          from pathlib import Path
+
+          refs = [Path(x.strip()) for x in Path('/tmp/deployment-matrix-refs.txt').read_text().splitlines() if x.strip()]
+          for p in refs:
+              if p == Path('docs/DEPLOYMENT_MATRIX.md'):
+                  continue
+              text = p.read_text()
+              old = text
+              text = text.replace('docs/DEPLOYMENT_MATRIX.md', 'docs/architecture/DEPLOYMENT_MATRIX.md')
+              if p.parent == Path('docs'):
+                  text = text.replace('](DEPLOYMENT_MATRIX.md)', '](architecture/DEPLOYMENT_MATRIX.md)')
+              elif p.parent == Path('docs/architecture'):
+                  text = text.replace('](../DEPLOYMENT_MATRIX.md)', '](DEPLOYMENT_MATRIX.md)')
+              elif str(p).startswith('docs/'):
+                  text = text.replace('](../DEPLOYMENT_MATRIX.md)', '](../architecture/DEPLOYMENT_MATRIX.md)')
+                  text = text.replace('](../../docs/DEPLOYMENT_MATRIX.md)', '](../../docs/architecture/DEPLOYMENT_MATRIX.md)')
+              if text != old:
+                  p.write_text(text)
+
+          arch = Path('docs/architecture/README.md')
+          s = arch.read_text()
+          old_entry = '- [`../DEPLOYMENT_MATRIX.md`](../DEPLOYMENT_MATRIX.md) — supported and unsupported deployment models.\n'
+          new_entry = '- [`DEPLOYMENT_MATRIX.md`](DEPLOYMENT_MATRIX.md) — supported and unsupported deployment models.\n'
+          if old_entry in s:
+              s = s.replace(old_entry, new_entry)
+          elif new_entry not in s:
+              marker = '- [`D1_SQLITE_ADAPTER.md`](D1_SQLITE_ADAPTER.md) — D1-compatible SQLite adapter boundary, supported surface and runtime persistence contract.\n'
+              if marker not in s:
+                  raise SystemExit('architecture README insertion marker missing')
+              s = s.replace(marker, marker + new_entry)
+          arch.write_text(s)
+
+          inventory = Path('docs/DOCUMENTATION_INVENTORY.md')
+          s = inventory.read_text().replace('`docs/DEPLOYMENT_MATRIX.md`', '`docs/architecture/DEPLOYMENT_MATRIX.md`')
+          inventory.write_text(s)
+          PY
+
+          echo '=== refs after relocation ==='
+          git grep -n 'DEPLOYMENT_MATRIX\.md' -- ':!docs/superpowers/**' ':!.github/workflows/stage-deployment-matrix-doc.yml' || true
+
+          test -f docs/architecture/DEPLOYMENT_MATRIX.md
+          grep -Fq '# Relocated' docs/DEPLOYMENT_MATRIX.md
+          grep -Fq 'architecture/DEPLOYMENT_MATRIX.md' docs/DEPLOYMENT_MATRIX.md
+          grep -Fq '[`DEPLOYMENT_MATRIX.md`](DEPLOYMENT_MATRIX.md)' docs/architecture/README.md
+
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          stale = []
+          for p in Path('docs').rglob('*.md'):
+              if 'superpowers' in p.parts or p == Path('docs/DEPLOYMENT_MATRIX.md') or p.parent == Path('docs/architecture'):
+                  continue
+              text = p.read_text()
+              if re.search(r'\]\((?:\.\./)?DEPLOYMENT_MATRIX\.md\)', text):
+                  stale.append(str(p))
+          if stale:
+              raise SystemExit('stale DEPLOYMENT_MATRIX links remain: ' + ', '.join(stale))
+          PY
+
+          npm ci --ignore-scripts
+          npm run docs:check
+
+          mapfile -t tests < <(git grep -l 'DEPLOYMENT_MATRIX\.md' -- 'tests/*.test.mjs' || true)
+          if ((${#tests[@]})); then
+            printf 'focused tests: %s\n' "${tests[*]}"
+            node --test "${tests[@]}"
+          fi
+
+          rm .github/workflows/stage-deployment-matrix-doc.yml
+          git add -A
+          git diff --cached --check
+          git commit -m 'docs: move deployment matrix to architecture owner'
+          git push origin HEAD:docs/268-deployment-matrix-architecture-9809

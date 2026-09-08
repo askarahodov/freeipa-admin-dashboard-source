@@ -6,10 +6,10 @@ import {
   portalPermissionOrder,
   portalRolePermissions,
   roleHasPermission,
-} from "../src/auth/portal-permissions.ts";
-import { backupPreviewAccess } from "../worker/backup-import-preview-root-entry.ts";
+} from "../../src/auth/portal-permissions.ts";
+import { backupPreviewAccess } from "../../worker/backup-import-preview-root-entry.ts";
 
-const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
+const read = (path) => readFile(new URL(`../../${path}`, import.meta.url), "utf8");
 const previewPermission = "backup.restore.preview";
 const request = () => new Request("https://dashboard.test/api/admin/backups/import/preview", {
   method: "POST",

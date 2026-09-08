@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { portalSchemaIndexes, portalSchemaTables, portalSchemaTriggers } from "../db/portal-schema.ts";
+import { portalSchemaIndexes, portalSchemaTables, portalSchemaTriggers } from "../../db/portal-schema.ts";
 import {
   clearPortalSchemaCacheForTests,
   ensurePortalSchemaWithRegistry,
   inspectPortalSchema,
   portalMigrations,
-} from "../db/portal-migrations.ts";
+} from "../../db/portal-migrations.ts";
 
 function splitSqlList(value) {
   const output = [];

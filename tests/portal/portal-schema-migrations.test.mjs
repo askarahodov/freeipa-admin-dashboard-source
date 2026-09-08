@@ -6,8 +6,8 @@ import {
   portalSchemaIndexes,
   portalSchemaTables,
   portalSchemaTriggers,
-} from "../db/portal-schema.ts";
-import { portalMigrationV1Statements } from "../db/portal-migration-v1.ts";
+} from "../../db/portal-schema.ts";
+import { portalMigrationV1Statements } from "../../db/portal-migration-v1.ts";
 import {
   clearPortalSchemaCacheForTests,
   ensurePortalSchema,
@@ -15,7 +15,7 @@ import {
   inspectPortalSchema,
   portalMigrations,
   publicPortalSchemaStatus,
-} from "../db/portal-migrations.ts";
+} from "../../db/portal-migrations.ts";
 
 function result(changes = 0) {
   return { success: true, meta: { changes } };

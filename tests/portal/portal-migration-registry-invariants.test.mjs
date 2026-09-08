@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { validatePortalMigrationRegistry } from "../db/portal-migration-registry.ts";
+import { validatePortalMigrationRegistry } from "../../db/portal-migration-registry.ts";
 
 function migration(version, mode, { snapshot = true } = {}) {
   return {

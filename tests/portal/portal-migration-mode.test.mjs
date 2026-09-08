@@ -6,7 +6,7 @@ import {
   controlledPendingMigrations,
   portalMigrationsV3WithModes,
   validatePortalMigrationRegistry,
-} from "../db/portal-migration-registry.ts";
+} from "../../db/portal-migration-registry.ts";
 
 function migration(version, mode, { snapshot = true } = {}) {
   return {

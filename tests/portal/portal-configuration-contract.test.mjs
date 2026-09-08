@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { PORTAL_CONFIGURATION_CONTRACT, getPortalConfiguration } from "../worker/portal-configuration-contract.ts";
+import { PORTAL_CONFIGURATION_CONTRACT, getPortalConfiguration } from "../../worker/portal-configuration-contract.ts";
 
-const repositoryRoot = new URL("../", import.meta.url);
+const repositoryRoot = new URL("../../", import.meta.url);
 
 function parseAssignedEnvironmentNames(source) {
   return [...source.matchAll(/^([A-Z][A-Z0-9_]+)=/gm)].map((match) => match[1]);

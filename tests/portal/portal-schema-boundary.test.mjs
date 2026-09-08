@@ -4,10 +4,10 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-const entry = new URL("../worker/schema-migrations-entry.ts", import.meta.url);
-const maintenanceGate = new URL("../worker/maintenance-mode-root-entry.ts", import.meta.url);
-const helpers = new URL("../worker/schema-migrations-boundary.ts", import.meta.url);
-const vite = fs.readFileSync(new URL("../vite.config.ts", import.meta.url), "utf8");
+const entry = new URL("../../worker/schema-migrations-entry.ts", import.meta.url);
+const maintenanceGate = new URL("../../worker/maintenance-mode-root-entry.ts", import.meta.url);
+const helpers = new URL("../../worker/schema-migrations-boundary.ts", import.meta.url);
+const vite = fs.readFileSync(new URL("../../vite.config.ts", import.meta.url), "utf8");
 const testsDirectory = path.dirname(fileURLToPath(import.meta.url));
 
 test("Vite uses the schema migration boundary as the outer worker entry", () => {

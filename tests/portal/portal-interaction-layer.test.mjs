@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 
-const component = fs.readFileSync(new URL("../app/PortalInteractionLayer.tsx", import.meta.url), "utf8");
-const styles = fs.readFileSync(new URL("../app/portal-interaction-layer.css", import.meta.url), "utf8");
-const layout = fs.readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
+const component = fs.readFileSync(new URL("../../app/PortalInteractionLayer.tsx", import.meta.url), "utf8");
+const styles = fs.readFileSync(new URL("../../app/portal-interaction-layer.css", import.meta.url), "utf8");
+const layout = fs.readFileSync(new URL("../../app/layout.tsx", import.meta.url), "utf8");
 
 test("HTTP response states are classified consistently", () => {
   for (const status of [403, 408, 409, 429, 504]) assert.ok(component.includes(`status === ${status}`), String(status));

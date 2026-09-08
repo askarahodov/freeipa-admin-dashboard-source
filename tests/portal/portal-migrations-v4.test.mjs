@@ -5,8 +5,8 @@ import {
   portalMigrationsV4,
   inspectPortalSchemaV4,
   ensurePortalSchemaV4,
-} from "../db/portal-migrations-v4.ts";
-import { validatePortalMigrationRegistry } from "../db/portal-migration-registry.ts";
+} from "../../db/portal-migrations-v4.ts";
+import { validatePortalMigrationRegistry } from "../../db/portal-migration-registry.ts";
 
 test("production registry ends at automatic foundation version 4", () => {
   const validated = validatePortalMigrationRegistry(portalMigrationsV4);

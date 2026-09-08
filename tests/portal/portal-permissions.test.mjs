@@ -7,7 +7,7 @@ import {
   portalRolePermissions,
   portalRoles,
   roleHasPermission,
-} from "../src/auth/portal-permissions.ts";
+} from "../../src/auth/portal-permissions.ts";
 
 const selectiveRestorePermissions = [
   "backup.restore.prepare",

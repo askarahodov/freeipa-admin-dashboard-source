@@ -1,0 +1,76 @@
+name: One-shot rebuild security model v3
+
+on:
+  push:
+    branches:
+      - docs/268-security-model-family-v3
+
+permissions:
+  contents: write
+
+jobs:
+  rebuild:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci
+      - name: Move security model family on current main
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp docs/SECURITY_MODEL.md docs/security/SECURITY_MODEL.md
+          cat > docs/SECURITY_MODEL.md <<'EOF'
+          # Relocated
+
+          Canonical document: [`security/SECURITY_MODEL.md`](security/SECURITY_MODEL.md).
+          EOF
+          python <<'PY'
+          from pathlib import Path
+          suffixes={'.md','.mjs','.js','.ts','.tsx','.yml','.yaml','.json'}
+          for p in Path('.').rglob('*'):
+              if not p.is_file() or p.suffix not in suffixes:
+                  continue
+              s=p.as_posix()
+              if s.startswith(('docs/superpowers/','.git/','node_modules/','.github/workflows/one-shot-268-security-model-v3.yml')):
+                  continue
+              text=p.read_text(encoding='utf-8')
+              old=text
+              text=text.replace('docs/SECURITY_MODEL.md','docs/security/SECURITY_MODEL.md')
+              if s.startswith('docs/ai/'):
+                  text=text.replace('](../SECURITY_MODEL.md)','](../security/SECURITY_MODEL.md)')
+              if s.startswith('docs/'):
+                  text=text.replace('](SECURITY_MODEL.md)','](security/SECURITY_MODEL.md)')
+              if text!=old:
+                  p.write_text(text,encoding='utf-8')
+          PY
+          grep -q 'SECURITY_MODEL.md' docs/security/README.md || printf '\n- [`SECURITY_MODEL.md`](SECURITY_MODEL.md) — trust boundaries, identity classes, secret isolation and recovery/security invariants.\n' >> docs/security/README.md
+      - name: Validate security model family
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run docs:check
+          node --test tests/documentation-security-model.test.mjs
+          git diff --check
+          test -s docs/security/SECURITY_MODEL.md
+          grep -q '^# Relocated' docs/SECURITY_MODEL.md
+          grep -q 'docs/security/SECURITY_MODEL.md' docs/SECURITY_MODEL.md
+          grep -q 'APPROVAL_GATES.md' docs/APPROVAL_GATES.md
+          test ! -e docs/ai/APPROVAL_GATES.md
+      - name: Commit final self-cleaned batch
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/one-shot-268-security-model-v3.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --quiet && { echo 'No changes produced'; exit 1; }
+          git commit -m 'docs: move security model to security owner'
+          git push origin HEAD:docs/268-security-model-family-v3

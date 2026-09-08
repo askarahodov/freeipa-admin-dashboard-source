@@ -49,7 +49,7 @@
 - [`ARCHITECTURE.md`](architecture/ARCHITECTURE.md)
 - [`MODULE_COVERAGE.md`](architecture/MODULE_COVERAGE.md)
 - [`DEPLOYMENT_MATRIX.md`](DEPLOYMENT_MATRIX.md)
-- [`SECURITY_MODEL.md`](SECURITY_MODEL.md)
+- [`SECURITY_MODEL.md`](security/SECURITY_MODEL.md)
 - [`LOCAL_AUTH_RBAC.md`](LOCAL_AUTH_RBAC.md)
 - [`security/DEPENDENCY_SECURITY.md`](security/DEPENDENCY_SECURITY.md)
 - [`reference/PERMISSIONS.md`](reference/PERMISSIONS.md)
@@ -106,7 +106,7 @@ Machine-readable ownership work referenced by the documentation platform is comp
 
 | Документ | Назначение |
 | --- | --- |
-| [`SECURITY_MODEL.md`](SECURITY_MODEL.md) | Trust boundaries, identity classes, secret/recovery invariants |
+| [`SECURITY_MODEL.md`](security/SECURITY_MODEL.md) | Trust boundaries, identity classes, secret/recovery invariants |
 | [`LOCAL_AUTH_RBAC.md`](LOCAL_AUTH_RBAC.md) | Portal users, sessions, roles and FreeIPA identity separation |
 | [`security/AUDIT_LOG.md`](security/AUDIT_LOG.md) | Append-only audit, correlation, redaction and read API |
 | [`security/DEPENDENCY_SECURITY.md`](security/DEPENDENCY_SECURITY.md) | Supply-chain audit, SBOM and runtime image security policy |

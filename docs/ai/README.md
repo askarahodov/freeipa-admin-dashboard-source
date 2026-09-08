@@ -12,7 +12,7 @@
 4. прочитать [`PROJECT_STRUCTURE.md`](../architecture/PROJECT_STRUCTURE.md) — module ownership и where-to-change routing;
 5. прочитать [`DOCUMENTATION_POLICY.md`](../DOCUMENTATION_POLICY.md);
 6. проверить [`SOURCE_OF_TRUTH.md`](../SOURCE_OF_TRUTH.md);
-7. для security-sensitive изменения прочитать [`SECURITY_MODEL.md`](../SECURITY_MODEL.md) до проектирования нового privileged/trust boundary;
+7. для security-sensitive изменения прочитать [`SECURITY_MODEL.md`](../security/SECURITY_MODEL.md) до проектирования нового privileged/trust boundary;
 8. если изменение затрагивает HTTP route/method/auth boundary — свериться с [`reference/API.md`](../reference/API.md);
 9. если изменение затрагивает role/permission — свериться с [`reference/PERMISSIONS.md`](../reference/PERMISSIONS.md) и canonical `src/auth/portal-permissions.ts`;
 10. если изменение затрагивает ENV/dynamic/recovery configuration — свериться с [`reference/CONFIGURATION.md`](../reference/CONFIGURATION.md);
@@ -38,7 +38,7 @@
 
 Если owner неясен, это сначала architecture/documentation problem. Не создавайте второй owner только ради завершения локальной задачи.
 
-Если изменение затрагивает identity, authorization, secrets, upstream credentials, audit, approvals, maintenance/recovery, schema fail-closed behavior или diagnostic disclosure, дополнительно сверяйтесь с [`SECURITY_MODEL.md`](../SECURITY_MODEL.md) и точным профильным security/runbook owner.
+Если изменение затрагивает identity, authorization, secrets, upstream credentials, audit, approvals, maintenance/recovery, schema fail-closed behavior или diagnostic disclosure, дополнительно сверяйтесь с [`SECURITY_MODEL.md`](../security/SECURITY_MODEL.md) и точным профильным security/runbook owner.
 
 Normalized `reference/*` — навигационный current-state слой, а не второй runtime source of truth. При конфликте проверяйте canonical owner и его tests, затем исправляйте reference drift.
 
@@ -166,7 +166,7 @@ agent/<short-scope>
 
 Следуйте [`DOCUMENTATION_POLICY.md`](../DOCUMENTATION_POLICY.md). Не создавайте новый Markdown-файл, если существующий документ уже владеет темой.
 
-Если изменена system topology/trust boundary — актуализируйте [`ARCHITECTURE.md`](../architecture/ARCHITECTURE.md). Если изменился module/path ownership — актуализируйте [`PROJECT_STRUCTURE.md`](../architecture/PROJECT_STRUCTURE.md). Если изменился security trust/identity/secret/authorization/recovery boundary — актуализируйте [`SECURITY_MODEL.md`](../SECURITY_MODEL.md) и профильный exact contract.
+Если изменена system topology/trust boundary — актуализируйте [`ARCHITECTURE.md`](../architecture/ARCHITECTURE.md). Если изменился module/path ownership — актуализируйте [`PROJECT_STRUCTURE.md`](../architecture/PROJECT_STRUCTURE.md). Если изменился security trust/identity/secret/authorization/recovery boundary — актуализируйте [`SECURITY_MODEL.md`](../security/SECURITY_MODEL.md) и профильный exact contract.
 
 Если изменился route/permission/config/stable-code contract — актуализируйте соответствующий файл в [`../reference/`](../reference/).
 
@@ -197,7 +197,7 @@ agent/<short-scope>
 
 Используйте sanitized fixtures и очевидные placeholders.
 
-Для security-sensitive изменения дополнительно проверьте инварианты [`SECURITY_MODEL.md`](../SECURITY_MODEL.md): server-side authorization, upstream-secret isolation, purpose-specific privileged credentials, redaction и fail-closed recovery/schema boundaries.
+Для security-sensitive изменения дополнительно проверьте инварианты [`SECURITY_MODEL.md`](../security/SECURITY_MODEL.md): server-side authorization, upstream-secret isolation, purpose-specific privileged credentials, redaction и fail-closed recovery/schema boundaries.
 
 ## Проверка перед завершением задачи
 
@@ -234,7 +234,7 @@ agent/<short-scope>
 - [`../README.md`](../README.md) — навигация;
 - [`../ARCHITECTURE.md`](../architecture/ARCHITECTURE.md) — current runtime architecture;
 - [`../PROJECT_STRUCTURE.md`](../architecture/PROJECT_STRUCTURE.md) — current repository/module map;
-- [`../SECURITY_MODEL.md`](../SECURITY_MODEL.md) — current security/trust model;
+- [`../SECURITY_MODEL.md`](../security/SECURITY_MODEL.md) — current security/trust model;
 - [`../reference/API.md`](../reference/API.md) — normalized route reference;
 - [`../reference/PERMISSIONS.md`](../reference/PERMISSIONS.md) — normalized canonical RBAC reference;
 - [`../reference/CONFIGURATION.md`](../reference/CONFIGURATION.md) — supported configuration classes;

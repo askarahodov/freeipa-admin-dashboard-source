@@ -20,7 +20,7 @@
 - `docs/reference/PERMISSIONS.md`
 - `docs/reference/ERROR_CODES.md`
 - `docs/SECURITY_MODEL.md`
-- `docs/SOURCE_OF_TRUTH.md`
+- `docs/reference/SOURCE_OF_TRUTH.md`
 - profile runbooks for backup/restore, maintenance, storage and health.
 
 ## Verification

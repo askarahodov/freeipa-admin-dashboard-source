@@ -4,7 +4,7 @@
 
 This document explains **where current code belongs** in Admin Dashboard Softrust and which layer owns a change. It is a repository navigation and ownership map, not a generated `tree` listing and not a target refactoring plan.
 
-For system behavior and trust/data flows, read [`ARCHITECTURE.md`](ARCHITECTURE.md). For authoritative contract owners, use [`SOURCE_OF_TRUTH.md`](../SOURCE_OF_TRUTH.md).
+For system behavior and trust/data flows, read [`ARCHITECTURE.md`](ARCHITECTURE.md). For authoritative contract owners, use [`SOURCE_OF_TRUTH.md`](../reference/SOURCE_OF_TRUTH.md).
 
 ## Repository map
 
@@ -192,7 +192,7 @@ Those are tracked architecture gaps, not permission to create additional paralle
 ## Related documents
 
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) — runtime, trust and data-flow architecture.
-- [`SOURCE_OF_TRUTH.md`](../SOURCE_OF_TRUTH.md) — authoritative contract-owner registry.
+- [`SOURCE_OF_TRUTH.md`](../reference/SOURCE_OF_TRUTH.md) — authoritative contract-owner registry.
 - [`DOCUMENTATION_POLICY.md`](../DOCUMENTATION_POLICY.md) — documentation lifecycle and verification rules.
 - [`GLOSSARY.md`](../GLOSSARY.md) — stable terminology.
 - [`ai/README.md`](../ai/README.md) — mandatory AI-agent workflow.

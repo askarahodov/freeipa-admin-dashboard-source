@@ -163,7 +163,7 @@ Follow-up **#123** tracks consolidation into a machine-readable supported config
 - [`../SECURITY_MODEL.md`](../SECURITY_MODEL.md) — secret/trust boundaries.
 - [`PERMISSIONS.md`](PERMISSIONS.md) — RBAC reference.
 - [`../LOCAL_AUTH_RBAC.md`](../LOCAL_AUTH_RBAC.md) — local identity/session behavior.
-- [`../SOURCE_OF_TRUTH.md`](../SOURCE_OF_TRUTH.md) — canonical owner registry.
+- [`../SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md) — canonical owner registry.
 - [`../OFFLINE_FULL_RESTORE.md`](../OFFLINE_FULL_RESTORE.md) — recovery-only operational contract.
 
 If this document and current runtime disagree, current validators/handlers and their tests win until the documentation defect is resolved.

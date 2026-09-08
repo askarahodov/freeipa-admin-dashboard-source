@@ -4,7 +4,7 @@
 
 This document describes the **current security model** of Admin Dashboard Softrust. It is an orientation document for developers, operators, security reviewers and AI agents. It does not replace exact security/reference documents or destructive-operation runbooks.
 
-For exact contract ownership, use [`SOURCE_OF_TRUTH.md`](../SOURCE_OF_TRUTH.md). For runtime topology and module placement, use [`ARCHITECTURE.md`](../architecture/ARCHITECTURE.md) and [`PROJECT_STRUCTURE.md`](../architecture/PROJECT_STRUCTURE.md). For exact operational procedures, use the relevant active runbook.
+For exact contract ownership, use [`SOURCE_OF_TRUTH.md`](../reference/SOURCE_OF_TRUTH.md). For runtime topology and module placement, use [`ARCHITECTURE.md`](../architecture/ARCHITECTURE.md) and [`PROJECT_STRUCTURE.md`](../architecture/PROJECT_STRUCTURE.md). For exact operational procedures, use the relevant active runbook.
 
 ## Security objectives
 

@@ -104,7 +104,7 @@ Portal user и FreeIPA user — разные сущности. FreeIPA groups н
 - **Schema:** canonical versioned migration lifecycle до ordinary API;
 - **Recovery:** maintenance + selective restore + offline full restore.
 
-Полный `ARCHITECTURE.md` и module-boundary map являются отдельным этапом Epic #82. До их появления authoritative owners перечислены в [`docs/SOURCE_OF_TRUTH.md`](docs/SOURCE_OF_TRUTH.md).
+Полный `ARCHITECTURE.md` и module-boundary map являются отдельным этапом Epic #82. До их появления authoritative owners перечислены в [`docs/reference/SOURCE_OF_TRUTH.md`](docs/reference/SOURCE_OF_TRUTH.md).
 
 ## Health и диагностика
 
@@ -204,7 +204,7 @@ npm run test:recovery:compose
 Обязательные meta-docs:
 
 - [`docs/DOCUMENTATION_POLICY.md`](docs/DOCUMENTATION_POLICY.md)
-- [`docs/SOURCE_OF_TRUTH.md`](docs/SOURCE_OF_TRUTH.md)
+- [`docs/reference/SOURCE_OF_TRUTH.md`](docs/reference/SOURCE_OF_TRUTH.md)
 - [`docs/DOCUMENTATION_INVENTORY.md`](docs/DOCUMENTATION_INVENTORY.md)
 - [`docs/GLOSSARY.md`](docs/GLOSSARY.md)
 - [`docs/ai/README.md`](docs/ai/README.md)

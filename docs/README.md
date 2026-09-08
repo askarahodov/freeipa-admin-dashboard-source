@@ -14,7 +14,7 @@
 4. [`PROJECT_STRUCTURE.md`](architecture/PROJECT_STRUCTURE.md) — repository/module map и where-to-change routing.
 5. [`MODULE_COVERAGE.md`](architecture/MODULE_COVERAGE.md) — module ownership, dependency direction и scoped tests.
 6. [`DEPLOYMENT_MATRIX.md`](architecture/DEPLOYMENT_MATRIX.md) — supported/development/constrained/unsupported deployment modes.
-7. [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md) — authoritative owners и precedence.
+7. [`SOURCE_OF_TRUTH.md`](reference/SOURCE_OF_TRUTH.md) — authoritative owners и precedence.
 8. [`DOCUMENTATION_POLICY.md`](DOCUMENTATION_POLICY.md) — docs-as-code и правила нескольких агентов.
 9. [`development/README.md`](development/README.md) — repository governance, branch lifecycle, required checks and dependency-update policy.
 10. При изменении внешнего/операционного контракта свериться с [`reference/API.md`](reference/API.md), [`reference/PERMISSIONS.md`](reference/PERMISSIONS.md), [`reference/CONFIGURATION.md`](reference/CONFIGURATION.md) и [`reference/ERROR_CODES.md`](reference/ERROR_CODES.md).
@@ -61,7 +61,7 @@
 - [`operations/DATABASE_MIGRATIONS.md`](operations/DATABASE_MIGRATIONS.md)
 - [`MAINTENANCE_MODE.md`](MAINTENANCE_MODE.md)
 - [`OFFLINE_FULL_RESTORE.md`](OFFLINE_FULL_RESTORE.md)
-- [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md)
+- [`SOURCE_OF_TRUTH.md`](reference/SOURCE_OF_TRUTH.md)
 
 ## Foundation / governance
 
@@ -74,7 +74,7 @@
 | [`D1_SQLITE_ADAPTER.md`](architecture/D1_SQLITE_ADAPTER.md) | D1-compatible SQLite runtime adapter boundary |
 | [`DEPLOYMENT_MATRIX.md`](architecture/DEPLOYMENT_MATRIX.md) | Supported and unsupported deployment models |
 | [`DOCUMENTATION_POLICY.md`](DOCUMENTATION_POLICY.md) | Docs-as-code, statuses, review and multi-agent rules |
-| [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md) | Authoritative source registry and precedence |
+| [`SOURCE_OF_TRUTH.md`](reference/SOURCE_OF_TRUTH.md) | Authoritative source registry and precedence |
 | [`DOCUMENTATION_INVENTORY.md`](DOCUMENTATION_INVENTORY.md) | Current audit status |
 | [`development/README.md`](development/README.md) | Development/repository governance policies |
 | [`adr/README.md`](adr/README.md) | ADR policy/registry — why-level decisions |
@@ -159,7 +159,7 @@ Machine-readable ownership work referenced by the documentation platform is comp
 ## Иерархия доверия
 
 1. фактический code, canonical registries/schema и tests текущего ref;
-2. owner/source из [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md);
+2. owner/source из [`SOURCE_OF_TRUTH.md`](reference/SOURCE_OF_TRUTH.md);
 3. `verified-active` профильный contract/runbook;
 4. normalized `reference/*` как current-state orientation;
 5. architecture/project/module/deployment/security overview;

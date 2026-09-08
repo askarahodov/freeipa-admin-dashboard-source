@@ -11,7 +11,7 @@
 3. прочитать [`ARCHITECTURE.md`](../architecture/ARCHITECTURE.md) — фактическая runtime/trust/data topology;
 4. прочитать [`PROJECT_STRUCTURE.md`](../architecture/PROJECT_STRUCTURE.md) — module ownership и where-to-change routing;
 5. прочитать [`DOCUMENTATION_POLICY.md`](../DOCUMENTATION_POLICY.md);
-6. проверить [`SOURCE_OF_TRUTH.md`](../SOURCE_OF_TRUTH.md);
+6. проверить [`SOURCE_OF_TRUTH.md`](../reference/SOURCE_OF_TRUTH.md);
 7. для security-sensitive изменения прочитать [`SECURITY_MODEL.md`](../security/SECURITY_MODEL.md) до проектирования нового privileged/trust boundary;
 8. если изменение затрагивает HTTP route/method/auth boundary — свериться с [`reference/API.md`](../reference/API.md);
 9. если изменение затрагивает role/permission — свериться с [`reference/PERMISSIONS.md`](../reference/PERMISSIONS.md) и canonical `src/auth/portal-permissions.ts`;
@@ -133,7 +133,7 @@ agent/<short-scope>
 До первого изменения агент заполняет coordination scope будущего PR и поддерживает его актуальным до merge:
 
 - `Owning issue` — Issue, который задаёт scope; если отдельного Issue действительно нет, явно указать `none` и объяснить основание в Summary;
-- `Canonical domain / contract` — существующий runtime/document owner из code, [`SOURCE_OF_TRUTH.md`](../SOURCE_OF_TRUTH.md) или профильного active-document;
+- `Canonical domain / contract` — существующий runtime/document owner из code, [`SOURCE_OF_TRUTH.md`](../reference/SOURCE_OF_TRUTH.md) или профильного active-document;
 - `High-conflict paths` — ожидаемые shared/canonical paths либо явное `none`;
 - `Dependencies / merge order` — blocking/stacked PR и точный порядок merge либо явное `none`;
 - `Parallel-safe with` — известная независимая работа либо `none identified` после проверки;
@@ -239,7 +239,7 @@ agent/<short-scope>
 - [`../reference/PERMISSIONS.md`](../reference/PERMISSIONS.md) — normalized canonical RBAC reference;
 - [`../reference/CONFIGURATION.md`](../reference/CONFIGURATION.md) — supported configuration classes;
 - [`../reference/ERROR_CODES.md`](../reference/ERROR_CODES.md) — stable machine-code reference;
-- [`../SOURCE_OF_TRUTH.md`](../SOURCE_OF_TRUTH.md) — authoritative owners;
+- [`../SOURCE_OF_TRUTH.md`](../reference/SOURCE_OF_TRUTH.md) — authoritative owners;
 - [`../GLOSSARY.md`](../GLOSSARY.md) — терминология;
 - профильные runbook — фактические operational/security contracts.
 

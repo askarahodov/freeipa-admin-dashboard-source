@@ -56,7 +56,7 @@ The documentation architecture test still required claims that AppShell/Home int
 
 ### AUDIT-207-05 — source-of-truth registry described already-created references as future work — fixed in #211
 
-`docs/SOURCE_OF_TRUTH.md` still said that the canonical configuration reference and full project/module ownership map were future work. The re-audit verified that `docs/reference/CONFIGURATION.md` and `docs/PROJECT_STRUCTURE.md` already exist and are active current-state references. The registry now points to them directly while still documenting the remaining machine-readable configuration-registry gap tracked by #123.
+`docs/reference/SOURCE_OF_TRUTH.md` still said that the canonical configuration reference and full project/module ownership map were future work. The re-audit verified that `docs/reference/CONFIGURATION.md` and `docs/PROJECT_STRUCTURE.md` already exist and are active current-state references. The registry now points to them directly while still documenting the remaining machine-readable configuration-registry gap tracked by #123.
 
 ### AUDIT-207-06 — security model retained obsolete Wrangler limitation — fixed in #211
 
@@ -74,7 +74,7 @@ The highest-risk documents affected by recent runtime/configuration/UI changes w
 
 1. `docs/ARCHITECTURE.md` / `docs/PROJECT_STRUCTURE.md` — corrected by #210;
 2. `docs/reference/CONFIGURATION.md` — corrected in #211;
-3. `docs/SOURCE_OF_TRUTH.md` — corrected in #211;
+3. `docs/reference/SOURCE_OF_TRUTH.md` — corrected in #211;
 4. `docs/SECURITY_MODEL.md` — corrected in #211;
 5. `docs/reference/API.md` — re-verified against current route ownership/tests;
 6. `docs/reference/PERMISSIONS.md` — re-verified against canonical RBAC owner/tests;

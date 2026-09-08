@@ -3,16 +3,16 @@ import fs from "node:fs";
 import test from "node:test";
 
 test("user browser exposes RBAC-aware bulk controls and filtered CSV export", () => {
-  const component = fs.readFileSync(new URL("../app/FreeIpaUserBrowser.tsx", import.meta.url), "utf8");
-  const worker = fs.readFileSync(new URL("../worker/freeipa-user-bulk-entry.ts", import.meta.url), "utf8");
-  const topWorker = fs.readFileSync(new URL("../worker/freeipa-group-member-entry.ts", import.meta.url), "utf8");
-  const selectiveRoot = fs.readFileSync(new URL("../worker/backup-selective-restore-root-entry.ts", import.meta.url), "utf8");
-  const maintenanceControlRoot = fs.readFileSync(new URL("../worker/maintenance-control-root-entry.ts", import.meta.url), "utf8");
-  const serviceRoot = fs.readFileSync(new URL("../worker/service-admin-root-entry.ts", import.meta.url), "utf8");
-  const maintenanceGate = fs.readFileSync(new URL("../worker/maintenance-mode-root-entry.ts", import.meta.url), "utf8");
-  const schemaRoot = fs.readFileSync(new URL("../worker/schema-migrations-entry.ts", import.meta.url), "utf8");
-  const vite = fs.readFileSync(new URL("../vite.config.ts", import.meta.url), "utf8");
-  const layout = fs.readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
+  const component = fs.readFileSync(new URL("../../app/FreeIpaUserBrowser.tsx", import.meta.url), "utf8");
+  const worker = fs.readFileSync(new URL("../../worker/freeipa-user-bulk-entry.ts", import.meta.url), "utf8");
+  const topWorker = fs.readFileSync(new URL("../../worker/freeipa-group-member-entry.ts", import.meta.url), "utf8");
+  const selectiveRoot = fs.readFileSync(new URL("../../worker/backup-selective-restore-root-entry.ts", import.meta.url), "utf8");
+  const maintenanceControlRoot = fs.readFileSync(new URL("../../worker/maintenance-control-root-entry.ts", import.meta.url), "utf8");
+  const serviceRoot = fs.readFileSync(new URL("../../worker/service-admin-root-entry.ts", import.meta.url), "utf8");
+  const maintenanceGate = fs.readFileSync(new URL("../../worker/maintenance-mode-root-entry.ts", import.meta.url), "utf8");
+  const schemaRoot = fs.readFileSync(new URL("../../worker/schema-migrations-entry.ts", import.meta.url), "utf8");
+  const vite = fs.readFileSync(new URL("../../vite.config.ts", import.meta.url), "utf8");
+  const layout = fs.readFileSync(new URL("../../app/layout.tsx", import.meta.url), "utf8");
 
   assert.equal(component.includes("/api/integrations/freeipa/bulk"), true);
   assert.equal(component.includes("/api/integrations/users/export.csv"), true);

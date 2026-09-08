@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createFreeIpaGateway, runFreeIpaRpc } from "../scripts/freeipa-gateway.mjs";
+import { createFreeIpaGateway, runFreeIpaRpc } from "../../scripts/freeipa-gateway.mjs";
 
 test("Node Gateway performs the documented FreeIPA password and JSON-RPC flow", async () => {
   const requests = [];

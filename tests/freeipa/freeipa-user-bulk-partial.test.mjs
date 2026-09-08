@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import worker from "../dist/server/index.js";
-import { markSchemaTestBypass } from "../worker/schema-migrations-boundary.ts";
+import worker from "../../dist/server/index.js";
+import { markSchemaTestBypass } from "../../worker/schema-migrations-boundary.ts";
 
 const env = markSchemaTestBypass({
   PORTAL_IDENTITY_MODE: "static",

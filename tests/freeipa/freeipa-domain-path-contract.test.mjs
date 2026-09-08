@@ -4,7 +4,7 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const scanRoots = ["app", "worker", "tests"];
 const sourceExtensions = new Set([".js", ".mjs", ".cjs", ".ts", ".tsx"]);
 
@@ -57,7 +57,7 @@ test("application, workers and tests do not reference removed FreeIPA root paths
 
   const violations = [];
   for (const relativePath of files) {
-    if (relativePath === "tests/freeipa-domain-path-contract.test.mjs") continue;
+    if (relativePath === "tests/freeipa/freeipa-domain-path-contract.test.mjs") continue;
     const content = await readFile(path.join(repoRoot, relativePath), "utf8");
     for (const pattern of forbidden) {
       if (pattern.test(content)) violations.push(relativePath);

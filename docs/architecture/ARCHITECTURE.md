@@ -156,7 +156,7 @@ Maintenance controller secrets, restore-stage secrets, backup encryption materia
 
 ## Data ownership
 
-The local D1/SQLite-compatible database contains portal-owned state. The canonical schema and migration lifecycle are owned by `db/portal-schema.ts` and the versioned migration registry/runtime described in [`DATABASE_MIGRATIONS.md`](../DATABASE_MIGRATIONS.md).
+The local D1/SQLite-compatible database contains portal-owned state. The canonical schema and migration lifecycle are owned by `db/portal-schema.ts` and the versioned migration registry/runtime described in [`operations/DATABASE_MIGRATIONS.md`](../DATABASE_MIGRATIONS.md).
 
 | Domain | Local persistence / owner | External owner where applicable |
 | --- | --- | --- |
@@ -198,7 +198,7 @@ Frontend code must not become a second authorization layer: UI visibility improv
 
 Canonical schema verification/migration is part of the production runtime startup boundary and remains enforced by the Worker/schema runtime before ordinary application traffic is considered ready.
 
-Key rules are defined in [`DATABASE_MIGRATIONS.md`](../DATABASE_MIGRATIONS.md):
+Key rules are defined in [`operations/DATABASE_MIGRATIONS.md`](../DATABASE_MIGRATIONS.md):
 
 - released migration definitions/checksums are immutable;
 - automatic migrations may be applied at startup according to the registry;
@@ -240,9 +240,9 @@ Storage status, integrity inspection and migration preflight/apply expose bounde
 
 Use:
 
-- [`STORAGE_STATUS.md`](../STORAGE_STATUS.md)
-- [`STORAGE_INTEGRITY.md`](../STORAGE_INTEGRITY.md)
-- [`DATABASE_MIGRATIONS.md`](../DATABASE_MIGRATIONS.md)
+- [`operations/STORAGE_STATUS.md`](../STORAGE_STATUS.md)
+- [`operations/STORAGE_INTEGRITY.md`](../STORAGE_INTEGRITY.md)
+- [`operations/DATABASE_MIGRATIONS.md`](../DATABASE_MIGRATIONS.md)
 
 ## Current architectural constraints
 

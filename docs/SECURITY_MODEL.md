@@ -258,7 +258,7 @@ Security-relevant properties include:
 
 An incompatible schema/storage state may intentionally block supported runtime work rather than continuing with unknown semantics.
 
-See [`DATABASE_MIGRATIONS.md`](DATABASE_MIGRATIONS.md), [`STORAGE_STATUS.md`](STORAGE_STATUS.md) and [`STORAGE_INTEGRITY.md`](STORAGE_INTEGRITY.md).
+See [`operations/DATABASE_MIGRATIONS.md`](operations/DATABASE_MIGRATIONS.md), [`operations/STORAGE_STATUS.md`](operations/STORAGE_STATUS.md) and [`operations/STORAGE_INTEGRITY.md`](operations/STORAGE_INTEGRITY.md).
 
 ## Fail-closed versus degraded behavior
 
@@ -330,11 +330,11 @@ Always inspect current `main` before repeating this list in another document; me
 - [`LOCAL_AUTH_RBAC.md`](LOCAL_AUTH_RBAC.md) — exact portal authentication, sessions, roles and permissions;
 - [`security/AUDIT_LOG.md`](security/AUDIT_LOG.md) — audit contract/redaction/read boundary;
 - [`CONFIG_ENCRYPTION_KEY.md`](CONFIG_ENCRYPTION_KEY.md) — production encryption-key requirements;
-- [`DATABASE_MIGRATIONS.md`](DATABASE_MIGRATIONS.md) — schema/migration fail-closed lifecycle;
+- [`operations/DATABASE_MIGRATIONS.md`](operations/DATABASE_MIGRATIONS.md) — schema/migration fail-closed lifecycle;
 - [`MAINTENANCE_MODE.md`](MAINTENANCE_MODE.md) — persistent maintenance boundary;
 - [`OFFLINE_FULL_RESTORE.md`](OFFLINE_FULL_RESTORE.md) — destructive offline recovery procedure;
 - [`HEALTH_CONTRACTS.md`](HEALTH_CONTRACTS.md) — liveness/readiness/dependency semantics;
-- [`STORAGE_STATUS.md`](STORAGE_STATUS.md) and [`STORAGE_INTEGRITY.md`](STORAGE_INTEGRITY.md) — bounded storage diagnostics;
+- [`operations/STORAGE_STATUS.md`](operations/STORAGE_STATUS.md) and [`operations/STORAGE_INTEGRITY.md`](operations/STORAGE_INTEGRITY.md) — bounded storage diagnostics;
 - [`XYOPS_EXECUTION_OWNERSHIP.md`](XYOPS_EXECUTION_OWNERSHIP.md) — portal/XYOps responsibility boundary.
 
 If this overview disagrees with current runtime or an exact active owner document, treat the mismatch as a documentation defect. Verify the current code/tests and canonical owner before changing behavior.

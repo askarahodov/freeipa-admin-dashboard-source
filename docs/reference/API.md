@@ -150,7 +150,7 @@ For execution ownership and why the portal is not a second scheduler, see `XYOPS
 | route-owned | `/api/admin/storage/migrations/apply/reconcile` | Reconcile controlled migration operation evidence. | Guarded admin/maintenance workflow | `storage-migration-apply-contract.ts` + apply handler/tests |
 | `GET` | `/api/schema/status` | Public-safe schema state for explicit service administrator. | Service admin token | `worker/schema-migrations-entry.ts` |
 
-Apply/reconcile operations are not ordinary settings mutations. Follow `DATABASE_MIGRATIONS.md` and the storage runbooks.
+Apply/reconcile operations are not ordinary settings mutations. Follow `operations/DATABASE_MIGRATIONS.md` and the storage runbooks.
 
 ## Maintenance API
 

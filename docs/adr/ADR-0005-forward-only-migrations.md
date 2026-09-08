@@ -32,7 +32,7 @@ Rollback is performed by restoring a compatible data/image state, not by inventi
 - `db/portal-controlled-migrations.ts`;
 - `worker/schema-migrations-entry.ts`;
 - `worker/schema-migrations-boundary.ts`;
-- `docs/DATABASE_MIGRATIONS.md`;
+- `docs/operations/DATABASE_MIGRATIONS.md`;
 - migration and schema contract tests under `tests/`.
 
 ## Supersession

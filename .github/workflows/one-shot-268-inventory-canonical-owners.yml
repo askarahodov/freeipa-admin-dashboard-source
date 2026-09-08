@@ -1,0 +1,81 @@
+name: One-shot canonical documentation inventory owners
+
+on:
+  push:
+    branches:
+      - docs/268-inventory-canonical-owners-e4d8
+
+permissions:
+  contents: write
+
+jobs:
+  stage:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+      - run: npm ci
+      - name: Canonicalize inventory owner paths
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('docs/DOCUMENTATION_INVENTORY.md')
+          s = p.read_text()
+          replacements = {
+            '`docs/GLOSSARY.md`': '`docs/reference/GLOSSARY.md`',
+            '`docs/LOCAL_AUTH_RBAC.md`': '`docs/security/LOCAL_AUTH_RBAC.md`',
+            '`docs/MAINTENANCE_MODE.md`': '`docs/operations/MAINTENANCE_MODE.md`',
+            '`docs/OFFLINE_FULL_RESTORE.md`': '`docs/operations/OFFLINE_FULL_RESTORE.md`',
+            '`docs/LOCAL_ACCEPTANCE_TESTS.md`': '`docs/operations/LOCAL_ACCEPTANCE_TESTS.md`',
+            '`docs/P0_OPERATIONAL_ACCEPTANCE.md`': '`docs/operations/P0_OPERATIONAL_ACCEPTANCE.md`',
+          }
+          for old, new in replacements.items():
+              if old not in s:
+                  raise SystemExit(f'missing expected inventory owner: {old}')
+              s = s.replace(old, new)
+          p.write_text(s)
+          PY
+          cat > tests/documentation-inventory-canonical-owners.test.mjs <<'EOF'
+          import test from 'node:test';
+          import assert from 'node:assert/strict';
+          import { readFile } from 'node:fs/promises';
+
+          test('documentation inventory names canonical owners for relocated active docs', async () => {
+            const inventory = await readFile(new URL('../docs/DOCUMENTATION_INVENTORY.md', import.meta.url), 'utf8');
+            const canonical = [
+              '`docs/reference/GLOSSARY.md`',
+              '`docs/security/LOCAL_AUTH_RBAC.md`',
+              '`docs/operations/MAINTENANCE_MODE.md`',
+              '`docs/operations/OFFLINE_FULL_RESTORE.md`',
+              '`docs/operations/LOCAL_ACCEPTANCE_TESTS.md`',
+              '`docs/operations/P0_OPERATIONAL_ACCEPTANCE.md`',
+            ];
+            for (const path of canonical) assert.ok(inventory.includes(path), `missing canonical inventory owner ${path}`);
+
+            const stale = [
+              '`docs/GLOSSARY.md`',
+              '`docs/LOCAL_AUTH_RBAC.md`',
+              '`docs/MAINTENANCE_MODE.md`',
+              '`docs/OFFLINE_FULL_RESTORE.md`',
+              '`docs/LOCAL_ACCEPTANCE_TESTS.md`',
+              '`docs/P0_OPERATIONAL_ACCEPTANCE.md`',
+            ];
+            for (const path of stale) assert.ok(!inventory.includes(path), `inventory must not name compatibility pointer as active owner ${path}`);
+          });
+          EOF
+      - name: Validate inventory batch
+        run: |
+          npm run docs:check
+          node --test tests/documentation-inventory-canonical-owners.test.mjs
+          git diff --check
+      - name: Commit final self-cleaned batch
+        run: |
+          rm .github/workflows/one-shot-268-inventory-canonical-owners.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/DOCUMENTATION_INVENTORY.md tests/documentation-inventory-canonical-owners.test.mjs .github/workflows/one-shot-268-inventory-canonical-owners.yml
+          git commit -m 'docs: align inventory with canonical owners'
+          git push

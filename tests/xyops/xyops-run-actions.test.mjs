@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import worker from "../dist/server/index.js";
+import worker from "../../dist/server/index.js";
 
 class RunActionsD1 {
   runs = [];

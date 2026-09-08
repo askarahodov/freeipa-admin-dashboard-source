@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { collectShape, describeRequestError, inspectXyops, sanitize } from "../scripts/xyops-inspect.mjs";
+import { collectShape, describeRequestError, inspectXyops, sanitize } from "../../scripts/xyops-inspect.mjs";
 
 test("inspector preserves contracts while redacting secrets and identities", async () => {
   const payload = { events: [{ id: "event-secret-id", title: "Production DB Backup", enabled: true, user_fields: [{ id: "database", type: "menu", required: true, options: ["billing", "crm"], api_key: "must-not-leak" }] }] };

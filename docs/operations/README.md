@@ -12,4 +12,6 @@ This section contains active operator-facing runbooks and operational safety con
 - [`HEALTH_CONTRACTS.md`](HEALTH_CONTRACTS.md) — liveness, readiness, dependency-health and operator-diagnostics contracts.
 - [`HEALTH_METRICS.md`](HEALTH_METRICS.md) — Prometheus-compatible health metrics, cardinality and alerting baseline.
 
+The former root paths `docs/DATABASE_MIGRATIONS.md`, `docs/STORAGE_STATUS.md`, and `docs/STORAGE_INTEGRITY.md` are compatibility pointers only; active internal navigation should use the canonical files in this directory.
+
 Other operational families remain at their current canonical paths until migrated in dedicated #268 slices. Relocation PRs must preserve external compatibility pointers and must not rewrite operational policy while moving them.

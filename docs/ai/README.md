@@ -247,4 +247,4 @@ agent/<short-scope>
 ## Canonical AI delivery policy
 
 - [`AI_AGENT_WORKFLOW.md`](AI_AGENT_WORKFLOW.md) — mandatory AI-agent delivery workflow, testing, review and checkpoint policy.
-- [`APPROVAL_GATES.md`](APPROVAL_GATES.md) — approval boundaries and execution gates for automated/agent work.
+- [`APPROVAL_GATES.md`](../APPROVAL_GATES.md) — approval boundaries and execution gates for automated/agent work.

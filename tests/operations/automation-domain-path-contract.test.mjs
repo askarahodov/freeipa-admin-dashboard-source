@@ -4,7 +4,7 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const scanRoots = ["app", "worker", "tests", "scripts", "db", "e2e", "src"];
 const sourceExtensions = new Set([".js", ".mjs", ".cjs", ".ts", ".tsx"]);
 
@@ -61,7 +61,7 @@ test("legacy automation imports are absent repository-wide", async () => {
 
   const violations = [];
   for (const relativePath of files) {
-    if (["tests/automation-domain-path-contract.test.mjs", "src/automation/field-conditions.ts"].includes(relativePath)) continue;
+    if (["tests/operations/automation-domain-path-contract.test.mjs", "src/automation/field-conditions.ts"].includes(relativePath)) continue;
     const content = await readFile(path.join(repoRoot, relativePath), "utf8");
     if (forbidden.some((pattern) => pattern.test(content))) violations.push(relativePath);
   }

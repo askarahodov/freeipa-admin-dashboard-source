@@ -5,7 +5,7 @@ import test from "node:test";
 import {
   COMMON_PARITY_PATHS,
   assertCommonParity,
-} from "../scripts/runtime-parity-smoke.mjs";
+} from "../../scripts/runtime-parity-smoke.mjs";
 
 test("phase-1 parity covers only DB-independent invariants", () => {
   assert.deepEqual(COMMON_PARITY_PATHS, ["/health/live", "/api/schema/status"]);
@@ -13,7 +13,7 @@ test("phase-1 parity covers only DB-independent invariants", () => {
 });
 
 test("candidate Node host never delegates to a development runtime", () => {
-  const source = readFileSync(new URL("../scripts/node-worker-host.mjs", import.meta.url), "utf8");
+  const source = readFileSync(new URL("../../scripts/node-worker-host.mjs", import.meta.url), "utf8");
   assert.doesNotMatch(source, /\bwrangler\b|\bvite\b|\bdev\b/iu);
   assert.match(source, /dist\/server\/index\.js/u);
 });

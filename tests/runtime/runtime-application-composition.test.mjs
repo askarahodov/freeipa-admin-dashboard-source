@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createRuntimeApplication } from "../runtime/runtime-application.mjs";
+import { createRuntimeApplication } from "../../runtime/runtime-application.mjs";
 
 function fakeRuntimeDatabase(events = []) {
   let closed = 0;

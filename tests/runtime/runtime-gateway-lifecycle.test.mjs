@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import test from "node:test";
 
-import { startRuntimeGateway } from "../runtime/runtime-gateway.mjs";
+import { startRuntimeGateway } from "../../runtime/runtime-gateway.mjs";
 
 function testGateway() {
   let closeCalls = 0;

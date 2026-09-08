@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createNonOverlappingScheduler } from "../runtime/scheduler.mjs";
+import { createNonOverlappingScheduler } from "../../runtime/scheduler.mjs";
 
 test("scheduler skips work while runtime is not ready", async () => {
   let runs = 0;

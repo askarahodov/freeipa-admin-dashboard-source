@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createRuntimeDatabase } from "../runtime/runtime-database.mjs";
+import { createRuntimeDatabase } from "../../runtime/runtime-database.mjs";
 
 function dependencies({ schemaState = "ready", failAt = "" } = {}) {
   const events = [];

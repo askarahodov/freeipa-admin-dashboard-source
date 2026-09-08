@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 function text(path) {
-  return readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+  return readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
 }
 
 test("D1 SQLite adapter contract has one canonical architecture owner", () => {

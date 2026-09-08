@@ -3,9 +3,9 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import test from 'node:test';
 
-const guardPath = new URL('../scripts/documentation-consistency.mjs', import.meta.url);
-const packagePath = new URL('../package.json', import.meta.url);
-const ciPath = new URL('../.github/workflows/ci.yml', import.meta.url);
+const guardPath = new URL('../../scripts/documentation-consistency.mjs', import.meta.url);
+const packagePath = new URL('../../package.json', import.meta.url);
+const ciPath = new URL('../../.github/workflows/ci.yml', import.meta.url);
 
 const guardSource = fs.readFileSync(guardPath, 'utf8');
 const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
@@ -13,7 +13,7 @@ const ciSource = fs.readFileSync(ciPath, 'utf8');
 
 test('documentation consistency guard passes against the current repository', () => {
   const result = spawnSync(process.execPath, [guardPath.pathname], {
-    cwd: new URL('..', import.meta.url),
+    cwd: new URL('../..', import.meta.url),
     encoding: 'utf8',
   });
 

@@ -5,14 +5,14 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 ENV_FILE="${E2E_ENV_FILE:-.env.e2e}"
-COMPOSE_FILE="${E2E_COMPOSE_FILE:-compose.e2e.yaml}"
+COMPOSE_FILE="${E2E_COMPOSE_FILE:-fixtures/compose/e2e.yaml}"
 ARTIFACT_ROOT="${E2E_ARTIFACT_DIR:-artifacts/e2e}"
 BASE_URL="${E2E_BASE_URL:-http://127.0.0.1:3001}"
 E2E_SPECS="${E2E_SPECS:-}"
 
 if [[ ! -f "$ENV_FILE" ]]; then
   echo "E2E environment file is missing: $ENV_FILE" >&2
-  echo "Create it with: cp .env.e2e.example .env.e2e" >&2
+  echo "Create it with: cp fixtures/env/e2e.example .env.e2e" >&2
   exit 2
 fi
 if ! command -v docker >/dev/null 2>&1; then

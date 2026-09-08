@@ -5,13 +5,13 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 ENV_FILE="${LOCAL_TEST_ENV_FILE:-.env.test}"
-COMPOSE_FILE="${LOCAL_TEST_COMPOSE_FILE:-compose.test.yaml}"
+COMPOSE_FILE="${LOCAL_TEST_COMPOSE_FILE:-fixtures/compose/local-integration.yaml}"
 ARTIFACT_ROOT="${LOCAL_TEST_ARTIFACT_DIR:-artifacts/local-integration}"
 mkdir -p "$ARTIFACT_ROOT"
 
 if [[ ! -f "$ENV_FILE" ]]; then
   echo "Test environment file is missing: $ENV_FILE" >&2
-  echo "Create it with: cp .env.test.example .env.test" >&2
+  echo "Create it with: cp fixtures/env/local-integration.example .env.test" >&2
   exit 2
 fi
 

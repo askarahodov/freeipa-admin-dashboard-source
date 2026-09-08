@@ -3,10 +3,10 @@ services:
     image: node:22-alpine
     network_mode: host
     env_file:
-      - .env.e2e
+      - ../../.env.e2e
     command: ["node", "/mock/freeipa-mock.mjs"]
     volumes:
-      - ./e2e/freeipa-mock.mjs:/mock/freeipa-mock.mjs:ro
+      - ../../e2e/freeipa-mock.mjs:/mock/freeipa-mock.mjs:ro
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:3901/health"]
       interval: 2s
@@ -21,10 +21,10 @@ services:
     image: node:22-alpine
     network_mode: host
     env_file:
-      - .env.e2e
+      - ../../.env.e2e
     command: ["node", "/mock/xyops-mock.mjs"]
     volumes:
-      - ./e2e/xyops-mock.mjs:/mock/xyops-mock.mjs:ro
+      - ../../e2e/xyops-mock.mjs:/mock/xyops-mock.mjs:ro
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O - \"$${XYOPS_URL}/health\""]
       interval: 2s
@@ -37,7 +37,7 @@ services:
 
   dashboard:
     build:
-      context: .
+      context: ../..
     image: freeipa-admin-dashboard:e2e
     restart: unless-stopped
     network_mode: host
@@ -47,7 +47,7 @@ services:
       xyops-mock:
         condition: service_healthy
     env_file:
-      - .env.e2e
+      - ../../.env.e2e
     environment:
       NODE_ENV: production
       PORT: 3001
@@ -62,21 +62,21 @@ services:
 
   playwright:
     build:
-      context: .
+      context: ../..
       dockerfile: e2e/Dockerfile
     image: freeipa-admin-dashboard-playwright:e2e
     network_mode: host
     ipc: host
     env_file:
-      - .env.e2e
+      - ../../.env.e2e
     environment:
       E2E_BASE_URL: http://127.0.0.1:3001
       E2E_ADMIN_USERNAME: ${PORTAL_BOOTSTRAP_ADMIN_USERNAME}
       E2E_ADMIN_PASSWORD: ${PORTAL_BOOTSTRAP_ADMIN_PASSWORD}
       CI: ${CI:-false}
     volumes:
-      - ./artifacts/e2e/playwright-report:/work/playwright-report
-      - ./artifacts/e2e/test-results:/work/test-results
+      - ../../artifacts/e2e/playwright-report:/work/playwright-report
+      - ../../artifacts/e2e/test-results:/work/test-results
 
 volumes:
   dashboard-e2e-data:

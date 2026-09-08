@@ -6,8 +6,8 @@ import test from "node:test";
 import { validateProductionEncryptionKey } from "../scripts/config-encryption-key.mjs";
 
 const compose = await readFile(new URL("../compose.yaml", import.meta.url), "utf8");
-const testCompose = await readFile(new URL("../compose.test.yaml", import.meta.url), "utf8");
-const e2eCompose = await readFile(new URL("../compose.e2e.yaml", import.meta.url), "utf8");
+const testCompose = await readFile(new URL("../fixtures/compose/local-integration.yaml", import.meta.url), "utf8");
+const e2eCompose = await readFile(new URL("../fixtures/compose/e2e.yaml", import.meta.url), "utf8");
 const dockerfile = await readFile(new URL("../Dockerfile", import.meta.url), "utf8");
 const startup = await readFile(new URL("../scripts/start-worker.mjs", import.meta.url), "utf8");
 const envExample = await readFile(new URL("../.env.example", import.meta.url), "utf8");

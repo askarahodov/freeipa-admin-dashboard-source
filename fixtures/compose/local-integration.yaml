@@ -1,12 +1,12 @@
 services:
   dashboard:
     build:
-      context: .
+      context: ../..
     image: freeipa-admin-dashboard:local-test
     restart: "no"
     network_mode: host
     env_file:
-      - .env.test
+      - ../../.env.test
     environment:
       NODE_ENV: production
       PORT: 3001

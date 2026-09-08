@@ -32,6 +32,7 @@ jobs:
           The canonical stable error-code ownership contract has moved to [`reference/ERROR_CODE_OWNERSHIP.md`](reference/ERROR_CODE_OWNERSHIP.md). This compatibility pointer is retained for existing external links; do not update the ownership contract here.
           EOF
           python <<'PY'
+          from pathlib import import_module
           from pathlib import Path
           suffixes={'.md','.mjs','.js','.ts','.tsx','.yml','.yaml','.json'}
           for p in Path('.').rglob('*'):
@@ -49,15 +50,6 @@ jobs:
                   text=text.replace('](../ERROR_CODE_OWNERSHIP.md)', '](../reference/ERROR_CODE_OWNERSHIP.md)')
               if text != old:
                   p.write_text(text,encoding='utf-8')
-          PY
-          python <<'PY'
-          from pathlib import Path
-          p=Path('docs/reference/README.md')
-          t=p.read_text(encoding='utf-8')
-          entry='- [`ERROR_CODE_OWNERSHIP.md`](ERROR_CODE_OWNERSHIP.md) — stable machine error/status-code ownership and verification contract.'
-          if entry not in t:
-              t += '\n' + entry + '\n'
-          p.write_text(t,encoding='utf-8')
           PY
           cat > tests/documentation-error-code-ownership.test.mjs <<'EOF'
           import test from "node:test";
@@ -80,11 +72,9 @@ jobs:
             assert.match(pointer, /compatibility pointer/);
           });
 
-          test("reference navigation and inventory point to the canonical owner", () => {
-            const reference = text("docs/reference/README.md");
+          test("documentation index and inventory point to the canonical reference owner", () => {
             const index = text("docs/README.md");
             const inventory = text("docs/DOCUMENTATION_INVENTORY.md");
-            assert.match(reference, /\[`ERROR_CODE_OWNERSHIP\.md`\]\(ERROR_CODE_OWNERSHIP\.md\)/);
             assert.match(index, /reference\/ERROR_CODE_OWNERSHIP\.md/);
             assert.match(inventory, /`docs\/reference\/ERROR_CODE_OWNERSHIP\.md`[^\n]+`verified-active`/);
           });

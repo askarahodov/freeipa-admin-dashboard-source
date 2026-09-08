@@ -69,6 +69,8 @@ jobs:
                   if s.startswith('docs/'):
                       text = text.replace(f']({old})', f']({new_rel})')
                       text = text.replace(f'`{old}`', f'`{new_rel}`')
+              text = text.replace(r'docs\/AI_AGENT_WORKFLOW\.md', r'docs\/ai\/AI_AGENT_WORKFLOW\.md')
+              text = text.replace(r'docs\/APPROVAL_GATES\.md', r'docs\/ai\/APPROVAL_GATES\.md')
               if text != original:
                   path.write_text(text, encoding='utf-8')
 

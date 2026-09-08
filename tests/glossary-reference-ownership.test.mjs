@@ -33,7 +33,7 @@ test('main documentation navigation points directly at relocated canonical owner
     'operations/P0_OPERATIONAL_ACCEPTANCE.md',
     'security/LOCAL_AUTH_RBAC.md',
   ]) {
-    assert.match(docsIndex, new RegExp(path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
-    assert.match(inventory, new RegExp(`docs/${path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
+    assert.ok(docsIndex.includes(path), `${path} must be linked from docs/README.md`);
+    assert.ok(inventory.includes(`docs/${path}`), `docs/${path} must be canonical in the inventory`);
   }
 });

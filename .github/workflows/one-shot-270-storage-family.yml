@@ -1,0 +1,88 @@
+name: One-shot 270 storage test family
+
+on:
+  push:
+    branches:
+      - repo/270-storage-test-family
+
+permissions:
+  contents: write
+
+jobs:
+  relocate-and-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Move complete storage test family
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p tests/storage
+          count=$(find tests -maxdepth 1 -type f -name 'storage-*.test.mjs' | wc -l)
+          test "$count" -eq 43
+          git mv tests/storage-*.test.mjs tests/storage/
+          python - <<'PY'
+          from pathlib import Path
+
+          for path in sorted(Path('tests/storage').glob('storage-*.test.mjs')):
+              lines = path.read_text().splitlines(keepends=True)
+              out = []
+              for line in lines:
+                  # Preserve source-text assertions/contract needles verbatim.
+                  if '.includes(' not in line:
+                      line = line.replace('from "../', 'from "../../')
+                      line = line.replace("from '../", "from '../../")
+                      line = line.replace('new URL("../', 'new URL("../../')
+                      line = line.replace("new URL('../", "new URL('../../")
+                  out.append(line)
+              path.write_text(''.join(out))
+          PY
+
+      - name: Build
+        run: npm run build
+
+      - name: Run complete storage family
+        shell: bash
+        run: node --test tests/storage/*.test.mjs
+
+      - name: Validate recursive discovery contracts
+        run: node --test tests/node-test-discovery.test.mjs tests/test-layout-policy.test.mjs
+
+      - name: Validate relocation invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find tests/storage -maxdepth 1 -type f -name 'storage-*.test.mjs' | wc -l)" -eq 43
+          test "$(find tests -maxdepth 1 -type f -name 'storage-*.test.mjs' | wc -l)" -eq 0
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const files = fs.readdirSync('tests/storage').filter((name) => /^storage-.*\.test\.mjs$/.test(name));
+          if (files.length !== 43) throw new Error(`expected 43 storage tests, got ${files.length}`);
+          NODE
+          git diff --check
+
+      - name: Commit validated relocation and self-clean
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/one-shot-270-storage-family.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git diff --cached --check
+          git commit -m "test: move storage test family under domain owner"
+          git push origin HEAD:repo/270-storage-test-family

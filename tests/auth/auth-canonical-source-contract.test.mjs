@@ -6,8 +6,8 @@ const owners = ["portal-permissions", "portal-route-contract", "stable-error-con
 
 test("declarative auth contracts live only under src/auth", async () => {
   for (const owner of owners) {
-    const canonical = await readFile(new URL(`../src/auth/${owner}.ts`, import.meta.url), "utf8");
+    const canonical = await readFile(new URL(`../../src/auth/${owner}.ts`, import.meta.url), "utf8");
     assert.ok(canonical.length > 100, owner);
-    await assert.rejects(access(new URL(`../${owner}.ts`, import.meta.url)), { code: "ENOENT" });
+    await assert.rejects(access(new URL(`../../${owner}.ts`, import.meta.url)), { code: "ENOENT" });
   }
 });

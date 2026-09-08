@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { buildE2ETestPlan, categoriesForPath, shouldRunAuthE2E } from "../scripts/auth-e2e-scope.mjs";
+import { buildE2ETestPlan, categoriesForPath, shouldRunAuthE2E } from "../../scripts/auth-e2e-scope.mjs";
 
-const workflow = await readFile(new URL("../.github/workflows/e2e-auth.yml", import.meta.url), "utf8");
-const ciWorkflow = await readFile(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8");
+const workflow = await readFile(new URL("../../.github/workflows/e2e-auth.yml", import.meta.url), "utf8");
+const ciWorkflow = await readFile(new URL("../../.github/workflows/ci.yml", import.meta.url), "utf8");
 
 test("documentation-only changes do not trigger browser E2E", () => {
   assert.equal(shouldRunAuthE2E(["docs/README.md", "docs/OPERATIONS_EXPLORER.md"]), false);

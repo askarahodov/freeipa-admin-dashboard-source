@@ -10,9 +10,9 @@ const canonicalPaths = [
 
 test("runtime auth implementations live only under src/auth", async () => {
   for (const canonicalPath of canonicalPaths) {
-    const canonical = await readFile(new URL(`../${canonicalPath}`, import.meta.url), "utf8");
+    const canonical = await readFile(new URL(`../../${canonicalPath}`, import.meta.url), "utf8");
     assert.ok(canonical.length > 100, `${canonicalPath} must own the implementation`);
     const rootPath = canonicalPath.replace("src/auth/", "");
-    await assert.rejects(access(new URL(`../${rootPath}`, import.meta.url)), { code: "ENOENT" });
+    await assert.rejects(access(new URL(`../../${rootPath}`, import.meta.url)), { code: "ENOENT" });
   }
 });

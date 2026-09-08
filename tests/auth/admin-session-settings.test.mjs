@@ -2,17 +2,17 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 
-const authorization = fs.readFileSync(new URL("../src/auth/admin-session-authorization.ts", import.meta.url), "utf8");
-const runtime = fs.readFileSync(new URL("../worker/local-secure-entry.ts", import.meta.url), "utf8");
-const selectiveRoot = fs.readFileSync(new URL("../worker/backup-selective-restore-root-entry.ts", import.meta.url), "utf8");
-const maintenanceControlRoot = fs.readFileSync(new URL("../worker/maintenance-control-root-entry.ts", import.meta.url), "utf8");
-const serviceRoot = fs.readFileSync(new URL("../worker/service-admin-root-entry.ts", import.meta.url), "utf8");
-const maintenanceGate = fs.readFileSync(new URL("../worker/maintenance-mode-root-entry.ts", import.meta.url), "utf8");
-const schemaRoot = fs.readFileSync(new URL("../worker/schema-migrations-entry.ts", import.meta.url), "utf8");
-const viteConfig = fs.readFileSync(new URL("../vite.config.ts", import.meta.url), "utf8");
-const bridge = fs.readFileSync(new URL("../app/LocalAdminSessionBridge.tsx", import.meta.url), "utf8");
-const layout = fs.readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8");
-const styles = fs.readFileSync(new URL("../app/local-admin-session.css", import.meta.url), "utf8");
+const authorization = fs.readFileSync(new URL("../../src/auth/admin-session-authorization.ts", import.meta.url), "utf8");
+const runtime = fs.readFileSync(new URL("../../worker/local-secure-entry.ts", import.meta.url), "utf8");
+const selectiveRoot = fs.readFileSync(new URL("../../worker/backup-selective-restore-root-entry.ts", import.meta.url), "utf8");
+const maintenanceControlRoot = fs.readFileSync(new URL("../../worker/maintenance-control-root-entry.ts", import.meta.url), "utf8");
+const serviceRoot = fs.readFileSync(new URL("../../worker/service-admin-root-entry.ts", import.meta.url), "utf8");
+const maintenanceGate = fs.readFileSync(new URL("../../worker/maintenance-mode-root-entry.ts", import.meta.url), "utf8");
+const schemaRoot = fs.readFileSync(new URL("../../worker/schema-migrations-entry.ts", import.meta.url), "utf8");
+const viteConfig = fs.readFileSync(new URL("../../vite.config.ts", import.meta.url), "utf8");
+const bridge = fs.readFileSync(new URL("../../app/LocalAdminSessionBridge.tsx", import.meta.url), "utf8");
+const layout = fs.readFileSync(new URL("../../app/layout.tsx", import.meta.url), "utf8");
+const styles = fs.readFileSync(new URL("../../app/local-admin-session.css", import.meta.url), "utf8");
 
 const protectedPaths = [
   "/api/integrations/settings",

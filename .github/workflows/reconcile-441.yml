@@ -1,0 +1,94 @@
+name: Reconcile PR 441
+
+on:
+  push:
+    branches:
+      - docs/268-storage-schema-operations-v2
+
+permissions:
+  contents: write
+
+jobs:
+  reconcile:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: docs/268-storage-schema-operations-v2
+      - name: Merge current main and resolve known documentation overlaps
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin main
+
+          set +e
+          git merge --no-ff --no-commit origin/main
+          merge_status=$?
+          set -e
+
+          if [ "$merge_status" -ne 0 ]; then
+            known='^(README\.md|docs/README\.md|docs/DOCUMENTATION_INVENTORY\.md|tests/product-branding\.test\.mjs)$'
+            unknown="$(git diff --name-only --diff-filter=U | grep -Ev "$known" || true)"
+            if [ -n "$unknown" ]; then
+              echo 'Unexpected merge conflicts:' >&2
+              echo "$unknown" >&2
+              exit 1
+            fi
+            for path in README.md docs/README.md docs/DOCUMENTATION_INVENTORY.md tests/product-branding.test.mjs; do
+              if git diff --name-only --diff-filter=U -- "$path" | grep -q .; then
+                git checkout --ours -- "$path"
+                git add "$path"
+              fi
+            done
+          fi
+
+          python <<'PY'
+          from pathlib import Path
+
+          replacements = {
+              'README.md': [
+                  ('docs/HEALTH_CONTRACTS.md', 'docs/operations/HEALTH_CONTRACTS.md'),
+                  ('docs/HEALTH_METRICS.md', 'docs/operations/HEALTH_METRICS.md'),
+              ],
+              'docs/README.md': [
+                  ('HEALTH_CONTRACTS.md', 'operations/HEALTH_CONTRACTS.md'),
+                  ('HEALTH_METRICS.md', 'operations/HEALTH_METRICS.md'),
+              ],
+              'docs/DOCUMENTATION_INVENTORY.md': [
+                  ('docs/HEALTH_CONTRACTS.md', 'docs/operations/HEALTH_CONTRACTS.md'),
+                  ('docs/HEALTH_METRICS.md', 'docs/operations/HEALTH_METRICS.md'),
+              ],
+              'tests/product-branding.test.mjs': [
+                  ('"docs/HEALTH_METRICS.md"', '"docs/operations/HEALTH_METRICS.md"'),
+              ],
+              'docs/architecture/ARCHITECTURE.md': [
+                  ('](../DATABASE_MIGRATIONS.md)', '](../operations/DATABASE_MIGRATIONS.md)'),
+                  ('](../STORAGE_STATUS.md)', '](../operations/STORAGE_STATUS.md)'),
+                  ('](../STORAGE_INTEGRITY.md)', '](../operations/STORAGE_INTEGRITY.md)'),
+              ],
+          }
+
+          for name, pairs in replacements.items():
+              path = Path(name)
+              text = path.read_text()
+              for old, new in pairs:
+                  text = text.replace(old, new)
+              path.write_text(text)
+          PY
+
+          git add README.md docs/README.md docs/DOCUMENTATION_INVENTORY.md tests/product-branding.test.mjs docs/architecture/ARCHITECTURE.md
+          git rm --ignore-unmatch .github/workflows/reconcile-441.yml
+
+          unresolved="$(git diff --name-only --diff-filter=U)"
+          if [ -n "$unresolved" ]; then
+            echo 'Unresolved merge conflicts remain:' >&2
+            echo "$unresolved" >&2
+            exit 1
+          fi
+
+          git commit -m 'docs: reconcile storage schema move with current main'
+          git push origin HEAD:docs/268-storage-schema-operations-v2

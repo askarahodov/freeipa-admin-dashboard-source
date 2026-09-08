@@ -13,7 +13,7 @@
 3. [`ARCHITECTURE.md`](architecture/ARCHITECTURE.md) — current runtime topology, trust/data boundaries и major ownership.
 4. [`PROJECT_STRUCTURE.md`](architecture/PROJECT_STRUCTURE.md) — repository/module map и where-to-change routing.
 5. [`MODULE_COVERAGE.md`](architecture/MODULE_COVERAGE.md) — module ownership, dependency direction и scoped tests.
-6. [`DEPLOYMENT_MATRIX.md`](DEPLOYMENT_MATRIX.md) — supported/development/constrained/unsupported deployment modes.
+6. [`DEPLOYMENT_MATRIX.md`](architecture/DEPLOYMENT_MATRIX.md) — supported/development/constrained/unsupported deployment modes.
 7. [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md) — authoritative owners и precedence.
 8. [`DOCUMENTATION_POLICY.md`](DOCUMENTATION_POLICY.md) — docs-as-code и правила нескольких агентов.
 9. [`development/README.md`](development/README.md) — repository governance, branch lifecycle, required checks and dependency-update policy.
@@ -28,7 +28,7 @@
 
 Основной набор:
 
-- [`DEPLOYMENT_MATRIX.md`](DEPLOYMENT_MATRIX.md)
+- [`DEPLOYMENT_MATRIX.md`](architecture/DEPLOYMENT_MATRIX.md)
 - [`operations/HEALTH_CONTRACTS.md`](operations/HEALTH_CONTRACTS.md)
 - [`operations/HEALTH_METRICS.md`](operations/HEALTH_METRICS.md)
 - [`operations/STORAGE_STATUS.md`](operations/STORAGE_STATUS.md)
@@ -48,7 +48,7 @@
 
 - [`ARCHITECTURE.md`](architecture/ARCHITECTURE.md)
 - [`MODULE_COVERAGE.md`](architecture/MODULE_COVERAGE.md)
-- [`DEPLOYMENT_MATRIX.md`](DEPLOYMENT_MATRIX.md)
+- [`DEPLOYMENT_MATRIX.md`](architecture/DEPLOYMENT_MATRIX.md)
 - [`SECURITY_MODEL.md`](security/SECURITY_MODEL.md)
 - [`LOCAL_AUTH_RBAC.md`](LOCAL_AUTH_RBAC.md)
 - [`security/DEPENDENCY_SECURITY.md`](security/DEPENDENCY_SECURITY.md)
@@ -72,7 +72,7 @@
 | [`PROJECT_STRUCTURE.md`](architecture/PROJECT_STRUCTURE.md) | Repository ownership map and module boundaries |
 | [`MODULE_COVERAGE.md`](architecture/MODULE_COVERAGE.md) | Module documentation/test coverage and dependency direction |
 | [`D1_SQLITE_ADAPTER.md`](architecture/D1_SQLITE_ADAPTER.md) | D1-compatible SQLite runtime adapter boundary |
-| [`DEPLOYMENT_MATRIX.md`](DEPLOYMENT_MATRIX.md) | Supported and unsupported deployment models |
+| [`DEPLOYMENT_MATRIX.md`](architecture/DEPLOYMENT_MATRIX.md) | Supported and unsupported deployment models |
 | [`DOCUMENTATION_POLICY.md`](DOCUMENTATION_POLICY.md) | Docs-as-code, statuses, review and multi-agent rules |
 | [`SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md) | Authoritative source registry and precedence |
 | [`DOCUMENTATION_INVENTORY.md`](DOCUMENTATION_INVENTORY.md) | Current audit status |

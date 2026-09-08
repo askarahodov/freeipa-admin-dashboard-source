@@ -60,7 +60,7 @@ jobs:
 
       - name: Prepare isolated E2E environment
         if: steps.scope.outputs.browser_specs != ''
-        run: cp .env.e2e.example .env.e2e
+        run: cp fixtures/env/e2e.example .env.e2e
 
       - name: Run affected Chromium scenarios
         if: steps.scope.outputs.browser_specs != ''

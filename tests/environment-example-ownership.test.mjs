@@ -41,6 +41,13 @@ test("environment ownership indexes document justified root entrypoints and cano
   assert.match(fixtures, /fixtures\/env\/local-integration\.example/u);
 });
 
+test("development identity contract consumes the canonical development env example", async () => {
+  const secureDefaults = await readFile(new URL("tests/local-auth-secure-default.test.mjs", rootUrl), "utf8");
+
+  assert.match(secureDefaults, /config\/development\/runtime\.env\.example/u);
+  assert.doesNotMatch(secureDefaults, /\.env\.dev\.example/u);
+});
+
 test("local acceptance runbook consumes canonical non-production fixture paths", async () => {
   const runbook = await readFile(new URL("docs/operations/LOCAL_ACCEPTANCE_TESTS.md", rootUrl), "utf8");
 

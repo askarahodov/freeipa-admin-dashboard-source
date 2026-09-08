@@ -3,7 +3,7 @@ import test from "node:test";
 import {
   handleDependencyHealthRequest,
   resetDependencyHealthCacheForTests,
-} from "../worker/dependency-health.ts";
+} from "../../worker/dependency-health.ts";
 
 function migrationDatabase() {
   return {

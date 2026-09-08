@@ -2,14 +2,14 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { validateIdentityStartup } from "../scripts/identity-startup-policy.mjs";
+import { validateIdentityStartup } from "../../scripts/identity-startup-policy.mjs";
 
-const envExample = await readFile(new URL("../.env.example", import.meta.url), "utf8");
-const startup = await readFile(new URL("../scripts/start-worker.mjs", import.meta.url), "utf8");
-const dockerfile = await readFile(new URL("../Dockerfile", import.meta.url), "utf8");
+const envExample = await readFile(new URL("../../.env.example", import.meta.url), "utf8");
+const startup = await readFile(new URL("../../scripts/start-worker.mjs", import.meta.url), "utf8");
+const dockerfile = await readFile(new URL("../../Dockerfile", import.meta.url), "utf8");
 
 async function readDevExample() {
-  return readFile(new URL("../config/development/runtime.env.example", import.meta.url), "utf8");
+  return readFile(new URL("../../config/development/runtime.env.example", import.meta.url), "utf8");
 }
 
 test("production env example defaults to local authentication with viewer fallback", () => {

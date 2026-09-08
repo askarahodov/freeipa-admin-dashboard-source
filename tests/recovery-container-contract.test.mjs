@@ -4,7 +4,7 @@ import test from "node:test";
 
 const dockerfile = await readFile(new URL("../Dockerfile", import.meta.url), "utf8");
 const compose = await readFile(new URL("../compose.yaml", import.meta.url), "utf8");
-const testCompose = await readFile(new URL("../compose.recovery.test.yaml", import.meta.url), "utf8");
+const testCompose = await readFile(new URL("../deploy/compose/recovery.test.yaml", import.meta.url), "utf8");
 
 function recoveryService(source) {
   const match = /(?:^|\n)  recovery:\n([\s\S]*?)(?=\n  [a-zA-Z0-9_-]+:\n|\nvolumes:\n|$)/u.exec(source);

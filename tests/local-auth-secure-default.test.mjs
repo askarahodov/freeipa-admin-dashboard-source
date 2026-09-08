@@ -9,7 +9,7 @@ const startup = await readFile(new URL("../scripts/start-worker.mjs", import.met
 const dockerfile = await readFile(new URL("../Dockerfile", import.meta.url), "utf8");
 
 async function readDevExample() {
-  return readFile(new URL("../.env.dev.example", import.meta.url), "utf8");
+  return readFile(new URL("../config/development/runtime.env.example", import.meta.url), "utf8");
 }
 
 test("production env example defaults to local authentication with viewer fallback", () => {

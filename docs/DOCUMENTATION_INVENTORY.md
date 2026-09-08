@@ -48,7 +48,7 @@ Normalized references orient humans and agents; they do not replace runtime/doma
 
 | Path | Owner / source of truth | Status |
 | --- | --- | --- |
-| `docs/SECURITY_MODEL.md` | auth/session/service-admin/integration/recovery owners + security tests | `verified-active` |
+| `docs/security/SECURITY_MODEL.md` | auth/session/service-admin/integration/recovery owners + security tests | `verified-active` |
 | `docs/LOCAL_AUTH_RBAC.md` | local auth/session boundary + DB schema | `verified-active` |
 | `docs/operations/DATABASE_MIGRATIONS.md` | canonical migration registry/runtime/tests | `verified-active` |
 | `docs/MAINTENANCE_MODE.md` | maintenance runtime + persistent state | `verified-active` |

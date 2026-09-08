@@ -26,6 +26,29 @@ jobs:
         run: |
           set -euo pipefail
           cp docs/SECURITY_MODEL.md docs/security/SECURITY_MODEL.md
+          python <<'PY'
+          from pathlib import Path
+          p = Path('docs/security/SECURITY_MODEL.md')
+          text = p.read_text(encoding='utf-8')
+          replacements = {
+              '](SOURCE_OF_TRUTH.md)': '](../SOURCE_OF_TRUTH.md)',
+              '](architecture/ARCHITECTURE.md)': '](../architecture/ARCHITECTURE.md)',
+              '](architecture/PROJECT_STRUCTURE.md)': '](../architecture/PROJECT_STRUCTURE.md)',
+              '](CONFIG_ENCRYPTION_KEY.md)': '](../CONFIG_ENCRYPTION_KEY.md)',
+              '](XYOPS_EXECUTION_OWNERSHIP.md)': '](../XYOPS_EXECUTION_OWNERSHIP.md)',
+              '](security/AUDIT_LOG.md)': '](AUDIT_LOG.md)',
+              '](MAINTENANCE_MODE.md)': '](../operations/MAINTENANCE_MODE.md)',
+              '](OFFLINE_FULL_RESTORE.md)': '](../operations/OFFLINE_FULL_RESTORE.md)',
+              '](operations/DATABASE_MIGRATIONS.md)': '](../operations/DATABASE_MIGRATIONS.md)',
+              '](operations/STORAGE_STATUS.md)': '](../operations/STORAGE_STATUS.md)',
+              '](operations/STORAGE_INTEGRITY.md)': '](../operations/STORAGE_INTEGRITY.md)',
+              '](HEALTH_CONTRACTS.md)': '](../operations/HEALTH_CONTRACTS.md)',
+              '](HEALTH_METRICS.md)': '](../operations/HEALTH_METRICS.md)',
+          }
+          for old, new in replacements.items():
+              text = text.replace(old, new)
+          p.write_text(text, encoding='utf-8')
+          PY
           cat > docs/SECURITY_MODEL.md <<'EOF'
           # Relocated
 
@@ -45,7 +68,7 @@ jobs:
               text=text.replace('docs/SECURITY_MODEL.md','docs/security/SECURITY_MODEL.md')
               if s.startswith('docs/ai/'):
                   text=text.replace('](../SECURITY_MODEL.md)','](../security/SECURITY_MODEL.md)')
-              if s.startswith('docs/'):
+              if s.startswith('docs/') and s != 'docs/security/SECURITY_MODEL.md':
                   text=text.replace('](SECURITY_MODEL.md)','](security/SECURITY_MODEL.md)')
               if text!=old:
                   p.write_text(text,encoding='utf-8')

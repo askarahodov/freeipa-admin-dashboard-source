@@ -39,6 +39,8 @@ jobs:
           from pathlib import Path
           for path in Path('tests/maintenance').glob('maintenance-*.test.mjs'):
               text = path.read_text()
+              text = text.replace('"../README.md"', '"../../README.md"')
+              text = text.replace("'../README.md'", "'../../README.md'")
               text = text.replace('"../docs/', '"../../docs/')
               text = text.replace("'../docs/", "'../../docs/")
               text = text.replace('"../src/', '"../../src/')
@@ -60,7 +62,7 @@ jobs:
           set -euo pipefail
           test "$(find tests/maintenance -maxdepth 1 -type f -name 'maintenance-*.test.mjs' | wc -l)" -eq 8
           test "$(find tests -maxdepth 1 -type f -name 'maintenance-*.test.mjs' | wc -l)" -eq 0
-          ! grep -RIn -E 'new URL\(["'"']\.\./(docs|src|worker)/|from ["'"']\.\./(src|worker)/' tests/maintenance
+          ! grep -RIn -E '["'"']\.\./README\.md["'"']|new URL\(["'"']\.\./(docs|src|worker)/|from ["'"']\.\./(src|worker)/' tests/maintenance
           git diff --check
 
       - name: Commit validated relocation and self-clean

@@ -34,8 +34,8 @@
 - [`operations/STORAGE_STATUS.md`](operations/STORAGE_STATUS.md)
 - [`operations/STORAGE_INTEGRITY.md`](operations/STORAGE_INTEGRITY.md)
 - [`operations/DATABASE_MIGRATIONS.md`](operations/DATABASE_MIGRATIONS.md)
-- [`MAINTENANCE_MODE.md`](MAINTENANCE_MODE.md)
-- [`OFFLINE_FULL_RESTORE.md`](OFFLINE_FULL_RESTORE.md)
+- [`MAINTENANCE_MODE.md`](operations/MAINTENANCE_MODE.md)
+- [`OFFLINE_FULL_RESTORE.md`](operations/OFFLINE_FULL_RESTORE.md)
 - [`CONFIG_ENCRYPTION_KEY.md`](security/CONFIG_ENCRYPTION_KEY.md)
 - [`reference/CONFIGURATION.md`](reference/CONFIGURATION.md)
 - [`reference/ERROR_CODES.md`](reference/ERROR_CODES.md)
@@ -50,7 +50,7 @@
 - [`MODULE_COVERAGE.md`](architecture/MODULE_COVERAGE.md)
 - [`DEPLOYMENT_MATRIX.md`](architecture/DEPLOYMENT_MATRIX.md)
 - [`SECURITY_MODEL.md`](security/SECURITY_MODEL.md)
-- [`LOCAL_AUTH_RBAC.md`](LOCAL_AUTH_RBAC.md)
+- [`LOCAL_AUTH_RBAC.md`](security/LOCAL_AUTH_RBAC.md)
 - [`security/DEPENDENCY_SECURITY.md`](security/DEPENDENCY_SECURITY.md)
 - [`reference/PERMISSIONS.md`](reference/PERMISSIONS.md)
 - [`reference/API.md`](reference/API.md)
@@ -59,8 +59,8 @@
 - [`security/AUDIT_LOG.md`](security/AUDIT_LOG.md)
 - [`CONFIG_ENCRYPTION_KEY.md`](security/CONFIG_ENCRYPTION_KEY.md)
 - [`operations/DATABASE_MIGRATIONS.md`](operations/DATABASE_MIGRATIONS.md)
-- [`MAINTENANCE_MODE.md`](MAINTENANCE_MODE.md)
-- [`OFFLINE_FULL_RESTORE.md`](OFFLINE_FULL_RESTORE.md)
+- [`MAINTENANCE_MODE.md`](operations/MAINTENANCE_MODE.md)
+- [`OFFLINE_FULL_RESTORE.md`](operations/OFFLINE_FULL_RESTORE.md)
 - [`SOURCE_OF_TRUTH.md`](reference/SOURCE_OF_TRUTH.md)
 
 ## Foundation / governance
@@ -109,7 +109,7 @@ Machine-readable ownership work referenced by the documentation platform is comp
 | Документ | Назначение |
 | --- | --- |
 | [`SECURITY_MODEL.md`](security/SECURITY_MODEL.md) | Trust boundaries, identity classes, secret/recovery invariants |
-| [`LOCAL_AUTH_RBAC.md`](LOCAL_AUTH_RBAC.md) | Portal users, sessions, roles and FreeIPA identity separation |
+| [`LOCAL_AUTH_RBAC.md`](security/LOCAL_AUTH_RBAC.md) | Portal users, sessions, roles and FreeIPA identity separation |
 | [`security/AUDIT_LOG.md`](security/AUDIT_LOG.md) | Append-only audit, correlation, redaction and read API |
 | [`security/DEPENDENCY_SECURITY.md`](security/DEPENDENCY_SECURITY.md) | Supply-chain audit, SBOM and runtime image security policy |
 
@@ -120,8 +120,8 @@ Machine-readable ownership work referenced by the documentation platform is comp
 | [`operations/DATABASE_MIGRATIONS.md`](operations/DATABASE_MIGRATIONS.md) | Canonical schema/migrations/journal/drift/recovery semantics |
 | [`operations/STORAGE_STATUS.md`](operations/STORAGE_STATUS.md) | Bounded read-only storage status |
 | [`operations/STORAGE_INTEGRITY.md`](operations/STORAGE_INTEGRITY.md) | Read-only SQLite/index diagnostics |
-| [`MAINTENANCE_MODE.md`](MAINTENANCE_MODE.md) | Persistent maintenance state machine |
-| [`OFFLINE_FULL_RESTORE.md`](OFFLINE_FULL_RESTORE.md) | Offline destructive restore, atomic swap, verify, rollback |
+| [`MAINTENANCE_MODE.md`](operations/MAINTENANCE_MODE.md) | Persistent maintenance state machine |
+| [`OFFLINE_FULL_RESTORE.md`](operations/OFFLINE_FULL_RESTORE.md) | Offline destructive restore, atomic swap, verify, rollback |
 | [`CONFIG_ENCRYPTION_KEY.md`](security/CONFIG_ENCRYPTION_KEY.md) | Production encryption-key requirements |
 
 ## Health / monitoring
@@ -144,8 +144,8 @@ Machine-readable ownership work referenced by the documentation platform is comp
 
 | Документ | Назначение |
 | --- | --- |
-| [`LOCAL_ACCEPTANCE_TESTS.md`](LOCAL_ACCEPTANCE_TESTS.md) | Local integration acceptance procedure |
-| [`P0_OPERATIONAL_ACCEPTANCE.md`](P0_OPERATIONAL_ACCEPTANCE.md) | Automated P0 local-auth/persistence runner |
+| [`LOCAL_ACCEPTANCE_TESTS.md`](operations/LOCAL_ACCEPTANCE_TESTS.md) | Local integration acceptance procedure |
+| [`P0_OPERATIONAL_ACCEPTANCE.md`](operations/P0_OPERATIONAL_ACCEPTANCE.md) | Automated P0 local-auth/persistence runner |
 
 ## Roadmap / historical material
 

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import test from "node:test";
 
-const policyUrl = new URL("../scripts/dependency-audit-policy.mjs", import.meta.url);
+const policyUrl = new URL("../../scripts/dependency-audit-policy.mjs", import.meta.url);
 
 const report = {
   auditReportVersion: 2,

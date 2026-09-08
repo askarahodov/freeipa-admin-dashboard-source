@@ -25,3 +25,4 @@ For every subsequent #268 move:
 6. run `npm run docs:check`, relevant documentation tests and `git diff --check` before merge.
 
 Until a document is actually moved, its existing path above remains canonical.
+- [`D1_SQLITE_ADAPTER.md`](D1_SQLITE_ADAPTER.md) — local D1-compatible SQLite runtime adapter boundary and persistence contract.

@@ -33,12 +33,13 @@ test('recursive Node-test discovery is deterministic and ignores non-test files'
   }
 });
 
-test('recursive discovery still contains every current flat test', async () => {
-  const discovered = new Set(await discoverNodeTests('tests'));
+test('tests root contains no flat Node tests while recursive discovery covers owned tests', async () => {
+  const discovered = await discoverNodeTests('tests');
   const flatTests = (await readdir('tests', { withFileTypes: true }))
     .filter((entry) => entry.isFile() && entry.name.endsWith('.test.mjs'))
     .map((entry) => `tests/${entry.name}`);
 
-  assert.ok(flatTests.length > 0, 'expected an existing flat test baseline');
-  for (const path of flatTests) assert.ok(discovered.has(path), `missing flat baseline test: ${path}`);
+  assert.deepEqual(flatTests, [], 'flat Node tests must live under canonical ownership directories');
+  assert.ok(discovered.length > 0, 'expected recursive discovery to find owned Node tests');
+  for (const path of discovered) assert.match(path, /^tests\/[^/]+\/.+\.test\.mjs$/);
 });

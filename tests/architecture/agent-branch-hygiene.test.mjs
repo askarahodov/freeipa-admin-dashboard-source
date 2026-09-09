@@ -5,7 +5,7 @@ import test from "node:test";
 import {
   buildAgentBranchHygienePlan,
   formatAgentBranchHygieneReport,
-} from "../scripts/agent-branch-hygiene.mjs";
+} from "../../scripts/agent-branch-hygiene.mjs";
 
 const branch = (name, sha) => ({ name, sha });
 const pr = (number, { merged = false, head, headSha, base = "main" }) => ({
@@ -99,7 +99,7 @@ test("report is deterministic and exposes only fixed branch decisions", () => {
 
 test("workflow executes only trusted-main cleanup policy", async () => {
   const workflow = await readFile(
-    new URL("../.github/workflows/agent-branch-hygiene.yml", import.meta.url),
+    new URL("../../.github/workflows/agent-branch-hygiene.yml", import.meta.url),
     "utf8",
   );
 
@@ -121,7 +121,7 @@ test("workflow executes only trusted-main cleanup policy", async () => {
 });
 
 test("agent branch policy documents lifecycle and supersede safety", async () => {
-  const policy = await readFile(new URL("../docs/development/AGENT_BRANCH_POLICY.md", import.meta.url), "utf8");
+  const policy = await readFile(new URL("../../docs/development/AGENT_BRANCH_POLICY.md", import.meta.url), "utf8");
   assert.match(policy, /agent\/<short-scope>/u);
   assert.match(policy, /open PR/u);
   assert.match(policy, /stack/u);

@@ -5,7 +5,7 @@ import {
   HOME_PAGE_PATHS,
   buildHomePath,
   resolveHomeLocation,
-} from "../app/shell/home-navigation.ts";
+} from "../../app/shell/home-navigation.ts";
 
 const sections = [
   { category: "Infrastructure", slug: "infrastructure" },

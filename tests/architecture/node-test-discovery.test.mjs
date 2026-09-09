@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, relative, sep } from 'node:path';
-import { discoverNodeTests } from '../scripts/discover-node-tests.mjs';
+import { discoverNodeTests } from '../../scripts/discover-node-tests.mjs';
 
 function normalize(value) {
   return value.split(sep).join('/');

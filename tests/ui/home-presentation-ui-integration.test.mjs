@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
-const overlays = readFileSync(new URL("../app/shell/PortalOverlays.tsx", import.meta.url), "utf8");
+const page = readFileSync(new URL("../../app/page.tsx", import.meta.url), "utf8");
+const overlays = readFileSync(new URL("../../app/shell/PortalOverlays.tsx", import.meta.url), "utf8");
 
 test("Home and portal overlays consume the extracted presentation contract", () => {
   assert.match(page, /from\s+["']\.\/shell\/home-presentation["']/u);

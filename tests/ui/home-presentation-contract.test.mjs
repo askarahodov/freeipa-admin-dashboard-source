@@ -5,7 +5,7 @@ import {
   buildAutomationSlug,
   PROCESS_ICON_GLYPHS,
   resolveProcessIconGlyph,
-} from "../app/shell/home-presentation.ts";
+} from "../../app/shell/home-presentation.ts";
 
 test("automation slug preserves the legacy Cyrillic transliteration contract", () => {
   assert.equal(buildAutomationSlug("Резервное копирование БД"), "rezervnoe-kopirovanie-bd");

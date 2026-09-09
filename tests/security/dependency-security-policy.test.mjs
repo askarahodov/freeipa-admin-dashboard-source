@@ -37,7 +37,7 @@ test("production runtime keeps the verified dependency line and canonical harden
   assert.equal(packageJson.dependencies.wrangler, "4.113.0");
   assert.equal(packageJson.devDependencies.wrangler, undefined);
   assert.equal(packageJson.devDependencies["@cloudflare/vite-plugin"], "1.46.0");
-  assert.equal(packageJson.overrides?.sharp, "0.35.3");
+  assert.equal(packageJson.overrides?.sharp, "0.35.4");
   assert.equal(packageJson.overrides?.undici, "7.29.0");
   assert.match(dockerfile, /AS production-dependencies[\s\S]*npm prune --omit=dev/u);
   assert.match(dockerfile, /COPY --from=production-dependencies[^\n]*\/app\/node_modules \.\/node_modules/u);

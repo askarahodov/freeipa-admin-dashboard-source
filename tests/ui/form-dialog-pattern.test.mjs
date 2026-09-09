@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { resolveFieldRequirement } from "../app/ui/forms/form-field-state.ts";
+import { resolveFieldRequirement } from "../../app/ui/forms/form-field-state.ts";
 
-const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
+const read = (path) => readFile(new URL(`../../${path}`, import.meta.url), "utf8");
 
 const components = ["FormField", "FormSection", "FormErrorSummary", "Dialog", "DialogFooter"];
 

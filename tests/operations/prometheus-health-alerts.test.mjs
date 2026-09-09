@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 
-const rules = fs.readFileSync(new URL("../monitoring/prometheus-health-alerts.yml", import.meta.url), "utf8");
+const rules = fs.readFileSync(new URL("../../monitoring/prometheus-health-alerts.yml", import.meta.url), "utf8");
 
 const exportedMetrics = new Set([
   "portal_health_live",

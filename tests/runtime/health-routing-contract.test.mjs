@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 
-const schemaEntry = fs.readFileSync(new URL("../worker/schema-migrations-entry.ts", import.meta.url), "utf8");
-const gateway = fs.readFileSync(new URL("../scripts/freeipa-gateway.mjs", import.meta.url), "utf8");
-const dockerfile = fs.readFileSync(new URL("../Dockerfile", import.meta.url), "utf8");
+const schemaEntry = fs.readFileSync(new URL("../../worker/schema-migrations-entry.ts", import.meta.url), "utf8");
+const gateway = fs.readFileSync(new URL("../../scripts/freeipa-gateway.mjs", import.meta.url), "utf8");
+const dockerfile = fs.readFileSync(new URL("../../Dockerfile", import.meta.url), "utf8");
 
 test("health dispatch is outside schema, maintenance and authentication gates", () => {
   assert.equal(schemaEntry.includes('import { handleHealthRequest } from "./health-contracts.ts"'), true);

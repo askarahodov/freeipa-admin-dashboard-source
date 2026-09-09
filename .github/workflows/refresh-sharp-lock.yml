@@ -6,20 +6,25 @@ on:
       - security/sharp-0.35.4
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   refresh-lock:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: security/sharp-0.35.4
       - uses: actions/setup-node@v4
         with:
           node-version: 22.13.0
           cache: npm
       - run: npm install --package-lock-only --ignore-scripts
-      - uses: actions/upload-artifact@v4
-        with:
-          name: refreshed-package-lock
-          path: package-lock.json
-          if-no-files-found: error
+      - name: Commit refreshed lock and remove generator
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm .github/workflows/refresh-sharp-lock.yml
+          git add package-lock.json .github/workflows/refresh-sharp-lock.yml
+          git commit -m "security: refresh sharp lockfile"
+          git push origin HEAD:security/sharp-0.35.4

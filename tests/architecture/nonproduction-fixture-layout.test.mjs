@@ -57,8 +57,8 @@ test("relocated Compose fixtures preserve repository-root resources", async () =
 
   assert.match(e2eCompose, /context: \.\.\/\.\./u);
   assert.match(e2eCompose, /\.\.\/\.\.\/\.env\.e2e/u);
-  assert.match(e2eCompose, /\.\.\/\.\.\/e2e\/freeipa-mock\.mjs/u);
-  assert.match(e2eCompose, /\.\.\/\.\.\/e2e\/xyops-mock\.mjs/u);
+  assert.match(e2eCompose, /\.\.\/\.\.\/e2e\/fixtures\/freeipa-mock\.mjs/u);
+  assert.match(e2eCompose, /\.\.\/\.\.\/e2e\/fixtures\/xyops-mock\.mjs/u);
   assert.match(e2eCompose, /\.\.\/\.\.\/artifacts\/e2e\/playwright-report/u);
   assert.match(e2eCompose, /dockerfile: e2e\/Dockerfile/u);
 

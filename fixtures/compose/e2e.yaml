@@ -6,7 +6,7 @@ services:
       - ../../.env.e2e
     command: ["node", "/mock/freeipa-mock.mjs"]
     volumes:
-      - ../../e2e/freeipa-mock.mjs:/mock/freeipa-mock.mjs:ro
+      - ../../e2e/fixtures/freeipa-mock.mjs:/mock/freeipa-mock.mjs:ro
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:3901/health"]
       interval: 2s
@@ -24,7 +24,7 @@ services:
       - ../../.env.e2e
     command: ["node", "/mock/xyops-mock.mjs"]
     volumes:
-      - ../../e2e/xyops-mock.mjs:/mock/xyops-mock.mjs:ro
+      - ../../e2e/fixtures/xyops-mock.mjs:/mock/xyops-mock.mjs:ro
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O - \"$${XYOPS_URL}/health\""]
       interval: 2s

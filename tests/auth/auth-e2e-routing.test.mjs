@@ -39,6 +39,11 @@ test("integration domains route to their own browser suites", () => {
   assert.deepEqual(buildE2ETestPlan(["settings-service.ts"]).categories, ["settings"]);
 });
 
+test("canonical E2E fixture paths route to their integration owners", () => {
+  assert.deepEqual(categoriesForPath("e2e/fixtures/freeipa-mock.mjs"), ["freeipa"]);
+  assert.deepEqual(categoriesForPath("e2e/fixtures/xyops-mock.mjs"), ["xyops"]);
+});
+
 test("schema work runs schema contracts without unrelated browser suites", () => {
   const plan = buildE2ETestPlan(["db/portal-migrations.ts"]);
   assert.deepEqual(plan.categories, []);

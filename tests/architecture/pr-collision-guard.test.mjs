@@ -6,9 +6,9 @@ import {
   analyzePullRequestCollisions,
   formatCollisionReport,
   isHighConflictPath,
-} from "../scripts/pr-collision-guard.mjs";
+} from "../../scripts/pr-collision-guard.mjs";
 
-const workflow = await readFile(new URL("../.github/workflows/pr-collision-guard.yml", import.meta.url), "utf8");
+const workflow = await readFile(new URL("../../.github/workflows/pr-collision-guard.yml", import.meta.url), "utf8");
 
 const openMainPr = (number, title, files) => ({ number, title, base: "main", state: "open", files });
 

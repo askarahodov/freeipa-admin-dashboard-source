@@ -6,10 +6,10 @@ const expectedCategories = ['auth', 'rbac', 'freeipa', 'xyops', 'settings', 'ui'
 
 test('test layout policy keeps local and CI discovery on the shared recursive owner', async () => {
   const [policy, ci, pkg, scope] = await Promise.all([
-    readFile(new URL('../docs/development/TEST_LAYOUT.md', import.meta.url), 'utf8'),
-    readFile(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8'),
-    readFile(new URL('../package.json', import.meta.url), 'utf8'),
-    readFile(new URL('../scripts/auth-e2e-scope.mjs', import.meta.url), 'utf8'),
+    readFile(new URL('../../docs/development/TEST_LAYOUT.md', import.meta.url), 'utf8'),
+    readFile(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8'),
+    readFile(new URL('../../package.json', import.meta.url), 'utf8'),
+    readFile(new URL('../../scripts/auth-e2e-scope.mjs', import.meta.url), 'utf8'),
   ]);
 
   assert.match(ci, /node scripts\/discover-node-tests\.mjs/u);

@@ -3,14 +3,14 @@ import { spawnSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { validateProductionEncryptionKey } from "../scripts/config-encryption-key.mjs";
+import { validateProductionEncryptionKey } from "../../scripts/config-encryption-key.mjs";
 
-const compose = await readFile(new URL("../compose.yaml", import.meta.url), "utf8");
-const testCompose = await readFile(new URL("../fixtures/compose/local-integration.yaml", import.meta.url), "utf8");
-const e2eCompose = await readFile(new URL("../fixtures/compose/e2e.yaml", import.meta.url), "utf8");
-const dockerfile = await readFile(new URL("../Dockerfile", import.meta.url), "utf8");
-const startup = await readFile(new URL("../scripts/start-worker.mjs", import.meta.url), "utf8");
-const envExample = await readFile(new URL("../.env.example", import.meta.url), "utf8");
+const compose = await readFile(new URL("../../compose.yaml", import.meta.url), "utf8");
+const testCompose = await readFile(new URL("../../fixtures/compose/local-integration.yaml", import.meta.url), "utf8");
+const e2eCompose = await readFile(new URL("../../fixtures/compose/e2e.yaml", import.meta.url), "utf8");
+const dockerfile = await readFile(new URL("../../Dockerfile", import.meta.url), "utf8");
+const startup = await readFile(new URL("../../scripts/start-worker.mjs", import.meta.url), "utf8");
+const envExample = await readFile(new URL("../../.env.example", import.meta.url), "utf8");
 
 const publishedComposeKey = "d0ee92e4c9b6b9e1282d4808ff08e03de28087b1b0b3b5f44198f7bdbe782ec5";
 const validHex = "7f6a5d4c3b2a1908ffeeddccbbaa99887766554433221100a1b2c3d4e5f60718";
@@ -51,8 +51,8 @@ test("startup exits immediately when CONFIG_ENCRYPTION_KEY is missing", () => {
   const env = { ...process.env };
   delete env.CONFIG_ENCRYPTION_KEY;
   delete env.PORTAL_RUNTIME_PROFILE;
-  const result = spawnSync(process.execPath, [new URL("../scripts/start-worker.mjs", import.meta.url).pathname], {
-    cwd: new URL("..", import.meta.url),
+  const result = spawnSync(process.execPath, [new URL("../../scripts/start-worker.mjs", import.meta.url).pathname], {
+    cwd: new URL("../..", import.meta.url),
     env,
     encoding: "utf8",
     timeout: 5000,

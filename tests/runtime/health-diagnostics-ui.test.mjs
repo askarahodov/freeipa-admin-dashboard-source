@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { handleHealthDiagnosticsRequest } from "../worker/health-diagnostics-ui.ts";
+import { handleHealthDiagnosticsRequest } from "../../worker/health-diagnostics-ui.ts";
 
 async function text(response) {
   return await response.text();

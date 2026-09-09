@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { openNodeSqliteDriver } from "../runtime/node-sqlite-driver.mjs";
+import { openNodeSqliteDriver } from "../../runtime/node-sqlite-driver.mjs";
 
 async function withDatabasePath(run) {
   const directory = await mkdtemp(join(tmpdir(), "portal-node-sqlite-"));

@@ -4,7 +4,7 @@ import test from "node:test";
 import {
   configureSqliteRuntimeDatabase,
   resolvePortalDatabasePath,
-} from "../runtime/sqlite-runtime-store.mjs";
+} from "../../runtime/sqlite-runtime-store.mjs";
 
 test("production database defaults to the explicit /data persistence boundary", () => {
   assert.equal(resolvePortalDatabasePath({}), "/data/portal.sqlite");

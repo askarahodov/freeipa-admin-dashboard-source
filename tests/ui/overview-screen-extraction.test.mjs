@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-const page = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
-const overview = readFileSync(new URL("../app/overview/LegacyOverview.tsx", import.meta.url), "utf8");
+const page = readFileSync(new URL("../../app/page.tsx", import.meta.url), "utf8");
+const overview = readFileSync(new URL("../../app/overview/LegacyOverview.tsx", import.meta.url), "utf8");
 
 test("Home delegates legacy Overview presentation to a screen component", () => {
   assert.match(page, /from\s+["']\.\/overview\/LegacyOverview["']/u);

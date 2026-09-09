@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { createD1SqliteAdapter } from "../runtime/d1-sqlite-adapter.mjs";
-import { openNodeSqliteDriver } from "../runtime/node-sqlite-driver.mjs";
+import { createD1SqliteAdapter } from "../../runtime/d1-sqlite-adapter.mjs";
+import { openNodeSqliteDriver } from "../../runtime/node-sqlite-driver.mjs";
 
 test("built-in Node SQLite satisfies the narrow D1 adapter contract", async () => {
   const directory = await mkdtemp(join(tmpdir(), "portal-node-d1-"));

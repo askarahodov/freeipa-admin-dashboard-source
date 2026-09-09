@@ -4,9 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { ensurePortalSchema, inspectPortalSchema } from "../db/portal-migrations.ts";
-import { createD1SqliteAdapter } from "../runtime/d1-sqlite-adapter.mjs";
-import { openNodeSqliteDriver } from "../runtime/node-sqlite-driver.mjs";
+import { ensurePortalSchema, inspectPortalSchema } from "../../db/portal-migrations.ts";
+import { createD1SqliteAdapter } from "../../runtime/d1-sqlite-adapter.mjs";
+import { openNodeSqliteDriver } from "../../runtime/node-sqlite-driver.mjs";
 
 test("Node SQLite boots and reopens the canonical portal schema", async () => {
   const directory = await mkdtemp(join(tmpdir(), "portal-node-schema-"));

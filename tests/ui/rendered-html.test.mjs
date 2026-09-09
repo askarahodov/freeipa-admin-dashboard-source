@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { markSchemaTestBypass } from "../worker/schema-migrations-boundary.ts";
+import { markSchemaTestBypass } from "../../worker/schema-migrations-boundary.ts";
 
 const developmentPreviewMeta =
   /<meta(?=[^>]*\bname=["']codex-preview["'])(?=[^>]*\bcontent=["']development["'])[^>]*>/i;
 
 test("renders development preview metadata", async () => {
-  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+  const workerUrl = new URL("../../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
   const { default: worker } = await import(workerUrl.href);
 
@@ -35,7 +35,7 @@ test("renders development preview metadata", async () => {
 });
 
 test("serves generated automation and portal routes through the application shell", async () => {
-  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+  const workerUrl = new URL("../../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("routes", `${process.pid}-${Date.now()}`);
   const { default: worker } = await import(workerUrl.href);
   const env = markSchemaTestBypass({

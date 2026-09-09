@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 
-const read = (path) => fs.readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+const read = (path) => fs.readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
 const canonicalName = "Admin Dashboard Softrust";
 const legacyDisplayName = "FreeIPA Admin Dashboard";
 

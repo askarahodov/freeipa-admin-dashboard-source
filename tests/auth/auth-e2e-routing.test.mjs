@@ -14,21 +14,21 @@ test("documentation-only changes do not trigger browser E2E", () => {
 test("ordinary UI changes run UI coverage but not unrelated RBAC or integrations", () => {
   const plan = buildE2ETestPlan(["app/icons.tsx"]);
   assert.deepEqual(plan.categories, ["ui"]);
-  assert.deepEqual(plan.browserSpecs, ["specs/ui-quality.spec.mjs"]);
+  assert.deepEqual(plan.browserSpecs, ["specs/ui/ui-quality.spec.mjs"]);
 });
 
 test("authentication changes select authentication coverage", () => {
   assert.deepEqual(categoriesForPath("src/auth/local-auth.ts"), ["auth"]);
   assert.deepEqual(categoriesForPath("src/auth/local-session-management.ts"), ["auth"]);
   assert.deepEqual(categoriesForPath("src/auth/admin-session-authorization.ts"), ["auth", "rbac"]);
-  assert.deepEqual(buildE2ETestPlan(["app/login/page.tsx"]).browserSpecs, ["specs/auth.spec.mjs", "specs/ui-quality.spec.mjs"]);
+  assert.deepEqual(buildE2ETestPlan(["app/login/page.tsx"]).browserSpecs, ["specs/auth/auth.spec.mjs", "specs/ui/ui-quality.spec.mjs"]);
 });
 
 test("RBAC changes select only RBAC coverage, including canonical auth contracts", () => {
   for (const path of ["src/auth/portal-permissions.ts", "src/auth/portal-route-contract.ts"]) {
     const plan = buildE2ETestPlan([path]);
     assert.deepEqual(plan.categories, ["rbac"], path);
-    assert.deepEqual(plan.browserSpecs, ["specs/rbac-user.spec.mjs", "specs/role-restrictions.spec.mjs"], path);
+    assert.deepEqual(plan.browserSpecs, ["specs/rbac/rbac-user.spec.mjs", "specs/rbac/role-restrictions.spec.mjs"], path);
   }
 });
 
@@ -50,6 +50,16 @@ test("E2E infrastructure changes deliberately run full coverage", () => {
   const plan = buildE2ETestPlan(["compose.e2e.yaml"]);
   assert.deepEqual(plan.categories, ["auth", "rbac", "freeipa", "xyops", "settings", "ui"]);
   assert.equal(plan.browserSpecs.length, 8);
+  for (const path of plan.browserSpecs) assert.match(path, /^specs\/(?:auth|rbac|freeipa|xyops|settings|ui)\/[^/]+\.spec\.mjs$/u);
+});
+
+test("canonical spec paths route back to their owning category", () => {
+  assert.deepEqual(categoriesForPath("e2e/specs/auth/auth.spec.mjs"), ["auth"]);
+  assert.deepEqual(categoriesForPath("e2e/specs/rbac/rbac-user.spec.mjs"), ["rbac"]);
+  assert.deepEqual(categoriesForPath("e2e/specs/freeipa/freeipa-crud.spec.mjs"), ["freeipa"]);
+  assert.deepEqual(categoriesForPath("e2e/specs/xyops/xyops-lifecycle.spec.mjs"), ["xyops"]);
+  assert.deepEqual(categoriesForPath("e2e/specs/settings/admin-session-settings.spec.mjs"), ["settings"]);
+  assert.deepEqual(categoriesForPath("e2e/specs/ui/ui-quality.spec.mjs"), ["ui"]);
 });
 
 test("workflow keeps a stable pull-request check and scopes only expensive coverage", () => {

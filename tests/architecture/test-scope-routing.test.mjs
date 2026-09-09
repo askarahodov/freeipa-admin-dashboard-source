@@ -11,9 +11,9 @@ test("mixed changes union affected categories without expanding to full suite", 
   const plan = buildE2ETestPlan(["src/auth/portal-permissions.ts", "xyops-client.ts"]);
   assert.deepEqual(plan.categories, ["rbac", "xyops"]);
   assert.deepEqual(plan.browserSpecs, [
-    "specs/rbac-user.spec.mjs",
-    "specs/role-restrictions.spec.mjs",
-    "specs/xyops-lifecycle.spec.mjs",
+    "specs/rbac/rbac-user.spec.mjs",
+    "specs/rbac/role-restrictions.spec.mjs",
+    "specs/xyops/xyops-lifecycle.spec.mjs",
   ]);
 });
 
@@ -38,8 +38,8 @@ test("root Dockerfile remains a full E2E runtime risk", () => {
 });
 
 test("test-only changes route to the category owned by that test", () => {
-  assert.deepEqual(buildE2ETestPlan(["e2e/specs/rbac-user.spec.mjs"]).categories, ["rbac"]);
-  assert.deepEqual(buildE2ETestPlan(["e2e/specs/ui-quality.spec.mjs"]).categories, ["ui"]);
+  assert.deepEqual(buildE2ETestPlan(["e2e/specs/rbac/rbac-user.spec.mjs"]).categories, ["rbac"]);
+  assert.deepEqual(buildE2ETestPlan(["e2e/specs/ui/ui-quality.spec.mjs"]).categories, ["ui"]);
 });
 
 test("domain directories do not create false browser categories for unrelated test filenames", () => {

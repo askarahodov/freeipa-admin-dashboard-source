@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
-import { stableErrorContracts, getStableErrorContract } from "../src/auth/stable-error-contract.ts";
+import { stableErrorContracts, getStableErrorContract } from "../../src/auth/stable-error-contract.ts";
 
 test("stable error registry has unique namespace/code ownership", () => {
   const seen = new Map();
@@ -34,7 +34,7 @@ test("registry lookup is namespace aware", () => {
 });
 
 test("ERROR_CODES reference contains every registered stable code", async () => {
-  const reference = await readFile(new URL("../docs/reference/ERROR_CODES.md", import.meta.url), "utf8");
+  const reference = await readFile(new URL("../../docs/reference/ERROR_CODES.md", import.meta.url), "utf8");
   for (const entry of stableErrorContracts) {
     assert.match(reference, new RegExp(`\\b${entry.code}\\b`), `missing ${entry.code} from ERROR_CODES.md`);
   }

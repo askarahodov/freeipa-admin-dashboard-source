@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { handleHealthRequest } from "../worker/health-contracts.ts";
+import { handleHealthRequest } from "../../worker/health-contracts.ts";
 
 const validEncryptionKey = "11".repeat(32);
 const gatewayUrl = "http://127.0.0.1:43123";

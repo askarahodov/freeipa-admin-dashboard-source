@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { handleHealthMetricsRequest } from "../worker/health-metrics.ts";
+import { handleHealthMetricsRequest } from "../../worker/health-metrics.ts";
 
 function json(payload, status = 200) {
   return new Response(JSON.stringify(payload), {

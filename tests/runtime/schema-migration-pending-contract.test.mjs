@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 
-import { handleHealthRequest } from "../worker/health-contracts.ts";
+import { handleHealthRequest } from "../../worker/health-contracts.ts";
 
 function pendingSchema() {
   return {
@@ -33,14 +33,14 @@ test("readiness reports exact controlled migration pending code", async () => {
 });
 
 test("schema gate continues to block every non-ready state and scheduled work", () => {
-  const source = fs.readFileSync(new URL("../worker/schema-migrations-entry.ts", import.meta.url), "utf8");
+  const source = fs.readFileSync(new URL("../../worker/schema-migrations-entry.ts", import.meta.url), "utf8");
   assert.equal(source.includes('schema.state !== "ready"'), true);
   assert.match(source, /if \(schema\.state !== "ready"\) return;/);
 });
 
 test("public schema type and production hardened runtime include pending and v5", () => {
-  const managedSource = fs.readFileSync(new URL("../db/portal-controlled-migrations.ts", import.meta.url), "utf8");
-  const hardenedSource = fs.readFileSync(new URL("../db/portal-migrations-hardened.ts", import.meta.url), "utf8");
+  const managedSource = fs.readFileSync(new URL("../../db/portal-controlled-migrations.ts", import.meta.url), "utf8");
+  const hardenedSource = fs.readFileSync(new URL("../../db/portal-migrations-hardened.ts", import.meta.url), "utf8");
   assert.match(managedSource, /ManagedPortalSchemaState = [^;]*"pending"/);
   assert.equal(hardenedSource.includes("portalMigrationsV5 as portalMigrations"), true);
   assert.equal(hardenedSource.includes("ensurePortalSchemaV5"), true);

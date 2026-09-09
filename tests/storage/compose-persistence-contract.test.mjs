@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const compose = await readFile(new URL("../compose.yaml", import.meta.url), "utf8");
-const dockerfile = await readFile(new URL("../Dockerfile", import.meta.url), "utf8");
-const sqliteStore = await readFile(new URL("../runtime/sqlite-runtime-store.mjs", import.meta.url), "utf8");
+const compose = await readFile(new URL("../../compose.yaml", import.meta.url), "utf8");
+const dockerfile = await readFile(new URL("../../Dockerfile", import.meta.url), "utf8");
+const sqliteStore = await readFile(new URL("../../runtime/sqlite-runtime-store.mjs", import.meta.url), "utf8");
 
 test("Compose persists the canonical production SQLite data directory", () => {
   assert.match(dockerfile, /PORTAL_DATA_DIR=\/data/u);

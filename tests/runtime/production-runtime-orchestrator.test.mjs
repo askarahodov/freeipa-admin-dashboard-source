@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { startProductionRuntime } from "../runtime/production-runtime.mjs";
+import { startProductionRuntime } from "../../runtime/production-runtime.mjs";
 
 function fakeShutdownCoordinator(options, events) {
   return {

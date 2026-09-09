@@ -7,7 +7,7 @@ import test from "node:test";
 import {
   createExecutionContext,
   createStaticAssetsFetcher,
-} from "../scripts/node-runtime-http.mjs";
+} from "../../scripts/node-runtime-http.mjs";
 
 test("execution context drains waitUntil work", async () => {
   const ctx = createExecutionContext();

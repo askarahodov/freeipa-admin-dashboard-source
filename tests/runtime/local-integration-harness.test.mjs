@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { assertMutationAllowed, createTestNames, parseBoolean, parseDotEnv, parseJson, redact } from "../scripts/local-integration-smoke.mjs";
+import { assertMutationAllowed, createTestNames, parseBoolean, parseDotEnv, parseJson, redact } from "../../scripts/local-integration-smoke.mjs";
 
 test("parses local test environment values without executing shell syntax", () => {
   const parsed = parseDotEnv(`

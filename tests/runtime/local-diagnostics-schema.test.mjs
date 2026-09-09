@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 
-import { publicPortalSchemaStatus } from "../db/portal-migrations.ts";
+import { publicPortalSchemaStatus } from "../../db/portal-migrations.ts";
 
-const diagnosticsUrl = new URL("../worker/diagnostics-entry.ts", import.meta.url);
+const diagnosticsUrl = new URL("../../worker/diagnostics-entry.ts", import.meta.url);
 const source = fs.readFileSync(diagnosticsUrl, "utf8");
 
 test("local admin diagnostics include sanitized migration readiness", () => {

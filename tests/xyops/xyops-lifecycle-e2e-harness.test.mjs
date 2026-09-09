@@ -11,7 +11,7 @@ function syntaxCheck(url) {
 }
 
 test("XYOps lifecycle E2E harness is isolated and covers approval, cancellation and results", async () => {
-  const mockUrl = new URL("../../e2e/xyops-mock.mjs", import.meta.url);
+  const mockUrl = new URL("../../e2e/fixtures/xyops-mock.mjs", import.meta.url);
   const specUrl = new URL("../../e2e/specs/xyops/xyops-lifecycle.spec.mjs", import.meta.url);
   const [compose, env, mock, spec] = await Promise.all([
     readFile(new URL("../../fixtures/compose/e2e.yaml", import.meta.url), "utf8"),

@@ -27,8 +27,8 @@ const fullRiskPaths = new Set([
 const categoryRules = Object.freeze([
   ["auth", /^(?:src\/auth\/(?:local-auth|local-session-management|admin-session-authorization)\.ts|app\/login\/.*|worker\/local-secure-entry\.ts|e2e\/specs\/auth\/auth\.spec\.mjs|tests\/.*auth.*\.(?:mjs|ts))$/u],
   ["rbac", /^(?:src\/auth\/(?:portal-permissions|portal-route-contract|admin-session-authorization)\.ts|app\/access\/.*|e2e\/specs\/rbac\/(?:rbac-user|role-restrictions)\.spec\.mjs|tests\/.*(?:rbac|permission|role).*\.(?:mjs|ts))$/u],
-  ["freeipa", /^(?:freeipa[^/]*\.(?:ts|tsx|mjs|js)|app\/(?:FreeIpa[^/]*|(?:users|groups)\/.*)|e2e\/(?:freeipa-mock\.mjs|specs\/freeipa\/freeipa-crud\.spec\.mjs)|tests\/.*freeipa.*\.(?:mjs|ts))$/u],
-  ["xyops", /^(?:xyops[^/]*\.(?:ts|tsx|mjs|js)|operation[^/]*\.(?:ts|tsx|mjs|js)|approval[^/]*\.(?:ts|tsx|mjs|js)|src\/operations\/.*\.(?:ts|tsx|mjs|js)|app\/(?:(?:Operation|Approval)[^/]*|(?:operations|approvals)\/.*)|e2e\/(?:xyops-mock\.mjs|specs\/xyops\/xyops-lifecycle\.spec\.mjs)|tests\/(?:[^/]+\/)*[^/]*(?:xyops|operation|approval)[^/]*\.(?:mjs|ts))$/u],
+  ["freeipa", /^(?:freeipa[^/]*\.(?:ts|tsx|mjs|js)|app\/(?:FreeIpa[^/]*|(?:users|groups)\/.*)|e2e\/(?:fixtures\/freeipa-mock\.mjs|specs\/freeipa\/freeipa-crud\.spec\.mjs)|tests\/.*freeipa.*\.(?:mjs|ts))$/u],
+  ["xyops", /^(?:xyops[^/]*\.(?:ts|tsx|mjs|js)|operation[^/]*\.(?:ts|tsx|mjs|js)|approval[^/]*\.(?:ts|tsx|mjs|js)|src\/operations\/.*\.(?:ts|tsx|mjs|js)|app\/(?:(?:Operation|Approval)[^/]*|(?:operations|approvals)\/.*)|e2e\/(?:fixtures\/xyops-mock\.mjs|specs\/xyops\/xyops-lifecycle\.spec\.mjs)|tests\/(?:[^/]+\/)*[^/]*(?:xyops|operation|approval)[^/]*\.(?:mjs|ts))$/u],
   ["settings", /^(?:settings[^/]*\.(?:ts|tsx|mjs|js)|worker\/settings[^/]*\.(?:ts|mjs)|app\/(?:Settings[^/]*|settings\/.*)|e2e\/specs\/settings\/(?:admin-session-settings|zz-settings-draft-lifecycle)\.spec\.mjs|tests\/.*settings.*\.(?:mjs|ts))$/u],
   ["ui", /^(?:app\/.*\.(?:tsx|css|js)|e2e\/specs\/ui\/ui-quality\.spec\.mjs|tests\/.*(?:ui|accessibility|responsive).*\.(?:mjs|ts))$/u],
 ]);

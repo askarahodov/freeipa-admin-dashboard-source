@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { access, readFile } from "node:fs/promises";
 import test from "node:test";
 
-const rootUrl = new URL("../", import.meta.url);
+const rootUrl = new URL("../../", import.meta.url);
 
 async function exists(path) {
   try {

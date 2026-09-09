@@ -25,7 +25,7 @@ test("active navigation and source-reading contract resolve approval gates to in
   const integrationsIndex = text("docs/integrations/README.md");
   const docsIndex = text("docs/README.md");
   const inventory = text("docs/DOCUMENTATION_INVENTORY.md");
-  const agentContract = text("tests/ai-agent-workflow-contract.test.mjs");
+  const agentContract = text("tests/architecture/ai-agent-workflow-contract.test.mjs");
 
   assert.match(integrationsIndex, /\[`APPROVAL_GATES\.md`\]\(APPROVAL_GATES\.md\)/);
   assert.match(docsIndex, /\[`APPROVAL_GATES\.md`\]\(integrations\/APPROVAL_GATES\.md\)/);

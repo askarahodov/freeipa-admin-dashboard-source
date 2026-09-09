@@ -15,7 +15,7 @@ const requiredKeys = [
 ];
 
 test("Docker Worker startup forwards all local authentication settings", async () => {
-  const source = await readFile(new URL("../scripts/start-worker.mjs", import.meta.url), "utf8");
+  const source = await readFile(new URL("../../scripts/start-worker.mjs", import.meta.url), "utf8");
 
   for (const key of requiredKeys) {
     assert.match(source, new RegExp(`\\"${key}\\"`), `${key} must be forwarded to the Wrangler env file`);

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createWorkerScheduler } from "../runtime/worker-scheduler.mjs";
+import { createWorkerScheduler } from "../../runtime/worker-scheduler.mjs";
 
 test("worker scheduler calls existing scheduled export with controller and env", async () => {
   const calls = [];

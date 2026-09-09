@@ -7,9 +7,9 @@ import test from "node:test";
 import {
   loadWorkerArtifact,
   startNodeWorkerHost,
-} from "../scripts/node-worker-host.mjs";
+} from "../../scripts/node-worker-host.mjs";
 
-const hostSource = await readFile(new URL("../scripts/node-worker-host.mjs", import.meta.url), "utf8");
+const hostSource = await readFile(new URL("../../scripts/node-worker-host.mjs", import.meta.url), "utf8");
 
 test("candidate host loads the immutable Worker artifact directly", () => {
   assert.match(hostSource, /dist\/server\/index\.js/u);

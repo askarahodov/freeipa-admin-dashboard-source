@@ -34,10 +34,10 @@ const categoryRules = Object.freeze([
 ]);
 
 const schemaContractTests = [
-  "tests/portal/portal-schema-inventory.test.mjs",
-  "tests/portal/portal-schema-migrations.test.mjs",
-  "tests/portal/portal-schema-review-hardening.test.mjs",
-  "tests/portal/portal-schema-boundary.test.mjs",
+  "tests/storage/portal-schema-inventory.test.mjs",
+  "tests/storage/portal-schema-migrations.test.mjs",
+  "tests/storage/portal-schema-review-hardening.test.mjs",
+  "tests/storage/portal-schema-boundary.test.mjs",
   "tests/runtime/local-diagnostics-schema.test.mjs",
 ];
 const settingsContractTests = [

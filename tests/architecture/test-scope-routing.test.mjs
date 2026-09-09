@@ -27,7 +27,7 @@ test("database-only changes select schema contracts without browser categories",
   const plan = buildE2ETestPlan(["db/portal-migrations.ts"]);
   assert.deepEqual(plan.categories, []);
   assert.deepEqual(plan.browserSpecs, []);
-  assert.ok(plan.contractTests.includes("tests/portal/portal-schema-migrations.test.mjs"));
+  assert.ok(plan.contractTests.includes("tests/storage/portal-schema-migrations.test.mjs"));
   assert.ok(plan.contractTests.includes("tests/runtime/local-diagnostics-schema.test.mjs"));
   assert.equal(plan.contractTests.includes("tests/local-diagnostics-schema.test.mjs"), false);
 });

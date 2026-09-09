@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 
-const schemaEntry = fs.readFileSync(new URL("../worker/schema-migrations-entry.ts", import.meta.url), "utf8");
-const dockerfile = fs.readFileSync(new URL("../Dockerfile", import.meta.url), "utf8");
+const schemaEntry = fs.readFileSync(new URL("../../worker/schema-migrations-entry.ts", import.meta.url), "utf8");
+const dockerfile = fs.readFileSync(new URL("../../Dockerfile", import.meta.url), "utf8");
 
 test("metrics dispatch precedes ordinary schema, maintenance and authentication gates", () => {
   assert.equal(schemaEntry.includes('import { handleHealthMetricsRequest } from "./health-metrics.ts"'), true);

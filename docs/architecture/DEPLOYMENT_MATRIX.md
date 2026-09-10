@@ -24,6 +24,23 @@ This document describes the deployment modes that are supported by the current r
 | SQLite database path outside `PORTAL_DATA_DIR` | **Unsupported** | `runtime/sqlite-runtime-store.mjs` | `PORTAL_DATABASE_PATH`, when set, must remain inside `PORTAL_DATA_DIR`. |
 | Arbitrary writable source-tree runtime | **Unsupported** | Multi-stage production `Dockerfile` | Production is expected to run the built artifact and runtime dependencies, not a mutable source checkout or interactive build server. |
 
+## Launcher command contract
+
+Package-script names distinguish production from development runtimes explicitly:
+
+| Command | Contract | Notes |
+| --- | --- | --- |
+| `npm start` | **Production** | Alias for `npm run start:production`. Requires the built Worker/client artifacts and production configuration; Docker Compose remains the normal self-hosted production path. |
+| `npm run start:production` | **Production** | Starts the canonical Node runtime through `scripts/start-production.mjs`, matching the production `Dockerfile` entrypoint. |
+| `npm run dev` | **Development** | Starts the Vite development workflow. It is not a production deployment mode. |
+| `npm run start:vinext:dev` | **Development** | Starts the Vinext development/runtime tooling explicitly. It is not the production Node runtime. |
+| `npm run start:worker:dev` | **Legacy development** | Starts `scripts/start-worker.mjs`, which uses local Wrangler persistence under `.wrangler`. Use only when that legacy local Worker runtime is intentionally required. |
+| `npm run start:docker` | **Deprecated compatibility alias** | Preserved for existing callers, but emits a warning and delegates to the legacy development Worker runtime. It is **not** the Docker production entrypoint. Migrate callers to an explicit production or development command. |
+
+The command name `start:docker` is retained only to avoid silently breaking unknown external automation. Production Docker/Compose continues to use the image `CMD` and `scripts/start-production.mjs`; it does not invoke `npm run start:docker`.
+
+Do not point the production runtime at `.wrangler` persistence. The canonical production persistence contract remains `PORTAL_DATA_DIR=/data` (default database `/data/portal.sqlite`), while `.wrangler` belongs to legacy/local development tooling.
+
 ## Production invariants
 
 The supported production contract currently assumes:

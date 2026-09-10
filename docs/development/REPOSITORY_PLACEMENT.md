@@ -24,7 +24,9 @@ When one of these files moves to its canonical owner, remove its exception in th
 
 ## Generated and cache artifacts
 
-Tracked paths containing known generated/cache segments such as `node_modules`, `.next`, `dist`, `coverage`, `artifacts`, `.wrangler`, `.vinext`, `.sites-runtime`, `out`, `outputs`, `work`, `playwright-report` or `test-results` are rejected. Generated files should remain untracked and be covered by `.gitignore` where appropriate.
+Tracked repository-level output directories such as `.next`, `.sites-runtime`, `.vinext`, `.wrangler`, `artifacts`, `coverage`, `dist`, `out`, `outputs`, `playwright-report`, `test-results` and `work` are rejected. Unambiguous generated/dependency directories such as `node_modules`, `.next`, `.sites-runtime`, `.vinext`, `.wrangler`, `playwright-report` and `test-results` are also rejected when nested below a package or application directory.
+
+Generic names such as `artifacts`, `work`, `out` and `outputs` are not treated as generated merely because they appear inside a source-owned domain path. For example, `src/recovery/artifacts/recovery-point.ts` is production source and is valid. This keeps the guard ownership-aware instead of classifying source code solely from a directory name.
 
 Intentional test data under `fixtures/`, `e2e/fixtures/` or `tests/fixtures/` is exempt from the generated-name check because fixtures are source-controlled test inputs rather than disposable runtime output.
 

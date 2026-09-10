@@ -76,6 +76,18 @@ function allowedMethodsForPath(pathname: string): readonly PortalRouteMethod[] {
   return Object.freeze(canonicalMethods.filter((method) => Boolean(matchPortalRoute(method, pathname))));
 }
 
+function negativeJsonResponse(response: Response, error: "Method not allowed" | "Not found"): Response {
+  const headers = new Headers(response.headers);
+  headers.set("content-type", "application/json; charset=utf-8");
+  headers.set("cache-control", "no-store");
+  headers.delete("content-length");
+  return new Response(JSON.stringify({ error }), {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
 /**
  * Resolves the HTTP application surface from canonical route metadata without
  * duplicating route patterns or changing current authorization/handler behavior.
@@ -121,6 +133,28 @@ export function resolvePortalApplicationRoute(request: Request): PortalApplicati
   }
 
   return Object.freeze({ kind: "framework", pathname });
+}
+
+/**
+ * Owns the outward negative API envelope only after the compatibility runtime
+ * has performed its existing maintenance/auth/authorization checks.
+ *
+ * A route classification never promotes an arbitrary downstream response to
+ * 404/405. Existing 401/403/409/429/5xx behavior therefore remains authoritative
+ * until the security composition moves in #629. Stable, supplemental and
+ * framework responses are always returned unchanged.
+ */
+export function finalizePortalApplicationResponse(
+  route: PortalApplicationRoute,
+  response: Response,
+): Response {
+  if (route.kind === "method-not-allowed" && response.status === 405) {
+    return negativeJsonResponse(response, "Method not allowed");
+  }
+  if (route.kind === "unknown-api" && response.status === 404) {
+    return negativeJsonResponse(response, "Not found");
+  }
+  return response;
 }
 
 /**

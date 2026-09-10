@@ -6,7 +6,7 @@ This document records the **current HTTP Worker composition** and the ownership 
 
 It is an ownership/integration map, not a second route registry. Exact stable method/path/auth/permission/mutation metadata remains canonical in `src/auth/portal-route-contract.ts`. `src/auth/portal-route-router.ts` is the canonical metadata-derived matcher; `src/auth/portal-route-security-plan.ts` derives security stages but does not itself enforce them. The #628 application router reuses that matcher rather than defining another set of route patterns.
 
-The original #627 inventory was verified against `main` at `60c162e0d2c71b3a4fc061f3dce1147e0a119fbd` on 2026-09-10. The current #628 composition checkpoint is based on `main` at `fc22e631b6163dd232475479a276cb0024c729ed`. Production-host/trusted-proxy concerns remain owned by #53 and stay outside this Worker refactor.
+The original #627 inventory was verified against `main` at `60c162e0d2c71b3a4fc061f3dce1147e0a119fbd` on 2026-09-10. The current #628 composition checkpoint builds on merged #648 at `95e1bef68b9a1efdeb2bb63cb881f24ae6a3da8b`. Production-host/trusted-proxy concerns remain owned by #53 and stay outside this Worker refactor.
 
 If code and this document disagree, current code/tests and the source-of-truth registry win. Revalidate the current branch and open PRs before using this inventory for an implementation slice.
 
@@ -47,7 +47,7 @@ HTTP application composition
 - the schema readiness gate for ordinary requests;
 - the same schema readiness boundary for `scheduled` execution.
 
-For downstream HTTP requests, `schema-migrations-entry.ts` now delegates to `worker/application.ts`. `application.ts` is the single explicit post-schema HTTP application composition point. It classifies the request through `worker/application-router.ts` and then delegates the original `Request`, environment and execution context to the existing compatibility runtime. At this checkpoint the classification is observable/testable but is **not yet authoritative** for authorization, handler selection, 404/405 responses or response shaping.
+For downstream HTTP requests, `schema-migrations-entry.ts` delegates to `worker/application.ts`. `application.ts` is the single explicit post-schema HTTP application composition point. It classifies the request through `worker/application-router.ts` and delegates the original `Request`, environment and execution context to the existing compatibility runtime. The compatibility runtime remains authoritative for maintenance, authentication, authorization, stable-route handler selection and the status decision. For negative classifications only, the application now owns the final outward JSON envelope **after** compatibility execution: a known method mismatch is normalized only when downstream already returned `405`, and an unknown `/api/**` route is normalized only when downstream already returned `404`. Other statuses are returned unchanged.
 
 ### Normal downstream wrapper graph
 
@@ -59,6 +59,7 @@ schema-migrations-entry.ts
   -> application-router.ts
        -> canonical match/classification
        -> compatibility dispatch
+       -> security-preserving negative response finalization
   -> maintenance-mode-root-entry.ts
   -> service-admin-root-entry.ts
   -> maintenance-control-root-entry.ts
@@ -86,7 +87,7 @@ The graph is not strictly linear. `settings-source-safe-entry.ts` chooses either
 
 The following groups cover every stable route contract present in `portalRouteContracts` at the evidence checkpoint. The identifiers are repeated here only to prove inventory coverage; method/path/security metadata must still be read from the canonical contract rather than maintained independently in this document.
 
-`tests/auth/portal-application-router.test.mjs` now materializes every current canonical route pattern and proves that the explicit application router resolves it back to the same route id. This is classification parity only: current wrappers/handlers remain the runtime enforcement owners until later #628 cutover slices.
+`tests/auth/portal-application-router.test.mjs` materializes every current canonical route pattern and proves that the explicit application router resolves it back to the same route id. It also proves that negative response finalization cannot promote successful, authentication, authorization, conflict, rate-limit or maintenance responses into routing errors. Current wrappers/handlers remain the runtime enforcement owners until later route-family cutovers.
 
 ### Infrastructure and schema
 
@@ -160,7 +161,7 @@ The table intentionally names persistence/domain owners rather than duplicating 
 
 ## Maintenance and recovery gate semantics
 
-`worker/application.ts` delegates HTTP classification results to `worker/maintenance-mode-root-entry.ts`, which wraps the downstream compatibility runtime with `handleMaintenanceGate`. The router does not currently short-circuit that gate.
+`worker/application.ts` delegates classified HTTP requests through `worker/maintenance-mode-root-entry.ts`, which wraps the downstream compatibility runtime with `handleMaintenanceGate`. Negative response finalization happens only after the complete compatibility call returns, so the router cannot short-circuit this gate or replace a maintenance `503` with `404/405`.
 
 Current behavior is fail-closed when maintenance state cannot be read. Ordinary `/api/**` traffic is rejected while maintenance is active. The following classes are intentionally reachable through the maintenance boundary so recovery can be controlled and diagnosed:
 
@@ -185,7 +186,7 @@ The stable route registry is intentionally not a universal inventory of every st
 | `/_vinext/image` | `worker/index.ts` | Vinext image optimization adapter | classified as `vinext-image`; Vinext owner remains handler |
 | HTML application routes and ordinary static/RSC fallback | `worker/index.ts` -> Vinext handler | UI hosting / route-to-root compatibility behavior | classified as `framework`; preserve through #628 and move only under #635 |
 
-A route missing from `portalRouteContracts` is **not automatically a bug**. Infrastructure/static routes have different ownership. `worker/application-router.ts` now classifies the known supplemental surfaces explicitly, but classification alone does not move their handlers or security behavior.
+A route missing from `portalRouteContracts` is **not automatically a bug**. Infrastructure/static routes have different ownership. `worker/application-router.ts` classifies the known supplemental surfaces explicitly, but classification alone does not move their handlers or security behavior.
 
 ## Hidden adaptation and coupling that must be retired only after parity
 
@@ -234,17 +235,19 @@ Static/RSC/application assets are ultimately served by the Vinext handler in `wo
 
 ## Current #628 application-composition checkpoint
 
-The first Phase #628 slice now establishes **one application composition point** in `worker/**`:
+The current Phase #628 slices establish **one application composition point** in `worker/**` plus a security-preserving negative response finalizer:
 
 1. `schema-migrations-entry.ts` remains the built entry and preserves infrastructure routes plus schema readiness before ordinary application dispatch;
 2. `application.ts` is the single post-schema HTTP composition entry;
 3. `application-router.ts` matches stable API metadata through the existing `portal-route-router.ts` and explicitly classifies known-path method mismatches, supplemental surfaces, unknown `/api/**` paths and framework traffic;
-4. classification is passed to an injected compatibility dispatcher without mutating `Request`, environment or execution context;
-5. the existing maintenance/service-admin/local-session/settings/FreeIPA/operations/recovery wrappers remain authoritative for security enforcement, handler selection and current 404/405 responses;
-6. framework/static/RSC paths still reach the existing Vinext owner;
-7. `scheduled` wiring stays explicit and separate from HTTP classification.
+4. classification is passed to the compatibility dispatcher without mutating `Request`, environment or execution context;
+5. the existing maintenance/service-admin/local-session/settings/FreeIPA/operations/recovery wrappers remain authoritative for security enforcement, handler selection and the status they return;
+6. after compatibility execution, `application-router.ts` canonicalizes only matching negative outcomes: `method-not-allowed + downstream 405` to `{ "error": "Method not allowed" }`, and `unknown-api + downstream 404` to `{ "error": "Not found" }`, preserving non-content headers and `cache-control: no-store`;
+7. the finalizer never promotes `401`, `403`, legacy `404` for a method mismatch, `409`, `429`, `5xx`, success, stable, supplemental or framework responses into a routing error;
+8. framework/static/RSC paths still reach the existing Vinext owner;
+9. `scheduled` wiring stays explicit and separate from HTTP classification.
 
-This checkpoint deliberately does **not** make method mismatch or unknown-API classifications authoritative yet. That cutover requires representative current-response parity and negative auth proof. It also does not register individual domain handlers directly; those can migrate incrementally only after the compatibility behavior for their route family is proven.
+This checkpoint deliberately does **not** move the 404/405 **status decision** ahead of compatibility security. Doing so before #629 would bypass existing local-session/service-admin/same-origin/maintenance ordering for protected wrong-method requests. After #629 makes security composition explicit, a later cut can decide whether negative routes may short-circuit safely. Individual domain handlers also remain compatibility-owned until their route-family parity is proven.
 
 The durable target and constraints remain captured in `docs/adr/ADR-0008-explicit-worker-application-composition.md`; ADR-0008 remains Proposed until the broader cutover evidence exists.
 
@@ -268,7 +271,7 @@ Before any existing wrapper becomes bypassable or removable, Phase #628 must dem
 - representative negative tests cover anonymous, viewer, operator, admin and service-admin access;
 - `npm run lint`, `npm run build`, the complete discovered Node/server suite, documentation checks and current risk-routed CI/E2E checks are green.
 
-The current checkpoint directly proves canonical stable-route classification, known-path method classification, supplemental/unknown/framework classification, unchanged compatibility-dispatch inputs, and source-level schema/application/maintenance ancestry. Authorization and handler-response parity continues to be proven by the existing full suite until later route-family cutovers add narrower direct dispatch tests.
+The current checkpoint directly proves canonical stable-route classification, known-path method classification, supplemental/unknown/framework classification, unchanged compatibility-dispatch inputs, security-preserving finalization for downstream 404/405 responses, preservation of non-content maintenance/correlation headers, and source-level schema/application/maintenance ancestry. Authorization and stable handler-response parity continues to be proven by the existing full suite until later route-family cutovers add narrower direct dispatch tests.
 
 ## Confirmed risks and intentional unknowns
 
@@ -281,11 +284,11 @@ The following are confirmed migration risks:
 - `worker/index.ts` combines framework hosting and several independent integration/operation domains;
 - infrastructure/static surfaces are not all represented in the stable API metadata registry.
 
-Remaining questions for later #628 slices must be answered from tests/current code rather than assumed:
+Remaining questions for later #628/#629 slices must be answered from tests/current code rather than assumed:
 
 - which route family can safely become authoritative in explicit dispatch first without bypassing a compatibility wrapper that still owns unique semantics;
 - whether each supplemental infrastructure API belongs in canonical stable route metadata or should remain a separate infrastructure classification owned by application composition;
-- the exact preserved 404/405 response contract for overlapping dynamic/static paths before central classification becomes response-authoritative;
+- when the negative **status decision** can move before compatibility dispatch without exposing route existence or bypassing existing auth/maintenance behavior;
 - the smallest handler registration API that avoids a new framework/DI/container dependency.
 
 ## Verification sources

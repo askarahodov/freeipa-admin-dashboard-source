@@ -10,14 +10,13 @@ import { startNodeWorkerHost } from "../../scripts/node-worker-host.mjs";
 const trustedEnv = {
   PORTAL_CLIENT_IP_SOURCE: "trusted-proxy",
   PORTAL_TRUSTED_PROXY_SECRET: "test-proxy-secret",
-  PORTAL_TRUSTED_PROXY_ADDRESSES: "127.0.0.1",
 };
 
 function headers(values = {}) {
   return Object.fromEntries(Object.entries(values).map(([key, value]) => [key.toLowerCase(), value]));
 }
 
-test("trusted proxy scheme requires configured mode, source and secret", () => {
+test("trusted proxy scheme requires configured mode, loopback source and secret", () => {
   assert.equal(resolveTrustedRequestProtocol({
     headers: headers({ "x-forwarded-proto": "https", "x-portal-proxy-secret": "test-proxy-secret" }),
     remoteAddress: "127.0.0.1",
@@ -26,7 +25,7 @@ test("trusted proxy scheme requires configured mode, source and secret", () => {
 
   assert.equal(resolveTrustedRequestProtocol({
     headers: headers({ "x-forwarded-proto": "https", "x-portal-proxy-secret": "test-proxy-secret" }),
-    remoteAddress: "127.0.0.2",
+    remoteAddress: "10.0.0.12",
     env: trustedEnv,
   }), "http");
 
@@ -48,7 +47,7 @@ test("trusted proxy scheme accepts only a single supported forwarded protocol", 
   assert.equal(resolveTrustedRequestProtocol({ ...base, headers: headers({ "x-forwarded-proto": "ftp", "x-portal-proxy-secret": "test-proxy-secret" }) }), "http");
 });
 
-test("Node host exposes https origin only for the authenticated allowlisted proxy", async () => {
+test("Node host exposes https origin only for the authenticated loopback proxy", async () => {
   const root = await mkdtemp(join(tmpdir(), "portal-trusted-proxy-"));
   const worker = {
     async fetch(request) {

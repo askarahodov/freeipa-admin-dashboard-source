@@ -36,9 +36,9 @@ For system behavior and trust/data flows, read [`ARCHITECTURE.md`](ARCHITECTURE.
 
 ### Frontend presentation
 
-Shared tokens and reusable primitives live under `app/styles/`, `app/ui/` and `app/shell/`. Product screens have been progressively extracted from the former monolithic page composition, so historical statements that `app/page.tsx` owns every primary screen are not a safe current-state rule.
+Shared tokens and reusable primitives live under `app/styles/`, `app/ui/` and `app/shell/`. Recent merged UI architecture work has extracted additional Home, Users and Groups presentation responsibilities out of the former monolithic composition. Treat the current `app/` tree and UI tests as authoritative when deciding which screen or component owns a change; historical statements that all primary presentation remains in `app/page.tsx` are no longer a safe current-state rule.
 
-Before changing a screen, inspect the current `app/` tree and its tests. Reuse an existing primitive or shell owner before introducing a new visual or interaction pattern.
+Before changing a screen, inspect the current `app/` tree and its tests. Reuse an existing primitive or shell owner before introducing a new visual or interaction pattern. Do not assume `app/page.tsx` still owns a surface that has been extracted into a dedicated module.
 
 ### Production runtime
 

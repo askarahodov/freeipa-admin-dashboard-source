@@ -52,6 +52,14 @@ The supported production contract currently assumes:
 5. production configuration and secrets follow `docs/reference/CONFIGURATION.md` and the dedicated security runbooks;
 6. health, migration, recovery and persistence behavior is validated by repository tests rather than inferred from historical issues or plans.
 
+## Image packaging dependencies
+
+The final production runtime image intentionally does **not** ship the repository `node_modules` tree. The production host graph is Node built-ins plus repository-owned modules, and the generated Worker artifact must report no external runtime packages in `dist/server/vinext-externals.json`. Package and lock metadata remain part of the build/audit/SBOM workflow even though the installed project dependency tree is not copied into the final image.
+
+The recovery image likewise does not ship project `node_modules`. It retains `sqlite3` because offline recovery performs SQLite integrity and data operations through the CLI, `util-linux` because recovery uses `flock` for exclusive locking, and `ca-certificates` for outbound TLS verification where recovery verification requires HTTPS. Both runtime and recovery remain Node 22 images because their entrypoints execute repository JavaScript/TypeScript directly.
+
+Local recovery artifact and secret roots (`./recovery` and `./recovery-secrets` by default) are host-side operational state, not image inputs. `.dockerignore` excludes those roots together with local environment files, development/runtime caches, dependency trees and generated output directories. The tracked environment example files remain explicit exceptions where the repository requires them as documentation/test inputs.
+
 ## Known deployment limitations
 
 The current supported Compose path still uses host networking. This is a known deployment-hardening limitation owned by #52. A limitation being documented here does not make alternative, untested network topologies automatically supported.

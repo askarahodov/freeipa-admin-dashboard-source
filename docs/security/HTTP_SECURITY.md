@@ -19,7 +19,7 @@ The Node production host enforces these response headers:
 
 These values are host-owned. If a Worker response supplies a weaker value for one of these headers, the Node boundary replaces it with the canonical value before sending the response. The host-owned permissions baseline is intentionally at least as restrictive as the pre-existing `/diagnostics/health` policy, so centralization does not re-enable `payment` or `usb` there.
 
-The baseline applies to normal Worker/API responses and static assets written through `writeWebResponse()`. Host-level runtime failures and shutdown-unavailable responses use the same policy helper so those paths do not silently lose the baseline.
+The baseline applies to normal Worker/API responses, Worker-produced download/file responses, and static assets written through `writeWebResponse()`. Existing download-specific headers such as `Content-Disposition`, `Content-Type`, and cache controls are preserved because the host only replaces the four baseline security-header names. Host-level runtime failures and shutdown-unavailable responses use the same policy helper so those paths do not silently lose the baseline.
 
 ## What is not implemented by this baseline
 

@@ -16,12 +16,16 @@ export function runRecoveryTestFiles(tests, options = {}) {
     throw new Error('No recovery Node test files selected');
   }
 
+  const childEnv = { ...process.env, ...(options.env ?? {}) };
+  delete childEnv.NODE_TEST_CONTEXT;
+
   const result = spawnSync(
     options.nodePath ?? process.execPath,
     ['--experimental-strip-types', '--test', ...tests],
     {
       cwd: options.cwd ?? process.cwd(),
       stdio: options.stdio ?? 'inherit',
+      env: childEnv,
     },
   );
 

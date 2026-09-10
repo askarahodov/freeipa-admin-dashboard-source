@@ -1,6 +1,6 @@
 import { isPortalRole, portalRolePermissions, type PortalPermission, type PortalRole } from "./portal-permissions.ts";
 
-export type PortalAuthMode = "anonymous" | "local-session" | "service-admin" | "proxy" | "static";
+export type PortalAuthMode = "anonymous" | "local-session" | "service-admin" | "proxy" | "static" | "workspace";
 
 export type PortalRequestContext = Readonly<{
   correlationId: string;
@@ -15,12 +15,12 @@ type PortalRequestContextInput = {
   correlationId: string;
   identity: string;
   role: PortalRole;
-  groups?: Iterable<string>;
-  permissions?: Iterable<PortalPermission>;
+  groups?: readonly string[] | ReadonlySet<string>;
+  permissions?: readonly PortalPermission[] | ReadonlySet<PortalPermission>;
   authMode: PortalAuthMode;
 };
 
-const portalAuthModes = new Set<PortalAuthMode>(["anonymous", "local-session", "service-admin", "proxy", "static"]);
+const portalAuthModes = new Set<PortalAuthMode>(["anonymous", "local-session", "service-admin", "proxy", "static", "workspace"]);
 
 function boundedIdentity(value: string): string {
   const identity = String(value ?? "").trim().toLowerCase();
@@ -36,16 +36,18 @@ function boundedCorrelationId(value: string): string {
   return correlationId;
 }
 
-function normalizedGroups(values: Iterable<string> | undefined): readonly string[] {
+function normalizedGroups(values: PortalRequestContextInput["groups"]): readonly string[] {
+  if (typeof values === "string") throw new Error("Portal request groups must be a collection");
   const groups = Array.from(new Set(Array.from(values ?? [], (value) => String(value ?? "").trim().toLowerCase())
     .filter((value) => value && value.length <= 120 && !/[\r\n]/u.test(value))))
     .slice(0, 100);
   return Object.freeze(groups);
 }
 
-function normalizedPermissions(role: PortalRole, values: Iterable<PortalPermission> | undefined): readonly PortalPermission[] {
+function normalizedPermissions(role: PortalRole, values: PortalRequestContextInput["permissions"]): readonly PortalPermission[] {
   const allowed = portalRolePermissions[role];
   if (values === undefined) return Object.freeze([...allowed]);
+  if (typeof values === "string") throw new Error("Portal request permissions must be a collection");
 
   const permissions = Array.from(new Set(values));
   const expanded = permissions.find((permission) => !allowed.includes(permission));

@@ -8,6 +8,25 @@ The standard profile uses the explicit `portal` bridge network. The dashboard pr
 
 Keep the default loopback host publication unless clients or a reverse proxy must reach the dashboard from outside the host. Changing `DASHBOARD_BIND_ADDRESS` widens host-side exposure and does not configure TLS or a trusted proxy by itself.
 
+## Inbound TLS reverse proxy
+
+The production Node host ignores `X-Forwarded-Proto` by default. When TLS terminates at an authorized reverse proxy, enable the existing trusted-proxy proof with both of these server-side settings:
+
+```env
+PORTAL_CLIENT_IP_SOURCE=trusted-proxy
+PORTAL_TRUSTED_PROXY_SECRET=<deployment-managed-secret>
+```
+
+The reverse proxy must remove any client-supplied `X-Portal-Proxy-Secret`, `X-Forwarded-For`, and `X-Forwarded-Proto` headers before forwarding the request. It must then set its own `X-Portal-Proxy-Secret`, the intended client address in `X-Forwarded-For`, and exactly one `X-Forwarded-Proto` value: `http` or `https`. The shared secret must not be exposed to browsers, logs, screenshots, diagnostics, or support bundles.
+
+The trusted-proxy proof is shared by the existing login client-address policy and the Node request-scheme policy. Without the explicit mode and a matching secret, forwarded scheme remains untrusted and the Node host represents the request as HTTP. Unsupported or multi-valued forwarded protocol input also fails closed to HTTP. With a valid proof and `X-Forwarded-Proto: https`, the reconstructed Worker request is HTTPS, so the existing local-session cookie logic emits its `Secure` attribute and same-origin checks see the effective HTTPS scheme.
+
+Do not restrict this proof to container-local loopback. In the canonical Compose bridge topology, a host-side reverse proxy reaches the dashboard through the published port and the container can observe the bridge/host gateway as the TCP peer rather than `127.0.0.1`. Trust therefore rests on the explicit mode, the deployment-managed shared secret, and the proxy's mandatory removal/replacement of client-supplied forwarding metadata.
+
+This proof does not replace network access control. Keep `${DASHBOARD_BIND_ADDRESS:-127.0.0.1}` unless a documented deployment topology requires wider publication, and use host firewall/routing controls when widening exposure. A client that can connect to the dashboard directly must never know `PORTAL_TRUSTED_PROXY_SECRET`.
+
+The current bounded contract trusts forwarded **scheme**, not arbitrary forwarded authority. Preserve the normal `Host` header through the reverse proxy so request authority and browser origin stay aligned. HSTS, CSP and a repository-owned reverse-proxy server profile remain separate #53 hardening slices.
+
 ## Custom DNS, search domains, and host aliases
 
 Use the tracked `compose.network.example.yaml` only as a template. Do not edit it into environment-specific state in Git.

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { dirname, relative, resolve } from "node:path";
 import test from "node:test";
 
 const repoRoot = resolve(new URL("../..", import.meta.url).pathname);
@@ -51,6 +51,24 @@ test("production host source closure uses only Node built-ins and repository mod
   const closure = await sourceClosure(entrypoint);
   assert.ok(closure.visited.size >= 8, "expected the production entrypoint graph to traverse runtime/db modules");
   assert.deepEqual(closure.bare, []);
+});
+
+test("Docker runtime packages every scripts module in the production source closure", async () => {
+  const [closure, dockerfile] = await Promise.all([
+    sourceClosure(entrypoint),
+    readFile(resolve(repoRoot, "Dockerfile"), "utf8"),
+  ]);
+  const scriptSources = [...closure.visited]
+    .map((file) => relative(repoRoot, file).replaceAll("\\", "/"))
+    .filter((file) => file.startsWith("scripts/"));
+
+  assert.ok(scriptSources.length >= 6, "expected production source closure to include runtime scripts");
+  for (const file of scriptSources) {
+    assert.ok(
+      dockerfile.includes(`/app/${file}`),
+      `Docker runtime COPY allowlist is missing production source-closure module ${file}`,
+    );
+  }
 });
 
 test("built Worker artifact declares no external npm runtime packages", async () => {

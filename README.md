@@ -26,9 +26,9 @@
 ## Требования
 
 - Docker Engine и Docker Compose;
-- свободный порт `3001`;
-- доступ с хоста до FreeIPA;
-- доступ до XYOps, если используется automation module.
+- свободный host port `3001` по умолчанию;
+- исходящий доступ из Docker bridge network до FreeIPA;
+- исходящий доступ до XYOps, если используется automation module.
 
 Для разработки без Docker требуется Node.js `>=22.13.0`.
 
@@ -52,6 +52,15 @@ ADMIN_TOKEN=replace-with-a-long-random-service-admin-token
 CONFIG_ENCRYPTION_KEY=<unique-32-byte-key>
 ```
 
+Стандартный Compose использует отдельную bridge network и публикует dashboard только на loopback хоста:
+
+```env
+DASHBOARD_BIND_ADDRESS=127.0.0.1
+DASHBOARD_PORT=3001
+```
+
+Меняйте `DASHBOARD_BIND_ADDRESS` на LAN/non-loopback адрес только осознанно: это расширяет доступность порта с хоста. Внутренний FreeIPA Gateway при этом остаётся process-private и слушает только loopback внутри dashboard container; Compose его не публикует.
+
 Правила генерации и ротационного/операционного обращения с encryption key: [`docs/security/CONFIG_ENCRYPTION_KEY.md`](docs/security/CONFIG_ENCRYPTION_KEY.md).
 
 Запуск:
@@ -61,11 +70,13 @@ docker compose up -d --build
 docker compose ps
 ```
 
-Портал:
+При значениях по умолчанию портал доступен с хоста:
 
 ```text
 http://localhost:3001
 ```
+
+Если портал стартует, но FreeIPA/XYOps недоступны, не переключайте deployment на host networking и не отключайте TLS как первый шаг. Проверьте `GET /health/dependencies` или `/diagnostics/health`: текущий health contract различает DNS, network, timeout, TLS и authentication failures. Точная network/topology policy и ограничения custom DNS/proxy options описаны в [`docs/architecture/DEPLOYMENT_MATRIX.md`](docs/architecture/DEPLOYMENT_MATRIX.md).
 
 Остановка без удаления persistent volume:
 

@@ -84,9 +84,10 @@ function createScheduler({ worker, env, isReady }) {
   });
 }
 
-export function createProductionRuntimeOptions({ env = process.env, configureProxy = configureOutboundProxy } = {}) {
+export function createProductionRuntimeOptions({ env = process.env } = {}) {
   const options = {
     env,
+    configureProxy: configureOutboundProxy,
     loadWorker: () => loadWorkerArtifact(env.PORTAL_WORKER_ARTIFACT || "dist/server/index.js"),
     startGateway,
     createApplication,
@@ -98,7 +99,8 @@ export function createProductionRuntimeOptions({ env = process.env, configurePro
   };
 
   options.start = async (overrides = options) => {
-    await configureProxy({ env: overrides.env ?? env });
+    const proxyConfigurator = overrides.configureProxy ?? options.configureProxy;
+    await proxyConfigurator({ env: overrides.env ?? env });
     return startProductionRuntime(overrides);
   };
   return options;

@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { createServer } from "node:http";
 import { resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -9,9 +10,48 @@ import {
   writeWebResponse,
 } from "./node-runtime-http.mjs";
 
-function runtimeOrigin(request, host, port) {
-  const headerHost = request.headers.host;
-  return `http://${headerHost || `${host}:${port}`}`;
+function singleHeaderValue(value) {
+  if (Array.isArray(value)) return value.length === 1 ? String(value[0]).trim() : "";
+  return String(value ?? "").trim();
+}
+
+function constantTimeSecretMatch(expectedValue, suppliedValue) {
+  const expected = Buffer.from(String(expectedValue ?? ""));
+  const supplied = Buffer.from(singleHeaderValue(suppliedValue));
+  if (expected.length === 0 || expected.length !== supplied.length) return false;
+  return timingSafeEqual(expected, supplied);
+}
+
+function normalizeForwardedProto(value) {
+  const candidate = singleHeaderValue(value).toLowerCase();
+  return candidate === "http" || candidate === "https" ? candidate : null;
+}
+
+function normalizeAuthority(value) {
+  const candidate = singleHeaderValue(value);
+  if (!candidate || candidate.length > 255 || /[,/\\\s@?#\u0000-\u001f\u007f]/.test(candidate)) return null;
+  try {
+    const parsed = new URL(`http://${candidate}`);
+    if (parsed.username || parsed.password || parsed.pathname !== "/" || parsed.search || parsed.hash) return null;
+    return parsed.host || null;
+  } catch {
+    return null;
+  }
+}
+
+function trustedProxyProof(request, env) {
+  if (String(env?.PORTAL_CLIENT_IP_SOURCE ?? "").trim().toLowerCase() !== "trusted-proxy") return false;
+  return constantTimeSecretMatch(env?.PORTAL_TRUSTED_PROXY_SECRET, request.headers["x-portal-proxy-secret"]);
+}
+
+export function resolveRuntimeOrigin(request, host, port, env = {}) {
+  const directHost = normalizeAuthority(request.headers.host) ?? `${host}:${port}`;
+  if (!trustedProxyProof(request, env)) return `http://${directHost}`;
+
+  const forwardedProto = normalizeForwardedProto(request.headers["x-forwarded-proto"]);
+  const forwardedHost = normalizeAuthority(request.headers["x-forwarded-host"]);
+  if (!forwardedProto || !forwardedHost) return `http://${directHost}`;
+  return `${forwardedProto}://${forwardedHost}`;
 }
 
 function publicAddress(server) {
@@ -56,7 +96,7 @@ export async function startNodeWorkerHost(options = {}) {
       return;
     }
 
-    const origin = runtimeOrigin(request, host, port);
+    const origin = resolveRuntimeOrigin(request, host, port, runtimeEnv);
     const webRequest = nodeRequestToWebRequest(request, origin);
 
     if ((webRequest.method === "GET" || webRequest.method === "HEAD") && new URL(webRequest.url).pathname.includes(".")) {

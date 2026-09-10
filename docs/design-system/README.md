@@ -11,7 +11,7 @@ Use these sources in this order when documentation and implementation disagree:
 1. [`../../app/ui/index.ts`](../../app/ui/index.ts) — public shared-primitive exports.
 2. [`../../app/ui/forms/index.ts`](../../app/ui/forms/index.ts) — shared form/dialog exports.
 3. [`../../app/ui/data-list/index.ts`](../../app/ui/data-list/index.ts) — shared list/table exports.
-4. [`../../app/styles/tokens.css`](../../app/styles/tokens.css) — canonical design tokens.
+4. [`../../app/styles/tokens.css`](../../app/styles/tokens.css) — modern `--ui-*` shared-token foundation; current compatibility/global style ownership is documented in [`STYLES_AND_MIGRATION.md`](STYLES_AND_MIGRATION.md).
 5. Individual component implementations and their tests — exact props, semantics and behavior.
 6. This document — usage guidance and governance.
 
@@ -25,9 +25,9 @@ A design-system change must not move authorization, approval, validation or dest
 
 ## Canonical tokens
 
-All shared tokens are defined under `:root` in [`../../app/styles/tokens.css`](../../app/styles/tokens.css). Consumers should use the semantic variables rather than copying their current literal values.
+The modern public shared primitives use the `--ui-*` token foundation in [`../../app/styles/tokens.css`](../../app/styles/tokens.css). Current `main` also retains an active `--ds-*` compatibility/global override layer in [`../../app/design-system.css`](../../app/design-system.css), which is imported late by the root layout and is **not** safe to describe as removed or deprecated yet. New shared primitive work should prefer semantic `--ui-*` tokens rather than copying literal values or expanding the compatibility token family.
 
-| Token family | Current canonical variables | Usage |
+| Token family | Current canonical `--ui-*` variables | Usage |
 | --- | --- | --- |
 | Typography | `--ui-font-sans`, `--ui-font-mono`; `--ui-text-page-*`, `--ui-text-section-*`, `--ui-text-body-*`, `--ui-text-label-*`, `--ui-text-caption-*` | Product typography hierarchy and code/identifier text. |
 | Surfaces | `--ui-color-canvas`, `--ui-color-surface`, `--ui-color-surface-subtle` | Page and contained surfaces. |
@@ -40,7 +40,7 @@ All shared tokens are defined under `:root` in [`../../app/styles/tokens.css`](.
 | Control/data size | `--ui-control-height-sm`, `--ui-control-height`, `--ui-control-height-lg`, `--ui-table-row-height` | Controls and tabular density. |
 | Elevation | `--ui-shadow-overlay` | Overlay-level elevation only; avoid inventing additional decorative shadow systems. |
 
-Changing a token is a cross-screen change. Review affected consumers and routed browser coverage rather than assuming a CSS-variable edit is local.
+Changing a shared token is a cross-screen change. Review affected consumers and routed browser coverage rather than assuming a CSS-variable edit is local. See [`STYLES_AND_MIGRATION.md`](STYLES_AND_MIGRATION.md) for the current two-generation style ownership model, root-layout import inventory, deprecation criteria and removal checklist.
 
 ## Public primitive catalogue
 
@@ -188,7 +188,7 @@ When changing a token or shared primitive:
 5. Update this document when the public export, variant/tone set, accessibility contract or recommended composition changes.
 6. Do not mix broad product-screen redesign with a design-system API change unless the migration is the explicit reviewed scope.
 
-Deprecation requires an explicit replacement and migration path. Do not remove a public primitive merely because code search finds few consumers; framework discovery, tests and in-flight owner work must also be checked.
+Deprecation requires an explicit replacement and migration path. Do not remove a public primitive merely because code search finds few consumers; framework discovery, tests and in-flight owner work must also be checked. Style-layer-specific migration/deprecation rules are in [`STYLES_AND_MIGRATION.md`](STYLES_AND_MIGRATION.md).
 
 ## Showcase policy
 
@@ -204,7 +204,6 @@ This document is living documentation. If a public UI API changes on `main`, the
 
 This foundation deliberately does not claim that #293 is complete. Remaining reviewable slices include:
 
-- explicit legacy-style deprecation/replacement inventory;
 - reconciliation with semantic icon work #279 and brand rules #291;
 - explicit final decision and sanitised interactive coverage for `ShowcaseView`;
 - CI guard improvements where a stable machine-checkable design-system contract is practical without brittle prose assertions.

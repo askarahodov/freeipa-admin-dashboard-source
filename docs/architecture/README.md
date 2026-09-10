@@ -8,6 +8,7 @@ The normalization is intentionally incremental: active documents remain at their
 
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) — current runtime topology, trust/data boundaries and major ownership.
 - [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md) — repository/module ownership and where-to-change routing.
+- [`WORKER_COMPOSITION.md`](WORKER_COMPOSITION.md) — current Worker HTTP wrapper/handler composition, route-family ownership, adaptation hazards and #56 parity handoff. Exact route metadata remains canonical in code.
 - [`MODULE_COVERAGE.md`](MODULE_COVERAGE.md) — module documentation/test coverage and dependency direction.
 - [`D1_SQLITE_ADAPTER.md`](D1_SQLITE_ADAPTER.md) — D1-compatible SQLite adapter boundary, supported surface and runtime persistence contract.
 - [`DEPLOYMENT_MATRIX.md`](DEPLOYMENT_MATRIX.md) — supported and unsupported deployment models.

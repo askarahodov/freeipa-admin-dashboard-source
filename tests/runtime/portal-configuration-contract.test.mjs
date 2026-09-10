@@ -32,17 +32,17 @@ test("internal ephemeral gateway credentials never become operator configuration
   assert.equal(getPortalConfiguration("IPA_NODE_GATEWAY_TOKEN"), undefined);
 });
 
-test("supported outbound proxy controls have canonical secrecy and exposure metadata", () => {
+test("supported outbound proxy controls have canonical secrecy, precedence and startup transport metadata", () => {
   assert.deepEqual(
     ["NODE_USE_ENV_PROXY", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY"].map((name) => {
       const record = getPortalConfiguration(name);
-      return [name, record?.secret, record?.exposure, record?.lifecycle];
+      return [name, record?.secret, record?.exposure, record?.lifecycle, record?.precedence, record?.transportOwner];
     }),
     [
-      ["NODE_USE_ENV_PROXY", false, "bounded-status", "startup"],
-      ["HTTP_PROXY", true, "never", "startup"],
-      ["HTTPS_PROXY", true, "never", "startup"],
-      ["NO_PROXY", false, "bounded-status", "startup"],
+      ["NODE_USE_ENV_PROXY", false, "bounded-status", "startup", "environment", "scripts/start-production.mjs"],
+      ["HTTP_PROXY", true, "never", "startup", "lowercase http_proxy when present > HTTP_PROXY", "Node built-in startup environment proxy"],
+      ["HTTPS_PROXY", true, "never", "startup", "lowercase https_proxy when present > HTTPS_PROXY", "Node built-in startup environment proxy"],
+      ["NO_PROXY", false, "bounded-status", "startup", "lowercase no_proxy when present > NO_PROXY", "Node built-in startup environment proxy"],
     ],
   );
 });

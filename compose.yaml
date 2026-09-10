@@ -4,7 +4,8 @@ services:
       context: .
     image: freeipa-admin-dashboard:local
     restart: unless-stopped
-    network_mode: host
+    ports:
+      - "${DASHBOARD_BIND_ADDRESS:-127.0.0.1}:${DASHBOARD_PORT:-3001}:3001"
     env_file:
       - .env
     environment:
@@ -14,6 +15,8 @@ services:
       CONFIG_ENCRYPTION_KEY: ${CONFIG_ENCRYPTION_KEY:?Set CONFIG_ENCRYPTION_KEY to a unique 32-byte key}
     volumes:
       - dashboard-data:/data
+    networks:
+      - portal
     security_opt:
       - no-new-privileges:true
     cap_drop:
@@ -25,13 +28,14 @@ services:
       context: .
       target: recovery
     image: freeipa-admin-dashboard-recovery:local
-    network_mode: host
     user: "${PORTAL_RECOVERY_UID:-10001}:${PORTAL_RECOVERY_GID:-10001}"
     working_dir: /app
     volumes:
       - dashboard-data:/portal-data
       - ${PORTAL_RECOVERY_DIR:-./recovery}:/recovery
       - ${PORTAL_RECOVERY_SECRETS_DIR:-./recovery-secrets}:/run/portal-recovery-secrets:ro
+    networks:
+      - portal
     read_only: true
     tmpfs:
       - /tmp
@@ -39,6 +43,10 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+
+networks:
+  portal:
+    driver: bridge
 
 volumes:
   dashboard-data:

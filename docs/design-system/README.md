@@ -192,7 +192,7 @@ Deprecation requires an explicit replacement and migration path. Do not remove a
 
 ## Showcase policy
 
-`app/ShowcaseView.tsx` is retained as a potential project-native interactive catalogue while #293 is open. It is **not** an independent source of truth: examples must follow the public exports, tokens and accessibility contract above. Do not build a second showcase/catalogue in parallel. A later #293 slice must explicitly choose reuse/update or removal with a canonical replacement.
+`app/ShowcaseView.tsx` is retained as a **non-authoritative development/demo artifact**. It is not the source of truth for public component API, tokens, accessibility or production routing, and it must not be exposed as production UI or removed without a separately reviewed evidence-based change. Publication, sanitization, accessibility and removal rules are documented in [`SHOWCASE.md`](SHOWCASE.md).
 
 ## Verification and maintenance
 
@@ -205,5 +205,4 @@ This document is living documentation. If a public UI API changes on `main`, the
 This foundation deliberately does not claim that #293 is complete. Remaining reviewable slices include:
 
 - reconciliation with semantic icon work #279 and brand rules #291;
-- explicit final decision and sanitised interactive coverage for `ShowcaseView`;
 - CI guard improvements where a stable machine-checkable design-system contract is practical without brittle prose assertions.

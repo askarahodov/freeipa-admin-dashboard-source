@@ -2,11 +2,10 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { buildRequiredCIPlan, isOrdinaryDocumentationPath } from "../../scripts/ci-required-plan.mjs";
+import { assessRequiredCIJobs, buildRequiredCIPlan, isOrdinaryDocumentationPath } from "../../scripts/ci-required-plan.mjs";
 import { verifyRequiredCI } from "../../scripts/ci-required-gate.mjs";
 
 const workflow = await readFile(new URL("../../.github/workflows/ci.yml", import.meta.url), "utf8");
-const heavyJobs = ["build", "container-security", "recovery-compose", "test"];
 
 function successResults(overrides = {}) {
   return {
@@ -38,10 +37,10 @@ test("ordinary user-facing guide prose is eligible for docs-only fast path", () 
   assert.equal(plan.jobs["discover-tests"], true);
   assert.equal(plan.jobs["docs-consistency"], true);
   assert.equal(plan.jobs["dependency-security"], true);
-  for (const job of heavyJobs) assert.equal(plan.jobs[job], false, job);
+  for (const job of ["build", "container-security", "recovery-compose", "test"]) assert.equal(plan.jobs[job], false, job);
 });
 
-test("engineering, policy, operational instructions, executable examples and mixed diffs are not docs-only", () => {
+test("engineering, policy, executable and mixed diffs keep build and full Node suite", () => {
   for (const path of [
     "README.md",
     "docs/README.md",
@@ -54,6 +53,7 @@ test("engineering, policy, operational instructions, executable examples and mix
     "docs/guide/operations/README.md",
     "fixtures/compose/e2e.yaml",
     ".github/workflows/ci.yml",
+    "src/auth/local-auth.ts",
   ]) assert.equal(isOrdinaryDocumentationPath(path), false, path);
 
   for (const paths of [
@@ -63,8 +63,42 @@ test("engineering, policy, operational instructions, executable examples and mix
     ["README.md"],
   ]) {
     const plan = buildRequiredCIPlan(paths);
-    assert.equal(plan.mode, "full-ci", paths.join(","));
-    for (const job of heavyJobs) assert.equal(plan.jobs[job], true, `${paths.join(",")} -> ${job}`);
+    assert.equal(plan.mode, "risk-routed-ci", paths.join(","));
+    assert.equal(plan.jobs.build, true, `${paths.join(",")} -> build`);
+    assert.equal(plan.jobs.test, true, `${paths.join(",")} -> test`);
+  }
+});
+
+test("container and recovery jobs follow table-driven risk boundaries", () => {
+  const cases = [
+    { input: ["app/users/UserTable.tsx"], container: false, recovery: false, reason: "isolated UI" },
+    { input: ["src/freeipa/freeipa-user-query.ts"], container: false, recovery: false, reason: "runtime behavior without package composition" },
+    { input: ["Dockerfile"], container: true, recovery: true, reason: "shared image definition" },
+    { input: ["package-lock.json"], container: true, recovery: true, reason: "dependency graph" },
+    { input: ["security/audit-allowlist.json"], container: true, recovery: false, reason: "security enforcement" },
+    { input: ["src/recovery/swap.ts"], container: false, recovery: true, reason: "recovery implementation" },
+    { input: ["src/backup/backup.ts"], container: false, recovery: true, reason: "backup dependency" },
+    { input: ["src/storage/store.ts"], container: false, recovery: true, reason: "storage dependency" },
+    { input: ["db/portal-schema.ts"], container: false, recovery: true, reason: "schema dependency" },
+    { input: ["scripts/config-encryption-key.mjs"], container: false, recovery: true, reason: "encryption boundary" },
+    { input: ["scripts/identity-startup-policy.mjs"], container: false, recovery: true, reason: "identity boundary" },
+    { input: ["compose.yaml"], container: false, recovery: true, reason: "container/volume configuration" },
+    { input: ["tests/recovery/recovery-fault-matrix.test.mjs"], container: false, recovery: true, reason: "recovery contract" },
+    { input: ["scripts/ci-required-plan.mjs"], container: true, recovery: true, reason: "planner change forces conservative regression" },
+    { input: ["app/users/UserTable.tsx", "db/portal-schema.ts"], container: false, recovery: true, reason: "mixed UI + schema" },
+    { input: ["src/auth/local-auth.ts", "package.json"], container: true, recovery: true, reason: "mixed auth + package" },
+  ];
+
+  for (const fixture of cases) {
+    const risk = assessRequiredCIJobs(fixture.input);
+    assert.equal(risk.containerSecurity, fixture.container, `${fixture.reason}: container`);
+    assert.equal(risk.recoveryCompose, fixture.recovery, `${fixture.reason}: recovery`);
+
+    const plan = buildRequiredCIPlan(fixture.input);
+    assert.equal(plan.jobs["container-security"], fixture.container, `${fixture.reason}: planned container`);
+    assert.equal(plan.jobs["recovery-compose"], fixture.recovery, `${fixture.reason}: planned recovery`);
+    assert.equal(plan.jobs.build, true, `${fixture.reason}: build preserved`);
+    assert.equal(plan.jobs.test, true, `${fixture.reason}: full Node suite preserved`);
   }
 });
 
@@ -79,15 +113,14 @@ test("empty pull-request diff fails closed", () => {
   assert.throws(() => buildRequiredCIPlan([]), /empty pull-request diff/u);
 });
 
-test("gate accepts success for required jobs and skipped only for plan-authorized jobs", () => {
-  const plan = buildRequiredCIPlan(["docs/guide/user/README.md"]);
-  const results = successResults({
-    build: "skipped",
-    "container-security": "skipped",
-    "recovery-compose": "skipped",
-    test: "skipped",
-  });
-  assert.equal(verifyRequiredCI(plan, results), true);
+test("gate accepts skipped Docker jobs only when canonical plan authorizes them", () => {
+  const plan = buildRequiredCIPlan(["src/auth/local-auth.ts"]);
+  assert.equal(plan.jobs["container-security"], false);
+  assert.equal(plan.jobs["recovery-compose"], false);
+  assert.equal(
+    verifyRequiredCI(plan, successResults({ "container-security": "skipped", "recovery-compose": "skipped" })),
+    true,
+  );
 });
 
 test("gate rejects missing plan requirements and unknown results", () => {
@@ -100,26 +133,32 @@ test("gate rejects missing plan requirements and unknown results", () => {
 });
 
 test("gate rejects failed cancelled or skipped required jobs", () => {
-  const plan = buildRequiredCIPlan(["src/auth/local-auth.ts"]);
-  for (const result of ["failure", "cancelled", "skipped"]) {
-    assert.throws(() => verifyRequiredCI(plan, successResults({ build: result })), /Required job build/u, result);
+  const plan = buildRequiredCIPlan(["Dockerfile"]);
+  for (const job of ["build", "container-security", "recovery-compose", "test"]) {
+    for (const result of ["failure", "cancelled", "skipped"]) {
+      assert.throws(() => verifyRequiredCI(plan, successResults({ [job]: result })), new RegExp(`Required job ${job}`), `${job}:${result}`);
+    }
   }
 });
 
 test("gate rejects failure or cancellation even for not-required jobs", () => {
-  const plan = buildRequiredCIPlan(["docs/guide/user/README.md"]);
-  for (const result of ["failure", "cancelled"]) {
-    assert.throws(() => verifyRequiredCI(plan, successResults({ build: result })), /Not-required job build/u, result);
+  const plan = buildRequiredCIPlan(["src/auth/local-auth.ts"]);
+  for (const job of ["container-security", "recovery-compose"]) {
+    for (const result of ["failure", "cancelled"]) {
+      assert.throws(() => verifyRequiredCI(plan, successResults({ [job]: result })), new RegExp(`Not-required job ${job}`), `${job}:${result}`);
+    }
   }
 });
 
-test("workflow keeps stable Required CI without paths-ignore and uses canonical plan/gate", () => {
+test("workflow keeps stable Required CI and consumes canonical risk outputs", () => {
   const pullRequestBlock = workflow.match(/pull_request:\s*\n([\s\S]*?)(?=\n  push:|\npermissions:)/u)?.[1] ?? "";
   const requiredBlock = workflow.match(/\n  required:\s*\n([\s\S]*)$/u)?.[1] ?? "";
   assert.doesNotMatch(pullRequestBlock, /paths-ignore|\bpaths:/u);
   assert.match(workflow, /name: Required CI/u);
   assert.match(workflow, /Determine canonical Required CI plan/u);
   assert.match(workflow, /git diff --name-status -z --find-renames/u);
+  assert.match(workflow, /needs\.plan\.outputs\.container_security == 'true'/u);
+  assert.match(workflow, /needs\.plan\.outputs\.recovery_compose == 'true'/u);
   assert.match(workflow, /node scripts\/ci-required-gate\.mjs/u);
   assert.match(workflow, /PLAN_RESULT/u);
   assert.match(workflow, /if: always\(\)/u);

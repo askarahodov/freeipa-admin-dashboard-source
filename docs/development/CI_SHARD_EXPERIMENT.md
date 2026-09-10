@@ -20,11 +20,15 @@ This file records measured evidence for the #564 optimization under epic #560. I
 | 8 | `8b89f56961aa9b2ed0e9084eff4d57f86023dabc` | [34461645490](https://github.com/askarahodov/freeipa-admin-dashboard-source/actions/runs/34461645490) | success | 150 s | about 12 s | 257 s | 30–34 s | `ubuntu-latest` |
 | 8 | `11487104ebb8c2630a6dff1007dc9620f9d9d119` | [34461961812](https://github.com/askarahodov/freeipa-admin-dashboard-source/actions/runs/34461961812) | success | 147 s | about 3 s | 251 s | 28–37 s | `ubuntu-latest` |
 | 4 | `a9f27ee0023c3bce88919a2fa099a59cecf086ee` | [34462566157](https://github.com/askarahodov/freeipa-admin-dashboard-source/actions/runs/34462566157) | success | 169 s | about 12 s | 144 s | 33–41 s | `ubuntu-latest` |
+| 4 | `b6370cf552347d4e27b848968bdba95e9ce5e31c` | [34462924906](https://github.com/askarahodov/freeipa-admin-dashboard-source/actions/runs/34462924906) | success | 145 s | about 3 s | 153 s | 31–43 s | `ubuntu-latest` |
+| 2 | `2846ad3a56cef1a10e62005b4d9c2b528ab5218c` | [34463393347](https://github.com/askarahodov/freeipa-admin-dashboard-source/actions/runs/34463393347) | success | 168 s | about 25 s | 97 s | 47–50 s | `ubuntu-latest` |
 
 The first 8-shard control had shard windows of 30, 31, 34, 30, 34, 31, 33, and 34 seconds. The second control had 31, 28, 37, 29, 32, 32, 31, and 31 seconds. In both controls the actual `Run shard` work was much smaller than the whole job window, confirming repeated setup and `npm ci` as the dominant shard cost.
 
-The first 4-shard sample reduced the shard-job sum from the 8-shard mean of 254 s to 144 s (about 43% less). Its 169 s workflow wall time was about 13.8% above the 148.5 s two-control mean, still inside the 15% adoption ceiling but close enough that the second 4-shard measurement is required before any decision.
+The two 4-shard samples used 144 s and 153 s of shard-job time, for a 148.5 s mean: about 41.5% below the 254 s 8-shard mean. Their workflow walls were 169 s and 145 s, averaging 157 s, about 5.7% above the 148.5 s 8-shard wall mean and therefore comfortably inside the 15% adoption ceiling.
+
+The first 2-shard sample used only 97 s of shard-job time. Its 168 s workflow wall included about 25 s before the first CI job started, so queue delay materially affects this sample; a second comparable 2-shard run is required before deciding between 2 and 4 shards.
 
 ## Decision
 
-Pending the second 4-shard measurement and two measurements for 2 shards. Weighted balancing is not justified unless those measurements show a material runtime imbalance.
+Pending the second 2-shard measurement. Weighted balancing is not justified by the observed shard ranges: setup cost still dominates and the candidate partitions remain reasonably close in job duration.

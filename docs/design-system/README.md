@@ -133,7 +133,9 @@ The public forms surface is exported by [`../../app/ui/forms/index.ts`](../../ap
 - `FormField`;
 - `FormSection`.
 
-These are the preferred shared owners for dialog/form structure. Exact props and focus/error behavior remain defined by their component implementations and tests. Issue #96 owns product-flow integration of form/dialog patterns; #293 documents and governs the design-system contract and must not create a second destructive-confirmation mechanism.
+Detailed current props, anatomy, focus/error behavior and do/don't guidance are documented in [`COMPOSITIONS.md`](COMPOSITIONS.md).
+
+These are the preferred shared owners for dialog/form structure. Issue #96 owns product-flow integration of form/dialog patterns; #293 documents and governs the design-system contract and must not create a second destructive-confirmation mechanism.
 
 ## Shared data-list compositions
 
@@ -144,7 +146,9 @@ The public list surface is exported by [`../../app/ui/data-list/index.ts`](../..
 - `DataTable`;
 - `Pagination`.
 
-Use this family before creating route-specific list/table/pagination primitives. Exact props and behavior remain defined by the implementations and tests. Product adoption belongs to the owning screen issues; design-system documentation describes how to choose the shared owner.
+Detailed current props, state taxonomy, accessibility behavior and standard list composition are documented in [`COMPOSITIONS.md`](COMPOSITIONS.md).
+
+Use this family before creating route-specific list/table/pagination primitives. Product adoption belongs to the owning screen issues; design-system documentation describes how to choose the shared owner.
 
 ## Usage rules
 
@@ -200,8 +204,6 @@ This document is living documentation. If a public UI API changes on `main`, the
 
 This foundation deliberately does not claim that #293 is complete. Remaining reviewable slices include:
 
-- exact prop/anatomy/state examples for `Dialog`, `FormField`, `FormErrorSummary`, `DataListPage`, `DataListState`, `DataTable` and `Pagination`;
-- do/don't examples for common admin page/list/form/dialog compositions;
 - explicit legacy-style deprecation/replacement inventory;
 - reconciliation with semantic icon work #279 and brand rules #291;
 - explicit final decision and sanitised interactive coverage for `ShowcaseView`;

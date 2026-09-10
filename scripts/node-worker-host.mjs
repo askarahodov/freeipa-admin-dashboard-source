@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
+  applyBaselineSecurityHeaders,
   createExecutionContext,
   createStaticAssetsFetcher,
   nodeRequestToWebRequest,
@@ -54,6 +55,7 @@ export async function startNodeWorkerHost(options = {}) {
   const server = createServer(async (request, responseStream) => {
     if (closing) {
       responseStream.statusCode = 503;
+      applyBaselineSecurityHeaders(responseStream);
       responseStream.end("Service Unavailable");
       return;
     }
@@ -78,6 +80,7 @@ export async function startNodeWorkerHost(options = {}) {
       if (!responseStream.headersSent) {
         responseStream.statusCode = 500;
         responseStream.setHeader("content-type", "application/json; charset=utf-8");
+        applyBaselineSecurityHeaders(responseStream);
       }
       if (!responseStream.writableEnded) responseStream.end(JSON.stringify({ error: "runtime_request_failed" }));
       console.error(`Node Worker request failed: ${error instanceof Error ? error.message : String(error)}`);

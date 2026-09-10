@@ -20,7 +20,7 @@ import "./settings-source-resets.css";
 import "./design-system.css";
 import LocalAuthToolbar from "./shell/LocalAuthToolbar";
 import LocalAdministrationContext from "./LocalAdministrationContext";
-import LocalAdminSessionBridge from "./LocalAdminSessionBridge";
+import LocalAdminSessionBridge from "./shell/LocalAdminSessionBridge";
 import SettingsLifecycleWizard from "./SettingsLifecycleWizard";
 import PortalInteractionLayer from "./PortalInteractionLayer";
 import { ToastProvider } from "./ui/Toast";

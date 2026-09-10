@@ -23,7 +23,7 @@ For system behavior and trust/data flows, read [`ARCHITECTURE.md`](ARCHITECTURE.
 | `src/operations/` | Approval, catalog, explorer, presentation and run-lifecycle ownership | explicit subdomains under `src/operations/` | operation/catalog/approval tests | a second scheduler or XYOps execution engine |
 | `src/recovery/` | Recovery, maintenance, destructive/offline orchestration and safety contracts | foundation/adapters/orchestration/maintenance/cli/verification subdomains | recovery/maintenance positive and negative tests | unguarded generic recovery endpoints |
 | `src/storage/` | Storage status/integrity and migration preflight/apply/operation logic | explicit read/migration subdomains | storage/migration tests | canonical schema definitions, which remain in `db/` |
-| other root `*.ts` modules | Remaining explicit domain owners that have not been part of the completed root-module migration program | existing canonical file owner | matching domain tests | new generic `utils/common/shared` buckets used to avoid ownership decisions |
+| root transitional modules | Frozen exceptions: `audit-log.ts`, `login-rate-limit.ts`, `storage-quick-check.ts` | existing owners until their named follow-up issues complete | `tests/architecture/repository-placement-policy.test.mjs` | any new root production TypeScript module |
 | `scripts/` | Production startup, local tooling, inspection, recovery and operational CLI helpers | production starts at `scripts/start-production.mjs` | script/startup/runtime/compose tests | hidden product behavior without a domain owner |
 | `tests/` | Node server/domain/source/runtime contracts | `*.test.mjs` discovered by CI | CI test matrix | production implementation logic |
 | `e2e/` | Browser E2E for high-value flows | Playwright / Scoped E2E workflow | routed E2E categories | exhaustive unit coverage better owned by `tests/` |
@@ -53,6 +53,16 @@ Production startup begins at `scripts/start-production.mjs`, not `scripts/start-
 The current production Compose contract mounts the named volume `dashboard-data` at `/data` for the dashboard service. The recovery profile mounts **the same named volume** at `/portal-data`. These are two container paths to the same persistent volume by design; active documentation must not describe the old `/app/.wrangler` dashboard mount as current behavior.
 
 Current `compose.yaml` still uses host networking. A future bridge-network model is tracked separately and must not be documented as implemented until it lands on `main`.
+
+### Transitional root TypeScript exceptions
+
+The repository placement policy allows only three frozen production-module exceptions at repository root:
+
+- `audit-log.ts` — legacy audit owner, retained until audit/module ownership is migrated through #43/#56;
+- `login-rate-limit.ts` — legacy authentication-protection owner, retained until middleware ownership is migrated through #56/#59;
+- `storage-quick-check.ts` — compatibility re-export retained until storage ownership cleanup through #44.
+
+This list is executable policy, not a convention copied into documentation: [`../../scripts/repository-placement-policy.mjs`](../../scripts/repository-placement-policy.mjs) defines it and [`../../tests/architecture/repository-placement-policy.test.mjs`](../../tests/architecture/repository-placement-policy.test.mjs) asserts the exact three-file set. New root production TypeScript modules are rejected; changing the exception list requires changing its owner/reason and the placement contract deliberately.
 
 ### FreeIPA integration
 
@@ -135,6 +145,7 @@ Do not create a generic recovery endpoint or bypass maintenance/recovery state i
 - Runtime/persistence/Compose behavior: matching production/runtime/storage/recovery tests under `tests/`.
 - Browser-level product flows: `e2e/` through the canonical routing policy.
 - CI/workflow behavior: `.github/` plus its routing/contract tests.
+- Repository placement/ownership: `tests/architecture/repository-placement-policy.test.mjs` plus `scripts/repository-placement-policy.mjs`.
 - Documentation-only changes: repository docs/link checks plus `git diff --check` and the routed CI plan.
 
 Green CI is meaningful only if the required test families were actually selected and executed.
@@ -172,6 +183,7 @@ This document describes present reality, including remaining gaps:
 - API/permission/reference ownership is distributed across canonical code/tests/docs rather than generated from one registry;
 - production uses the canonical Node runtime rooted at `scripts/start-production.mjs` / `runtime/production-runtime.mjs`;
 - dashboard persistence is mounted at `/data`, with the recovery container accessing the same named volume at `/portal-data`;
+- exactly three root production TypeScript modules remain frozen transitional exceptions under the placement policy;
 - current Compose topology still uses host networking until the dedicated network-model work is merged.
 
 These are constraints to preserve or improve deliberately, not permission to create parallel owners.

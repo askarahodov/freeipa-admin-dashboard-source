@@ -139,7 +139,9 @@ export default function Home() {
       setDirectoryGroups(Array.isArray(groupsPayload.groups) ? groupsPayload.groups.map((group: DirectoryGroup) => ({ ...group, memberUids: Array.isArray(group.memberUids) ? group.memberUids : [] })) : []);
       setDirectorySource("live");
     } catch {
-      setDirectoryUsers([]); setDirectoryGroups([]); setDirectorySource("unconfigured");
+      setDirectoryUsers([]);
+      setDirectoryGroups([]);
+      setDirectorySource("unconfigured");
     }
   }, [integration.freeipa.reachable, integration.mode]);
 
@@ -266,7 +268,7 @@ export default function Home() {
   const filteredUsers = useMemo(() => directoryUsers.filter((u) => `${u.uid} ${u.name} ${u.email}`.toLowerCase().includes(query.toLowerCase())), [directoryUsers, query]);
   const filteredGroups = useMemo(() => directoryGroups.filter((g) => `${g.name} ${g.description} ${g.type}`.toLowerCase().includes(query.toLowerCase())), [directoryGroups, query]);
   const filteredCatalog = useMemo(() => catalog.filter((event) => `${event.title} ${event.description} ${event.help ?? ""} ${event.category} ${event.icon ?? ""} ${event.plugin ?? ""}`.toLowerCase().includes(query.toLowerCase())), [catalog, query]);
-  const overviewOperations = useMemo(() => toOverviewOperations(recentRuns), [recentRuns]);
+  const overviewOperations = toOverviewOperations(recentRuns);
 
   const navigateTo = useCallback((nextPage: Page, category = "all", replace = false) => {
     const section = category === "all" ? null : automationSections.find((item) => item.category === category);
@@ -278,16 +280,13 @@ export default function Home() {
     if (window.location.pathname !== path) window.history[replace ? "replaceState" : "pushState"]({}, "", path);
   }, [automationSections]);
 
-  const overviewQuickActions = useMemo<OverviewQuickAction[]>(() => {
-    const actions: OverviewQuickAction[] = [];
-    if (canWriteFreeIpa) actions.push({ id: "create-user", label: "Создать пользователя", description: "Открыть существующий FreeIPA create flow.", primary: true, onAction: () => setFreeIpaAction({ operation: "user_add", title: "Новый пользователь", preset: {} }) });
-    if (canRunXyops) actions.push({ id: "automation", label: "Запустить автоматизацию", description: "Перейти к разрешённому каталогу XYOps.", onAction: () => navigateTo("automation") });
-    if (canApproveXyops && approvalPendingForMe > 0) actions.push({ id: "approvals", label: "Разобрать согласования", description: `${approvalPendingForMe} заявок ждут вашего решения.`, onAction: () => navigateTo("approvals") });
-    if (canManageSettings) actions.push({ id: "settings", label: "Открыть настройки", description: "Перейти к административной конфигурации.", onAction: () => navigateTo("settings") });
-    return actions;
-  }, [approvalPendingForMe, canApproveXyops, canManageSettings, canRunXyops, canWriteFreeIpa, navigateTo]);
+  const overviewQuickActions: OverviewQuickAction[] = [];
+  if (canWriteFreeIpa) overviewQuickActions.push({ id: "create-user", label: "Создать пользователя", description: "Открыть существующий FreeIPA create flow.", primary: true, onAction: () => setFreeIpaAction({ operation: "user_add", title: "Новый пользователь", preset: {} }) });
+  if (canRunXyops) overviewQuickActions.push({ id: "automation", label: "Запустить автоматизацию", description: "Перейти к разрешённому каталогу XYOps.", onAction: () => navigateTo("automation") });
+  if (canApproveXyops && approvalPendingForMe > 0) overviewQuickActions.push({ id: "approvals", label: "Разобрать согласования", description: `${approvalPendingForMe} заявок ждут вашего решения.`, onAction: () => navigateTo("approvals") });
+  if (canManageSettings) overviewQuickActions.push({ id: "settings", label: "Открыть настройки", description: "Перейти к административной конфигурации.", onAction: () => navigateTo("settings") });
 
-  const handleOverviewNavigate = useCallback((target: OverviewTarget) => {
+  function handleOverviewNavigate(target: OverviewTarget) {
     switch (target) {
       case "operations":
         navigateTo("operations");
@@ -305,7 +304,7 @@ export default function Home() {
         if (canManageSettings) window.location.assign("/diagnostics");
         return;
     }
-  }, [canManageSettings, navigateTo]);
+  }
 
   useEffect(() => {
     const applyLocation = () => {

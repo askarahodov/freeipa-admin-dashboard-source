@@ -1,56 +1,67 @@
-import { spawnSync } from 'node:child_process';
-import { pathToFileURL } from 'node:url';
+import assert from 'node:assert/strict';
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import test from 'node:test';
 
-import { discoverNodeTests } from './discover-node-tests.mjs';
+import {
+  discoverRecoveryTests,
+  runRecoveryTestFiles,
+} from '../../scripts/run-recovery-tests.mjs';
 
-export async function discoverRecoveryTests(rootDirectory = 'tests/recovery') {
-  const tests = await discoverNodeTests(rootDirectory);
-  if (!tests.length) {
-    throw new Error(`No recovery Node test files discovered under ${rootDirectory}`);
-  }
-  return tests;
-}
-
-export function runRecoveryTestFiles(tests, options = {}) {
-  if (!Array.isArray(tests) || tests.length === 0) {
-    throw new Error('No recovery Node test files selected');
-  }
-
-  const env = { ...process.env, ...options.env };
-  delete env.NODE_TEST_CONTEXT;
-
-  const result = spawnSync(
-    options.nodePath ?? process.execPath,
-    ['--experimental-strip-types', '--test', ...tests],
-    {
-      cwd: options.cwd ?? process.cwd(),
-      stdio: options.stdio ?? 'inherit',
-      env,
-    },
-  );
-
-  if (result.error) throw result.error;
-  return result.status ?? 1;
-}
-
-export async function runRecoveryTests(options = {}) {
-  const rootDirectory = options.rootDirectory ?? 'tests/recovery';
-  const tests = await discoverRecoveryTests(rootDirectory);
-  const status = runRecoveryTestFiles(tests, options);
-  return { tests, status };
-}
-
-async function runCli() {
-  const { tests, status } = await runRecoveryTests();
-  process.stderr.write(`Recovery tests discovered: ${tests.length}\n`);
-  process.exitCode = status;
-}
-
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+async function withFixtureTree(callback) {
+  const root = await mkdtemp(join(tmpdir(), 'portal-recovery-tests-'));
   try {
-    await runCli();
-  } catch (error) {
-    process.stderr.write(`${error instanceof Error ? error.message : 'Unable to run recovery tests'}\n`);
-    process.exitCode = 1;
+    await callback(root);
+  } finally {
+    await rm(root, { recursive: true, force: true });
   }
 }
+
+test('discovers recovery tests recursively without selecting sibling domains', async () => {
+  await withFixtureTree(async (root) => {
+    const recoveryRoot = join(root, 'tests', 'recovery');
+    await mkdir(join(recoveryRoot, 'nested'), { recursive: true });
+    await mkdir(join(root, 'tests', 'storage'), { recursive: true });
+    await writeFile(join(recoveryRoot, 'top.test.mjs'), 'import test from "node:test"; test("top", () => {});\n');
+    await writeFile(join(recoveryRoot, 'nested', 'deep.test.mjs'), 'import test from "node:test"; test("deep", () => {});\n');
+    await writeFile(join(root, 'tests', 'storage', 'foreign.test.mjs'), 'import test from "node:test"; test("foreign", () => {});\n');
+
+    const tests = await discoverRecoveryTests(recoveryRoot);
+
+    assert.equal(tests.length, 2);
+    assert.equal(tests.some((path) => path.endsWith('/top.test.mjs')), true);
+    assert.equal(tests.some((path) => path.endsWith('/nested/deep.test.mjs')), true);
+    assert.equal(tests.some((path) => path.includes('/storage/')), false);
+  });
+});
+
+test('fails clearly when the recovery selection is empty', async () => {
+  await withFixtureTree(async (root) => {
+    const recoveryRoot = join(root, 'tests', 'recovery');
+    await mkdir(recoveryRoot, { recursive: true });
+
+    await assert.rejects(
+      () => discoverRecoveryTests(recoveryRoot),
+      /No recovery Node test files discovered/u,
+    );
+  });
+});
+
+test('propagates a selected test failure as a non-zero status', async () => {
+  await withFixtureTree(async (root) => {
+    const failing = join(root, 'failing.test.mjs');
+    await writeFile(failing, 'import test from "node:test"; test("fails", () => { throw new Error("fixture failure"); });\n');
+
+    const status = runRecoveryTestFiles([failing], { stdio: 'ignore' });
+
+    assert.notEqual(status, 0);
+  });
+});
+
+test('rejects an explicitly empty selected file list', () => {
+  assert.throws(
+    () => runRecoveryTestFiles([], { stdio: 'ignore' }),
+    /No recovery Node test files selected/u,
+  );
+});

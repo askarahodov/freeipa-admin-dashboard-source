@@ -13,7 +13,7 @@ import "./portal-interaction-layer.css";
 import "./directory/freeipa-user-browser.css";
 import "./directory/freeipa-user-bulk.css";
 import "./directory/freeipa-group-member-browser.css";
-import "./operation-explorer.css";
+import "./operations/operation-explorer.css";
 import "./local-admin-session.css";
 import "./settings-lifecycle.css";
 import "./settings-source-resets.css";

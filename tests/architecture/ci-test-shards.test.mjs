@@ -89,7 +89,7 @@ test("CI runs one validated sharded server-test pass and preserves all security 
   assert.doesNotMatch(ciWorkflow, /\n  test-suite:\n/u);
   assert.match(ciWorkflow, /outputs:\s*\n\s+shards:\s*\$\{\{ steps\.list\.outputs\.shards \}\}/u);
   assert.match(ciWorkflow, /scripts\/ci-test-shards\.mjs/u);
-  assert.match(ciWorkflow, /--max-shards\s+8/u);
+  assert.match(ciWorkflow, /--max-shards\s+4/u);
   assert.match(ciWorkflow, /name:\s*Test shard \$\{\{ matrix\.shard\.name \}\}/u);
   assert.match(ciWorkflow, /strategy:\s*\n\s+fail-fast:\s*false/u);
   assert.match(ciWorkflow, /shard:\s*\$\{\{ fromJSON\(needs\.discover-tests\.outputs\.shards\) \}\}/u);

@@ -4,7 +4,7 @@ import "./globals.css";
 import "./focus-ring.css";
 import "./local-auth.css";
 import "./local-auth-enhancements.css";
-import "./diagnostics.css";
+import "./diagnostics/diagnostics.css";
 import "./sessions.css";
 import "./local-administration-context.css";
 import "./settings-tabs.css";

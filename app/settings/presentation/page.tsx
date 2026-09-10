@@ -27,6 +27,7 @@ function serialize(metadata: ProcessPresentationSet): string {
 
 export default function PresentationSettingsPage() {
   const [session, setSession] = useState<SessionState | null>(null);
+  const [loaded, setLoaded] = useState(false);
   const [text, setText] = useState(serialize(emptyPresentation));
   const [baseline, setBaseline] = useState(serialize(emptyPresentation));
   const [source, setSource] = useState<PresentationResponse["source"]>(undefined);
@@ -38,6 +39,7 @@ export default function PresentationSettingsPage() {
 
   const load = useCallback(async () => {
     setBusy("load");
+    setLoaded(false);
     setError("");
     try {
       const nextSession = await requestSettingsJson("/api/auth/session") as SessionState;
@@ -51,6 +53,7 @@ export default function PresentationSettingsPage() {
       setSource(data.source ?? "default");
       setUpdatedAt(data.updatedAt ?? null);
       setAvailableLocales(Array.isArray(data.availableLocales) ? data.availableLocales : []);
+      setLoaded(true);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Презентационные метаданные недоступны");
     } finally {
@@ -63,7 +66,7 @@ export default function PresentationSettingsPage() {
     return () => window.clearTimeout(timer);
   }, [load]);
 
-  const dirty = text !== baseline;
+  const dirty = loaded && text !== baseline;
 
   useEffect(() => {
     if (!dirty) return;
@@ -73,6 +76,7 @@ export default function PresentationSettingsPage() {
   }, [dirty]);
 
   async function save() {
+    if (!loaded) return;
     setError("");
     setMessage("");
     let metadata: ProcessPresentationSet;
@@ -94,7 +98,7 @@ export default function PresentationSettingsPage() {
       setText(nextText);
       setBaseline(nextText);
       setSource(data.source ?? "database");
-      setUpdatedAt(data.updatedAt ?? Date.now());
+      setUpdatedAt(data.updatedAt ?? null);
       setAvailableLocales(Array.isArray(data.availableLocales) ? data.availableLocales : []);
       setMessage("Презентационные метаданные сохранены.");
     } catch (cause) {
@@ -117,8 +121,9 @@ export default function PresentationSettingsPage() {
       {error && <div className={styles.error} role="alert"><strong>Ошибка</strong><br />{error}</div>}
       {session && !authenticated && <div className={styles.card}><h2>Требуется вход</h2><p>Настройки доступны только после аутентификации.</p><Link href="/login?returnTo=%2Fsettings%2Fpresentation">Войти</Link></div>}
       {session && authenticated && !admin && <div className={styles.card}><h2>Недостаточно прав</h2><p>Этот раздел требует административной роли и серверного permission <code>settings.manage</code>.</p><Link href="/">Вернуться к обзору</Link></div>}
+      {admin && !loaded && busy !== "load" && <div className={styles.card}><h2>Метаданные не загружены</h2><p>Редактор заблокирован до успешного чтения текущего server state, чтобы пустой baseline нельзя было сохранить поверх существующей конфигурации.</p><button type="button" onClick={() => void load()}>Повторить загрузку</button></div>}
 
-      {admin && <div className={styles.card}>
+      {admin && loaded && <div className={styles.card}>
         <div className={styles.sectionHead}>
           <div>
             <h2>JSON presentation metadata</h2>

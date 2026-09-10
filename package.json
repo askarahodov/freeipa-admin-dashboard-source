@@ -11,7 +11,7 @@
     "start:docker": "node scripts/start-worker.mjs",
     "recovery": "node --experimental-strip-types scripts/portal-recovery.ts",
     "test": "npm run build && node scripts/run-node-tests.mjs",
-    "test:recovery": "node --experimental-strip-types --test tests/recovery-*.test.mjs",
+    "test:recovery": "node scripts/run-recovery-tests.mjs",
     "test:recovery:compose": "node scripts/recovery-compose-smoke.mjs",
     "test:integration:smoke": "node scripts/local-integration-smoke.mjs",
     "test:local": "bash scripts/run-local-integration.sh",

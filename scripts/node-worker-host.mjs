@@ -11,11 +11,7 @@ import {
 import { resolveTrustedRequestProtocol } from "./trusted-proxy-policy.mjs";
 
 function runtimeOrigin(request, host, port, env) {
-  const protocol = resolveTrustedRequestProtocol({
-    headers: request.headers,
-    remoteAddress: request.socket?.remoteAddress,
-    env,
-  });
+  const protocol = resolveTrustedRequestProtocol({ headers: request.headers, env });
   const headerHost = request.headers.host;
   return `${protocol}://${headerHost || `${host}:${port}`}`;
 }

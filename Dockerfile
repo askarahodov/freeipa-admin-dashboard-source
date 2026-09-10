@@ -7,9 +7,6 @@ FROM dependencies AS build
 COPY . .
 RUN npm run build
 
-FROM dependencies AS production-dependencies
-RUN npm prune --omit=dev
-
 FROM node:22-bookworm-slim AS recovery
 WORKDIR /app
 RUN apt-get update \
@@ -36,7 +33,6 @@ RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
  && mkdir -p /data \
  && chown dashboard:dashboard /data
 COPY --from=build --chown=dashboard:dashboard /app/package.json /app/package-lock.json ./
-COPY --from=production-dependencies --chown=dashboard:dashboard /app/node_modules ./node_modules
 COPY --from=build --chown=dashboard:dashboard /app/dist ./dist
 COPY --from=build --chown=dashboard:dashboard /app/.openai ./.openai
 COPY --from=build --chown=dashboard:dashboard /app/db ./db

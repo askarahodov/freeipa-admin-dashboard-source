@@ -1,0 +1,21 @@
+# Optional operator-managed network customization for environments where the dashboard
+# container cannot resolve/reach FreeIPA or XYOps with the host Docker DNS defaults.
+#
+# Copy this file to compose.network.local.yaml, replace every documentation-only value,
+# then validate and start with:
+#   docker compose -f compose.yaml -f compose.network.local.yaml config
+#   docker compose -f compose.yaml -f compose.network.local.yaml up -d --build
+#
+# Do not put passwords, API keys, bearer tokens, cookies, private keys, or CA private
+# material in this file. DNS/host aliases do not disable or replace TLS verification.
+services:
+  dashboard:
+    # TEST-NET/documentation values below are intentionally non-routable examples.
+    dns:
+      - 192.0.2.53
+      - 198.51.100.53
+    dns_search:
+      - corp.example
+    extra_hosts:
+      freeipa.corp.example: "192.0.2.10"
+      xyops.corp.example: "198.51.100.20"

@@ -17,8 +17,9 @@
 7. [`SOURCE_OF_TRUTH.md`](reference/SOURCE_OF_TRUTH.md) — authoritative owners и precedence.
 8. [`DOCUMENTATION_POLICY.md`](development/DOCUMENTATION_POLICY.md) — docs-as-code и правила нескольких агентов.
 9. [`development/README.md`](development/README.md) — repository governance, branch lifecycle, required checks and dependency-update policy.
-10. При изменении внешнего/операционного контракта свериться с [`reference/API.md`](reference/API.md), [`reference/PERMISSIONS.md`](reference/PERMISSIONS.md), [`reference/CONFIGURATION.md`](reference/CONFIGURATION.md) и [`reference/ERROR_CODES.md`](reference/ERROR_CODES.md).
-11. Затем читать профильный документ и фактический code/tests текущего ref.
+10. [`design-system/README.md`](design-system/README.md) — current UI tokens, public primitives, composition and design-system governance.
+11. При изменении внешнего/операционного контракта свериться с [`reference/API.md`](reference/API.md), [`reference/PERMISSIONS.md`](reference/PERMISSIONS.md), [`reference/CONFIGURATION.md`](reference/CONFIGURATION.md) и [`reference/ERROR_CODES.md`](reference/ERROR_CODES.md).
+12. Затем читать профильный документ и фактический code/tests текущего ref.
 
 ### ИИ-агент
 
@@ -76,6 +77,7 @@
 | [`DOCUMENTATION_POLICY.md`](development/DOCUMENTATION_POLICY.md) | Docs-as-code, statuses, review and multi-agent rules |
 | [`SOURCE_OF_TRUTH.md`](reference/SOURCE_OF_TRUTH.md) | Authoritative source registry and precedence |
 | [`DOCUMENTATION_INVENTORY.md`](DOCUMENTATION_INVENTORY.md) | Current audit status |
+| [`design-system/README.md`](design-system/README.md) | Current shared UI tokens, public primitives, composition rules and design-system governance |
 | [`development/README.md`](development/README.md) | Development/repository governance policies |
 | [`adr/README.md`](adr/README.md) | ADR policy/registry — why-level decisions |
 | [`reference/GLOSSARY.md`](reference/GLOSSARY.md) | Common terminology |

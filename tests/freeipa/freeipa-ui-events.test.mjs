@@ -92,7 +92,7 @@ test("layout and enhanced browsers no longer depend on legacy FreeIPA action bri
   const [layout, users, members] = await Promise.all([
     readFile(new URL("../../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../../app/FreeIpaUserBrowser.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../../app/FreeIpaGroupMemberBrowser.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../../app/directory/FreeIpaGroupMemberBrowser.tsx", import.meta.url), "utf8"),
   ]);
 
   assert.doesNotMatch(layout, /FreeIpaDirectorySync|FreeIpaLegacyActionBridge/);

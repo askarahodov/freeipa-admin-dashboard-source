@@ -194,9 +194,9 @@ async function handleAuthApi(request: Request, env: RuntimeEnv, url: URL): Promi
     return json({ enabled: true, authenticated: false }, 200, { "set-cookie": clearLocalSessionCookie(request) });
   }
 
-  const authorized = await requireAdmin(env, request);
-  if (authorized instanceof Response) return authorized;
-  const { session: current, requestContext } = authorized;
+  const current = await requireAdmin(env, request);
+  if (current instanceof Response) return current;
+  const { session, requestContext } = current;
   const audit = createAuditContext({
     identity: requestContext.identity,
     role: requestContext.role,
@@ -266,7 +266,7 @@ async function handleAuthApi(request: Request, env: RuntimeEnv, url: URL): Promi
   if (!action && request.method === "PUT") {
     try {
       const body = await request.json() as Record<string, unknown>;
-      if (current.userId === userId && (body.disabled === true || (body.role !== undefined && body.role !== "admin"))) {
+      if (session.userId === userId && (body.disabled === true || (body.role !== undefined && body.role !== "admin"))) {
         return json({ error: "Нельзя отключить или понизить собственную активную учётную запись" }, 400);
       }
       const user = await updateLocalUser(env, userId, {
@@ -288,7 +288,7 @@ async function handleAuthApi(request: Request, env: RuntimeEnv, url: URL): Promi
   }
 
   if (!action && request.method === "DELETE") {
-    if (current.userId === userId) return json({ error: "Нельзя удалить собственную активную учётную запись" }, 400);
+    if (session.userId === userId) return json({ error: "Нельзя удалить собственную активную учётную запись" }, 400);
     try {
       await deleteLocalUser(env, userId);
       await appendAuditEvent(env, audit, {

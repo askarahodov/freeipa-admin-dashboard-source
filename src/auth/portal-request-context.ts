@@ -1,4 +1,4 @@
-import { portalRolePermissions, type PortalPermission, type PortalRole } from "./portal-permissions.ts";
+import { isPortalRole, portalRolePermissions, type PortalPermission, type PortalRole } from "./portal-permissions.ts";
 
 export type PortalAuthMode = "anonymous" | "local-session" | "service-admin" | "proxy" | "static";
 
@@ -19,6 +19,8 @@ type PortalRequestContextInput = {
   permissions?: Iterable<PortalPermission>;
   authMode: PortalAuthMode;
 };
+
+const portalAuthModes = new Set<PortalAuthMode>(["anonymous", "local-session", "service-admin", "proxy", "static"]);
 
 function boundedIdentity(value: string): string {
   const identity = String(value ?? "").trim().toLowerCase();
@@ -51,6 +53,16 @@ function normalizedPermissions(role: PortalRole, values: Iterable<PortalPermissi
   return Object.freeze(permissions);
 }
 
+function validatedRole(value: unknown): PortalRole {
+  if (!isPortalRole(value)) throw new Error("Portal request role is invalid");
+  return value;
+}
+
+function validatedAuthMode(value: unknown): PortalAuthMode {
+  if (!portalAuthModes.has(value as PortalAuthMode)) throw new Error("Portal request auth mode is invalid");
+  return value as PortalAuthMode;
+}
+
 /**
  * Canonical resolved request context for the future explicit middleware pipeline.
  *
@@ -60,12 +72,13 @@ function normalizedPermissions(role: PortalRole, values: Iterable<PortalPermissi
  * Explicit permission snapshots may narrow a role but may never expand it.
  */
 export function createPortalRequestContext(input: PortalRequestContextInput): PortalRequestContext {
+  const role = validatedRole(input.role);
   return Object.freeze({
     correlationId: boundedCorrelationId(input.correlationId),
     identity: boundedIdentity(input.identity),
-    role: input.role,
+    role,
     groups: normalizedGroups(input.groups),
-    permissions: normalizedPermissions(input.role, input.permissions),
-    authMode: input.authMode,
+    permissions: normalizedPermissions(role, input.permissions),
+    authMode: validatedAuthMode(input.authMode),
   });
 }

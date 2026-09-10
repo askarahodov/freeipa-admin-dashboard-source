@@ -6,13 +6,11 @@ import { createProductionRuntimeOptions } from "../../scripts/start-production.m
 test("production startup applies outbound proxy policy before loading runtime work", async () => {
   const calls = [];
   const env = { NODE_USE_ENV_PROXY: "1" };
-  const options = createProductionRuntimeOptions({
-    env,
-    async configureProxy(input) {
-      calls.push(["proxy", input.env]);
-      throw new Error("proxy policy rejected");
-    },
-  });
+  const options = createProductionRuntimeOptions({ env });
+  options.configureProxy = async (input) => {
+    calls.push(["proxy", input.env]);
+    throw new Error("proxy policy rejected");
+  };
 
   let workerLoaded = false;
   await assert.rejects(

@@ -1,113 +1,140 @@
 # Backlog execution matrix
 
-Point-in-time coordination reference for issue #550 (parent #548).
+Current-state coordination reference for issue #548.
 
-Verified: 2026-09-10 against `main` `d58cce5b923d182f13c197a67f43e6fba0465a45` and GitHub issue/PR state. GitHub issue state remains the source of truth; this document is a routing snapshot for AI-agent coordination and must be revalidated before implementation. Historical audit appendices inside issues are retained as history and are not treated as current scheduler state.
+Verified: 2026-09-10 against `main` `ba51d1f120e9e542bcd6b356cd678d3de748a9db` and current GitHub issue/PR state. GitHub issues remain the source of truth; this document is a routing snapshot for AI-agent coordination and must be revalidated before implementation. Historical audit appendices inside issues remain history and are not treated as scheduler state.
 
 ## Status vocabulary
 
 - `READY`: a bounded slice can be assigned after the normal fresh-main/collision check.
-- `IN_PROGRESS`: an active owner/PR or this audit currently owns the next slice.
-- `NEEDS_REVALIDATION`: reproduce or inspect the remaining scope on current main before implementation.
-- `BLOCKED`: a concrete dependency or external action prevents completion.
+- `IN_PROGRESS`: an active owner/PR or audit owns the next slice.
+- `NEEDS_REVALIDATION`: reproduce or inspect remaining behavior on current main before implementation.
+- `BLOCKED`: a concrete dependency or external action prevents the next implementation/completion step.
 - `DEFERRED`: valid expansion, but not before foundation work/value revalidation.
-- `DUPLICATE/OBSOLETE`: current main or another owner already closes the scope; none of the 47 open issues is classified this way in this snapshot.
+- `DUPLICATE/OBSOLETE`: current main or another owner already closes the remaining scope.
 
 ## Confirmed coordination state
 
-- GitHub search returns 47 open issues and reports `incomplete_results=false`.
+- #550 is completed through PR #620; its first complete snapshot covered all 47 issues that were open at that time.
+- #293 is completed through PR #619. #95, #117 and #118 are also closed/completed and are not current blockers.
+- #51 production runtime, #59 anti-abuse and #162 explicit same-origin protection are all closed/completed. Old issue appendices that still list them as open are stale.
 - Active runtime owner: PR #613 for #56 owns `worker/secure-entry.ts` and `tests/auth/secure-entry-request-context-integration.test.mjs`; no second agent should edit those paths.
-- PR #619 has merged; #293 is closed and is no longer an open design-system dependency.
-- #95, #117 and #118 are closed/completed and must not be used as open blockers by old August appendices.
-- #566 implementation is on main, but no `workflow_dispatch` run exists on main yet. #560 therefore remains blocked on that acceptance signal only.
-- #391 requires repository-administration configuration. The current connected GitHub App has no repository administration capability, so this is an external/admin blocker rather than a code task.
+- #566 implementation is on main, but no `workflow_dispatch` run exists on main yet. #560 remains blocked on that acceptance signal only.
+- #391 requires repository-administration configuration. The connected GitHub App has no repository administration capability, so it is an external/admin blocker rather than a code task.
 
-## Complete open-issue matrix
+## Complete current open-issue matrix
 
 | Issue | Status | Owner / workstream | Hard blocker or active owner | Next executable slice | Validation | Knowledge Base impact |
 | --- | --- | --- | --- | --- | --- | --- |
-| #27 | NEEDS_REVALIDATION | UI / settings | #552 revalidation; old owning PR #534 is no longer active | Inspect current route/settings composition and define the smallest remaining route slice | focused UI contracts + routed Chromium | Admin KB update when workflow changes |
-| #28 | BLOCKED | UI / product model | #27; compatibility boundary with #29 | After #27, define versioned shortcut/preset storage and migration preview without copying XYOps schema | API + migration + E2E | Admin/operator KB update |
-| #29 | BLOCKED | Integrations / UI | #27 plus current diagnostics projection revalidation under #551/#552 | Revalidate shared diagnostics/read-model ownership before XYOps-specific UI | API + failure injection + E2E | Admin/operator KB update |
-| #30 | BLOCKED | UI / authorization UX | #27 | Build one visual visibility-policy slice over existing deny-wins server contract | API/unit + E2E bypass checks | Admin KB update |
-| #31 | BLOCKED | UI / approvals | #27 | Build one approval-policy editor slice preserving one-shot execution/self-approval rules | API/concurrency + E2E | Admin KB update |
+| #27 | NEEDS_REVALIDATION | UI / settings | #552 revalidation | Inspect current route/settings composition and define the smallest remaining route slice | focused UI contracts + routed Chromium | Admin KB update when workflow changes |
+| #28 | BLOCKED | UI / product model | #27; compatibility boundary with #29 | After #27, define versioned shortcut/preset storage and migration preview | API + migration + E2E | Admin/operator KB update |
+| #29 | BLOCKED | Integrations / UI | #27; consumes #41 backend capability contract | Revalidate shared diagnostics/read-model ownership before XYOps UI | API + failure injection + E2E | Admin/operator KB update |
+| #30 | BLOCKED | UI / authorization UX | #27 | Build one visibility-policy slice over existing deny-wins server contract | API/unit + E2E bypass checks | Admin KB update |
+| #31 | BLOCKED | UI / approvals | #27 | Build one approval-policy editor slice preserving one-shot/self-approval rules | API/concurrency + E2E | Admin KB update |
 | #32 | BLOCKED | UI / catalog presentation | #27 | Implement one locale/presentation editor slice over current settings lifecycle | locale/API + E2E | Admin KB update |
-| #33 | BLOCKED | QA / UI | #27-#32 and #98; #117 is already closed | Add broad redesigned-admin flows only after product flows/gates stabilize | full Playwright + artifact redaction | None directly |
-| #38 | NEEDS_REVALIDATION | Runtime / identity security | #551 must verify current #59/#162 baseline | Map effective account/session baseline and remaining configurable policy surface | security/API + E2E | Admin/security KB update |
-| #39 | DEFERRED | Runtime / authorization platform | Stabilize #56/auth baseline first | Later define permission catalog/migration without privilege expansion | permission matrix + security E2E | Admin KB update |
-| #40 | NEEDS_REVALIDATION | FreeIPA / security | #551; relationship with #52 | Verify current TLS/settings/capability behavior before selecting one bounded FreeIPA-settings slice | Gateway/API + E2E | Admin/operator KB update |
-| #41 | NEEDS_REVALIDATION | XYOps / integrations | #551 and compatibility ownership #29 | Verify current capability/settings gaps and idempotent retry boundaries | API/failure + E2E | Admin/operator KB update |
-| #42 | NEEDS_REVALIDATION | Storage lifecycle | #551 current schema/backup/storage review | Map protected records/deletion graph and choose dry-run-first bounded slice | integration + failure injection | Admin/operator KB update |
-| #43 | DEFERRED | Security operations | Foundation/redaction/retention before SIEM expansion | Defer external sink/export platform until storage/security foundations are reconfirmed | security + integration | Admin/operator KB update when implemented |
-| #44 | NEEDS_REVALIDATION | Storage / admin UI | #551; significant backend foundation already exists | Inspect remaining Storage Center/read-only vs migration-apply scope before code | API/E2E + failure injection | Admin/operator KB update |
-| #45 | NEEDS_REVALIDATION | Settings / platform | Current #27 route state | Verify which general settings/lifecycle pieces already exist and choose one bounded domain | API + E2E | Admin KB update |
-| #46 | DEFERRED | Platform / feature control | Prefer stabilized #56/settings foundation | Defer centralized feature-flag expansion until foundation/value is reconfirmed | security/API + E2E | Admin KB update when implemented |
-| #52 | NEEDS_REVALIDATION | Runtime / deployment | #551; old appendix incorrectly treats #51 as open | Reproduce current Compose networking/exposure and refresh network-model decision | Compose/integration + security | Operator/admin KB update |
-| #53 | NEEDS_REVALIDATION | Runtime / web security | #551 must verify trusted-proxy/#59 state | Audit current headers/proxy trust/cookie behavior before implementation | security/browser + origin regression | Operator/security KB update |
-| #56 | IN_PROGRESS | Runtime architecture | PR #613 owns secure-entry request-context integration | Finish #613; then revalidate the next single middleware/domain extraction slice | auth/architecture contracts + full routed E2E | Engineering docs only unless operations change |
-| #61 | NEEDS_REVALIDATION | Release / runtime | #551 production-readiness audit | Inventory current acceptance harness and remaining safe staging gate gaps | staging acceptance + redaction | Operator/release KB update |
-| #62 | NEEDS_REVALIDATION | Diagnostics / security | #551; verify current diagnostics/redaction foundation | Define current allowlisted archive manifest/redaction gap before endpoint work | security/failure + CLI/API | Admin/operator KB update |
+| #33 | BLOCKED | QA / UI | #27-#32 and #98 | Add broad redesigned-admin flows only after product flows/gates stabilize | full Playwright + artifact redaction | None directly |
+| #38 | READY | Runtime / identity security | Collision-check #613/#56 auth paths before code | Inventory effective account/session policy, define immutable platform bounds and behavior tests before adding revisioned knobs | security/API + E2E | Admin/security KB update |
+| #39 | DEFERRED | Runtime / authorization platform | Stabilize #56/auth architecture first | Later define permission catalog/migration without privilege expansion | permission matrix + security E2E | Admin KB update |
+| #40 | BLOCKED | FreeIPA / security | Settle #52 outbound network/proxy transport contract first | Then start custom-CA/TLS/capability settings as bounded backend contracts | Gateway/API + E2E | Admin/operator KB update |
+| #41 | READY | XYOps / integrations | No hard blocker; #29 is downstream UI consumer | Typed advanced-settings bounds + read-only capability-discovery normalization | API/failure + E2E | Admin/operator KB update |
+| #42 | BLOCKED | Storage lifecycle | Complete the next #62/#44 safety layers before destructive cleanup | After diagnostics + controlled storage controls, start dry-run retention/deletion graph | integration + failure injection | Admin/operator KB update |
+| #43 | DEFERRED | Security operations | Storage/redaction/retention foundations first | Defer external SIEM/export platform until foundation work is proven | security + integration | Admin/operator KB update when implemented |
+| #44 | READY | Storage / admin UI | Sequence after #62 for support/redaction safety; no hard prerequisite missing | Continue from existing status/integrity/preflight foundation with controlled migration apply/recovery, then UI | API/E2E + failure injection | Admin/operator KB update |
+| #45 | NEEDS_REVALIDATION | Settings / platform | Current #27 route state | Verify remaining general settings/lifecycle pieces and choose one bounded domain | API + E2E | Admin KB update |
+| #46 | DEFERRED | Platform / feature control | Prefer stabilized #56/settings foundation | Defer feature-flag expansion until foundation/value is reconfirmed | security/API + E2E | Admin KB update when implemented |
+| #52 | READY | Runtime / deployment | No hard blocker; bridge/DNS foundation already merged | Audit actual FreeIPA/XYOps outbound proxy behavior; implement explicit HTTP(S)_PROXY/NO_PROXY only if a safe testable transport contract exists | Compose/runtime integration + TLS security | Operator/admin KB update |
+| #53 | READY | Runtime / web security | Sequence after #52; avoid #613 owned paths | Inventory actual headers/cookie HTTPS detection, threat-model trusted proxy, then add centralized headers/proxy trust contract | security/browser + origin regression | Operator/security KB update |
+| #56 | IN_PROGRESS | Runtime architecture | PR #613 owns secure-entry request-context integration | Finish #613; then revalidate one next middleware/domain extraction slice | auth/architecture contracts + routed E2E | Engineering docs unless operations change |
+| #61 | BLOCKED | Release / runtime | Final gate depends on settled #52 and #53 deployment/security contracts | After #52/#53, build exact-image staging acceptance harness/report/redaction gate | staging acceptance + redaction | Operator/release KB update |
+| #62 | READY | Diagnostics / security | Health/schema/backup prerequisites already complete | Define versioned allowlist archive manifest + centralized/second-pass redaction contract first | security/failure + CLI/API | Admin/operator KB update |
 | #92 | IN_PROGRESS | UI epic / coordination | #552 owns current revalidation | Route work through validated child slices; do not start another mega-redesign | browser matrix per child | Per child |
-| #96 | NEEDS_REVALIDATION | UI / forms | #118 is closed; current screens must be checked | Reproduce remaining form/dialog semantics on extracted screens | a11y/browser + CRUD E2E | User/admin KB only for changed workflows |
+| #96 | NEEDS_REVALIDATION | UI / forms | #118 is closed; current screens must be checked | Reproduce remaining form/dialog semantics on current screens | a11y/browser + CRUD E2E | User/admin KB only for changed workflows |
 | #97 | NEEDS_REVALIDATION | UI / overview | Existing OperationalOverview must be inspected, not recreated | Verify current integration/parity then define one activation slice | dashboard contracts + E2E | Operator/user KB update |
-| #98 | NEEDS_REVALIDATION | QA / UI | #117 is closed; current gates/primitives changed since audit | Recompute missing deterministic a11y/visual gates on current main | Playwright visual/a11y + redaction | None directly |
-| #276 | NEEDS_REVALIDATION | UI / error states (P0) | #552 browser reproduction | Reproduce persistent integration-outage duplication/occlusion on current main | browser desktop/mobile | Operator/admin KB if semantics change |
-| #277 | NEEDS_REVALIDATION | UI foundation (P0) | #552 browser/network reproduction | Check whether Geist URLs still expose workspace paths/404 before patching | network/build + routed browser | None |
+| #98 | NEEDS_REVALIDATION | QA / UI | #117 is closed; current gates changed | Recompute missing deterministic a11y/visual gates on current main | Playwright visual/a11y + redaction | None directly |
+| #276 | NEEDS_REVALIDATION | UI / error states (P0) | #552 browser reproduction | Reproduce integration-outage duplication/occlusion on current main | browser desktop/mobile | Operator/admin KB if semantics change |
+| #277 | NEEDS_REVALIDATION | UI foundation (P0) | #552 browser/network reproduction | Check whether Geist URLs still expose workspace paths/404 | network/build + routed browser | None |
 | #278 | NEEDS_REVALIDATION | UI shell (P0) | #552 responsive reproduction | Recheck 320/390/768 navigation and fixed/sticky occlusion | responsive Chromium | None |
-| #279 | NEEDS_REVALIDATION | UI / design-system adoption | #293 now closed; #552 | Re-audit terminology/colors/icons/contrast against newly documented design-system contract | a11y/browser | User-facing terminology KB update |
+| #279 | NEEDS_REVALIDATION | UI / design-system adoption | #293 now complete; #552 | Re-audit terminology/colors/icons/contrast against documented design-system contract | a11y/browser | User-facing terminology KB update |
 | #280 | NEEDS_REVALIDATION | UI / local-admin shell | #552 | Verify Access/Sessions/Diagnostics shell/navigation state and remaining gap | browser + RBAC contracts | Admin KB update |
-| #281 | NEEDS_REVALIDATION | UI / responsive lists/forms | #552 | Re-measure touch targets and page/table overflow on supported viewports | responsive browser | None/minor usage docs |
-| #282 | NEEDS_REVALIDATION | UI / state system | Revalidate after #276 current state | Inventory current empty/unavailable/degraded representations and select shared-state slice | browser + state contracts | Operator/admin KB update |
-| #283 | DEFERRED | UI / product search | Shell/query/RBAC value contract not yet confirmed | Revisit after navigation/state foundations; do not build speculative search backend | API/RBAC + E2E | User KB when implemented |
-| #284 | NEEDS_REVALIDATION | UI / action hierarchy | #279/#280 current state | Re-audit PageHeader/Toolbar usage after design-system documentation merge | component + browser/a11y | None |
+| #281 | NEEDS_REVALIDATION | UI / responsive lists/forms | #552 | Re-measure touch targets and overflow on supported viewports | responsive browser | None/minor usage docs |
+| #282 | NEEDS_REVALIDATION | UI / state system | Revalidate after #276 current state | Inventory current empty/unavailable/degraded representations | browser + state contracts | Operator/admin KB update |
+| #283 | DEFERRED | UI / product search | Shell/query/RBAC value contract not confirmed | Revisit after navigation/state foundations | API/RBAC + E2E | User KB when implemented |
+| #284 | NEEDS_REVALIDATION | UI / action hierarchy | #279/#280 current state | Re-audit PageHeader/Toolbar usage after #293 completion | component + browser/a11y | None |
 | #285 | DEFERRED | UI / first-run recovery | #282, #27, #29 | Defer guided flow until state/settings/diagnostics foundations are stable | E2E + security | Admin KB when implemented |
-| #286 | NEEDS_REVALIDATION | UI / RBAC UX | Shell/state review first | Rebuild viewer/operator/admin route/action matrix from current product | role-matrix E2E | Role/admin KB update |
-| #287 | DEFERRED | UI / activity center | State/outage and data-source ownership first | Revalidate product need/data model after #276/#282 | privacy/data model + E2E | User/operator KB when implemented |
-| #288 | NEEDS_REVALIDATION | UI / presentation resilience | #279/#281 current state | Re-audit extreme content/zoom/reduced-motion gaps before shared formatter/help work | visual/a11y | Contextual-help KB links may update |
-| #291 | DEFERRED | UI / branding | Product-value/concept decision after UI revalidation | Revisit brand work after core UI foundation defects are resolved | visual/a11y | None |
-| #294 | DEFERRED | UI / bulk UX | list/forms/mobile/role/activity foundations | Defer broad bulk workflow until prerequisite interaction patterns are stable | deterministic E2E | User/operator KB when implemented |
-| #391 | BLOCKED | GitHub / repository policy | Repository-admin/settings capability required | Configure PR/Required CI/E2E protection, then prove with a real protected merge | repository settings + real PR | None |
-| #548 | IN_PROGRESS | Management / coordination | #550 current, then #551/#552 | Finish execution matrix, then runtime and UI revalidation waves | docs/current-state audit | None |
-| #550 | IN_PROGRESS | Management / coordination | This branch/PR | Publish this 47-issue matrix and verify docs-only CI | docs checks + final diff | None |
-| #551 | READY | Management / Runtime/Security audit | Run after #550 merge; no product-code owner | Revalidate #52/#53/#61/#56/#38/#40/#41/#42/#43/#44/#46/#62 and update this matrix | current-main/GitHub evidence + docs checks | None directly |
-| #552 | READY | Management / UI audit | Safe after #550; coordinate any browser harness ownership | Reproduce P0 findings and classify all listed UI issues without product changes | browser evidence + docs checks | Audit records KB impact per issue |
+| #286 | NEEDS_REVALIDATION | UI / RBAC UX | Shell/state review first | Rebuild viewer/operator/admin route/action matrix | role-matrix E2E | Role/admin KB update |
+| #287 | DEFERRED | UI / activity center | State/outage/data-source ownership first | Revalidate product need/data model after #276/#282 | privacy/data model + E2E | User/operator KB when implemented |
+| #288 | NEEDS_REVALIDATION | UI / presentation resilience | #279/#281 current state | Re-audit extreme content/zoom/reduced-motion gaps | visual/a11y | Contextual-help KB links may update |
+| #291 | DEFERRED | UI / branding | Product-value/concept decision after UI revalidation | Revisit brand work after core UI foundation defects | visual/a11y | None |
+| #294 | DEFERRED | UI / bulk UX | list/forms/mobile/role/activity foundations | Defer broad bulk workflow until prerequisite patterns are stable | deterministic E2E | User/operator KB when implemented |
+| #391 | BLOCKED | GitHub / repository policy | Repository-admin/settings capability required | Configure PR/Required CI/E2E protection, then prove with a protected merge | repository settings + real PR | None |
+| #548 | IN_PROGRESS | Management / coordination | #551 current, #552 next/parallel | Finish runtime/security and UI revalidation waves | docs/current-state audit | None |
+| #551 | IN_PROGRESS | Management / Runtime/Security audit | This branch/PR | Publish the revalidated critical path and issue handoffs | current-main/GitHub evidence + docs checks | None directly |
+| #552 | READY | Management / UI audit | Safe after #550; coordinate browser harness ownership | Reproduce P0 findings and classify listed UI issues without product changes | browser evidence + docs checks | Audit records KB impact per issue |
 | #560 | BLOCKED | CI epic | #566 manual acceptance only | Validate one manual security run, close #566, then final epic audit | Actions/run provenance | None |
 | #566 | BLOCKED | CI / security | External/manual `workflow_dispatch` on trusted main | Launch Scheduled Security Scan manually; validate live audit, SBOM, Trivy DB/scanner provenance and artifacts | manual Actions run + artifact inspection | None |
+
+## Runtime / Security / Platform critical path — #551
+
+### Current-state findings
+
+1. The old production-runtime blocker is gone: #51 is completed. Canonical Compose already uses an explicit `portal` bridge and loopback-default publication; #608/#611/#615 delivered bridge topology, documentation and guarded DNS/search-domain/host-alias customization. #52 is therefore not a host-network migration anymore. Its remaining meaningful scope is outbound FreeIPA/XYOps proxy transport behavior and the evidence-based decision on whether any legacy host-network compatibility profile is justified.
+2. The auth baseline is further ahead than old appendices imply: #59 and #162 are completed. #38 can start a design/test-first configurable-policy slice, subject to collision checking against active #613/#56 auth architecture work.
+3. #53 has no missing security prerequisite from #59; it is implementation-ready after normal collision check, but sequencing it after the remaining #52 outbound-network contract keeps proxy trust/topology decisions coherent.
+4. #41 explicitly owns XYOps advanced-settings and capability-discovery backend contracts. #29 consumes those contracts and is not a blocker for the first #41 slice.
+5. Storage already has substantial #44 foundation on main: read-only status, integrity/index diagnostics and migration preflight/backup/lock inspection were merged. #62 has all stated foundation prerequisites and should establish the bounded diagnostic archive/redaction layer before the next controlled storage/admin surface. Destructive #42 retention should follow those safety layers rather than run ahead of them.
+6. #43 SIEM/export and #46 feature-flag platform remain deliberately deferred: neither is required to unblock the immediate production-readiness chain.
+7. #61's historical prerequisites (#37/#49/#55/#57/#60) are complete. Its final release-gate value is highest after #52/#53 settle the remaining deployment/security contracts, so it is treated as blocked for final implementation rather than prematurely building around moving boundaries.
+
+### Ordered execution
+
+**Primary production-readiness chain**
+
+`#52 outbound proxy/transport residual → #53 centralized HTTP headers + trusted proxy → #61 reproducible production/staging acceptance`
+
+**Parallel-safe foundation lanes**
+
+- `#62 diagnostic archive/redaction → #44 controlled migration/recovery + Storage Center → #42 retention/cleanup`
+- `#41 XYOps backend settings/capability discovery → #29 compatibility UI` (the UI remains separately gated by #27)
+- `#38 account/session policy` is ready for design/tests, but code ownership must not overlap active PR #613/#56.
+- `#40 FreeIPA advanced settings` starts after #52 settles outbound transport/proxy semantics; TLS/custom-CA behavior must not use network work as a reason to disable verification.
+
+### Do not execute now
+
+- #43 SIEM/export, #46 feature flags and #39 custom RBAC remain deferred expansion.
+- Do not assign a second owner to #56 secure-entry while PR #613 is open.
+- Do not treat #61 as a substitute for completing #52/#53; acceptance validates the production contract, it does not define it.
 
 ## Execution queues
 
 ### Execute now
 
-1. **#550** — finish and merge this current-state matrix.
-2. **#551** — immediately revalidate the Runtime/Security/Platform critical path; this unlocks decisions for #52/#53/#61 and prevents stale security dependency assumptions.
-3. **#552** — UI/UX browser revalidation can run in parallel with #551 after this matrix because it is read-only and owns no product code.
-4. **#56 / PR #613** — continue only with its current owner; do not assign a second agent to secure-entry paths.
-5. **#566** — no further implementation is needed before acceptance; an actor with workflow-dispatch capability must run the already-merged security workflow.
+1. **#551** — finish and merge this critical-path refresh.
+2. **#52** — outbound proxy/transport audit is the next runtime deployment slice.
+3. **#62** — manifest/redaction-first diagnostics slice is parallel-safe with #52.
+4. **#41** — backend settings/capability-discovery first slice is parallel-safe if owned paths are disjoint.
+5. **#38** — design/tests are ready; implementation waits for a clean auth collision check against #613.
+6. **#552** — UI/UX browser revalidation remains parallel-safe because it changes no product behavior.
+7. **#56 / PR #613** — continue only with its current owner.
+8. **#566** — no implementation remains before acceptance; an actor with workflow-dispatch capability must run the merged security workflow.
 
 ### Revalidate first
 
-`#27 #38 #40 #41 #42 #44 #45 #52 #53 #61 #62 #96 #97 #98 #276 #277 #278 #279 #280 #281 #282 #284 #286 #288`.
+`#27 #45 #96 #97 #98 #276 #277 #278 #279 #280 #281 #282 #284 #286 #288`.
 
-These issues contain plausible work, but their old snapshots are not sufficient authorization to implement. #551 or #552 should turn each into a current bounded slice or another explicit status.
+### Blocked / sequenced
 
-### Blocked
-
-`#28 #29 #30 #31 #32 #33 #391 #560 #566`.
-
-A blocked issue is not an invitation to work around the blocker. Resolve/revalidate the named dependency or external action first.
+`#28 #29 #30 #31 #32 #33 #40 #42 #61 #391 #560 #566`.
 
 ### Defer
 
 `#39 #43 #46 #283 #285 #287 #291 #294`.
 
-These remain legitimate product/platform ideas, but starting them now would expand surface area before the current foundation/critical-path work is proven.
-
 ## Parallel-safe waves
 
-- **Wave 1:** #551 runtime/security audit + #552 UI browser audit in parallel. PR #613 continues independently with its existing owner. #566 manual dispatch can happen at any time because it does not edit repository files.
-- **Wave 2:** after #551, select at most one runtime/security implementation owner for shared trust/runtime paths (likely from #52/#53/#61) plus independent UI slices proven by #552 with disjoint paths.
-- **Wave 3:** only after foundation results, reconsider deferred expansion such as custom RBAC, SIEM, feature flags, search/activity/branding/bulk UX.
+- **Wave 1:** #52 runtime-network residual + #62 diagnostic-redaction foundation + #41 XYOps backend contract + #552 UI revalidation, with disjoint owners. PR #613 continues independently. #38 remains design/test-only until auth-path collision clears.
+- **Wave 2:** #53 after #52; #44 after #62; then #40 and #42 when their upstream contracts are fixed. UI implementation slices come from #552 evidence.
+- **Wave 3:** #61 production/staging acceptance validates the settled deployment/security chain. Only after foundation results should deferred custom RBAC/SIEM/feature-flags/search/activity/branding/bulk expansion be reconsidered.
 
 ## Mandatory handoff before implementation
 
-Every agent must still fetch fresh `main`, inspect open PRs and issue state, and state: `Owned paths`, `Depends on`, `Conflicts checked`, expected result, rollback, focused validation, and Knowledge Base impact. A row in this matrix never overrides a newer GitHub state or an active owner.
+Every agent must still fetch fresh `main`, inspect open PRs and issue state, and state: `Owned paths`, `Depends on`, `Conflicts checked`, expected result, rollback, focused validation, and Knowledge Base impact. A row in this matrix never overrides newer GitHub state or an active owner.

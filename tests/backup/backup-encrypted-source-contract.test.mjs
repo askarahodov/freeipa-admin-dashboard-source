@@ -8,6 +8,7 @@ const productionFiles = [
   "src/backup/export/backup-encrypted-export.ts",
   "src/backup/preview/backup-full-projections.ts",
   "src/backup/preview/backup-encrypted-preview.ts",
+  "src/backup/restore/backup-restore-plan.ts",
   "worker/backup-encrypted-export-entry.ts",
   "worker/backup-encrypted-preview-entry.ts",
   "worker/backup-encrypted-root-entry.ts",
@@ -20,6 +21,17 @@ async function sources() {
 test("backup encryption canonical owner exists without a root compatibility shim", async () => {
   await access(new URL("../../src/backup/crypto/backup-encryption.ts", import.meta.url));
   await assert.rejects(access(new URL("../../backup-encryption.ts", import.meta.url)));
+});
+
+test("encrypted backup export canonical owner exists without a root compatibility shim", async () => {
+  await access(new URL("../../src/backup/export/backup-encrypted-export.ts", import.meta.url));
+  await assert.rejects(access(new URL("../../backup-encrypted-export.ts", import.meta.url)));
+});
+
+test("backup restore plan imports encrypted document type from the canonical export owner", async () => {
+  const text = await readFile(new URL("../../src/backup/restore/backup-restore-plan.ts", import.meta.url), "utf8");
+  assert.match(text, /from "\.\.\/export\/backup-encrypted-export\.ts"/);
+  assert.doesNotMatch(text, /from "\.\.\/\.\.\/\.\.\/backup-encrypted-export\.ts"/);
 });
 
 test("encrypted preview canonical owner exists without a root compatibility shim", async () => {

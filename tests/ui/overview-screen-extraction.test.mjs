@@ -27,7 +27,7 @@ test("Operational Overview consumes existing bounded page data instead of a new 
 });
 
 test("Overview navigation keeps privileged diagnostics and settings role-aware", () => {
-  assert.match(page, /case "diagnostics":[\s\S]*canManageSettings[\s\S]*window\.location\.assign\("\/diagnostics"\)/u);
+  assert.match(page, /case "diagnostics":[\s\S]*canManageSettings[\s\S]*window\.location\.assign\("\/diagnostics\/health"\)/u);
   assert.match(page, /case "settings":[\s\S]*canManageSettings[\s\S]*navigateTo\("settings"\)/u);
   assert.match(page, /attentionTargets=\{canManageSettings/u);
 });

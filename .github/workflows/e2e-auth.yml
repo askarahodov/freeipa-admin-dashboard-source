@@ -27,28 +27,58 @@ jobs:
       - name: Validate test routing policy
         run: node --test tests/auth/auth-e2e-routing.test.mjs tests/architecture/test-scope-routing.test.mjs
 
-      - name: Determine affected test categories
+      - name: Determine canonical CI and E2E plan
         id: scope
         shell: bash
         run: |
           set -euo pipefail
+          changed="$RUNNER_TEMP/e2e-changed-inputs.bin"
+          planner_args=(--github-output "$GITHUB_OUTPUT" --github-step-summary "$GITHUB_STEP_SUMMARY")
+
           if [[ "${{ github.event_name }}" != "pull_request" ]]; then
-            : > "$RUNNER_TEMP/e2e-changed-files.txt"
-            node scripts/auth-e2e-scope.mjs --github-output "$GITHUB_OUTPUT" --full "$RUNNER_TEMP/e2e-changed-files.txt"
+            : > "$changed"
+            node scripts/auth-e2e-scope.mjs "${planner_args[@]}" --full "$changed"
             exit 0
           fi
-          git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" > "$RUNNER_TEMP/e2e-changed-files.txt"
-          node scripts/auth-e2e-scope.mjs --github-output "$GITHUB_OUTPUT" "$RUNNER_TEMP/e2e-changed-files.txt"
+
+          base_sha="${{ github.event.pull_request.base.sha }}"
+          head_sha="${{ github.event.pull_request.head.sha }}"
+          merge_base="$(git merge-base "$base_sha" "$head_sha")"
+          test -n "$merge_base"
+          git diff --name-status -z --find-renames "$merge_base" "$head_sha" > "$changed"
+
+          base_package="$RUNNER_TEMP/package.base.json"
+          head_package="$RUNNER_TEMP/package.head.json"
+          if git show "$merge_base:package.json" > "$base_package" 2>/dev/null && git show "$head_sha:package.json" > "$head_package" 2>/dev/null; then
+            planner_args+=(--base-package "$base_package" --head-package "$head_package")
+          fi
+
+          node scripts/auth-e2e-scope.mjs "${planner_args[@]}" "$changed"
 
       - name: Report selected coverage
         run: |
+          echo "full=${{ steps.scope.outputs.full }}"
+          echo "full_fallback_reason=${{ steps.scope.outputs.full_fallback_reason }}"
           echo "categories=${{ steps.scope.outputs.categories }}"
           echo "browser_specs=${{ steps.scope.outputs.browser_specs }}"
           echo "contract_tests=${{ steps.scope.outputs.contract_tests }}"
+          echo "required_jobs=${{ steps.scope.outputs.required_jobs }}"
+
+      - name: Validate planner outputs exist
+        shell: bash
+        env:
+          RUN_PLAN: ${{ steps.scope.outputs.run }}
+          FULL_PLAN: ${{ steps.scope.outputs.full }}
+          REQUIRED_JOBS: ${{ steps.scope.outputs.required_jobs }}
+        run: |
+          set -euo pipefail
+          [[ "$RUN_PLAN" == "true" || "$RUN_PLAN" == "false" ]]
+          [[ "$FULL_PLAN" == "true" || "$FULL_PLAN" == "false" ]]
+          test -n "$REQUIRED_JOBS"
 
       - name: No browser E2E required for this pull request
         if: steps.scope.outputs.browser_specs == ''
-        run: echo "No browser E2E category is affected by this change."
+        run: echo "Canonical plan selected no browser E2E category for this change."
 
       - name: Run affected contract tests
         if: steps.scope.outputs.contract_tests != ''

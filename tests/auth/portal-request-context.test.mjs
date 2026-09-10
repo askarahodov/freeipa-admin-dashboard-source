@@ -32,9 +32,11 @@ test("packages an already-resolved principal into one immutable request context"
 test("keeps authentication mechanism explicit instead of inferring trust from identity", () => {
   const local = createPortalRequestContext({ correlationId: "local-1", identity: "admin@example.com", role: "admin", authMode: "local-session" });
   const service = createPortalRequestContext({ correlationId: "service-1", identity: "service-admin", role: "admin", authMode: "service-admin" });
+  const workspace = createPortalRequestContext({ correlationId: "workspace-1", identity: "user@example.com", role: "viewer", authMode: "workspace" });
 
   assert.equal(local.authMode, "local-session");
   assert.equal(service.authMode, "service-admin");
+  assert.equal(workspace.authMode, "workspace");
   assert.deepEqual(local.permissions, portalRolePermissions.admin);
   assert.deepEqual(service.permissions, portalRolePermissions.admin);
 });
@@ -65,6 +67,29 @@ test("rejects explicit permissions that would expand the resolved role", () => {
       authMode: "local-session",
     }),
     /permission 'settings\.manage' exceeds role 'viewer'/u,
+  );
+});
+
+test("rejects scalar strings for collection inputs", () => {
+  assert.throws(
+    () => createPortalRequestContext({
+      correlationId: "groups-1",
+      identity: "viewer@example.com",
+      role: "viewer",
+      groups: "admins",
+      authMode: "workspace",
+    }),
+    /groups must be a collection/u,
+  );
+  assert.throws(
+    () => createPortalRequestContext({
+      correlationId: "permissions-1",
+      identity: "viewer@example.com",
+      role: "viewer",
+      permissions: "directory.read",
+      authMode: "workspace",
+    }),
+    /permissions must be a collection/u,
   );
 });
 

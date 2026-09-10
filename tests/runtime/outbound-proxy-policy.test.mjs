@@ -7,7 +7,7 @@ test("outbound proxy is disabled by default on older supported Node runtimes", (
   assert.deepEqual(outboundProxyPolicy({}, "22.13.0"), { enabled: false });
 });
 
-test("outbound proxy requires a Node release with built-in proxy support", () => {
+test("outbound proxy requires a Node release with built-in startup proxy support", () => {
   const env = {
     NODE_USE_ENV_PROXY: "1",
     HTTPS_PROXY: "http://proxy.example:8080",
@@ -60,19 +60,17 @@ test("lowercase proxy variables take precedence and loopback gateway bypass is m
   });
 });
 
-test("configureOutboundProxy applies the validated environment once", async () => {
+test("configureOutboundProxy performs fail-closed startup preflight without requiring the newer dynamic proxy API", () => {
   const env = {
     NODE_USE_ENV_PROXY: "1",
     HTTPS_PROXY: "http://user:secret@proxy.example:8080",
     NO_PROXY: "localhost,127.0.0.1",
   };
-  const calls = [];
-  const policy = await configureOutboundProxy({
-    env,
-    nodeVersion: "22.21.0",
-    setGlobalProxyFromEnv(proxyEnv) { calls.push(proxyEnv); },
-  });
 
-  assert.equal(policy.enabled, true);
-  assert.deepEqual(calls, [env]);
+  assert.deepEqual(configureOutboundProxy({ env, nodeVersion: "22.21.0" }), {
+    enabled: true,
+    httpProxyConfigured: false,
+    httpsProxyConfigured: true,
+    gatewayBypassed: true,
+  });
 });

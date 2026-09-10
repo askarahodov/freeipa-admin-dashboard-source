@@ -9,6 +9,7 @@ COMPOSE_FILE="${E2E_COMPOSE_FILE:-fixtures/compose/e2e.yaml}"
 ARTIFACT_ROOT="${E2E_ARTIFACT_DIR:-artifacts/e2e}"
 BASE_URL="${E2E_BASE_URL:-http://127.0.0.1:3001}"
 E2E_SPECS="${E2E_SPECS:-}"
+E2E_PREBUILT_IMAGES="${E2E_PREBUILT_IMAGES:-false}"
 
 if [[ ! -f "$ENV_FILE" ]]; then
   echo "E2E environment file is missing: $ENV_FILE" >&2
@@ -21,6 +22,10 @@ if ! command -v docker >/dev/null 2>&1; then
 fi
 if ! docker compose version >/dev/null 2>&1; then
   echo "docker compose plugin is required" >&2
+  exit 2
+fi
+if [[ "$E2E_PREBUILT_IMAGES" != "true" && "$E2E_PREBUILT_IMAGES" != "false" ]]; then
+  echo "E2E_PREBUILT_IMAGES must be true or false" >&2
   exit 2
 fi
 
@@ -51,7 +56,13 @@ cleanup() {
 trap cleanup EXIT
 
 compose down -v --remove-orphans >/dev/null 2>&1 || true
-compose up -d --build dashboard
+if [[ "$E2E_PREBUILT_IMAGES" == "true" ]]; then
+  docker image inspect freeipa-admin-dashboard:e2e >/dev/null
+  docker image inspect freeipa-admin-dashboard-playwright:e2e >/dev/null
+  compose up -d --no-build dashboard
+else
+  compose up -d --build dashboard
+fi
 
 ready=false
 for _ in $(seq 1 90); do
@@ -68,7 +79,9 @@ if [[ "$ready" != "true" ]]; then
   exit 1
 fi
 
-compose build playwright
+if [[ "$E2E_PREBUILT_IMAGES" != "true" ]]; then
+  compose build playwright
+fi
 if [[ -n "$E2E_SPECS" ]]; then
   read -r -a specs <<< "$E2E_SPECS"
   echo "Running scoped Playwright specs: ${specs[*]}"

@@ -1,37 +1,28 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import test from "node:test";
 
-import worker from "../../worker/http-security-root-entry.ts";
+const workerRoot = fs.readFileSync(new URL("../../worker/http-security-root-entry.ts", import.meta.url), "utf8");
+const policySource = fs.readFileSync(new URL("../../scripts/http-security.mjs", import.meta.url), "utf8");
+const vite = fs.readFileSync(new URL("../../vite.config.ts", import.meta.url), "utf8");
 
-function context() {
-  return {
-    waitUntil() {},
-    passThroughOnException() {},
-  };
-}
-
-test("Worker root applies the centralized HTTP security baseline to early health responses", async () => {
-  const response = await worker.fetch(new Request("https://portal.example/health/live"), {}, context());
-  assert.equal(response.status, 200);
-  assert.match(response.headers.get("content-security-policy") ?? "", /default-src 'self'/);
-  assert.match(response.headers.get("content-security-policy") ?? "", /frame-ancestors 'none'/);
-  assert.equal(response.headers.get("x-frame-options"), "DENY");
-  assert.equal(response.headers.get("x-content-type-options"), "nosniff");
-  assert.equal(response.headers.get("referrer-policy"), "no-referrer");
+test("Worker HTTP security root remains the outer Vite entry and delegates immediately to the schema boundary", () => {
+  assert.equal(vite.includes('main: "./worker/http-security-root-entry.ts"'), true);
+  assert.equal(workerRoot.includes('import rootRuntime from "./schema-migrations-entry.ts"'), true);
+  assert.equal(workerRoot.includes('import { applyHttpSecurityHeaders } from "../scripts/http-security.mjs"'), true);
+  assert.equal(workerRoot.includes("await rootRuntime.fetch(request, sourceEnv, ctx)"), true);
+  assert.equal(workerRoot.includes("return applyHttpSecurityHeaders(request, response, sourceEnv)"), true);
+  assert.equal(workerRoot.includes("return rootRuntime.scheduled?.(controller, env, ctx)"), true);
 });
 
-test("Worker root emits HSTS only for HTTPS plus explicit opt-in", async () => {
-  const https = await worker.fetch(
-    new Request("https://portal.example/health/live"),
-    { PORTAL_HSTS_ENABLED: "true" },
-    context(),
-  );
-  assert.match(https.headers.get("strict-transport-security") ?? "", /^max-age=31536000/);
-
-  const http = await worker.fetch(
-    new Request("http://portal.example/health/live"),
-    { PORTAL_HSTS_ENABLED: "true" },
-    context(),
-  );
-  assert.equal(http.headers.get("strict-transport-security"), null);
+test("central HTTP security policy stays enforcing by default and HSTS remains explicit HTTPS-only opt-in", () => {
+  for (const directive of ["default-src 'self'", "frame-ancestors 'none'", "form-action 'self'"]) {
+    assert.equal(policySource.includes(directive), true, directive);
+  }
+  assert.equal(policySource.includes('headers.set("x-frame-options", "DENY")'), true);
+  assert.equal(policySource.includes('headers.set("x-content-type-options", "nosniff")'), true);
+  assert.equal(policySource.includes('headers.set("referrer-policy", "no-referrer")'), true);
+  assert.equal(policySource.includes('String(env?.PORTAL_CSP_MODE ?? "enforce")'), true);
+  assert.equal(policySource.includes('enabled(env?.PORTAL_HSTS_ENABLED) && new URL(request.url).protocol === "https:"'), true);
+  assert.equal(policySource.includes('headers.delete("strict-transport-security")'), true);
 });

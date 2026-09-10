@@ -29,6 +29,7 @@ import {
   type LocalAuthEnv,
   type LocalSession,
 } from "../src/auth/local-auth";
+import { localSessionRequestContext } from "../src/auth/local-session-request-context.ts";
 import { STORAGE_INTEGRITY_PATH } from "../src/storage/integrity/storage-integrity-contract.ts";
 import { STORAGE_MIGRATION_PREFLIGHT_PATH } from "../src/storage/migration/preflight/storage-migration-preflight-contract.ts";
 import { handleStorageIntegrityRequest } from "./storage-integrity-entry.ts";
@@ -45,6 +46,10 @@ type RuntimeEnv = NonNullable<Parameters<typeof secureRuntime.fetch>[1]> & Local
 };
 type RuntimeContext = Parameters<typeof secureRuntime.fetch>[2];
 type ScheduledController = Parameters<NonNullable<typeof secureRuntime.scheduled>>[0];
+type LocalAdminAuthorization = Readonly<{
+  session: LocalSession;
+  requestContext: ReturnType<typeof localSessionRequestContext>;
+}>;
 
 const jsonHeaders = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
 const LOGIN_FAILURE_MESSAGE = "Неверный логин или пароль";
@@ -94,11 +99,11 @@ function serviceAdminEnv(env: RuntimeEnv): RuntimeEnv {
   };
 }
 
-async function requireAdmin(env: RuntimeEnv, request: Request): Promise<LocalSession | Response> {
+async function requireAdmin(env: RuntimeEnv, request: Request): Promise<LocalAdminAuthorization | Response> {
   const session = await resolveLocalSession(env, request);
   if (!session) return json({ error: "Требуется повторный вход" }, 401);
   if (session.role !== "admin") return json({ error: "Недостаточно прав для управления доступом" }, 403);
-  return session;
+  return Object.freeze({ session, requestContext: localSessionRequestContext(session) });
 }
 
 async function auditLoginRateLimit(env: RuntimeEnv, decision: LoginRateLimitDecision): Promise<void> {
@@ -189,9 +194,14 @@ async function handleAuthApi(request: Request, env: RuntimeEnv, url: URL): Promi
     return json({ enabled: true, authenticated: false }, 200, { "set-cookie": clearLocalSessionCookie(request) });
   }
 
-  const current = await requireAdmin(env, request);
-  if (current instanceof Response) return current;
-  const audit = createAuditContext({ identity: current.identity, role: current.role, groups: [] });
+  const authorized = await requireAdmin(env, request);
+  if (authorized instanceof Response) return authorized;
+  const { session: current, requestContext } = authorized;
+  const audit = createAuditContext({
+    identity: requestContext.identity,
+    role: requestContext.role,
+    groups: [...requestContext.groups],
+  }, requestContext.correlationId);
 
   if (url.pathname === "/api/auth/users") {
     if (request.method === "GET") return json({ users: await listLocalUsers(env) });

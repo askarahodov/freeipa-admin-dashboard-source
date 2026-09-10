@@ -87,7 +87,7 @@ jobs:
           node scripts/ci-test-shards.mjs \
             --input "$RUNNER_TEMP/server-tests.txt" \
             --github-output "$GITHUB_OUTPUT" \
-            --max-shards 4
+            --max-shards 2
 
   docs-consistency:
     name: Documentation consistency

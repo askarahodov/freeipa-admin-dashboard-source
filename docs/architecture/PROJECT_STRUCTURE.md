@@ -64,6 +64,19 @@ The repository placement policy allows only three frozen production-module excep
 
 This list is executable policy, not a convention copied into documentation: [`../../scripts/repository-placement-policy.mjs`](../../scripts/repository-placement-policy.mjs) defines it and [`../../tests/architecture/repository-placement-policy.test.mjs`](../../tests/architecture/repository-placement-policy.test.mjs) asserts the exact three-file set. New root production TypeScript modules are rejected; changing the exception list requires changing its owner/reason and the placement contract deliberately.
 
+### Audited cleanup candidates
+
+Issue #538 revalidated the suspected unused frontend/auth candidates against current repository ownership. **No deletion is justified by that audit alone.** Absence of an ordinary import is not sufficient evidence when a file is a prepared owner, compatibility surface or security/hosting boundary.
+
+| Candidate | Evidence on current `main` | Classification / owner | Removal condition |
+| --- | --- | --- | --- |
+| `app/ShowcaseView.tsx` | No ordinary application consumer was found; the component is a self-contained interactive catalogue of the canonical UI primitives. Open design-system issue #293 explicitly names this file as a candidate project-native showcase. | prepared design-system asset owned by #293; retain | #293 must explicitly choose reuse/update or identify a canonical replacement before removal. |
+| `app/overview/OperationalOverview.tsx`, `app/overview/operational-overview-model.ts`, `app/overview/index.ts` | The new overview implementation/model are present and exported, while `app/page.tsx` still imports and renders `LegacyOverview`. | prepared replacement owned by open #97; retain both new and legacy overview families during integration | #97 must complete parity/integration and prove remaining consumers before retiring `LegacyOverview`; `OperationalOverview` is not dead code merely because integration is incomplete. |
+| `app/chatgpt-auth.ts` | No ordinary repository consumer or declaration in `.openai/hosting.json` was found. The module nevertheless defines provider-specific trusted identity headers and `/signin-with-chatgpt`, `/signout-with-chatgpt` and `/callback` redirect contracts. Repository inspection alone cannot prove that a hosting/framework entrypoint never discovers or expects this boundary. | security-sensitive dormant/compatibility candidate; retain pending explicit hosting-owner verification | handle as a dedicated Level 3 auth/hosting change only after the hosting contract is positively shown not to consume or require it, with local/session/service-admin and hosting checks selected by the test router. |
+| `storage-quick-check.ts` | The root file is an intentional re-export of `src/storage/integrity/storage-quick-check.ts`. It is one of the exact frozen root exceptions in `scripts/repository-placement-policy.mjs`, protected by the repository-placement test, while #44 remains open for the storage operational surface. | compatibility exception owned by #44 / placement policy; retain | remove only in a focused compatibility cleanup that migrates every import/literal consumer and removes the matching executable placement exception in the same change. |
+
+This table is an ownership decision, not a permanent exemption. Re-audit current code, tests, scripts, build/hosting configuration, literal source-path readers and the linked owning issue before a future deletion. Do not reopen #538 merely because one of these owners later completes; the owning change should remove its obsolete compatibility/preparation artifact when its own evidence supports that action.
+
 ### FreeIPA integration
 
 FreeIPA is the external directory source of truth. Browser code must not receive FreeIPA credentials or session cookies. Reuse the existing server-side Gateway/integration path and `src/freeipa/` domain owners rather than creating a second direct client.

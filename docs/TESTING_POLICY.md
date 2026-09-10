@@ -1,12 +1,12 @@
 # Risk-based testing policy
 
-This repository uses **risk-based test selection**. A pull request must run the cheapest tests that prove the changed behavior, plus any tests required by the affected runtime boundary. Do not run unrelated browser suites merely because a file lives under `app/`, `tests/`, `scripts/`, `worker/`, or `db/`.
+This repository uses **risk-based test selection**. A pull request must run the cheapest tests that prove the changed behavior, plus any tests required by the affected runtime boundary. Do not run unrelated browser suites merely because a file lives under `app/`, `tests/`, `scripts/`, `worker/` or `db/`.
 
 The executable canonical browser/risk planner is `scripts/auth-e2e-scope.mjs`. `scripts/ci-required-plan.mjs` is the Required CI projection for job execution and reuses the canonical changed-input parser instead of inventing independent diff semantics. `scripts/ci-required-gate.mjs` validates actual job results against that plan. Workflows must consume these executable contracts rather than duplicating allowlists or fail-open result logic in YAML.
 
 ## Pull request CI policy
 
-Every pull request still creates the stable `CI / Required CI` aggregate. Code, runtime, policy, executable example/fixture, developer-instruction and mixed changes use the complete current CI path. Browser E2E remains an additional risk check, not a replacement for build or unit tests.
+Every pull request still creates the stable `CI / Required CI` aggregate. Browser E2E remains an additional risk check, not a replacement for build or unit tests.
 
 A narrowly defined **ordinary documentation-only** fast path is allowed only when every changed path is user-facing Knowledge Base prose in this positive allowlist:
 
@@ -16,6 +16,32 @@ A narrowly defined **ordinary documentation-only** fast path is allowed only whe
 The root `README.md`, `docs/README.md`, `docs/guide/developer/**` and `docs/guide/operations/**` are deliberately excluded because current repository content there includes development, deployment, security, testing or operational instructions. Testing/development policy, AI instructions, security/operations reference material, workflow files, executable examples/fixtures and anything outside the allowlist are not classified as ordinary docs-only. A mixed docs + runtime diff is never docs-only.
 
 For an ordinary docs-only pull request, Required CI still runs the canonical planner, deterministic test discovery, documentation consistency and dependency-security policy validation. It may intentionally skip the product build, server-test matrix, runtime-image Docker scan and recovery-container job. None of these skips is accepted merely because GitHub reports `skipped`: the aggregate gate accepts a skip only when the successful canonical CI plan marks that exact job not required.
+
+For all other pull requests, the product build and complete discovered Node/server suite remain required. Only the two Docker-heavy Required CI jobs are risk-routed: `container-security` and `recovery-compose`.
+
+## Docker-heavy Required CI routing
+
+The Required CI planner selects Docker jobs from the full pull-request diff and the actual dependency boundaries of the images/jobs.
+
+| Representative input | Runtime image security | Recovery container | Reason |
+| --- | --- | --- | --- |
+| isolated UI/component change | not required | not required | product build + Node/browser coverage prove behavior; package/image composition and recovery closure are unchanged |
+| ordinary runtime behavior such as `src/freeipa/**` | not required | not required | vulnerability composition and recovery image inputs are unchanged |
+| root `Dockerfile` | required | required | both image definitions/base packages can change |
+| `package.json` / `package-lock.json` | required | required | dependency graph and recovery test/install environment can change |
+| `security/audit-allowlist.json` or dependency-audit policy | required | not required | security enforcement changes without changing recovery closure |
+| `src/recovery/**`, `src/backup/**`, `src/storage/**`, `db/**` | not required | required | recovery/storage/schema boundary changes |
+| recovery/storage contract tests | not required | required | the dedicated recovery job owns these contracts |
+| encryption/identity/startup scripts named in the recovery risk map | not required | required | recovery/maintenance safety boundary changes |
+| `compose.yaml` or `.env.example` | not required | required | recovery container/volume/runtime configuration can change |
+| CI planner/gate or CI workflow | required | required | routing changes must test both branches conservatively |
+| mixed diff | union of affected rows | union of affected rows | no applicable risk is discarded by another path |
+
+A skipped Docker job is safe only when the canonical plan marks it not required. `scripts/ci-required-gate.mjs` still rejects missing, failed or cancelled jobs, and rejects `skipped` for any job the plan marked required.
+
+This routing does **not** use the absence of package changes to skip behavioral tests. Runtime/application changes still run build + the complete Node suite and their browser coverage selected by the canonical E2E planner. The scheduled/manual security workflow from `#566` provides fresh live dependency/image vulnerability scanning on trusted current `main`; it does not replace PR checks for changed package/image/security inputs.
+
+Pushes to `main` always force the complete Required CI path, including runtime image security and recovery container checks.
 
 ## Pull-request diff semantics
 
@@ -27,7 +53,7 @@ The input includes git change status. Additions, modifications and deletions are
 
 `CI / Required CI` verifies the successful planner result, a versioned plan payload and terminal results for every governed job. A job marked required must finish `success`. A job marked not required may finish only `success` or `skipped`; failure/cancellation is never converted into success. Missing plan fields, missing/unknown job results, required `skipped`, required `cancelled`, required `failure`, malformed JSON and planner failure all block the aggregate.
 
-The workflow does not use workflow-level `paths-ignore`, so the stable required status is created for docs-only PRs instead of remaining permanently pending.
+The workflow does not use workflow-level `paths-ignore`, so the stable required status is created for docs-only and risk-routed PRs instead of remaining permanently pending.
 
 ## Browser E2E categories
 
@@ -46,15 +72,15 @@ A change may select more than one category. The planner takes the union of affec
 
 Database/schema changes run the portal schema contract tests. A database-only change does **not** imply settings browser E2E. Settings changes run settings lifecycle/source-safety contracts and browser coverage only when the changed boundary affects settings behavior visible through that suite.
 
-## Full regression
+## Full browser regression
 
-Full browser regression is intentional for changes that can affect the whole E2E runtime, including the root `Dockerfile`, `fixtures/compose/e2e.yaml`, `fixtures/env/e2e.example`, `e2e/Dockerfile`, Playwright configuration, package dependency graph/lockfile, Vite configuration, the E2E runner and the routing policy itself. `main`, scheduled, and manually dispatched runs also use full regression.
+Full browser regression is intentional for changes that can affect the whole E2E runtime, including the root `Dockerfile`, `fixtures/compose/e2e.yaml`, `fixtures/env/e2e.example`, `e2e/Dockerfile`, Playwright configuration, package dependency graph/lockfile, Vite configuration, the E2E runner and the routing policy itself. `main`, scheduled and manually dispatched browser runs also use full regression.
 
-An unclassified path under runtime-sensitive roots such as `src/`, `app/`, `worker/`, `fixtures/`, `e2e/` or `scripts/` does not produce an empty success. It forces conservative full coverage until the canonical policy is extended with an explicit ownership rule.
+An unclassified path under runtime-sensitive roots such as `src/`, `app/`, `worker/`, `fixtures/`, `e2e/` or `scripts/` does not produce an empty browser success. It forces conservative full browser coverage until the canonical policy is extended with an explicit ownership rule.
 
-## `package.json` semantic routing
+## `package.json` semantic browser routing
 
-A change to `package.json` is not automatically equivalent to a full browser-runtime change. The planner compares the merge-base and head JSON semantically:
+A change to `package.json` is not automatically equivalent to a full browser-runtime change. The browser planner compares the merge-base and head JSON semantically:
 
 - dependency graph, overrides, engines, package manager, module type and similar runtime fields require full regression;
 - build/runtime/E2E runner scripts, and unknown script names, require full regression;
@@ -62,7 +88,7 @@ A change to `package.json` is not automatically equivalent to a full browser-run
 - unknown semantic top-level fields are conservative and require full regression;
 - if base/head package data cannot be compared, the planner requires full regression.
 
-This distinction scopes browser coverage only. `package.json` is outside the ordinary docs-only allowlist, so Required CI remains complete for any package manifest change.
+This distinction scopes browser coverage only. `package.json` is outside the ordinary docs-only allowlist and remains an input to the Docker-heavy Required CI risk map.
 
 ## Explainable plans
 

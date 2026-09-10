@@ -10,6 +10,7 @@ test("user browser exposes RBAC-aware bulk controls and filtered CSV export", ()
   const maintenanceControlRoot = fs.readFileSync(new URL("../../worker/maintenance-control-root-entry.ts", import.meta.url), "utf8");
   const serviceRoot = fs.readFileSync(new URL("../../worker/service-admin-root-entry.ts", import.meta.url), "utf8");
   const maintenanceGate = fs.readFileSync(new URL("../../worker/maintenance-mode-root-entry.ts", import.meta.url), "utf8");
+  const application = fs.readFileSync(new URL("../../worker/application.ts", import.meta.url), "utf8");
   const schemaRoot = fs.readFileSync(new URL("../../worker/schema-migrations-entry.ts", import.meta.url), "utf8");
   const vite = fs.readFileSync(new URL("../../vite.config.ts", import.meta.url), "utf8");
   const layout = fs.readFileSync(new URL("../../app/layout.tsx", import.meta.url), "utf8");
@@ -38,7 +39,8 @@ test("user browser exposes RBAC-aware bulk controls and filtered CSV export", ()
   assert.equal(maintenanceControlRoot.includes('import rootRuntime from "./backup-selective-restore-root-entry.ts"'), true);
   assert.equal(serviceRoot.includes('import rootRuntime from "./maintenance-control-root-entry.ts"'), true);
   assert.equal(maintenanceGate.includes('import rootRuntime from "./service-admin-root-entry.ts"'), true);
-  assert.equal(schemaRoot.includes('import rootRuntime from "./maintenance-mode-root-entry.ts"'), true);
+  assert.equal(application.includes('import compatibilityRuntime from "./maintenance-mode-root-entry.ts"'), true);
+  assert.equal(schemaRoot.includes('import rootRuntime from "./application.ts"'), true);
   assert.equal(vite.includes('main: "./worker/schema-migrations-entry.ts"'), true);
   assert.equal(layout.includes("freeipa-user-bulk.css"), true);
 });

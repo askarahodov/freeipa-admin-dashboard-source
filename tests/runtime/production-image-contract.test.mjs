@@ -13,3 +13,12 @@ test("production runtime image uses the canonical Node entrypoint", () => {
   assert.match(runtimeStage, /\/app\/db/gu);
   assert.match(runtimeStage, /PORTAL_DATA_DIR=\/data/u);
 });
+
+test("production runtime image does not copy the project npm dependency tree", () => {
+  assert.doesNotMatch(dockerfile, /FROM dependencies AS production-dependencies/u);
+  assert.doesNotMatch(runtimeStage, /(?:^|\s)node_modules(?:\s|\/|$)/mu);
+  assert.doesNotMatch(runtimeStage, /npm\s+(?:ci|install|prune)/u);
+  assert.match(runtimeStage, /COPY --from=build[^\n]*\/app\/dist \.\/dist/u);
+  assert.match(runtimeStage, /COPY --from=build[^\n]*\/app\/runtime \.\/runtime/u);
+  assert.match(runtimeStage, /COPY --from=build[^\n]*\/app\/db \.\/db/u);
+});

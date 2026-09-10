@@ -30,6 +30,26 @@ test("builds deterministic round-robin shards from normalized sorted paths", () 
   ], shards));
 });
 
+test("8 4 and 2 shard candidates are deterministic non-empty and exact-once", () => {
+  const inventory = Array.from(
+    { length: 41 },
+    (_, index) => `tests/server/case-${String(index + 1).padStart(2, "0")}.test.mjs`,
+  );
+
+  for (const maximumShards of [8, 4, 2]) {
+    const first = buildTestShards(inventory, maximumShards);
+    const reordered = buildTestShards([...inventory].reverse(), maximumShards);
+    const flattened = first.flatMap((shard) => shard.files);
+
+    assert.deepEqual(first, reordered, `${maximumShards} shards must be deterministic`);
+    assert.equal(first.length, maximumShards);
+    assert.ok(first.every((shard) => shard.files.length > 0), `${maximumShards} shards must not contain an empty shard`);
+    assert.equal(flattened.length, inventory.length);
+    assert.equal(new Set(flattened).size, inventory.length);
+    assert.doesNotThrow(() => assertCompleteShardCoverage(inventory, first));
+  }
+});
+
 test("never creates more shards than discovered test files", () => {
   assert.deepEqual(buildTestShards(["tests/a.test.mjs", "tests/b.test.mjs"], 8), [
     { name: "01", files: ["tests/a.test.mjs"] },
@@ -69,8 +89,9 @@ test("CI runs one validated sharded server-test pass and preserves all security 
   assert.doesNotMatch(ciWorkflow, /\n  test-suite:\n/u);
   assert.match(ciWorkflow, /outputs:\s*\n\s+shards:\s*\$\{\{ steps\.list\.outputs\.shards \}\}/u);
   assert.match(ciWorkflow, /scripts\/ci-test-shards\.mjs/u);
-  assert.match(ciWorkflow, /--max-shards\s+8/u);
+  assert.match(ciWorkflow, /--max-shards\s+2/u);
   assert.match(ciWorkflow, /name:\s*Test shard \$\{\{ matrix\.shard\.name \}\}/u);
+  assert.match(ciWorkflow, /strategy:\s*\n\s+fail-fast:\s*false/u);
   assert.match(ciWorkflow, /shard:\s*\$\{\{ fromJSON\(needs\.discover-tests\.outputs\.shards\) \}\}/u);
   assert.match(ciWorkflow, /TEST_FILES_JSON:\s*\$\{\{ toJSON\(matrix\.shard\.files\) \}\}/u);
   assert.match(ciWorkflow, /--test-concurrency=1/u);

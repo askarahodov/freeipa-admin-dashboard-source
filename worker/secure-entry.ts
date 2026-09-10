@@ -1,5 +1,7 @@
 import runtime from "./index";
 import { appendAuditEvent, createAuditContext, type AuditContext } from "../audit-log";
+import { resolvedAuthRequestContext } from "../src/auth/resolved-auth-request-context.ts";
+import type { PortalRequestContext } from "../src/auth/portal-request-context.ts";
 
 type BaseEnv = NonNullable<Parameters<typeof runtime.fetch>[1]>;
 type RuntimeContext = Parameters<typeof runtime.fetch>[2];
@@ -25,6 +27,12 @@ type SecureEnv = BaseEnv & {
   XYOPS_CATALOG_SYNC_ENABLED?: string;
   XYOPS_CATALOG_SYNC_LOCK_TTL_SECONDS?: string;
 };
+
+type SecuredRequestContext = Readonly<{
+  request: Request;
+  env: SecureEnv;
+  requestContext: PortalRequestContext | null;
+}>;
 
 type CatalogSyncRun = {
   id: string;
@@ -129,7 +137,7 @@ function requestActor(request: Request): string {
   return (request.headers.get("oai-authenticated-user-email") ?? "portal-user").slice(0, 160);
 }
 
-async function secureContext(request: Request, sourceEnv: SecureEnv): Promise<{ request: Request; env: SecureEnv }> {
+async function secureContext(request: Request, sourceEnv: SecureEnv): Promise<SecuredRequestContext> {
   const mode = identityMode(sourceEnv.PORTAL_IDENTITY_MODE);
   const headers = new Headers(request.headers);
   const workspaceEmail = headers.get("oai-authenticated-user-email");
@@ -190,7 +198,17 @@ async function secureContext(request: Request, sourceEnv: SecureEnv): Promise<{ 
     env.PORTAL_RBAC_JSON = anonymousRbac(sourceEnv.PORTAL_RBAC_JSON);
   }
 
-  return { request: new Request(request, { headers }), env };
+  const securedRequest = new Request(request, { headers });
+  const requestContext = identity && mode !== "anonymous"
+    ? resolvedAuthRequestContext({
+        identity,
+        role: requestRole(securedRequest, env),
+        groups,
+        authMode: mode,
+      })
+    : null;
+
+  return Object.freeze({ request: securedRequest, env, requestContext });
 }
 
 function catalogSyncEnabled(value: unknown): boolean {
@@ -292,7 +310,7 @@ async function runCatalogSynchronization(env: SecureEnv, trigger: string, ctx: R
   return run;
 }
 
-async function handleCatalogSyncApi(request: Request, env: SecureEnv, ctx: RuntimeContext): Promise<Response> {
+async function handleCatalogSyncApi(request: Request, env: SecureEnv, ctx: RuntimeContext, requestContext: PortalRequestContext | null): Promise<Response> {
   if (requestRole(request, env) !== "admin") return json({ error: "Недостаточно прав для управления синхронизацией каталога" }, 403);
   if (!env.ADMIN_TOKEN || !await secretsMatch(request.headers.get("x-admin-token"), env.ADMIN_TOKEN)) return json({ error: "Administrator authorization required" }, 401);
   if (request.method === "GET") {
@@ -302,7 +320,9 @@ async function handleCatalogSyncApi(request: Request, env: SecureEnv, ctx: Runti
   if (request.method === "POST") {
     if (!env.DB) return json({ error: "Persistent database is unavailable" }, 503);
     const groups = String(request.headers.get("oai-authenticated-user-groups") ?? "").split(",").map((item) => item.trim().toLowerCase()).filter(Boolean).slice(0, 100);
-    const audit = createAuditContext({ identity: requestActor(request), role: requestRole(request, env), groups });
+    const audit = requestContext
+      ? createAuditContext({ identity: requestContext.identity, role: requestContext.role, groups: [...requestContext.groups] }, requestContext.correlationId)
+      : createAuditContext({ identity: requestActor(request), role: requestRole(request, env), groups });
     const run = await runCatalogSynchronization(env, `manual:${requestActor(request)}`, ctx, audit);
     return json({ run }, run.status === "failed" ? 502 : 200);
   }
@@ -314,7 +334,7 @@ const worker = {
     const sourceEnv = env ?? (process.env as unknown as SecureEnv);
     const secured = await secureContext(request, sourceEnv);
     if (new URL(secured.request.url).pathname === "/api/integrations/catalog/sync") {
-      return handleCatalogSyncApi(secured.request, secured.env, ctx);
+      return handleCatalogSyncApi(secured.request, secured.env, ctx, secured.requestContext);
     }
     return runtime.fetch(secured.request, secured.env, ctx);
   },

@@ -1,0 +1,154 @@
+.page {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 32px 24px 48px;
+}
+
+.header {
+  margin-bottom: 24px;
+}
+
+.header h1 {
+  margin: 4px 0 8px;
+}
+
+.header p {
+  max-width: 760px;
+  margin: 0;
+}
+
+.eyebrow {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.sidebar {
+  display: grid;
+  gap: 6px;
+  position: sticky;
+  top: 24px;
+}
+
+.sidebar a,
+.pending {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  text-decoration: none;
+}
+
+.sidebar a:hover,
+.sidebar a:focus-visible,
+.active {
+  background: var(--ui-surface-muted, #eef2f7);
+}
+
+.pending {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.pending small {
+  font-size: 0.72rem;
+}
+
+.content {
+  min-width: 0;
+}
+
+.card {
+  border: 1px solid var(--ui-border, #d8dee8);
+  border-radius: 12px;
+  padding: 20px;
+  background: var(--ui-surface, #fff);
+}
+
+.card + .card {
+  margin-top: 16px;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  margin-top: 12px;
+  font-size: 0.88rem;
+  opacity: 0.8;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.notice,
+.error,
+.success {
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: var(--ui-surface-muted, #eef2f7);
+}
+
+.error {
+  border: 1px solid currentColor;
+}
+
+.success {
+  border: 1px solid var(--ui-border, #d8dee8);
+}
+
+.diff {
+  margin: 12px 0 0;
+  padding-left: 20px;
+}
+
+@media (max-width: 760px) {
+  .page {
+    padding: 20px 16px 36px;
+  }
+
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: static;
+    display: flex;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+
+  .sidebar a,
+  .pending {
+    flex: 0 0 auto;
+  }
+
+  .row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

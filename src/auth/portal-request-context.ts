@@ -42,8 +42,13 @@ function normalizedGroups(values: Iterable<string> | undefined): readonly string
 }
 
 function normalizedPermissions(role: PortalRole, values: Iterable<PortalPermission> | undefined): readonly PortalPermission[] {
-  const permissions = values === undefined ? portalRolePermissions[role] : Array.from(new Set(values));
-  return Object.freeze([...permissions]);
+  const allowed = portalRolePermissions[role];
+  if (values === undefined) return Object.freeze([...allowed]);
+
+  const permissions = Array.from(new Set(values));
+  const expanded = permissions.find((permission) => !allowed.includes(permission));
+  if (expanded) throw new Error(`Portal request permission '${expanded}' exceeds role '${role}'`);
+  return Object.freeze(permissions);
 }
 
 /**
@@ -52,6 +57,7 @@ function normalizedPermissions(role: PortalRole, values: Iterable<PortalPermissi
  * Authentication remains owned by the existing mechanisms. This helper only
  * packages an already-resolved principal into one immutable shape, so adopting
  * it can happen incrementally without changing current dispatch or trust rules.
+ * Explicit permission snapshots may narrow a role but may never expand it.
  */
 export function createPortalRequestContext(input: PortalRequestContextInput): PortalRequestContext {
   return Object.freeze({

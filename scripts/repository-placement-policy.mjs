@@ -21,7 +21,7 @@ export const allowedMetadataDocuments = Object.freeze([
   ".github/pull_request_template.md",
 ]);
 
-const generatedSegments = new Set([
+const generatedRootSegments = new Set([
   ".next",
   ".sites-runtime",
   ".vinext",
@@ -29,12 +29,21 @@ const generatedSegments = new Set([
   "artifacts",
   "coverage",
   "dist",
-  "node_modules",
   "out",
   "outputs",
   "playwright-report",
   "test-results",
   "work",
+]);
+
+const generatedAnyDepthSegments = new Set([
+  ".next",
+  ".sites-runtime",
+  ".vinext",
+  ".wrangler",
+  "node_modules",
+  "playwright-report",
+  "test-results",
 ]);
 
 const fixturePrefixes = ["fixtures/", "e2e/fixtures/", "tests/fixtures/"];
@@ -51,8 +60,11 @@ function isFixtureOwned(path) {
 
 function generatedSegment(path) {
   if (isFixtureOwned(path)) return null;
-  for (const segment of path.split("/")) {
-    if (generatedSegments.has(segment)) return segment;
+  const segments = path.split("/");
+  const rootSegment = segments[0];
+  if (generatedRootSegments.has(rootSegment)) return rootSegment;
+  for (const segment of segments.slice(1)) {
+    if (generatedAnyDepthSegments.has(segment)) return segment;
   }
   return null;
 }

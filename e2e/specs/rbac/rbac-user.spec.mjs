@@ -49,7 +49,7 @@ test("administrator creates a local user and assigns the operator role", async (
   const operatorPage = await operatorContext.newPage();
   try {
     await login(operatorPage, username, password, "/");
-    await expect(operatorPage.getByRole("heading", { name: "Обзор инфраструктуры" })).toBeVisible();
+    await expect(operatorPage.getByRole("heading", { name: "Обзор" })).toBeVisible();
     await expect(operatorPage.locator(".local-auth-toolbar")).toContainText(displayName);
     await expect(operatorPage.locator(".local-auth-toolbar")).toContainText("Оператор");
   } finally {

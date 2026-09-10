@@ -57,7 +57,7 @@ test.describe.serial("UI accessibility and responsive baseline", () => {
 
   test("authenticated overview remains usable across the viewport matrix", async ({ page }) => {
     await login(page);
-    const heading = page.getByRole("heading", { name: "Обзор инфраструктуры" });
+    const heading = page.getByRole("heading", { name: "Обзор" });
     await expect(heading).toBeVisible();
 
     const viewports = [

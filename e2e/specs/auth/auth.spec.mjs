@@ -36,7 +36,7 @@ test.describe.serial("local portal authentication", () => {
     await fillLogin(page);
 
     await expect(page).toHaveURL(/\/$/);
-    await expect(page.getByRole("heading", { name: "Обзор инфраструктуры" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Обзор" })).toBeVisible();
     await expect(page.locator(".local-auth-toolbar")).toContainText("E2E Administrator");
     await expect(page.locator(".local-auth-toolbar")).toContainText("Администратор");
 

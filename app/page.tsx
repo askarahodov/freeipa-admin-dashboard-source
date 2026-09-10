@@ -7,9 +7,10 @@ import { FREEIPA_DIRECTORY_CHANGED_EVENT, FREEIPA_OPEN_ACTION_EVENT, announceFre
 import { portalRoleLabels, type PortalPermission, type PortalRole } from "../src/auth/portal-permissions";
 import { buildHomePath, resolveHomeLocation, type HomePage } from "./shell/home-navigation";
 import { buildAutomationSlug } from "./shell/home-presentation";
-import { LegacyOverview } from "./overview/LegacyOverview";
+import { OperationalOverview, type OverviewQuickAction, type OverviewTarget, type PortalReadiness } from "./overview";
+import { parsePortalReadiness, toOverviewOperations } from "./overview/operational-overview-adapter";
 import { Groups, Users, type DirectoryGroup, type DirectoryUser } from "./directory/DirectoryScreens";
-import { Approvals, Operations, OperationTable, type ApprovalRecord, type RunRecord, type RunStats } from "./operations/OperationsApprovalsScreens";
+import { Approvals, Operations, type ApprovalRecord, type RunRecord, type RunStats } from "./operations/OperationsApprovalsScreens";
 import { AutomationCatalog } from "./automation/AutomationCatalog";
 import { AuditLog } from "./audit/AuditLog";
 import { Settings } from "./settings/SettingsScreens";
@@ -34,7 +35,6 @@ const nav: { id: Page; label: string; icon: string }[] = [
   { id: "settings", label: "Настройки", icon: "⚙" },
 ];
 
-
 const demoUsers: DirectoryUser[] = [
   { uid: "jpetrov", name: "Петров Иван", firstName: "Иван", lastName: "Петров", email: "j.petrov@company.local", groups: 2, groupNames: ["developers", "devops"], active: true },
   { uid: "mivanova", name: "Иванова Мария", firstName: "Мария", lastName: "Иванова", email: "m.ivanova@company.local", groups: 2, groupNames: ["developers", "security"], active: true },
@@ -53,7 +53,6 @@ const demoGroups: DirectoryGroup[] = [
 function Status({ children, tone = "success" }: { children: React.ReactNode; tone?: string }) {
   return <span className={`status ${tone}`}>{children}</span>;
 }
-
 
 export default function Home() {
   const [page, setPage] = useState<Page>("overview");
@@ -82,6 +81,8 @@ export default function Home() {
   const [approvals, setApprovals] = useState<ApprovalRecord[]>([]);
   const [approvalPendingForMe, setApprovalPendingForMe] = useState(0);
   const [approvalsLoading, setApprovalsLoading] = useState(false);
+  const [readiness, setReadiness] = useState<PortalReadiness | null>(null);
+  const [readinessLoading, setReadinessLoading] = useState(true);
   const shownNotificationIds = useRef(new Set<string>());
 
   useEffect(() => {
@@ -99,6 +100,25 @@ export default function Home() {
       .catch((cause) => { setCatalog([]); setCatalogMode("unconfigured"); setCatalogError(cause instanceof Error ? cause.message : "Каталог XYOps недоступен"); });
   }, []);
 
+  const loadReadiness = useCallback(async () => {
+    setReadinessLoading(true);
+    try {
+      const response = await fetch("/health/ready", { cache: "no-store" });
+      const payload = await response.json().catch(() => null);
+      setReadiness(parsePortalReadiness(payload));
+    } catch {
+      setReadiness(null);
+    } finally {
+      setReadinessLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const initial = window.setTimeout(() => void loadReadiness(), 0);
+    const timer = window.setInterval(() => void loadReadiness(), 15000);
+    return () => { window.clearTimeout(initial); window.clearInterval(timer); };
+  }, [loadReadiness]);
+
   const loadDirectory = useCallback(async () => {
     if (integration.mode === "demo") {
       setDirectoryUsers(demoUsers); setDirectoryGroups(demoGroups); setDirectorySource("demo");
@@ -110,8 +130,8 @@ export default function Home() {
     }
     try {
       const [usersResponse, groupsResponse] = await Promise.all([
-      fetch("/api/integrations/users", { cache: "no-store" }),
-      fetch("/api/integrations/groups", { cache: "no-store" }),
+        fetch("/api/integrations/users", { cache: "no-store" }),
+        fetch("/api/integrations/groups", { cache: "no-store" }),
       ]);
       if (!usersResponse.ok || !groupsResponse.ok) throw new Error("FreeIPA data request failed");
       const [usersPayload, groupsPayload] = await Promise.all([usersResponse.json(), groupsResponse.json()]);
@@ -248,6 +268,7 @@ export default function Home() {
   const filteredUsers = useMemo(() => directoryUsers.filter((u) => `${u.uid} ${u.name} ${u.email}`.toLowerCase().includes(query.toLowerCase())), [directoryUsers, query]);
   const filteredGroups = useMemo(() => directoryGroups.filter((g) => `${g.name} ${g.description} ${g.type}`.toLowerCase().includes(query.toLowerCase())), [directoryGroups, query]);
   const filteredCatalog = useMemo(() => catalog.filter((event) => `${event.title} ${event.description} ${event.help ?? ""} ${event.category} ${event.icon ?? ""} ${event.plugin ?? ""}`.toLowerCase().includes(query.toLowerCase())), [catalog, query]);
+  const overviewOperations = toOverviewOperations(recentRuns);
 
   const navigateTo = useCallback((nextPage: Page, category = "all", replace = false) => {
     const section = category === "all" ? null : automationSections.find((item) => item.category === category);
@@ -258,6 +279,32 @@ export default function Home() {
     setQuery("");
     if (window.location.pathname !== path) window.history[replace ? "replaceState" : "pushState"]({}, "", path);
   }, [automationSections]);
+
+  const overviewQuickActions: OverviewQuickAction[] = [];
+  if (canWriteFreeIpa) overviewQuickActions.push({ id: "create-user", label: "Создать пользователя", description: "Открыть существующий FreeIPA create flow.", primary: true, onAction: () => setFreeIpaAction({ operation: "user_add", title: "Новый пользователь", preset: {} }) });
+  if (canRunXyops) overviewQuickActions.push({ id: "automation", label: "Запустить автоматизацию", description: "Перейти к разрешённому каталогу XYOps.", onAction: () => navigateTo("automation") });
+  if (canApproveXyops && approvalPendingForMe > 0) overviewQuickActions.push({ id: "approvals", label: "Разобрать согласования", description: `${approvalPendingForMe} заявок ждут вашего решения.`, onAction: () => navigateTo("approvals") });
+  if (canManageSettings) overviewQuickActions.push({ id: "settings", label: "Открыть настройки", description: "Перейти к административной конфигурации.", onAction: () => navigateTo("settings") });
+
+  function handleOverviewNavigate(target: OverviewTarget) {
+    switch (target) {
+      case "operations":
+        navigateTo("operations");
+        return;
+      case "approvals":
+        navigateTo("approvals");
+        return;
+      case "catalog":
+        navigateTo("automation");
+        return;
+      case "settings":
+        if (canManageSettings) navigateTo("settings");
+        return;
+      case "diagnostics":
+        if (canManageSettings) window.location.assign("/diagnostics/health");
+        return;
+    }
+  }
 
   useEffect(() => {
     const applyLocation = () => {
@@ -406,11 +453,11 @@ export default function Home() {
 
       <main className="main">
         <header className="topbar">
-          <div><h1>{page === "overview" ? "Обзор инфраструктуры" : title}</h1><p>{page === "overview" ? "FreeIPA и портал автоматизаций XYOps" : `Управление разделом «${title}»`}</p></div>
+          {page !== "overview" && <div><h1>{title}</h1><p>{`Управление разделом «${title}»`}</p></div>}
           <div className="header-actions"><label className="global-search"><span>⌕</span><input aria-label="Глобальный поиск" placeholder="Поиск процессов, пользователей, групп…" value={query} onChange={(e) => setQuery(e.target.value)} /></label><div className="notification-anchor"><button className={`bell ${notificationsOpen ? "active" : ""}`} aria-label="Уведомления операций" aria-expanded={notificationsOpen} onClick={() => setNotificationsOpen((value) => !value)}>♢{notificationUnread > 0 && <b>{notificationUnread > 99 ? "99+" : notificationUnread}</b>}</button>{notificationsOpen && <NotificationCenter items={notifications} unread={notificationUnread} permission={notificationPermission} close={() => setNotificationsOpen(false)} markAll={() => void updateNotificationReads(null)} enableSystem={() => void enableSystemNotifications()} openItem={(item) => void openPortalNotification(item)} />}</div><button className="profile" title={`Роль: ${portalRoleLabels[integration.access.role]}`}>{integration.viewer.slice(0, 2).toUpperCase()} <span>{integration.viewer}<small>{portalRoleLabels[integration.access.role]}</small></span></button></div>
         </header>
 
-        {page === "overview" && <LegacyOverview goToOperations={() => navigateTo("operations")} integration={integration} userCount={directoryUsers.length} groupCount={directoryGroups.length} directorySource={directorySource} runStats={runStats} recentOperations={<OperationTable rows={recentRuns.slice(0, 4)} />} />}
+        {page === "overview" && <OperationalOverview readiness={readiness} freeipaReachable={integration.freeipa.reachable} xyopsReachable={integration.xyops.reachable} pendingApprovals={approvalPendingForMe} failedOperations={runStats.failed} catalogNeedsReview={catalogMeta.stale || catalogMeta.changes.length > 0} attentionTargets={canManageSettings ? { "portal-unready": "diagnostics", "freeipa-degraded": "settings", "xyops-degraded": "settings" } : undefined} recentOperations={overviewOperations} quickActions={overviewQuickActions} loading={readinessLoading} onNavigate={handleOverviewNavigate} />}
         {page === "automation" && <AutomationCatalog items={filteredCatalog} sections={automationSections} selectedCategory={automationCategory} mode={catalogMode} meta={catalogMeta} error={catalogError} loading={catalogLoading} recentRuns={recentRuns} canRun={canRunXyops} canManageSettings={canManageSettings} onCategoryChange={(category) => navigateTo("automation", category)} onSync={() => void syncCatalog()} onOpenSettings={() => navigateTo("settings")} onLaunch={(event) => setSelectedProcess({ event, preset: {} })} />}
         {page === "users" && <Users items={filteredUsers} allGroups={directoryGroups} total={directoryUsers.length} source={directorySource} canWrite={canWriteFreeIpa} canDelete={canDeleteFreeIpa} onCreate={() => setFreeIpaAction({ operation: "user_add", title: "Новый пользователь", preset: {} })} onAction={setFreeIpaAction} />}
         {page === "groups" && <Groups items={filteredGroups} allUsers={directoryUsers} source={directorySource} canWrite={canWriteFreeIpa} canDelete={canDeleteFreeIpa} onCreate={() => setFreeIpaAction({ operation: "group_add", title: "Новая группа", preset: {} })} onAction={setFreeIpaAction} />}
@@ -426,4 +473,3 @@ export default function Home() {
     </div>
   );
 }
-

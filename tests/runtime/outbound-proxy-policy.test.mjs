@@ -9,7 +9,7 @@ test("outbound proxy is disabled by default on older supported Node runtimes", (
 
 test("outbound proxy requires a Node release with built-in proxy support", () => {
   const env = {
-    PORTAL_OUTBOUND_PROXY_ENABLED: "true",
+    NODE_USE_ENV_PROXY: "1",
     HTTPS_PROXY: "http://proxy.example:8080",
     NO_PROXY: "localhost,127.0.0.1",
   };
@@ -21,12 +21,12 @@ test("outbound proxy requires a Node release with built-in proxy support", () =>
 
 test("enabled outbound proxy requires at least one valid HTTP(S) proxy URL", () => {
   assert.throws(() => outboundProxyPolicy({
-    PORTAL_OUTBOUND_PROXY_ENABLED: "1",
+    NODE_USE_ENV_PROXY: "1",
     NO_PROXY: "127.0.0.1",
   }, "22.21.0"), /requires HTTP_PROXY\/HTTPS_PROXY/u);
 
   assert.throws(() => outboundProxyPolicy({
-    PORTAL_OUTBOUND_PROXY_ENABLED: "1",
+    NODE_USE_ENV_PROXY: "1",
     HTTPS_PROXY: "socks5://proxy.example:1080",
     NO_PROXY: "127.0.0.1",
   }, "22.21.0"), /absolute HTTP\(S\) proxy URL/u);
@@ -34,14 +34,14 @@ test("enabled outbound proxy requires at least one valid HTTP(S) proxy URL", () 
 
 test("lowercase proxy variables take precedence and loopback gateway bypass is mandatory", () => {
   assert.throws(() => outboundProxyPolicy({
-    PORTAL_OUTBOUND_PROXY_ENABLED: "true",
+    NODE_USE_ENV_PROXY: "1",
     HTTPS_PROXY: "http://proxy.example:8080",
     NO_PROXY: "localhost,127.0.0.1",
     no_proxy: "localhost",
   }, "22.21.0"), /must bypass 127\.0\.0\.1/u);
 
   const policy = outboundProxyPolicy({
-    PORTAL_OUTBOUND_PROXY_ENABLED: "true",
+    NODE_USE_ENV_PROXY: "1",
     https_proxy: "https://proxy.example:8443",
     no_proxy: "localhost,127.0.0.1,.corp.example",
   }, "22.21.0");
@@ -55,7 +55,7 @@ test("lowercase proxy variables take precedence and loopback gateway bypass is m
 
 test("configureOutboundProxy applies the validated environment once", async () => {
   const env = {
-    PORTAL_OUTBOUND_PROXY_ENABLED: "true",
+    NODE_USE_ENV_PROXY: "1",
     HTTPS_PROXY: "http://user:secret@proxy.example:8080",
     NO_PROXY: "localhost,127.0.0.1",
   };

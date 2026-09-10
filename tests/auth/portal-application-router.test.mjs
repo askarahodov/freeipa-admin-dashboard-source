@@ -90,9 +90,17 @@ test("compatibility dispatcher receives the original request, env and context un
   assert.equal(Object.isFrozen(observed.route), true);
 });
 
-test("maintenance composition routes ordinary fetch through the application boundary while scheduled stays compatible", async () => {
-  const source = await readFile(new URL("../../worker/maintenance-mode-root-entry.ts", import.meta.url), "utf8");
-  assert.match(source, /createPortalApplicationRouter/);
-  assert.match(source, /return applicationRouter\.fetch\(request, env, ctx\)/);
-  assert.match(source, /return rootRuntime\.scheduled\?\.\(controller, env, ctx\)/);
+test("schema-gated traffic enters one application composition and scheduled remains compatibility delegated", async () => {
+  const [schemaSource, applicationSource, maintenanceSource] = await Promise.all([
+    readFile(new URL("../../worker/schema-migrations-entry.ts", import.meta.url), "utf8"),
+    readFile(new URL("../../worker/application.ts", import.meta.url), "utf8"),
+    readFile(new URL("../../worker/maintenance-mode-root-entry.ts", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(schemaSource, /import rootRuntime from "\.\/application\.ts"/);
+  assert.match(applicationSource, /import compatibilityRuntime from "\.\/maintenance-mode-root-entry\.ts"/);
+  assert.match(applicationSource, /createPortalApplicationRouter/);
+  assert.match(applicationSource, /return router\.fetch\(request, sourceEnv, ctx\)/);
+  assert.match(applicationSource, /return compatibilityRuntime\.scheduled\?\.\(controller, env, ctx\)/);
+  assert.doesNotMatch(maintenanceSource, /application-router/);
 });

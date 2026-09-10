@@ -19,7 +19,7 @@ function installWindowTarget() {
   if (typeof globalThis.CustomEvent !== "function") {
     globalThis.CustomEvent = class CustomEvent extends Event {
       constructor(type, init = {}) {
-        super(type, init);
+        super(type);
         this.detail = init.detail;
       }
     };

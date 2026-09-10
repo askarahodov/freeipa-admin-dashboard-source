@@ -6,7 +6,7 @@ import type { MouseEvent, ReactNode } from "react";
 import { settingsSections } from "./settings-navigation";
 import styles from "./settings-route-shell.module.css";
 
-const implementedSections = new Set(["general", "integrations", "presentation"]);
+const implementedSections = new Set(["general", "integrations", "presentation", "visibility"]);
 
 export function SettingsRouteShell({
   title,

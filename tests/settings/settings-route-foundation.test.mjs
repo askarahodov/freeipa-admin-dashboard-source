@@ -6,6 +6,7 @@ const indexPage = fs.readFileSync(new URL("../../app/settings/page.tsx", import.
 const generalPage = fs.readFileSync(new URL("../../app/settings/general/page.tsx", import.meta.url), "utf8");
 const integrationsPage = fs.readFileSync(new URL("../../app/settings/integrations/page.tsx", import.meta.url), "utf8");
 const presentationPage = fs.readFileSync(new URL("../../app/settings/presentation/page.tsx", import.meta.url), "utf8");
+const visibilityPage = fs.readFileSync(new URL("../../app/settings/visibility/page.tsx", import.meta.url), "utf8");
 const lifecycleClient = fs.readFileSync(new URL("../../app/settings/settings-lifecycle-client.ts", import.meta.url), "utf8");
 const shell = fs.readFileSync(new URL("../../app/settings/SettingsRouteShell.tsx", import.meta.url), "utf8");
 
@@ -14,7 +15,7 @@ test("settings index redirects to the first canonical domain route", () => {
 });
 
 test("settings domain routes share authenticated APIs without browser admin tokens", () => {
-  for (const source of [generalPage, integrationsPage, presentationPage]) {
+  for (const source of [generalPage, integrationsPage, presentationPage, visibilityPage]) {
     assert.match(source, /settings-lifecycle-client/u);
     assert.doesNotMatch(source, /ADMIN_TOKEN|x-admin-token|sessionStorage|localStorage/u);
   }
@@ -57,8 +58,21 @@ test("presentation route migrates the existing JSON contract onto local admin se
   assert.doesNotMatch(presentationPage, /Date\.now\(\)|ADMIN_TOKEN|x-admin-token|sessionStorage|localStorage/u);
 });
 
+test("visibility route migrates the existing JSON policy contract onto local admin session", () => {
+  assert.match(visibilityPage, /\/api\/auth\/session/u);
+  assert.match(visibilityPage, /\/api\/integrations\/catalog\/policies/u);
+  assert.match(visibilityPage, /method: "PUT"/u);
+  assert.match(visibilityPage, /isCatalogPolicySet/u);
+  assert.match(visibilityPage, /loaded && text !== baseline/u);
+  assert.match(visibilityPage, /hasUnsavedChanges=\{dirty\}/u);
+  assert.match(visibilityPage, /beforeunload/u);
+  assert.match(visibilityPage, /admin && loaded/u);
+  assert.match(visibilityPage, /setRuleCount\(data\.policy\.rules\.length\)/u);
+  assert.doesNotMatch(visibilityPage, /ADMIN_TOKEN|x-admin-token|sessionStorage|localStorage/u);
+});
+
 test("settings route shell exposes only implemented routes and guards dirty navigation", () => {
-  assert.match(shell, /new Set\(\["general", "integrations", "presentation"\]\)/u);
+  assert.match(shell, /new Set\(\["general", "integrations", "presentation", "visibility"\]\)/u);
   assert.match(shell, /settingsSections\.map/u);
   assert.match(shell, /aria-label="Разделы настроек"/u);
   assert.match(shell, /aria-current=\{active \? "page" : undefined\}/u);

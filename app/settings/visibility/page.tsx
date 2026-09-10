@@ -114,11 +114,11 @@ export default function VisibilitySettingsPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ policy: parsed }),
       }) as PolicyResponse;
-      const accepted = isCatalogPolicySet(data.policy) ? data.policy : parsed;
-      const nextText = serialize(accepted);
+      if (!isCatalogPolicySet(data.policy)) throw new Error("Сервер не подтвердил сохранённый visibility policy contract");
+      const nextText = serialize(data.policy);
       setText(nextText);
       setBaseline(nextText);
-      setRuleCount(accepted.rules.length);
+      setRuleCount(data.policy.rules.length);
       setSource(data.source ?? "database");
       setUpdatedAt(data.updatedAt ?? null);
       setMessage("Политики видимости сохранены.");

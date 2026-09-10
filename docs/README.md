@@ -12,14 +12,15 @@
 2. [`architecture/README.md`](architecture/README.md) — canonical landing area for architecture and repository-boundary documentation.
 3. [`ARCHITECTURE.md`](architecture/ARCHITECTURE.md) — current runtime topology, trust/data boundaries и major ownership.
 4. [`PROJECT_STRUCTURE.md`](architecture/PROJECT_STRUCTURE.md) — repository/module map и where-to-change routing.
-5. [`MODULE_COVERAGE.md`](architecture/MODULE_COVERAGE.md) — module ownership, dependency direction и scoped tests.
-6. [`DEPLOYMENT_MATRIX.md`](architecture/DEPLOYMENT_MATRIX.md) — supported/development/constrained/unsupported deployment modes.
-7. [`SOURCE_OF_TRUTH.md`](reference/SOURCE_OF_TRUTH.md) — authoritative owners и precedence.
-8. [`DOCUMENTATION_POLICY.md`](development/DOCUMENTATION_POLICY.md) — docs-as-code и правила нескольких агентов.
-9. [`development/README.md`](development/README.md) — repository governance, branch lifecycle, required checks and dependency-update policy.
-10. [`design-system/README.md`](design-system/README.md) — current UI tokens, public primitives, composition and design-system governance.
-11. При изменении внешнего/операционного контракта свериться с [`reference/API.md`](reference/API.md), [`reference/PERMISSIONS.md`](reference/PERMISSIONS.md), [`reference/CONFIGURATION.md`](reference/CONFIGURATION.md) и [`reference/ERROR_CODES.md`](reference/ERROR_CODES.md).
-12. Затем читать профильный документ и фактический code/tests текущего ref.
+5. [`WORKER_COMPOSITION.md`](architecture/WORKER_COMPOSITION.md) — current Worker HTTP wrapper/handler composition, route-family ownership and #56 parity handoff.
+6. [`MODULE_COVERAGE.md`](architecture/MODULE_COVERAGE.md) — module ownership, dependency direction и scoped tests.
+7. [`DEPLOYMENT_MATRIX.md`](architecture/DEPLOYMENT_MATRIX.md) — supported/development/constrained/unsupported deployment modes.
+8. [`SOURCE_OF_TRUTH.md`](reference/SOURCE_OF_TRUTH.md) — authoritative owners и precedence.
+9. [`DOCUMENTATION_POLICY.md`](development/DOCUMENTATION_POLICY.md) — docs-as-code и правила нескольких агентов.
+10. [`development/README.md`](development/README.md) — repository governance, branch lifecycle, required checks and dependency-update policy.
+11. [`design-system/README.md`](design-system/README.md) — current UI tokens, public primitives, composition and design-system governance.
+12. При изменении внешнего/операционного контракта свериться с [`reference/API.md`](reference/API.md), [`reference/PERMISSIONS.md`](reference/PERMISSIONS.md), [`reference/CONFIGURATION.md`](reference/CONFIGURATION.md) и [`reference/ERROR_CODES.md`](reference/ERROR_CODES.md).
+13. Затем читать профильный документ и фактический code/tests текущего ref.
 
 ### ИИ-агент
 
@@ -49,6 +50,7 @@
 Основной набор:
 
 - [`ARCHITECTURE.md`](architecture/ARCHITECTURE.md)
+- [`WORKER_COMPOSITION.md`](architecture/WORKER_COMPOSITION.md)
 - [`MODULE_COVERAGE.md`](architecture/MODULE_COVERAGE.md)
 - [`DEPLOYMENT_MATRIX.md`](architecture/DEPLOYMENT_MATRIX.md)
 - [`SECURITY_MODEL.md`](security/SECURITY_MODEL.md)
@@ -72,6 +74,7 @@
 | [`architecture/README.md`](architecture/README.md) | Canonical landing area for architecture/repository-boundary documentation and #268 move rules |
 | [`ARCHITECTURE.md`](architecture/ARCHITECTURE.md) | Current topology/request/trust/data/failure boundaries |
 | [`PROJECT_STRUCTURE.md`](architecture/PROJECT_STRUCTURE.md) | Repository ownership map and module boundaries |
+| [`WORKER_COMPOSITION.md`](architecture/WORKER_COMPOSITION.md) | Current Worker HTTP composition, route-family ownership, hidden adaptation boundaries and #628 parity checklist |
 | [`MODULE_COVERAGE.md`](architecture/MODULE_COVERAGE.md) | Module documentation/test coverage and dependency direction |
 | [`D1_SQLITE_ADAPTER.md`](architecture/D1_SQLITE_ADAPTER.md) | D1-compatible SQLite runtime adapter boundary |
 | [`DEPLOYMENT_MATRIX.md`](architecture/DEPLOYMENT_MATRIX.md) | Supported and unsupported deployment models |

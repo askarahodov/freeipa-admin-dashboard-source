@@ -37,20 +37,22 @@
 | Operation runs/results/replay/notifications | соответствующие runtime modules + DB schema | README overview / профильные docs | Module placement is described by `architecture/PROJECT_STRUCTURE.md`; exact runtime behavior remains with code/tests |
 | Audit | audit runtime module + append-only schema/triggers | `security/AUDIT_LOG.md`, security/operations docs | Exact audit contract is documented; runtime/schema remain authoritative |
 | Effective integration settings and encryption | settings lifecycle/runtime + DB schema + crypto helpers | `reference/CONFIGURATION.md` + профильные settings/security docs | Secret values никогда не должны становиться documentation/reference output |
-| HTTP/API route metadata | `src/auth/portal-route-contract.ts` для method/path/owner/auth/permission/mutation metadata; фактические Worker handlers/tests для поведения | `reference/API.md` | Registry не является runtime router и не владеет request/response schemas; #56 может использовать его как parity inventory |
+| HTTP/API route metadata | `src/auth/portal-route-contract.ts` для method/path/owner/auth/permission/mutation metadata; `src/auth/portal-route-router.ts`/`portal-route-security-plan.ts` для metadata-derived matching/planning; фактические Worker handlers/tests для поведения | `reference/API.md`, `architecture/WORKER_COMPOSITION.md` | Metadata helpers не являются runtime router/enforcement. `WORKER_COMPOSITION.md` фиксирует current wrapper/handler ownership и #56 parity handoff, но не дублирует canonical route registry |
 | Authentication mechanisms | local session boundary + service-admin boundary | `LOCAL_AUTH_RBAC.md` и recovery/security runbook | Нельзя выводить auth requirements только из UI visibility |
-| Docker deployment | `compose.yaml`, `Dockerfile`, `scripts/start-production.mjs`, `runtime/**` | `README.md`, `architecture/ARCHITECTURE.md`, `architecture/PROJECT_STRUCTURE.md` | Current Compose mounts `dashboard-data` at `/data` for dashboard and the same named volume at `/portal-data` for recovery; host networking remains current until #52 changes it |
+| Docker deployment | `compose.yaml`, `Dockerfile`, `scripts/start-production.mjs`, `runtime/**` | `README.md`, `architecture/ARCHITECTURE.md`, `architecture/PROJECT_STRUCTURE.md` | Current Compose mounts `dashboard-data` at `/data` for dashboard and the same named volume at `/portal-data` for recovery; topology details must follow current Compose/network owner rather than historical issue text |
 | Environment/configuration | `.env.example`, Compose, `scripts/start-production.mjs`, startup validation and settings code | `reference/CONFIGURATION.md` + README | `reference/CONFIGURATION.md` is the current normalized human reference; #123 tracks a future machine-readable global registry, not the absence of documentation |
 | Repository/module ownership | current repository paths and canonical code owners | `architecture/PROJECT_STRUCTURE.md`, `architecture/ARCHITECTURE.md` | Current placement map exists; it is not a target refactor plan |
 | Roadmap / planned work | GitHub Issues/Epics | roadmap docs, если существуют | План не является подтверждением реализации |
 
 ## Области с известной неоднозначностью
 
-Следующие области пока не имеют одного удобного typed registry, поэтому агент обязан проверять несколько фактических источников:
+Следующие области пока не имеют одного удобного runtime composition owner, поэтому агент обязан проверять фактические источники до изменения поведения.
 
-### Routes and permissions
+### Routes, permissions and Worker composition
 
-Built-in roles/permissions имеют единый runtime owner `src/auth/portal-permissions.ts`. Stable route metadata имеет единый machine-readable owner `src/auth/portal-route-contract.ts`. При этом фактический dispatch, middleware order, request validation и response behavior пока остаются распределены по Worker entry/wrapper chain и подтверждаются handler/tests. До #56 нельзя трактовать metadata registry как runtime router или переносить поведение в него.
+Built-in roles/permissions имеют единый runtime owner `src/auth/portal-permissions.ts`. Stable route metadata имеет единый machine-readable owner `src/auth/portal-route-contract.ts`; `portal-route-router.ts` и `portal-route-security-plan.ts` производны от него и не исполняют handler/security behavior.
+
+Фактический dispatch, middleware order, request adaptation/validation, maintenance/schema exceptions и response behavior пока остаются распределены по Worker entry/wrapper chain и подтверждаются handler/tests. [`../architecture/WORKER_COMPOSITION.md`](../architecture/WORKER_COMPOSITION.md) даёт проверенную current-state ownership map и migration hazards для #56. До реализации parity cutover нельзя трактовать metadata router/security plan как runtime enforcement или переносить поведение в них только потому, что они уже существуют.
 
 ### Configuration
 

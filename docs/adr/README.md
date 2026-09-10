@@ -40,8 +40,9 @@ Every new ADR must contain Status, Context, Decision, Consequences, Canonical ev
 | [ADR-0005](ADR-0005-forward-only-migrations.md) | Accepted | Schema evolution is forward-only and owned by the canonical migration lifecycle, not request handlers. |
 | [ADR-0006](ADR-0006-persistent-maintenance-boundary.md) | Accepted | Persistent maintenance state is an external fail-closed safety boundary for recovery and ordinary runtime traffic. |
 | [ADR-0007](ADR-0007-staged-restore.md) | Accepted | Destructive restore is staged and verified before atomic live-database replacement. |
+| [ADR-0008](ADR-0008-explicit-worker-application-composition.md) | Proposed | Replace the historical Worker wrapper chain incrementally with one explicit HTTP application composition, reusing canonical route/security metadata and preserving current trust/recovery boundaries through parity tests. |
 
-The initial registry intentionally records only decisions with strong current implementation/reference evidence. Additional settled decisions should be added incrementally rather than inferred from historical plans.
+The initial registry intentionally records only decisions with strong current implementation/reference evidence. Additional settled decisions should be added incrementally rather than inferred from historical plans. Proposed ADRs remain non-authoritative until their target behavior is implemented and the disposition is updated.
 
 ## ADR-0001 reconciliation
 

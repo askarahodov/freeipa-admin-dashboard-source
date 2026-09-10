@@ -130,8 +130,8 @@ export default function Home() {
     }
     try {
       const [usersResponse, groupsResponse] = await Promise.all([
-      fetch("/api/integrations/users", { cache: "no-store" }),
-      fetch("/api/integrations/groups", { cache: "no-store" }),
+        fetch("/api/integrations/users", { cache: "no-store" }),
+        fetch("/api/integrations/groups", { cache: "no-store" }),
       ]);
       if (!usersResponse.ok || !groupsResponse.ok) throw new Error("FreeIPA data request failed");
       const [usersPayload, groupsPayload] = await Promise.all([usersResponse.json(), groupsResponse.json()]);
@@ -301,7 +301,7 @@ export default function Home() {
         if (canManageSettings) navigateTo("settings");
         return;
       case "diagnostics":
-        if (canManageSettings) window.location.assign("/diagnostics");
+        if (canManageSettings) window.location.assign("/diagnostics/health");
         return;
     }
   }

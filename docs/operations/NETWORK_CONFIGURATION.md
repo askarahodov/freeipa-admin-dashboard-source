@@ -54,6 +54,53 @@ Use that same `-f compose.yaml -f compose.network.local.yaml` file order for sub
 
 `compose.network.local.yaml` is ignored by Git and Docker build context. Treat it as operator-local topology state. Do not put passwords, API keys, bearer tokens, cookies, private keys, CA private material, or other secrets in it.
 
+## Outbound HTTP(S) proxy
+
+The production Node runtime supports an explicit process-wide outbound proxy for the existing `fetch` transports used by FreeIPA and XYOps. Proxying is opt-in and uses Node's built-in environment-proxy implementation; the portal does not ship a second proxy client or disable TLS verification.
+
+Enable it only on a Node release that implements built-in proxy support: Node `22.21.0+` on the Node 22 line, Node `24.5.0+`, or a newer supported major. The general portal runtime can still run on the broader Node version declared by `package.json` when proxying is disabled. Startup fails closed if proxying is requested on an unsupported Node version.
+
+Canonical environment variables are:
+
+```env
+NODE_USE_ENV_PROXY=1
+HTTP_PROXY=http://proxy.company.local:8080
+HTTPS_PROXY=http://proxy.company.local:8080
+NO_PROXY=localhost,127.0.0.1,.company.local
+```
+
+Node also recognizes lowercase `http_proxy`, `https_proxy`, and `no_proxy`; when both cases are present, lowercase values take precedence. The startup validator uses the same precedence so validation cannot approve one value while Node consumes another.
+
+At least one HTTP(S) proxy URL must be configured when `NODE_USE_ENV_PROXY=1`. Proxy URLs may contain authentication credentials, for example `http://user:password@proxy.example:8080`; such values are secrets and must remain only in the server-side environment or deployment secret mechanism. Do not copy them into issues, logs, diagnostics, screenshots, or the DNS override.
+
+`NO_PROXY`/`no_proxy` **must include the exact host `127.0.0.1`** (or `*`). This is a security boundary, not merely an availability recommendation: Worker requests to the private FreeIPA Gateway use `http://127.0.0.1:<ephemeral-port>` and carry an ephemeral bearer token. Startup rejects an enabled proxy configuration that would allow this loopback request to be routed through the proxy.
+
+Proxy enablement is applied before Worker loading, Gateway startup, application startup, or scheduler activity. The supported path affects the default Node global HTTP(S) agents and global `fetch` dispatcher used by the production process. It therefore covers the existing outbound FreeIPA Gateway `fetch` and XYOps `fetch` paths without changing their request/response, authentication, timeout, redirect, or TLS contracts.
+
+Do not use proxy configuration to work around a `tls` dependency-health result. HTTPS requests still require valid hostname/certificate/CA verification. If an authorized enterprise proxy performs TLS interception, its trust chain must be installed/configured through the deployment's normal CA policy; disabling certificate verification remains unsupported.
+
+### Proxy verification
+
+After enabling the proxy, start the normal production stack and verify:
+
+```text
+GET /health/live
+GET /health/ready
+GET /health/dependencies
+```
+
+Expected interpretation:
+
+- `/health/live` remains independent of FreeIPA/XYOps;
+- `/health/ready` proves the private loopback Gateway remains reachable directly;
+- `/health/dependencies` exercises the existing external dependency transports and reports sanitized `dns`, `network`, `timeout`, `tls`, `authentication`, `rate_limited`, `upstream`, or `protocol` categories without exposing proxy URLs or credentials.
+
+If startup rejects the proxy configuration, fix the Node version, proxy URL, or loopback `NO_PROXY` entry rather than bypassing the validator. If dependency health fails after startup, troubleshoot the authorized proxy/network path while preserving TLS verification.
+
+### Proxy rollback
+
+Remove `NODE_USE_ENV_PROXY=1` (and any proxy variables that are not needed by other processes) and restart the dashboard. Proxy enablement is startup-scoped; no database or schema migration is involved.
+
 ## Verification
 
 First verify the portal itself:
@@ -81,12 +128,6 @@ Interpret dependency categories according to `HEALTH_CONTRACTS.md`:
 A FreeIPA/XYOps dependency failure is not a liveness failure. Do not create a restart loop while `/health/live` remains healthy.
 
 For DNS failures, confirm the configured hostname and the effective container resolver/host mapping. Do not substitute an arbitrary IP merely to bypass certificate-name validation. For TLS failures, repair hostname/certificate/CA configuration; do not disable certificate verification.
-
-## Proxy status
-
-Repository support for `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` is **not established by this override**. The presence of variables in a container environment does not prove that the actual Node FreeIPA/XYOps clients consume them correctly. Proxy support remains a separate #52 slice and must be verified or implemented in the integration transport before it is documented as supported.
-
-Do not put proxy credentials into this network override. Any future credential-bearing proxy configuration requires the normal secret-handling boundary.
 
 ## Legacy host networking
 

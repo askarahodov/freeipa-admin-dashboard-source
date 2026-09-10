@@ -15,9 +15,9 @@ The Node production host enforces these response headers:
 | `X-Content-Type-Options` | `nosniff` | Prevent MIME sniffing away from the declared content type. |
 | `X-Frame-Options` | `DENY` | Block framing of portal responses in legacy/current browsers that honor this header. |
 | `Referrer-Policy` | `no-referrer` | Prevent the portal URL from being sent as referrer metadata. |
-| `Permissions-Policy` | `camera=(), microphone=(), geolocation=()` | Disable browser capabilities the current portal does not require. |
+| `Permissions-Policy` | `camera=(), microphone=(), geolocation=(), payment=(), usb=()` | Disable browser capabilities the current portal does not require while preserving the stricter restrictions already used by the diagnostics surface. |
 
-These values are host-owned. If a Worker response supplies a weaker value for one of these headers, the Node boundary replaces it with the canonical value before sending the response.
+These values are host-owned. If a Worker response supplies a weaker value for one of these headers, the Node boundary replaces it with the canonical value before sending the response. The host-owned permissions baseline is intentionally at least as restrictive as the pre-existing `/diagnostics/health` policy, so centralization does not re-enable `payment` or `usb` there.
 
 The baseline applies to normal Worker/API responses and static assets written through `writeWebResponse()`. Host-level runtime failures and shutdown-unavailable responses use the same policy helper so those paths do not silently lose the baseline.
 
@@ -44,6 +44,7 @@ The response-header baseline does not make an untrusted forwarded request truste
 Automated Node runtime tests verify that:
 
 - stronger host values replace weaker Worker-provided header values;
+- the centralized permissions baseline does not weaken the existing diagnostics capability restrictions;
 - static assets receive the same baseline;
 - host-level runtime failures receive the same baseline.
 

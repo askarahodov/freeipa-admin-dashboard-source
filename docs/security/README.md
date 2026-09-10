@@ -3,6 +3,7 @@
 This section contains focused product-security and supply-chain documentation.
 
 - [`SECURITY_MODEL.md`](SECURITY_MODEL.md) — current product security model, trust boundaries, identity classes and secret/recovery invariants.
+- [`HTTP_SECURITY.md`](HTTP_SECURITY.md) — current Node production response-header baseline and explicit remaining #53 CSP/HSTS/TLS scope.
 - [`LOCAL_AUTH_RBAC.md`](LOCAL_AUTH_RBAC.md) — canonical local portal authentication, session, brute-force protection, role and access-management contract.
 - [`DEPENDENCY_SECURITY.md`](DEPENDENCY_SECURITY.md) — production dependency audit, SBOM, runtime image scanning, temporary exceptions and upgrade/rollback policy.
 - [`CONFIG_ENCRYPTION_KEY.md`](CONFIG_ENCRYPTION_KEY.md) — production encryption-key requirements and protected settings encryption boundary.

@@ -55,6 +55,19 @@ test("supports explicit narrowed permissions without mutating the role registry"
   assert.deepEqual(portalRolePermissions.operator, ["directory.read", "freeipa.write", "xyops.run"]);
 });
 
+test("rejects explicit permissions that would expand the resolved role", () => {
+  assert.throws(
+    () => createPortalRequestContext({
+      correlationId: "viewer-1",
+      identity: "viewer@example.com",
+      role: "viewer",
+      permissions: ["directory.read", "settings.manage"],
+      authMode: "local-session",
+    }),
+    /permission 'settings\.manage' exceeds role 'viewer'/u,
+  );
+});
+
 test("rejects malformed identity or correlation metadata before it enters shared context", () => {
   assert.throws(
     () => createPortalRequestContext({ correlationId: "bad\nvalue", identity: "user@example.com", role: "viewer", authMode: "static" }),

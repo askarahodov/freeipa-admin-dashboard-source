@@ -13,13 +13,19 @@ type ProcessPresentationSet = {
 };
 
 type PresentationResponse = {
-  metadata?: ProcessPresentationSet;
+  metadata?: unknown;
   source?: "database" | "environment" | "default";
   updatedAt?: number | null;
   availableLocales?: string[];
 };
 
 const emptyPresentation: ProcessPresentationSet = { version: 1, processes: {} };
+
+function isProcessPresentationSet(value: unknown): value is ProcessPresentationSet {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const record = value as { version?: unknown; processes?: unknown };
+  return record.version === 1 && Boolean(record.processes) && typeof record.processes === "object" && !Array.isArray(record.processes);
+}
 
 function serialize(metadata: ProcessPresentationSet): string {
   return `${JSON.stringify(metadata, null, 2)}\n`;
@@ -47,7 +53,8 @@ export default function PresentationSettingsPage() {
       if (!nextSession.authenticated || nextSession.user?.role !== "admin") return;
 
       const data = await requestSettingsJson("/api/integrations/catalog/presentation") as PresentationResponse;
-      const nextText = serialize(data.metadata ?? emptyPresentation);
+      if (!isProcessPresentationSet(data.metadata)) throw new Error("Сервер вернул некорректный presentation metadata contract");
+      const nextText = serialize(data.metadata);
       setText(nextText);
       setBaseline(nextText);
       setSource(data.source ?? "default");
@@ -79,11 +86,15 @@ export default function PresentationSettingsPage() {
     if (!loaded) return;
     setError("");
     setMessage("");
-    let metadata: ProcessPresentationSet;
+    let parsed: unknown;
     try {
-      metadata = JSON.parse(text) as ProcessPresentationSet;
+      parsed = JSON.parse(text) as unknown;
     } catch {
       setError("JSON содержит синтаксическую ошибку. Исправьте документ перед сохранением.");
+      return;
+    }
+    if (!isProcessPresentationSet(parsed)) {
+      setError("Presentation JSON должен содержать version: 1 и объект processes.");
       return;
     }
 
@@ -92,9 +103,10 @@ export default function PresentationSettingsPage() {
       const data = await requestSettingsJson("/api/integrations/catalog/presentation", {
         method: "PUT",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ metadata }),
+        body: JSON.stringify({ metadata: parsed }),
       }) as PresentationResponse;
-      const nextText = serialize(data.metadata ?? metadata);
+      const accepted = isProcessPresentationSet(data.metadata) ? data.metadata : parsed;
+      const nextText = serialize(accepted);
       setText(nextText);
       setBaseline(nextText);
       setSource(data.source ?? "database");

@@ -9,19 +9,8 @@ function constantTimeEqual(expected, actual) {
   return difference === 0;
 }
 
-function normalizeAddress(value) {
-  const address = String(value ?? "").trim().toLowerCase();
-  return address.startsWith("::ffff:") ? address.slice(7) : address;
-}
-
-function isLoopbackAddress(value) {
-  const address = normalizeAddress(value);
-  return address === "127.0.0.1" || address === "::1";
-}
-
-export function resolveTrustedRequestProtocol({ headers, remoteAddress, env = {} }) {
+export function resolveTrustedRequestProtocol({ headers, env = {} }) {
   if (String(env.PORTAL_CLIENT_IP_SOURCE ?? "none").trim().toLowerCase() !== "trusted-proxy") return "http";
-  if (!isLoopbackAddress(remoteAddress)) return "http";
 
   const expectedSecret = String(env.PORTAL_TRUSTED_PROXY_SECRET ?? "");
   const suppliedSecret = String(headers["x-portal-proxy-secret"] ?? "");

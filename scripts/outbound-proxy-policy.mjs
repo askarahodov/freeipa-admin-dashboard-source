@@ -3,8 +3,8 @@ const minimumSupportedProxyVersions = [
   { major: 24, minor: 5 },
 ];
 
-function booleanFlag(value) {
-  return ["1", "true", "yes", "on"].includes(String(value ?? "").trim().toLowerCase());
+function proxyEnabled(value) {
+  return String(value ?? "").trim() === "1";
 }
 
 function parsedNodeVersion(value) {
@@ -49,19 +49,19 @@ function noProxyBypassesGateway(value) {
 }
 
 export function outboundProxyPolicy(env = process.env, nodeVersion = process.versions.node) {
-  const enabled = booleanFlag(env?.PORTAL_OUTBOUND_PROXY_ENABLED);
+  const enabled = proxyEnabled(env?.NODE_USE_ENV_PROXY);
   if (!enabled) return { enabled: false };
 
   if (!nodeSupportsBuiltInProxy(nodeVersion)) {
     throw new Error(
-      "PORTAL_OUTBOUND_PROXY_ENABLED requires Node.js 22.21.0+ on the Node 22 line, Node.js 24.5.0+, or a newer supported major",
+      "NODE_USE_ENV_PROXY=1 requires Node.js 22.21.0+ on the Node 22 line, Node.js 24.5.0+, or a newer supported major",
     );
   }
 
   const httpProxy = effectiveValue(env, "HTTP_PROXY", "http_proxy");
   const httpsProxy = effectiveValue(env, "HTTPS_PROXY", "https_proxy");
   if (!httpProxy && !httpsProxy) {
-    throw new Error("PORTAL_OUTBOUND_PROXY_ENABLED requires HTTP_PROXY/HTTPS_PROXY (or lowercase equivalents)");
+    throw new Error("NODE_USE_ENV_PROXY=1 requires HTTP_PROXY/HTTPS_PROXY (or lowercase equivalents)");
   }
   validateProxyUrl(httpProxy, "HTTP_PROXY/http_proxy");
   validateProxyUrl(httpsProxy, "HTTPS_PROXY/https_proxy");

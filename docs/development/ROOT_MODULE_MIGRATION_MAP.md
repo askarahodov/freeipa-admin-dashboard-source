@@ -1,10 +1,10 @@
 # Root TypeScript module migration record
 
-Status: **historical completion record for Epic #246 / inventory #251, with current residual defects tracked separately**.
+Status: **historical completion record for Epic #246 / inventory #251**.
 
 This document records the completed migration program that moved selected root production-module families into explicit `src/` domain ownership. It is **not an active execution plan**, not a runtime contract and not a source of new backlog. For current repository ownership use [`../architecture/PROJECT_STRUCTURE.md`](../architecture/PROJECT_STRUCTURE.md); for current work use GitHub Issues and active PRs.
 
-A closed migration issue is historical status, not proof that every current consumer is still correct. During #539 reconciliation, current `main` revealed one stale backup type import to a removed root path; that bounded cleanup is tracked by #579 and is called out below rather than hidden by the historical completion state.
+A closed migration issue is historical status, not proof that every current consumer will remain correct forever. During #539 reconciliation, current `main` revealed one stale backup type import to a removed root path. That bounded defect was corrected and regression-protected by #579 / PR #581 before this record was reconciled again.
 
 ## Why this record exists
 
@@ -69,11 +69,11 @@ Preserved contracts:
 
 Issue #265 is closed/completed and canonical backup ownership is under explicit `src/backup/` subdomains covering projection/preview, export, manifest/domain contracts, restore planning/staging/selection, selective restore and encryption.
 
-Current-main reconciliation for #539 found a residual stale active consumer: `src/backup/restore/backup-restore-plan.ts` still imports the `EncryptedBackupDocument` type from removed root path `../../../backup-encrypted-export.ts`, while the canonical module is `src/backup/export/backup-encrypted-export.ts`. The root file is absent. This is tracked as bounded cleanup #579.
+During #539 reconciliation, `src/backup/restore/backup-restore-plan.ts` was found to import `EncryptedBackupDocument` from the removed root `backup-encrypted-export.ts` path. #579 / PR #581 corrected the import to canonical `src/backup/export/backup-encrypted-export.ts` ownership and added a regression guard that requires the canonical owner and absence of the root shim.
 
-Therefore the historical migration issue remains completed, but documentation must not claim that every current backup consumer is fully reconciled until #579 is merged and verified.
+Current reconciliation status: the confirmed residual backup path defect from #539 is resolved.
 
-Preserved contracts expected from the migration and #579 cleanup:
+Preserved contracts:
 
 - backup formats/manifests;
 - encryption compatibility and secret boundaries;
@@ -118,7 +118,7 @@ Preserved contracts:
 | Operations/catalog | #262 completed | reconciled | `src/operations/` |
 | Storage read/integrity | #263 completed | reconciled | `src/storage/` |
 | Storage migration mutation path | #264 completed | reconciled | `src/storage/` + canonical schema in `db/` |
-| Backup | #265 completed | residual stale type import tracked by #579 | `src/backup/` |
+| Backup | #265 completed | reconciled after #579 / PR #581 | `src/backup/` |
 | Recovery/maintenance | #266 completed | reconciled | `src/recovery/` |
 | Auth/access/contracts | #267 completed | reconciled | `src/auth/` |
 
@@ -151,7 +151,7 @@ Every structural slice was expected to preserve:
 7. test discovery and CI routing for moved runtime paths;
 8. absence of duplicate active production copies after compatibility cleanup.
 
-A future structural refactor must re-inventory current `main`; this record does not authorize repeating an already completed move. A newly discovered residual defect, such as #579, should receive its own bounded owner rather than rewriting historical completion status into a fictional active migration queue.
+A future structural refactor must re-inventory current `main`; this record does not authorize repeating an already completed move. Newly discovered residual defects should receive their own bounded owner, as #579 did, rather than rewriting historical completion status into a fictional active migration queue.
 
 ## Historical migration method
 

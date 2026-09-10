@@ -3,34 +3,23 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { SettingsRouteShell } from "../SettingsRouteShell";
+import {
+  applySettingsDraft,
+  cancelSettingsDraft,
+  createSettingsDraft,
+  loadAdminEffectiveSettings,
+  validateSettingsDraft,
+  type EffectiveSettings,
+  type SessionState,
+  type SettingsDraft,
+} from "../settings-lifecycle-client";
 import styles from "../settings-route-shell.module.css";
-
-type SessionState = { authenticated?: boolean; user?: { role?: string; displayName?: string } };
-type EffectiveSettings = {
-  revision: number;
-  overrideCount?: number;
-  conflictCount?: number;
-  settings: { demoMode: boolean; updatedAt?: number | null };
-  fields?: { demoMode?: { source?: string; envName?: string; overridden?: boolean } };
-};
-type Draft = {
-  id: string;
-  status: string;
-  diff?: Array<{ field?: string; before?: unknown; after?: unknown; secret?: boolean }>;
-};
-
-async function requestJson(path: string, init?: RequestInit) {
-  const response = await fetch(path, { cache: "no-store", ...init });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(String(data.error || `HTTP ${response.status}`));
-  return data;
-}
 
 export default function GeneralSettingsPage() {
   const [session, setSession] = useState<SessionState | null>(null);
   const [effective, setEffective] = useState<EffectiveSettings | null>(null);
   const [desiredDemoMode, setDesiredDemoMode] = useState(false);
-  const [draft, setDraft] = useState<Draft | null>(null);
+  const [draft, setDraft] = useState<SettingsDraft | null>(null);
   const [busy, setBusy] = useState<"load" | "draft" | "validate" | "apply" | "cancel" | null>("load");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -39,16 +28,13 @@ export default function GeneralSettingsPage() {
     setBusy("load");
     setError("");
     try {
-      const nextSession = await requestJson("/api/auth/session") as SessionState;
-      setSession(nextSession);
-      if (!nextSession.authenticated || nextSession.user?.role !== "admin") {
-        setEffective(null);
-        return;
+      const loaded = await loadAdminEffectiveSettings();
+      setSession(loaded.session);
+      setEffective(loaded.effective);
+      if (loaded.effective) {
+        setDesiredDemoMode(loaded.effective.settings.demoMode === true);
+        setDraft(null);
       }
-      const active = await requestJson("/api/integrations/settings/effective") as EffectiveSettings;
-      setEffective(active);
-      setDesiredDemoMode(active.settings.demoMode === true);
-      setDraft(null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Настройки недоступны");
     } finally {
@@ -65,12 +51,7 @@ export default function GeneralSettingsPage() {
     if (!effective || desiredDemoMode === effective.settings.demoMode) return;
     setBusy("draft"); setError(""); setMessage("");
     try {
-      const data = await requestJson("/api/integrations/settings/drafts", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ baseRevision: effective.revision, changes: { demoMode: desiredDemoMode } }),
-      }) as { draft: Draft };
-      setDraft(data.draft);
+      setDraft(await createSettingsDraft(effective.revision, { demoMode: desiredDemoMode }));
       setMessage("Черновик создан. Проверьте изменение и выполните серверную проверку.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Не удалось создать черновик");
@@ -81,12 +62,7 @@ export default function GeneralSettingsPage() {
     if (!draft) return;
     setBusy("validate"); setError(""); setMessage("");
     try {
-      const data = await requestJson(`/api/integrations/settings/drafts/${encodeURIComponent(draft.id)}/validate`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: "{}",
-      }) as { draft: Draft };
-      setDraft(data.draft);
+      setDraft(await validateSettingsDraft(draft.id));
       setMessage("Серверная проверка пройдена. Конфигурацию можно применить.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Проверка черновика не пройдена");
@@ -97,11 +73,7 @@ export default function GeneralSettingsPage() {
     if (!draft || draft.status !== "validated") return;
     setBusy("apply"); setError(""); setMessage("");
     try {
-      await requestJson(`/api/integrations/settings/drafts/${encodeURIComponent(draft.id)}/apply`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: "{}",
-      });
+      await applySettingsDraft(draft.id);
       setMessage("Общие настройки применены.");
       await load();
     } catch (cause) {
@@ -113,11 +85,7 @@ export default function GeneralSettingsPage() {
     if (!draft) return;
     setBusy("cancel"); setError(""); setMessage("");
     try {
-      await requestJson(`/api/integrations/settings/drafts/${encodeURIComponent(draft.id)}/cancel`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: "{}",
-      });
+      await cancelSettingsDraft(draft.id);
       setDraft(null);
       if (effective) setDesiredDemoMode(effective.settings.demoMode);
       setMessage("Черновик отменён.");
@@ -144,7 +112,7 @@ export default function GeneralSettingsPage() {
           </div>
           <div className={styles.meta}>
             <span>Revision: <strong>{effective.revision}</strong></span>
-            <span>Источник: <strong>{effective.fields?.demoMode?.source ?? "default"}</strong></span>
+            <span>Источник: <strong>{effective.fields.demoMode?.source ?? "default"}</strong></span>
             <span>D1 overrides: <strong>{effective.overrideCount ?? 0}</strong></span>
             <span>Конфликты с ENV: <strong>{effective.conflictCount ?? 0}</strong></span>
           </div>

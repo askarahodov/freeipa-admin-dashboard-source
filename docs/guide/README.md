@@ -4,41 +4,45 @@
 
 Точные эксплуатационные команды, архитектурные контракты, API, security policy и recovery procedures остаются в канонической инженерной документации. Если здесь есть ссылка на runbook или reference, именно тот документ владеет техническими деталями.
 
+## Текущее состояние
+
+Foundation базы знаний уже создан. Ролевые практические разделы ниже будут добавляться отдельными задачами и PR. Пока нужная статья ещё не опубликована, используйте связанные канонические инженерные документы из раздела «Связанные канонические документы» ниже.
+
 ## Выберите свою роль
 
 ### Новый пользователь
 
-Начните с `getting-started/`: что такое портал, как войти, какие разделы доступны и где искать помощь.
+Раздел `getting-started/` запланирован в #554. До его публикации начните с корневого [`../../README.md`](../../README.md), а затем используйте этот индекс для перехода к актуальной инженерной документации.
 
 ### User / Viewer
 
-Раздел `user/` предназначен для пользователей с правами просмотра: навигация, каталог FreeIPA, каталог процессов, operations и понятные объяснения состояний «нет данных», «нет прав», «недоступно» и «временно недоступно».
+Раздел `user/` запланирован в #554. Он будет предназначен для пользователей с правами просмотра: навигация, каталог FreeIPA, каталог процессов, operations и понятные объяснения состояний «нет данных», «нет прав», «недоступно» и «временно недоступно».
 
 ### Operator
 
-Раздел `operator/` будет содержать типовые рабочие сценарии: операции с разрешёнными объектами FreeIPA, запуск процессов XYOps, approvals, результаты, повторные действия и эскалация ошибок.
+Раздел `operator/` запланирован в #555 и будет содержать типовые рабочие сценарии: операции с разрешёнными объектами FreeIPA, запуск процессов XYOps, approvals, результаты, повторные действия и эскалация ошибок.
 
 ### Administrator
 
-Раздел `administrator/` предназначен для администраторов портала: локальные учётные записи и сессии, настройки, интеграции, audit, diagnostics, storage, backup/maintenance/recovery overview и безопасные административные ограничения.
+Раздел `administrator/` запланирован в #556 и будет предназначен для администраторов портала: локальные учётные записи и сессии, настройки, интеграции, audit, diagnostics, storage, backup/maintenance/recovery overview и безопасные административные ограничения.
 
 ### Operations / DevOps
 
-Раздел `operations/` будет объяснять deployment, update/rollback, health/readiness, Docker, network/TLS, monitoring, backup/restore и incident troubleshooting с ссылками на точные runbooks.
+Раздел `operations/` запланирован в #557 и будет объяснять deployment, update/rollback, health/readiness, Docker, network/TLS, monitoring, backup/restore и incident troubleshooting с ссылками на точные runbooks.
 
 ### Support
 
-Раздел `support/` будет содержать безопасную первичную диагностику, correlation ID, допустимые данные для запроса у пользователя и escalation path. Поддержка не должна запрашивать пароли, session cookies, API keys, encryption keys или raw database.
+Раздел `support/` запланирован в #557 и будет содержать безопасную первичную диагностику, correlation ID, допустимые данные для запроса у пользователя и escalation path. Поддержка не должна запрашивать пароли, session cookies, API keys, encryption keys или raw database.
 
 ### Developer / AI agent
 
-Раздел `developer/` будет служить входной точкой в разработку: current-main-first workflow, source of truth, repository ownership, testing policy, PR/CI lifecycle, multi-agent collision checks и Knowledge Base impact.
+Раздел `developer/` запланирован в #558 и будет служить входной точкой в разработку: current-main-first workflow, source of truth, repository ownership, testing policy, PR/CI lifecycle, multi-agent collision checks и Knowledge Base impact.
 
 ## Дополнительные разделы
 
-- `concepts/` — термины и ключевые понятия.
-- `troubleshooting/` — поиск решения по симптому.
-- `ARTICLE_TEMPLATE.md` — шаблон новой практической статьи.
+- [`concepts/TERMINOLOGY.md`](concepts/TERMINOLOGY.md) — уже доступные правила терминологии и ключевые понятия.
+- `troubleshooting/` — запланированный в #557 поиск решения по симптому.
+- [`ARTICLE_TEMPLATE.md`](ARTICLE_TEMPLATE.md) — уже доступный шаблон новой практической статьи.
 
 ## Как устроена документация
 

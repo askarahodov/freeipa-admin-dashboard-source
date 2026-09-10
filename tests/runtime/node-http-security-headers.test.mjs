@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -10,7 +10,7 @@ const expectedHeaders = {
   "x-content-type-options": "nosniff",
   "x-frame-options": "DENY",
   "referrer-policy": "no-referrer",
-  "permissions-policy": "camera=(), microphone=(), geolocation=()",
+  "permissions-policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
 };
 
 function assertBaselineHeaders(response) {
@@ -22,7 +22,6 @@ function assertBaselineHeaders(response) {
 async function withRuntime(worker, callback) {
   const root = await mkdtemp(join(tmpdir(), "portal-http-security-"));
   const assetsRoot = join(root, "assets");
-  await writeFile(join(root, "placeholder"), "ok");
 
   const runtime = await startNodeWorkerHost({ worker, assetsRoot, host: "127.0.0.1", port: 0 });
   try {
@@ -52,10 +51,27 @@ test("Node host enforces baseline headers over weaker Worker response values", a
   });
 });
 
+test("Node host preserves the existing diagnostics capability restrictions", async () => {
+  await withRuntime({
+    async fetch() {
+      return new Response("diagnostics", {
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+          "permissions-policy": "camera=(), geolocation=(), microphone=(), payment=(), usb=()",
+        },
+      });
+    },
+  }, async (runtime) => {
+    const response = await fetch(`http://127.0.0.1:${runtime.address.port}/diagnostics/health`);
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("permissions-policy"), expectedHeaders["permissions-policy"]);
+  });
+});
+
 test("Node host applies baseline headers to static assets", async () => {
   const root = await mkdtemp(join(tmpdir(), "portal-http-security-assets-"));
   const assetsRoot = join(root, "assets");
-  await import("node:fs/promises").then(({ mkdir }) => mkdir(assetsRoot));
+  await mkdir(assetsRoot);
   await writeFile(join(assetsRoot, "app.js"), "console.log('ok');");
 
   const runtime = await startNodeWorkerHost({

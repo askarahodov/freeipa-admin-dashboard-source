@@ -158,7 +158,7 @@ export default function IntegrationsSettingsPage() {
   return (
     <SettingsRouteShell
       title="Интеграции"
-      description="Подключения FreeIPA и XYOрs. Секреты не возвращаются из API и не сохраняются в браузере."
+      description="Подключения FreeIPA и XYOps. Секреты не возвращаются из API и не сохраняются в браузере."
       hasUnsavedChanges={dirty && !draft}
     >
       {busy === "load" && !session && <div className={styles.notice}>Проверяем доступ и текущую конфигурацию…</div>}
@@ -181,11 +181,11 @@ export default function IntegrationsSettingsPage() {
 
         <div className={styles.card}>
           <div className={styles.sectionHead}>
-            <div><h2>XYOps</h2><p>Portal хранит только настройки подключения; выполнение процессов остаётся под контролем XYOрs.</p></div>
+            <div><h2>XYOps</h2><p>Portal хранит только настройки подключения; выполнение процессов остаётся под контролем XYOps.</p></div>
             <span className={styles.sourceBadge}>{effective.fields.xyopsUrl?.source ?? "default"}</span>
           </div>
           <div className={styles.formGrid}>
-            <label>Адрес XYOрs<input value={form.xyopsUrl} disabled={Boolean(draft)} onChange={(event) => updateField("xyopsUrl", event.target.value)} placeholder="https://xyops.company.local" /></label>
+            <label>Адрес XYOps<input value={form.xyopsUrl} disabled={Boolean(draft)} onChange={(event) => updateField("xyopsUrl", event.target.value)} placeholder="https://xyops.company.local" /></label>
             <label>API key<input type="password" value={form.xyopsApiKey} disabled={Boolean(draft)} onChange={(event) => updateField("xyopsApiKey", event.target.value)} placeholder={effective.settings.xyops.apiKeyConfigured ? "Сохранён — оставьте пустым без изменений" : "Введите API key"} autoComplete="new-password" /></label>
           </div>
         </div>

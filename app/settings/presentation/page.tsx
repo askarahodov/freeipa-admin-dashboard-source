@@ -114,14 +114,14 @@ export default function PresentationSettingsPage() {
   return (
     <SettingsRouteShell
       title="Представление процессов"
-      description="Текущий JSON-контракт презентационных метаданных вынесен в отдельный route. Визуальный multilingual editor развивается отдельно в #32."
+      description="Текущий JSON-контракт презентационных метаданных вынесен в отдельный маршрут. Расширенный многоязычный редактор развивается отдельным этапом."
       hasUnsavedChanges={dirty}
     >
       {busy === "load" && !session && <div className={styles.notice}>Проверяем доступ и загружаем presentation metadata…</div>}
       {error && <div className={styles.error} role="alert"><strong>Ошибка</strong><br />{error}</div>}
       {session && !authenticated && <div className={styles.card}><h2>Требуется вход</h2><p>Настройки доступны только после аутентификации.</p><Link href="/login?returnTo=%2Fsettings%2Fpresentation">Войти</Link></div>}
       {session && authenticated && !admin && <div className={styles.card}><h2>Недостаточно прав</h2><p>Этот раздел требует административной роли и серверного permission <code>settings.manage</code>.</p><Link href="/">Вернуться к обзору</Link></div>}
-      {admin && !loaded && busy !== "load" && <div className={styles.card}><h2>Метаданные не загружены</h2><p>Редактор заблокирован до успешного чтения текущего server state, чтобы пустой baseline нельзя было сохранить поверх существующей конфигурации.</p><button type="button" onClick={() => void load()}>Повторить загрузку</button></div>}
+      {admin && !loaded && busy !== "load" && <div className={styles.card}><h2>Метаданные не загружены</h2><p>Редактор заблокирован до успешного чтения текущего состояния сервера, чтобы пустой baseline нельзя было сохранить поверх существующей конфигурации.</p><button type="button" onClick={() => void load()}>Повторить загрузку</button></div>}
 
       {admin && loaded && <div className={styles.card}>
         <div className={styles.sectionHead}>

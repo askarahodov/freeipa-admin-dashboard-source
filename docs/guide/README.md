@@ -6,7 +6,7 @@
 
 ## Текущее состояние
 
-Foundation, Getting Started, User / Viewer и Operator guides уже доступны; остальные ролевые разделы добавляются отдельными задачами и PR. Пока нужная статья ещё не опубликована, используйте связанные канонические инженерные документы из раздела «Связанные канонические документы» ниже.
+Foundation, Getting Started, User / Viewer, Operator и Administrator guides уже доступны; остальные ролевые разделы добавляются отдельными задачами и PR. Пока нужная статья ещё не опубликована, используйте связанные канонические инженерные документы из раздела «Связанные канонические документы» ниже.
 
 ## Выберите свою роль
 
@@ -24,7 +24,7 @@ Foundation, Getting Started, User / Viewer и Operator guides уже досту�
 
 ### Administrator
 
-Раздел `administrator/` запланирован в #556 и будет предназначен для администраторов портала: локальные учётные записи и сессии, настройки, интеграции, audit, diagnostics, storage, backup/maintenance/recovery overview и безопасные административные ограничения.
+Используйте [`administrator/README.md`](administrator/README.md) для управления локальными portal accounts/sessions, настройками и интеграциями, audit/diagnostics/storage, а также безопасного понимания backup, maintenance и recovery с переходом к точным runbooks.
 
 ### Operations / DevOps
 

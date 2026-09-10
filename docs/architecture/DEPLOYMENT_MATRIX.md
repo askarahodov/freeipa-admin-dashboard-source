@@ -13,12 +13,12 @@ This document describes the deployment modes that are supported by the current r
 
 | Deployment mode | Status | Canonical owner / evidence | Notes |
 | --- | --- | --- | --- |
-| Docker Compose using repository `compose.yaml` and the runtime image from `Dockerfile` | **Supported production** | `compose.yaml`, `Dockerfile`, `scripts/start-production.mjs`, runtime tests, recovery/persistence tests | Canonical production entrypoint is the Node runtime. The `dashboard-data` named volume is mounted at `/data`; the default SQLite store is `/data/portal.sqlite`. |
+| Docker Compose using repository `compose.yaml` and the runtime image from `Dockerfile` | **Supported production** | `compose.yaml`, `Dockerfile`, `scripts/start-production.mjs`, runtime tests, recovery/persistence tests | Canonical production entrypoint is the Node runtime. Dashboard and recovery use the explicit `portal` bridge network. The dashboard publishes container port `3001` to `${DASHBOARD_BIND_ADDRESS:-127.0.0.1}:${DASHBOARD_PORT:-3001}`. The `dashboard-data` named volume is mounted at `/data`; the default SQLite store is `/data/portal.sqlite`. |
 | Production runtime image started directly with equivalent required environment and a persistent `/data` mount | **Supported production, operator-integrated** | `Dockerfile`, `scripts/start-production.mjs`, `runtime/sqlite-runtime-store.mjs` | The repository defines the image/runtime contract, but external orchestration, restart policy, secrets injection and network exposure remain the operator's responsibility. |
-| Compose recovery profile | **Supported operational/recovery mode** | `compose.yaml`, recovery image target, recovery scripts/tests | Recovery mounts the same `dashboard-data` volume at `/portal-data`; use the dedicated recovery runbooks rather than ad-hoc SQLite manipulation. |
+| Compose recovery profile | **Supported operational/recovery mode** | `compose.yaml`, recovery image target, recovery scripts/tests | Recovery mounts the same `dashboard-data` volume at `/portal-data` and joins the explicit `portal` bridge network; use the dedicated recovery runbooks rather than ad-hoc SQLite manipulation. |
 | Local package-script development server / development tooling | **Supported development** | `package.json`, development scripts and tests | Intended for development and verification only. It is not the production startup path. |
 | Direct Wrangler/Vite/Miniflare development server as production | **Unsupported** | Production `Dockerfile` and `scripts/start-production.mjs` do not use the development runtime | Historical pre-#51 behavior. Do not use it as the production deployment contract. |
-| Current Compose `network_mode: host` networking | **Temporary / constrained** | `compose.yaml`; replacement tracked by #52 | It is part of the current Compose topology, but it weakens isolation and portability. #52 owns migration to an explicit bridge-network model. Do not infer that host networking is the long-term target architecture. |
+| Standard Compose with `network_mode: host` | **Unsupported by the canonical profile** | `compose.yaml`, `tests/architecture/compose-network-isolation.test.mjs` | The standard profile deliberately rejects host networking. A separate opt-in legacy override is tracked by #52 and is not part of the canonical deployment until it has explicit safeguards and tests. |
 | Kubernetes / Helm deployment | **Unsupported by this repository today** | No canonical chart/manifests/acceptance contract in current repository | A custom deployment may be possible, but this repository does not currently guarantee Kubernetes/Helm lifecycle, probes, storage, networking, upgrades or rollback semantics. |
 | Multiple active replicas sharing the same local SQLite database | **Unsupported** | Canonical runtime uses local SQLite under `PORTAL_DATA_DIR` | The repository does not provide a distributed locking/storage contract for horizontally scaled active replicas. |
 | SQLite database path outside `PORTAL_DATA_DIR` | **Unsupported** | `runtime/sqlite-runtime-store.mjs` | `PORTAL_DATABASE_PATH`, when set, must remain inside `PORTAL_DATA_DIR`. |
@@ -48,9 +48,29 @@ The supported production contract currently assumes:
 1. the image starts `scripts/start-production.mjs` through the `Dockerfile` command;
 2. `PORTAL_DATA_DIR` defaults to `/data` and the default database is `/data/portal.sqlite`;
 3. persistent deployment mounts durable storage at `/data`;
-4. the internal FreeIPA Gateway remains process-private/loopback and is not exposed as a public service;
-5. production configuration and secrets follow `docs/reference/CONFIGURATION.md` and the dedicated security runbooks;
-6. health, migration, recovery and persistence behavior is validated by repository tests rather than inferred from historical issues or plans.
+4. dashboard and recovery use the explicit `portal` bridge network rather than host networking;
+5. dashboard publication defaults to host loopback (`DASHBOARD_BIND_ADDRESS=127.0.0.1`) while the process still listens on `0.0.0.0:3001` inside the container;
+6. the internal FreeIPA Gateway binds only to `127.0.0.1` inside the dashboard process namespace and is not published by Compose;
+7. production configuration and secrets follow `docs/reference/CONFIGURATION.md` and the dedicated security runbooks;
+8. health, migration, recovery and persistence behavior is validated by repository tests rather than inferred from historical issues or plans.
+
+Changing `DASHBOARD_BIND_ADDRESS` to a non-loopback address deliberately widens host-side exposure. Do this only when LAN/reverse-proxy access is required and combine it with the host/network controls appropriate to the deployment. `DASHBOARD_PORT` changes only the host-side published port; the container-side application port remains `3001` in the canonical Compose profile.
+
+## External dependency networking
+
+FreeIPA and XYOps are outbound dependencies of the dashboard container. Their temporary failure must not be treated as a portal liveness failure. Use `GET /health/dependencies` or the operator diagnostics page to distinguish the already-supported sanitized categories `dns`, `network`, `timeout`, `tls`, `authentication`, `rate_limited`, `upstream` and `protocol`; see `docs/operations/HEALTH_CONTRACTS.md` for the exact response contract.
+
+For the canonical bridge profile:
+
+| Symptom/category | What it means at the portal boundary | Safe first checks |
+| --- | --- | --- |
+| `dns` | The configured FreeIPA name could not be resolved from the container path. | Verify the configured hostname and Docker/host DNS path. Do not replace the hostname with an unverified address merely to bypass name or certificate checks. |
+| `network` | A connection could not be established or was interrupted. | Verify routing, target port and network reachability from the deployment environment. Keep the portal running if liveness/readiness remain healthy. |
+| `timeout` | The bounded external probe did not complete within its limit. | Check route/proxy/upstream latency and availability; do not convert dependency health into a restart loop. |
+| `tls` | FreeIPA TLS verification failed. | Verify the configured hostname, certificate chain and the CA/settings path owned by #40. Do not disable certificate verification. |
+| `authentication` | The upstream rejected credentials/key material. | Validate the server-side integration configuration without exposing credentials in logs or diagnostics. |
+
+Custom Compose `dns`, `dns_search`, `extra_hosts` and an application-supported HTTP(S) proxy path are still follow-up work in #52. They are **not** documented here as supported knobs until source, tests and a safe configuration contract exist. The current `env_file` behavior alone is not treated as proof that the Node integration clients honor proxy environment variables.
 
 ## Image packaging dependencies
 
@@ -62,7 +82,7 @@ Local recovery artifact and secret roots (`./recovery` and `./recovery-secrets` 
 
 ## Known deployment limitations
 
-The current supported Compose path still uses host networking. This is a known deployment-hardening limitation owned by #52. A limitation being documented here does not make alternative, untested network topologies automatically supported.
+The canonical Compose profile now uses an explicit bridge network and loopback-default dashboard publication. #52 remains open because repository-owned custom DNS/search-domain/host-alias options, a proven HTTP(S) proxy path, and a separately safeguarded opt-in legacy host-network override are not yet complete.
 
 TLS reverse-proxy hardening is tracked separately by #53. Until a repository-owned reverse-proxy profile is implemented and accepted, operators may place the service behind their own proxy, but repository support does not imply guarantees for arbitrary forwarded-header, TLS-termination or proxy configurations.
 

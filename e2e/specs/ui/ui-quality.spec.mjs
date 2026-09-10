@@ -92,4 +92,28 @@ test.describe.serial("UI accessibility and responsive baseline", () => {
       await expect(statuses.nth(index)).toContainText(/\S/);
     }
   });
+
+  test("enforcing CSP remains violation-free across login form and authenticated navigation", async ({ page }) => {
+    const cspViolations = [];
+    page.on("console", (message) => {
+      const text = message.text();
+      if (/content security policy|refused to (?:load|execute|apply|connect|frame)/iu.test(text)) cspViolations.push(text);
+    });
+
+    const loginResponse = await page.goto("/login?next=/");
+    expect(loginResponse).not.toBeNull();
+    const csp = loginResponse.headers()["content-security-policy"] ?? "";
+    expect(csp).toContain("default-src 'self'");
+    expect(csp).toContain("frame-ancestors 'none'");
+    expect(csp).not.toContain("unsafe-eval");
+
+    await page.getByLabel("Логин").fill(adminUsername);
+    await page.getByLabel("Пароль").fill(adminPassword);
+    await page.getByRole("button", { name: "Войти" }).click();
+    await page.waitForURL(/\/$/, { timeout: 30_000 });
+    await expect(page.getByRole("heading", { name: "Обзор" })).toBeVisible();
+    await page.waitForLoadState("networkidle");
+
+    expect(cspViolations, cspViolations.join("\n")).toEqual([]);
+  });
 });

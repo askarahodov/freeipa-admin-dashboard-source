@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import { createFreeIpaGateway } from "./freeipa-gateway.mjs";
 import { loadWorkerArtifact, startNodeWorkerHost } from "./node-worker-host.mjs";
+import { configureOutboundProxy } from "./outbound-proxy-policy.mjs";
 import { createRuntimeApplication } from "../runtime/runtime-application.mjs";
 import { createRuntimeDatabase } from "../runtime/runtime-database.mjs";
 import { createRuntimeShutdownCoordinator } from "../runtime/shutdown.mjs";
@@ -83,7 +84,7 @@ function createScheduler({ worker, env, isReady }) {
   });
 }
 
-export function createProductionRuntimeOptions({ env = process.env } = {}) {
+export function createProductionRuntimeOptions({ env = process.env, configureProxy = configureOutboundProxy } = {}) {
   const options = {
     env,
     loadWorker: () => loadWorkerArtifact(env.PORTAL_WORKER_ARTIFACT || "dist/server/index.js"),
@@ -96,7 +97,10 @@ export function createProductionRuntimeOptions({ env = process.env } = {}) {
     }),
   };
 
-  options.start = (overrides = options) => startProductionRuntime(overrides);
+  options.start = async (overrides = options) => {
+    await configureProxy({ env: overrides.env ?? env });
+    return startProductionRuntime(overrides);
+  };
   return options;
 }
 

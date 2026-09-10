@@ -19,6 +19,13 @@ test("Nginx TLS profile replaces untrusted forwarding metadata", async () => {
   assert.doesNotMatch(config, /\$proxy_add_x_forwarded_for/);
 });
 
+test("Nginx template documents restricted envsubst and preserves runtime variables", async () => {
+  const config = await profile();
+  assert.match(config, /envsubst '\$\{PORTAL_UPSTREAM_HOST\} \$\{PORTAL_SERVER_NAME\} \$\{TLS_CERTIFICATE\} \$\{TLS_CERTIFICATE_KEY\} \$\{PORTAL_TRUSTED_PROXY_SECRET\}'/);
+  assert.match(config, /return 308 https:\/\/\$host\$request_uri;/);
+  assert.match(config, /proxy_set_header X-Forwarded-For \$remote_addr;/);
+});
+
 test("Nginx TLS profile has bounded request and upstream timeouts", async () => {
   const config = await profile();
   assert.match(config, /client_max_body_size 16m;/);

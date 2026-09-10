@@ -75,7 +75,7 @@ For the canonical bridge profile:
 
 For deployments that require corporate resolver addresses, search domains, or fixed host aliases, use the repository-owned procedure in `docs/operations/NETWORK_CONFIGURATION.md` and the tracked `compose.network.example.yaml`. Keep environment-specific values in ignored `compose.network.local.yaml`; validate the merged model before startup. DNS/host aliases do not disable TLS verification and must not be used to bypass certificate-name checks.
 
-For authorized outbound HTTP(S) proxies, use the opt-in `NODE_USE_ENV_PROXY=1` procedure in `docs/operations/NETWORK_CONFIGURATION.md`. The production startup policy validates the actual Node release and requires an effective `NO_PROXY`/`no_proxy` entry for `127.0.0.1` before applying Node's built-in global proxy configuration. Proxy credentials remain server-side secrets and TLS verification remains mandatory.
+For authorized outbound HTTP(S) proxies, use the opt-in `NODE_USE_ENV_PROXY=1` procedure in `docs/operations/NETWORK_CONFIGURATION.md`. Node applies its built-in environment proxy configuration at process startup. The portal then validates the actual Node release and requires an effective `NO_PROXY`/`no_proxy` entry for `127.0.0.1` before any runtime work begins. Proxy credentials remain server-side secrets and TLS verification remains mandatory.
 
 ## Image packaging dependencies
 

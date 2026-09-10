@@ -6,7 +6,7 @@ This document defines the target ownership model for `tests/` and `e2e/` under #
 
 - Node tests are discovered recursively and deterministically by `scripts/discover-node-tests.mjs`.
 - `.github/workflows/ci.yml` feeds that shared list into `scripts/ci-test-shards.mjs` for sharding.
-- `npm test` uses `scripts/run-node-tests.mjs`, which executes the same discovered list after the production build.
+- `npm test` uses `scripts/run-node-tests.mjs`, which executes the same recursive list after the production build.
 - Recovery contracts live under `tests/recovery/`, with the dedicated recovery CI job preserving its additional container/volume checks.
 - Browser E2E lives under `e2e/specs/<category>/` and is routed by `scripts/auth-e2e-scope.mjs`.
 - Integration mock servers live under `e2e/fixtures/`; `e2e/support/` remains reserved for shared browser helpers when such helpers are introduced.

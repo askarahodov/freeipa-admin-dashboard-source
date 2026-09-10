@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 console.warn(
   "[deprecated] `npm run start:docker` is a legacy development compatibility command. " +
@@ -7,7 +8,7 @@ console.warn(
     "or `npm run start:worker:dev` when you intentionally need the legacy local Worker runtime.",
 );
 
-const child = spawn(process.execPath, [new URL("./start-worker.mjs", import.meta.url).pathname], {
+const child = spawn(process.execPath, [fileURLToPath(new URL("./start-worker.mjs", import.meta.url))], {
   stdio: "inherit",
   env: process.env,
 });

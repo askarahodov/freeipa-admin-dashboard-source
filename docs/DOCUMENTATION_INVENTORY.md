@@ -2,7 +2,7 @@
 
 Этот документ фиксирует current baseline инженерной документации для задачи #85 и Epic #82: назначение, owner/source of truth и результат проверки против актуального `main`/целевого ref.
 
-Последний focused re-audit выполнен в #207 / PR #211. Production persistence reconciled в #209 / PR #220. ADR registry добавлен в #230 / PR #232. Module-level coverage завершён в #235 / PR #236. Machine-readable stable error ownership завершён в #124 / PR #239. Финальная reconciliation Epic #82 выполняется в #240 / PR #242.
+Последний focused re-audit выполнен в #207 / PR #211. Production persistence reconciled в #209 / PR #220. ADR registry добавлен в #230 / PR #232. Module-level coverage завершён в #235 / PR #236. Machine-readable stable error ownership завершён в #124 / PR #239. Финальная reconciliation Epic #82 выполняется в #240 / PR #242. Worker HTTP composition inventory и proposed explicit-composition ADR добавлены в #627 как current-state handoff для #56/#628.
 
 > Каноническое product/display name — **Admin Dashboard Softrust**. Technical compatibility identifiers не переименовываются branding-only изменениями.
 
@@ -22,6 +22,7 @@
 | `docs/design-system/README.md` | `app/ui/index.ts` + `app/ui/forms/index.ts` + `app/ui/data-list/index.ts` + `app/styles/tokens.css` | `verified-active` | Current shared UI API, usage and governance foundation; remaining #293 slices are explicit |
 | `docs/architecture/ARCHITECTURE.md` | current runtime, Compose/startup, canonical owners/tests | `verified-active` | Production runtime and persistence resynced |
 | `docs/architecture/PROJECT_STRUCTURE.md` | repository paths + `SOURCE_OF_TRUTH.md` | `verified-active` | Module ownership map |
+| `docs/architecture/WORKER_COMPOSITION.md` | `src/auth/portal-route-contract.ts` + current Worker wrappers/handlers/domain owners/tests | `verified-active` | Current Worker HTTP composition, supplemental surfaces, hidden adaptation boundaries and #628 parity handoff; not a second route registry |
 | `docs/architecture/MODULE_COVERAGE.md` | module boundaries + local READMEs + scoped tests | `verified-active` | Central-vs-local documentation coverage |
 | `docs/architecture/D1_SQLITE_ADAPTER.md` | `runtime/d1-sqlite-adapter.mjs` + runtime persistence tests | `verified-active` | D1-compatible SQLite adapter boundary |
 | `runtime/README.md` | canonical Node runtime + runtime tests | `verified-active` | Runtime lifecycle/persistence/gateway/scheduler |
@@ -29,7 +30,7 @@
 | `db/README.md` | schema/migration registry/tests | `verified-active` | Canonical schema/migration ownership |
 | `docs/development/DOCUMENTATION_POLICY.md` | docs-as-code policy + `scripts/documentation-consistency.mjs` | `verified-active` | Human/AI rules and required `npm run docs:check` |
 | `docs/reference/SOURCE_OF_TRUTH.md` | canonical runtime owners | `verified-active` | Precedence/source registry |
-| `docs/adr/README.md` | ADR policy + implementation evidence | `verified-active` | Why-level decisions; code/tests remain what-level authority |
+| `docs/adr/README.md` | ADR policy + implementation evidence | `verified-active` | Why-level decisions; ADR-0008 remains Proposed until #56 cutover evidence exists |
 | `docs/reference/GLOSSARY.md` | active runtime/domain semantics | `verified-active` | Common terminology |
 | `docs/ai/README.md` | documentation policy + source registry | `verified-active` | Mandatory AI-agent entrypoint |
 | `.github/pull_request_template.md` | documentation policy | `verified-active` | Documentation/security/source-of-truth checklist |
@@ -94,11 +95,13 @@ Normalized references orient humans and agents; they do not replace runtime/doma
 - **DOC-014:** #230/#232 added ADR registry and initial decision records.
 - **DOC-015:** #235/#236 added module-level coverage and focused local guides for `runtime/`, `worker/`, and `db/`.
 - **DOC-016:** #124/#239 added `src/auth/stable-error-contract.ts` and registry contract tests; #240/#242 reconciles active documentation with that completed ownership model.
+- **DOC-017:** #627 records current Worker HTTP composition/ownership and the proposed explicit-composition migration boundary without changing runtime behavior.
 
 ## Проверенные группы
 
 - Architecture/topology and production startup/persistence.
 - Repository/module boundaries and module-level scoped-test routing.
+- Worker HTTP composition, stable route metadata relationship, request adaptation and #56 migration hazards.
 - API routes, permissions, configuration and stable machine-code references.
 - Security/auth/session/service-admin/FreeIPA isolation/audit/recovery boundaries.
 - Health/storage/migrations/maintenance/backup operational contracts.

@@ -13,7 +13,7 @@ For system behavior and trust/data flows, read [`ARCHITECTURE.md`](ARCHITECTURE.
 | `app/` | Browser UI, routes, presentation and product interactions | current page/screen modules, `app/layout.tsx` | UI/source contracts and routed browser tests | server authorization, raw DB access, FreeIPA credentials |
 | `app/styles/` | Shared design tokens and global visual foundation | semantic token/global style files | UI foundation tests + build | feature business logic or duplicate local token systems |
 | `app/ui/` | Reusable domain-agnostic UI primitives | `app/ui/index.ts` and component owners | UI foundation/component tests | data fetching, RBAC decisions, route ownership |
-| `app/shell/` | Reusable AppShell/navigation foundation | `app/shell/AppShell.tsx`, navigation owner | AppShell tests + build | a second navigation model or server-side authorization |
+| `app/shell/` | Reusable product shell and stable global navigation foundation | `app/shell/AppShell.tsx`, navigation owner | AppShell tests + build | a second navigation model or server-side authorization |
 | `worker/` | Built Worker request chain, API handlers, runtime/security gates | `worker/schema-migrations-entry.ts` through current wrapper chain | server/domain/route contracts | browser-only state or independent auth/router stacks |
 | `runtime/` | Canonical Node production orchestration, Worker hosting, SQLite adapter/driver, scheduler and shutdown | `runtime/production-runtime.mjs` and runtime helpers | production-runtime/persistence contracts | route-specific business logic or UI presentation |
 | `db/` | Canonical portal schema and migration lifecycle | `db/portal-schema.ts`, migration registry/runtime | schema/migration/storage tests | UI logic or duplicate schema ownership |

@@ -17,7 +17,10 @@ RUN apt-get update \
 RUN useradd --system --uid 10001 recovery \
  && mkdir -p /portal-data /recovery /run/portal-recovery-secrets \
  && chown -R recovery:recovery /portal-data /recovery /run/portal-recovery-secrets
-COPY --chown=recovery:recovery . .
+COPY --chown=recovery:recovery scripts/portal-recovery.ts ./scripts/portal-recovery.ts
+COPY --chown=recovery:recovery src/recovery ./src/recovery
+COPY --chown=recovery:recovery src/backup ./src/backup
+COPY --chown=recovery:recovery db/portal-schema.ts ./db/portal-schema.ts
 USER recovery
 ENTRYPOINT ["node", "--experimental-strip-types", "scripts/portal-recovery.ts"]
 

@@ -17,38 +17,32 @@ function headers(values = {}) {
   return Object.fromEntries(Object.entries(values).map(([key, value]) => [key.toLowerCase(), value]));
 }
 
-test("trusted proxy scheme requires configured mode, loopback source and secret", () => {
+test("trusted proxy scheme requires configured mode and matching shared-secret proof", () => {
   assert.equal(resolveTrustedRequestProtocol({
     headers: headers({ "x-forwarded-proto": "https", "x-portal-proxy-secret": "test-proxy-secret" }),
-    remoteAddress: "127.0.0.1",
     env: {},
   }), "http");
 
   assert.equal(resolveTrustedRequestProtocol({
-    headers: headers({ "x-forwarded-proto": "https", "x-portal-proxy-secret": "test-proxy-secret" }),
-    remoteAddress: "10.0.0.12",
+    headers: headers({ "x-forwarded-proto": "https", "x-portal-proxy-secret": "wrong" }),
     env: trustedEnv,
   }), "http");
 
   assert.equal(resolveTrustedRequestProtocol({
-    headers: headers({ "x-forwarded-proto": "https", "x-portal-proxy-secret": "wrong" }),
-    remoteAddress: "127.0.0.1",
+    headers: headers({ "x-forwarded-proto": "https", "x-portal-proxy-secret": "test-proxy-secret" }),
     env: trustedEnv,
-  }), "http");
+  }), "https");
 });
 
 test("trusted proxy scheme accepts only a single supported forwarded protocol", () => {
-  const base = {
-    remoteAddress: "::ffff:127.0.0.1",
-    env: trustedEnv,
-  };
+  const base = { env: trustedEnv };
   assert.equal(resolveTrustedRequestProtocol({ ...base, headers: headers({ "x-forwarded-proto": "https", "x-portal-proxy-secret": "test-proxy-secret" }) }), "https");
   assert.equal(resolveTrustedRequestProtocol({ ...base, headers: headers({ "x-forwarded-proto": "http", "x-portal-proxy-secret": "test-proxy-secret" }) }), "http");
   assert.equal(resolveTrustedRequestProtocol({ ...base, headers: headers({ "x-forwarded-proto": "https,http", "x-portal-proxy-secret": "test-proxy-secret" }) }), "http");
   assert.equal(resolveTrustedRequestProtocol({ ...base, headers: headers({ "x-forwarded-proto": "ftp", "x-portal-proxy-secret": "test-proxy-secret" }) }), "http");
 });
 
-test("Node host produces a Secure local session cookie only for the authenticated loopback proxy", async () => {
+test("Node host produces a Secure local session cookie only for authenticated trusted-proxy HTTPS", async () => {
   const root = await mkdtemp(join(tmpdir(), "portal-trusted-proxy-"));
   const worker = {
     async fetch(request) {

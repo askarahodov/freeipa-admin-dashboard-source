@@ -68,7 +68,7 @@ test("rejects explicit permissions that would expand the resolved role", () => {
   );
 });
 
-test("rejects malformed identity or correlation metadata before it enters shared context", () => {
+test("rejects malformed trust metadata before it enters shared context", () => {
   assert.throws(
     () => createPortalRequestContext({ correlationId: "bad\nvalue", identity: "user@example.com", role: "viewer", authMode: "static" }),
     /correlation id is invalid/u,
@@ -76,5 +76,13 @@ test("rejects malformed identity or correlation metadata before it enters shared
   assert.throws(
     () => createPortalRequestContext({ correlationId: "req-2", identity: "bad\ridentity", role: "viewer", authMode: "static" }),
     /identity is invalid/u,
+  );
+  assert.throws(
+    () => createPortalRequestContext({ correlationId: "req-3", identity: "user@example.com", role: "superadmin", authMode: "local-session" }),
+    /role is invalid/u,
+  );
+  assert.throws(
+    () => createPortalRequestContext({ correlationId: "req-4", identity: "user@example.com", role: "viewer", authMode: "forwarded-header" }),
+    /auth mode is invalid/u,
   );
 });

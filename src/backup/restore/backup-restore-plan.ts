@@ -1,4 +1,4 @@
-import type { EncryptedBackupDocument } from "../../../backup-encrypted-export.ts";
+import type { EncryptedBackupDocument } from "../export/backup-encrypted-export.ts";
 import type { BackupExportEnv } from "../export/backup-export.ts";
 import {
   validateFullBackupDomainPayload,

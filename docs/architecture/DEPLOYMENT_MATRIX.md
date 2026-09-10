@@ -15,6 +15,7 @@ This document describes the deployment modes that are supported by the current r
 | --- | --- | --- | --- |
 | Docker Compose using repository `compose.yaml` and the runtime image from `Dockerfile` | **Supported production** | `compose.yaml`, `Dockerfile`, `scripts/start-production.mjs`, runtime tests, recovery/persistence tests | Canonical production entrypoint is the Node runtime. Dashboard and recovery use the explicit `portal` bridge network. The dashboard publishes container port `3001` to `${DASHBOARD_BIND_ADDRESS:-127.0.0.1}:${DASHBOARD_PORT:-3001}`. The `dashboard-data` named volume is mounted at `/data`; the default SQLite store is `/data/portal.sqlite`. |
 | Standard Compose plus operator-local DNS/search/host-alias override | **Supported production customization** | `compose.network.example.yaml`, `docs/operations/NETWORK_CONFIGURATION.md`, architecture tests | Copy the tracked non-routable example to ignored `compose.network.local.yaml`, replace values, validate the merged model with `docker compose ... config`, and use the same ordered file set for lifecycle commands. This customization does not weaken TLS or change dashboard publication/security settings. |
+| Production Node runtime with opt-in outbound HTTP(S) proxy | **Supported production customization** | `scripts/outbound-proxy-policy.mjs`, `scripts/start-production.mjs`, runtime tests, `docs/operations/NETWORK_CONFIGURATION.md` | Enable with Node's standard `NODE_USE_ENV_PROXY=1` plus HTTP(S) proxy variables. Proxying requires Node 22.21.0+ on the Node 22 line, Node 24.5.0+, or newer; startup fails closed otherwise. `NO_PROXY`/`no_proxy` must bypass `127.0.0.1` so the private Gateway bearer token never traverses the proxy. |
 | Production runtime image started directly with equivalent required environment and a persistent `/data` mount | **Supported production, operator-integrated** | `Dockerfile`, `scripts/start-production.mjs`, `runtime/sqlite-runtime-store.mjs` | The repository defines the image/runtime contract, but external orchestration, restart policy, secrets injection and network exposure remain the operator's responsibility. |
 | Compose recovery profile | **Supported operational/recovery mode** | `compose.yaml`, recovery image target, recovery scripts/tests | Recovery mounts the same `dashboard-data` volume at `/portal-data` and joins the explicit `portal` bridge network; use the dedicated recovery runbooks rather than ad-hoc SQLite manipulation. |
 | Local package-script development server / development tooling | **Supported development** | `package.json`, development scripts and tests | Intended for development and verification only. It is not the production startup path. |
@@ -52,8 +53,9 @@ The supported production contract currently assumes:
 4. dashboard and recovery use the explicit `portal` bridge network rather than host networking;
 5. dashboard publication defaults to host loopback (`DASHBOARD_BIND_ADDRESS=127.0.0.1`) while the process still listens on `0.0.0.0:3001` inside the container;
 6. the internal FreeIPA Gateway binds only to `127.0.0.1` inside the dashboard process namespace and is not published by Compose;
-7. production configuration and secrets follow `docs/reference/CONFIGURATION.md` and the dedicated security runbooks;
-8. health, migration, recovery and persistence behavior is validated by repository tests rather than inferred from historical issues or plans.
+7. when outbound proxying is enabled, startup validates Node proxy support, proxy URL shape, and a `127.0.0.1` bypass before loading runtime work;
+8. production configuration and secrets follow `docs/reference/CONFIGURATION.md` and the dedicated security runbooks;
+9. health, migration, recovery and persistence behavior is validated by repository tests rather than inferred from historical issues or plans.
 
 Changing `DASHBOARD_BIND_ADDRESS` to a non-loopback address deliberately widens host-side exposure. Do this only when LAN/reverse-proxy access is required and combine it with the host/network controls appropriate to the deployment. `DASHBOARD_PORT` changes only the host-side published port; the container-side application port remains `3001` in the canonical Compose profile.
 
@@ -73,7 +75,7 @@ For the canonical bridge profile:
 
 For deployments that require corporate resolver addresses, search domains, or fixed host aliases, use the repository-owned procedure in `docs/operations/NETWORK_CONFIGURATION.md` and the tracked `compose.network.example.yaml`. Keep environment-specific values in ignored `compose.network.local.yaml`; validate the merged model before startup. DNS/host aliases do not disable TLS verification and must not be used to bypass certificate-name checks.
 
-An application-supported HTTP(S) proxy path remains follow-up work in #52. It is **not** documented as supported until the actual Node FreeIPA/XYOps transports are verified or adapted. The current `env_file` behavior alone is not proof that the clients honor proxy environment variables.
+For authorized outbound HTTP(S) proxies, use the opt-in `NODE_USE_ENV_PROXY=1` procedure in `docs/operations/NETWORK_CONFIGURATION.md`. The production startup policy validates the actual Node release and requires an effective `NO_PROXY`/`no_proxy` entry for `127.0.0.1` before applying Node's built-in global proxy configuration. Proxy credentials remain server-side secrets and TLS verification remains mandatory.
 
 ## Image packaging dependencies
 
@@ -85,7 +87,7 @@ Local recovery artifact and secret roots (`./recovery` and `./recovery-secrets` 
 
 ## Known deployment limitations
 
-The canonical Compose profile uses an explicit bridge network and loopback-default dashboard publication. Repository-owned custom DNS/search-domain/host-alias customization is available through the explicit local override procedure. #52 remains open because a proven HTTP(S) proxy path, a separately safeguarded opt-in legacy host-network override, and remaining platform/acceptance evidence are not yet complete.
+The canonical Compose profile uses an explicit bridge network and loopback-default dashboard publication. Repository-owned custom DNS/search-domain/host-alias customization and opt-in outbound HTTP(S) proxying are supported through the network runbook. #52 remains open only for the explicit decision on whether a safeguarded legacy host-network compatibility override is justified and for the remaining downstream platform/acceptance handoff.
 
 TLS reverse-proxy hardening is tracked separately by #53. Until a repository-owned reverse-proxy profile is implemented and accepted, operators may place the service behind their own proxy, but repository support does not imply guarantees for arbitrary forwarded-header, TLS-termination or proxy configurations.
 

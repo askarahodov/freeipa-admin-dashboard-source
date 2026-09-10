@@ -32,6 +32,21 @@ test("internal ephemeral gateway credentials never become operator configuration
   assert.equal(getPortalConfiguration("IPA_NODE_GATEWAY_TOKEN"), undefined);
 });
 
+test("supported outbound proxy controls have canonical secrecy and exposure metadata", () => {
+  assert.deepEqual(
+    ["NODE_USE_ENV_PROXY", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY"].map((name) => {
+      const record = getPortalConfiguration(name);
+      return [name, record?.secret, record?.exposure, record?.lifecycle];
+    }),
+    [
+      ["NODE_USE_ENV_PROXY", false, "bounded-status", "startup"],
+      ["HTTP_PROXY", true, "never", "startup"],
+      ["HTTPS_PROXY", true, "never", "startup"],
+      ["NO_PROXY", false, "bounded-status", "startup"],
+    ],
+  );
+});
+
 test("supported .env.example variables have a canonical metadata record", async () => {
   const envExample = await readFile(new URL(".env.example", repositoryRoot), "utf8");
   const registryNames = new Set(PORTAL_CONFIGURATION_CONTRACT.map((record) => record.name));

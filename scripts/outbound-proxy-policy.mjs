@@ -22,8 +22,8 @@ function nodeSupportsBuiltInProxy(value) {
 }
 
 function effectiveValue(env, upper, lower) {
-  const lowerValue = String(env?.[lower] ?? "").trim();
-  if (lowerValue) return lowerValue;
+  const lowerValue = env?.[lower];
+  if (lowerValue) return String(lowerValue).trim();
   return String(env?.[upper] ?? "").trim();
 }
 

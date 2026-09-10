@@ -57,6 +57,32 @@ test("candidate host executes a Worker fetch handler over real HTTP", async () =
   }
 });
 
+test("candidate host does not trust a forged X-Forwarded-Proto header by default", async () => {
+  const root = await mkdtemp(join(tmpdir(), "portal-forwarded-proto-"));
+  const worker = {
+    async fetch(request) {
+      return Response.json({ protocol: new URL(request.url).protocol });
+    },
+  };
+
+  const runtime = await startNodeWorkerHost({
+    worker,
+    assetsRoot: join(root, "assets"),
+    host: "127.0.0.1",
+    port: 0,
+  });
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${runtime.address.port}/health/live`, {
+      headers: { "x-forwarded-proto": "https" },
+    });
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { protocol: "http:" });
+  } finally {
+    await runtime.close();
+  }
+});
+
 test("Worker artifact loader returns the validated default Worker exactly once per explicit load", async () => {
   const root = await mkdtemp(join(tmpdir(), "portal-worker-load-"));
   const artifactPath = join(root, "worker.mjs");

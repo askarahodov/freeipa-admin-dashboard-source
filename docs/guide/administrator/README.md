@@ -25,6 +25,22 @@
 
 Полный built-in `admin` получает все canonical permissions, но конкретный endpoint всё равно может иметь дополнительные same-origin, approval, maintenance, recovery или confirmation gates.
 
+## Главная страница: Обзор
+
+Operational Overview — первая точка для triage после входа. Он сводит в одном месте readiness локального runtime, состояние FreeIPA/XYOps, сигналы внимания, последние операции и разрешённые быстрые действия.
+
+Используйте Overview для выбора следующего шага, а не как замену профильной диагностики:
+
+- `portal-unready` относится к readiness самого портала и должен вести к schema-independent `/diagnostics/health`;
+- degraded/unavailable FreeIPA или XYOps — отдельные dependency incidents и не означают автоматически, что портал нужно перезапускать;
+- failed runs следует разбирать через Operations / Runs;
+- pending approvals — через Approvals;
+- stale/changed catalog metadata — через соответствующие settings/catalog workflows.
+
+Быстрые действия формируются из effective permissions текущей сессии. Наличие кнопки в UI не является серверной авторизацией и не отменяет approval, maintenance, confirmation или другие safety gates.
+
+`/diagnostics/health` предназначен для incident-проверки liveness/readiness/dependencies и доступен до обычных DB/schema gates. Административный `/diagnostics` остаётся отдельной локальной auth/admin поверхностью и не должен использоваться как единственный путь расследования portal readiness incident.
+
 ## Локальные пользователи портала
 
 ### Важно

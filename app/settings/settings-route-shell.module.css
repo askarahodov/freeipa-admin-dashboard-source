@@ -117,7 +117,8 @@
   gap: var(--ui-space-4);
 }
 
-.formGrid label {
+.formGrid label,
+.jsonField {
   display: grid;
   gap: var(--ui-space-2);
   font-size: var(--ui-text-label-size);
@@ -135,9 +136,23 @@
   font: inherit;
 }
 
-.formGrid input:focus-visible {
+.formGrid input:focus-visible,
+.jsonField textarea:focus-visible {
   outline: 2px solid var(--ui-focus-ring);
   outline-offset: 2px;
+}
+
+.jsonField textarea {
+  width: 100%;
+  min-height: 360px;
+  resize: vertical;
+  border: 1px solid var(--ui-color-border-strong);
+  border-radius: var(--ui-radius-md);
+  padding: var(--ui-space-3);
+  background: var(--ui-color-surface-subtle);
+  color: var(--ui-color-text);
+  font: 0.875rem/1.5 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  tab-size: 2;
 }
 
 .fullWidth {
@@ -225,5 +240,9 @@
 
   .fullWidth {
     grid-column: auto;
+  }
+
+  .jsonField textarea {
+    min-height: 300px;
   }
 }

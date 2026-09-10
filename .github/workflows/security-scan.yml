@@ -1,0 +1,133 @@
+name: Scheduled Security Scan
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scheduled-security-scan-main
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    name: Scheduled security scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Require trusted main ref
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          [[ "$EVENT_NAME" == "schedule" || "$EVENT_NAME" == "workflow_dispatch" ]]
+          [[ "$REF_NAME" == "refs/heads/main" ]]
+
+      - name: Checkout trusted main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          show-progress: false
+
+      - name: Verify checked out SHA is current workflow SHA
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          actual_sha="$(git rev-parse HEAD)"
+          echo "Security scan source SHA: $actual_sha"
+          [[ "$actual_sha" == "$EXPECTED_SHA" ]]
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+          cache: npm
+
+      - name: Run live production dependency audit
+        run: npm run security:audit
+
+      - name: Generate production CycloneDX SBOM
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/security
+          npm run --silent security:sbom > artifacts/security/npm-production-sbom.cdx.json
+          node -e 'const fs=require("fs"); const bom=JSON.parse(fs.readFileSync("artifacts/security/npm-production-sbom.cdx.json","utf8")); if (bom.bomFormat !== "CycloneDX" || !Array.isArray(bom.components)) process.exit(1)'
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Restore trusted runtime BuildKit cache
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/runtime-buildkit
+          key: runtime-buildkit-${{ runner.os }}-${{ hashFiles('Dockerfile', 'package-lock.json') }}-${{ github.sha }}
+          restore-keys: |
+            runtime-buildkit-${{ runner.os }}-${{ hashFiles('Dockerfile', 'package-lock.json') }}-
+
+      - name: Build current runtime image
+        shell: bash
+        run: |
+          set -euo pipefail
+          cache_args=()
+          if [[ -f /tmp/runtime-buildkit/index.json ]]; then
+            cache_args+=(--cache-from type=local,src=/tmp/runtime-buildkit)
+          fi
+          docker buildx build --progress=plain --load --target runtime --tag portal-scheduled-security-scan "${cache_args[@]}" .
+
+      - name: Scan current runtime image vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          image-ref: portal-scheduled-security-scan
+          format: json
+          output: artifacts/security/runtime-image-trivy.json
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          scanners: vuln
+          exit-code: '1'
+
+      - name: Record scan provenance
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/security
+          trivy --version > artifacts/security/trivy-version.txt
+          node - <<'NODE'
+          const fs = require('fs');
+          const provenance = {
+            schema_version: 1,
+            source_sha: process.env.SOURCE_SHA,
+            run_id: process.env.RUN_ID,
+            run_attempt: process.env.RUN_ATTEMPT,
+            event: process.env.EVENT_NAME,
+            scanned_image: 'portal-scheduled-security-scan',
+            trivy_action: 'aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25',
+            generated_at: new Date().toISOString(),
+          };
+          fs.writeFileSync('artifacts/security/security-scan-provenance.json', `${JSON.stringify(provenance, null, 2)}\n`);
+          NODE
+
+      - name: Upload scheduled security evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scheduled-security-scan-${{ github.sha }}
+          path: |
+            artifacts/security/npm-production-sbom.cdx.json
+            artifacts/security/runtime-image-trivy.json
+            artifacts/security/trivy-version.txt
+            artifacts/security/security-scan-provenance.json
+          if-no-files-found: warn
+          retention-days: 14

@@ -14,18 +14,14 @@ function normalizeAddress(value) {
   return address.startsWith("::ffff:") ? address.slice(7) : address;
 }
 
-function trustedAddresses(env) {
-  return new Set(String(env.PORTAL_TRUSTED_PROXY_ADDRESSES ?? "")
-    .split(",")
-    .map(normalizeAddress)
-    .filter(Boolean));
+function isLoopbackAddress(value) {
+  const address = normalizeAddress(value);
+  return address === "127.0.0.1" || address === "::1";
 }
 
 export function resolveTrustedRequestProtocol({ headers, remoteAddress, env = {} }) {
   if (String(env.PORTAL_CLIENT_IP_SOURCE ?? "none").trim().toLowerCase() !== "trusted-proxy") return "http";
-
-  const source = normalizeAddress(remoteAddress);
-  if (!source || !trustedAddresses(env).has(source)) return "http";
+  if (!isLoopbackAddress(remoteAddress)) return "http";
 
   const expectedSecret = String(env.PORTAL_TRUSTED_PROXY_SECRET ?? "");
   const suppliedSecret = String(headers["x-portal-proxy-secret"] ?? "");

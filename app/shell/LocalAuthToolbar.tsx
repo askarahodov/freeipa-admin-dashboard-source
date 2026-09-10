@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Button } from "./ui";
+import { Button } from "../ui";
 
 type Session = {
   enabled?: boolean;

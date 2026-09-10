@@ -55,8 +55,8 @@ test("primitive styles consume canonical tokens and expose keyboard focus", asyn
 });
 
 test("local auth toolbar proves additive Button integration without changing logout flow", async () => {
-  const source = await read("app/LocalAuthToolbar.tsx");
-  assert.match(source, /import\s+\{\s*Button\s*\}\s+from\s+["']\.\/ui["']/);
+  const source = await read("app/shell/LocalAuthToolbar.tsx");
+  assert.match(source, /import\s+\{\s*Button\s*\}\s+from\s+["']\.\.\/ui["']/);
   assert.match(source, /<Button[^>]*variant=["']ghost["'][^>]*onClick=\{\(\) => void logout\(\)\}/);
   assert.match(source, /fetch\(["']\/api\/auth\/logout["'],\s*\{\s*method:\s*["']POST["']/);
   assert.match(source, /window\.location\.assign\(["']\/login["']\)/);

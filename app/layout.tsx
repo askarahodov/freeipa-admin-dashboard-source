@@ -18,7 +18,7 @@ import "./local-admin-session.css";
 import "./settings-lifecycle.css";
 import "./settings-source-resets.css";
 import "./design-system.css";
-import LocalAuthToolbar from "./LocalAuthToolbar";
+import LocalAuthToolbar from "./shell/LocalAuthToolbar";
 import LocalAdministrationContext from "./LocalAdministrationContext";
 import LocalAdminSessionBridge from "./LocalAdminSessionBridge";
 import SettingsLifecycleWizard from "./SettingsLifecycleWizard";

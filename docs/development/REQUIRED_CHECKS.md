@@ -12,7 +12,7 @@ Branch protection should require all three stable contexts. Dynamic shard jobs a
 
 `scripts/ci-required-plan.mjs` projects the canonical changed-input semantics into Required CI job requirements. It reuses `parseChangedInputs` from `scripts/auth-e2e-scope.mjs`, including NUL-delimited rename/delete-safe parsing. `.github/workflows/ci.yml` prepares the full pull-request diff from merge-base to head; it does not classify only the last commit.
 
-The plan is versioned and includes changed inputs, execution mode, per-job booleans and reasons. `scripts/ci-required-gate.mjs` compares actual terminal job results with those booleans. YAML does not contain a second docs allowlist or a second success interpretation.
+The plan is versioned and includes changed inputs, execution mode, per-job booleans and reasons. `scripts/ci-required-gate.mjs` compares actual terminal job results with those booleans. YAML consumes planner outputs for `container-security` and `recovery-compose`; it does not contain a second path allowlist or a second success interpretation.
 
 ## Ordinary documentation-only fast path
 
@@ -21,19 +21,30 @@ The positive allowlist is deliberately narrow and limited to user-facing Knowled
 - `docs/guide/README.md`;
 - Markdown below `docs/guide/getting-started/**`, `user/**`, `operator/**`, `administrator/**`, `support/**`, `concepts/**` or `troubleshooting/**`.
 
-The root `README.md`, `docs/README.md`, `docs/guide/developer/**` and `docs/guide/operations/**` remain on full CI because their current content includes development, deployment, security, testing or operational instructions. Testing/development policy, AI instructions, security/operations references, workflows, executable examples/fixtures and any mixed documentation + non-documentation PR are also not ordinary docs-only.
+The root `README.md`, `docs/README.md`, `docs/guide/developer/**` and `docs/guide/operations/**` remain outside that fast path because their current content includes development, deployment, security, testing or operational instructions. Testing/development policy, AI instructions, security/operations references, workflows, executable examples/fixtures and any mixed documentation + non-documentation PR are also not ordinary docs-only.
 
-For an allowed docs-only PR these jobs remain required:
+For an allowed docs-only PR these jobs remain required: `plan`, `discover-tests`, `docs-consistency`, `dependency-security` and the final `Required CI` aggregate. The fast path may mark `build`, `test`, `container-security` and `recovery-compose` not required.
 
-1. `plan` — computes and validates the canonical Required CI plan;
-2. `discover-tests` — preserves deterministic repository test-inventory/shard validation without installing dependencies;
-3. `docs-consistency` — runs `npm run docs:check`; this script uses Node core APIs and does not require `npm ci`;
-4. `dependency-security` — preserves deterministic dependency-policy/allowlist validation; live audit/SBOM remains conditional on dependency inputs;
-5. `required` / `Required CI` — verifies the plan and all actual results.
+## Risk-routed Docker jobs for code/policy PRs
 
-The fast path may mark `build`, `test`, `container-security` and `recovery-compose` not required. That means no product `npm ci`/build, no eight server-test shard jobs, and no runtime/recovery Docker builds for confirmed ordinary prose-only changes.
+For every non-docs-only PR, product `build` and the complete discovered Node/server suite remain required. The planner selects only the two Docker-heavy jobs by affected boundary:
 
-No workflow-level `paths-ignore` is used, so `Required CI` is always created for pull requests.
+| Input class | `container-security` | `recovery-compose` |
+| --- | --- | --- |
+| isolated UI or ordinary application/runtime behavior | not required | not required |
+| root `Dockerfile` | required | required |
+| `package.json` / `package-lock.json` | required | required |
+| dependency audit allowlist/policy or scheduled security workflow | required | not required |
+| `src/recovery/**`, `src/backup/**`, `src/storage/**`, `db/**` | not required | required |
+| recovery/storage tests | not required | required |
+| recovery-related maintenance/encryption/identity/startup scripts | not required | required |
+| `compose.yaml`, `.env.example` | not required | required |
+| canonical CI planner/gate or `ci.yml` | required | required |
+| mixed diff | union | union |
+
+The runtime vulnerability scan is not a substitute for behavioral tests: changing application code without changing the installed package/image composition may skip `container-security`, but still runs build, the full Node suite and applicable browser coverage. Likewise, a UI-only PR does not build the recovery image when none of its source/configuration boundaries changed.
+
+Planner/workflow changes select both Docker jobs conservatively so a routing edit proves both execution branches before merge. Pushes to `main` force all Required CI jobs regardless of the merged diff.
 
 ## Fail-closed aggregate semantics
 
@@ -46,9 +57,11 @@ No workflow-level `paths-ignore` is used, so `Required CI` is always created for
 
 A required job reporting `skipped` also blocks the aggregate. This prevents dependency-chain skips, expression mistakes or broken planner outputs from silently satisfying branch protection.
 
-## Full CI path
+No workflow-level `paths-ignore` is used, so the stable aggregate is always created and cannot remain pending merely because a heavy job was intentionally not selected.
 
-All non-docs-only pull requests retain the existing complete CI topology:
+## Full main path
+
+Pushes to `main` retain the complete CI topology:
 
 1. deterministic test discovery;
 2. documentation consistency;
@@ -59,7 +72,7 @@ All non-docs-only pull requests retain the existing complete CI topology:
 7. recovery contracts, isolated recovery image and named-volume smoke;
 8. stable aggregate verification.
 
-Pushes to `main` force full CI regardless of changed paths. The docs-only fast path is therefore PR-only and cannot reduce post-merge `main` verification.
+This keeps post-merge full regression intact while PR runner time is reduced only where the canonical risk plan proves the Docker jobs inapplicable.
 
 ## Browser planner contract
 
@@ -81,16 +94,16 @@ Browser routing examples remain:
 
 ## Server test sharding
 
-`scripts/ci-test-shards.mjs` normalizes and sorts discovered test paths, distributes them round-robin into at most eight deterministic shards, and fails closed on missing, duplicate or unexpected membership. Shard-count optimization belongs to #564 and must use `docs/development/CI_BASELINE.md` evidence; #563 does not reduce the test inventory for code changes.
+`scripts/ci-test-shards.mjs` normalizes and sorts discovered test paths, distributes them into deterministic shards, and fails closed on missing, duplicate or unexpected membership. Risk-routing `container-security`/`recovery-compose` does not reduce this Node test inventory for code changes.
 
-## Security artifacts
+## Security continuity
 
-Dependency/SBOM and runtime-image scan behavior remains governed by the active CI/security policy. The docs-only fast path does not classify package/security policy changes as ordinary prose. Scheduled dependency/image security work remains owned by #566.
+PR changes that can alter runtime image/dependency composition or security enforcement still require `container-security`. Independently, the trusted scheduled/manual security workflow introduced by #566 performs fresh dependency and runtime-image vulnerability scans even when the lockfile has not changed. `Required CI` does not depend on the latest scheduled result and scheduled scans do not replace PR validation of changed package/security inputs.
 
 ## Concurrency and artifacts
 
-Obsolete pull-request runs may be cancelled when a newer commit is pushed to the same PR. `main` runs are not cancelled by newer runs. Full browser runs keep sanitized Playwright artifacts under the existing retention policy; docs-only runs do not create browser/Docker/build artifacts that were not executed.
+Obsolete pull-request runs may be cancelled when a newer commit is pushed to the same PR. `main` runs are not cancelled by newer runs. Full browser runs keep sanitized Playwright artifacts under the existing retention policy; risk-routed PRs do not create Docker artifacts for jobs the canonical plan did not select.
 
 ## Regression contracts
 
-`tests/architecture/ci-required-plan.test.mjs` covers the positive docs allowlist, exclusions, mixed diffs, full-main behavior, empty-diff failure, planner/gate missing data, unknown results, required skip/failure/cancellation, unauthorized failure of skipped jobs and stable workflow trigger/gate structure.
+`tests/architecture/ci-required-plan.test.mjs` contains table-driven cases for UI, runtime, Docker, dependency, security-policy, recovery, backup, storage, schema, encryption/identity, Compose, planner and mixed diffs. It also protects main-full behavior and fail-closed gate semantics for missing, failed, cancelled and unauthorized skipped jobs.

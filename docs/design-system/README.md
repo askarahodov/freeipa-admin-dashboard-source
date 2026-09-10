@@ -40,7 +40,7 @@ The modern public shared primitives use the `--ui-*` token foundation in [`../..
 | Control/data size | `--ui-control-height-sm`, `--ui-control-height`, `--ui-control-height-lg`, `--ui-table-row-height` | Controls and tabular density. |
 | Elevation | `--ui-shadow-overlay` | Overlay-level elevation only; avoid inventing additional decorative shadow systems. |
 
-Changing a shared token is a cross-screen change. Review affected consumers and routed browser coverage rather than assuming a CSS-variable edit is local. See [`STYLES_AND_MIGRATION.md`](STYLES_AND_MIGRATION.md) for the current two-generation style ownership model, root-layout import inventory, deprecation criteria and removal checklist.
+Changing a shared token is a cross-screen change. Review affected consumers and routed browser coverage rather than assuming a CSS-variable edit is local. See [`STYLES_AND_MIGRATION.md`](STYLES_AND_MIGRATION.md) for the current two-generation style ownership model, root-layout import inventory, deprecation criteria and removal checklist. [`CONTRACT_COVERAGE.md`](CONTRACT_COVERAGE.md) records the exhaustive public-export and token-family coverage, including current motion/z-index gaps.
 
 ## Public primitive catalogue
 
@@ -198,11 +198,10 @@ Deprecation requires an explicit replacement and migration path. Do not remove a
 
 For documentation-only changes, run the repository documentation consistency checks selected by current policy. When a change modifies `app/ui`, `app/styles`, shared form/list components or their public exports, validate the affected UI contracts and router-selected browser coverage in addition to documentation checks.
 
-This document is living documentation. If a public UI API changes on `main`, the owning PR must update this file or register a blocking documentation defect rather than leaving known stale guidance.
+The exhaustive acceptance/coverage index is [`CONTRACT_COVERAGE.md`](CONTRACT_COVERAGE.md). It records public export coverage, the current absence of canonical motion/z-index token families, the new-primitive/custom-icon decision boundary and why semantic API truth remains code/test-owned rather than enforced through brittle prose assertions.
 
-## Remaining #293 scope
+This documentation is living documentation. If a public UI API, token family, icon/brand contract or shared composition changes on `main`, the owning PR must update the affected design-system document or register a blocking documentation defect rather than leaving known stale guidance.
 
-This foundation deliberately does not claim that #293 is complete. Remaining reviewable slices include:
+## #293 disposition
 
-- reconciliation with semantic icon work #279 and brand rules #291;
-- CI guard improvements where a stable machine-checkable design-system contract is practical without brittle prose assertions.
+The independent documentation scope of #293 is covered by this entrypoint plus [`COMPOSITIONS.md`](COMPOSITIONS.md), [`STYLES_AND_MIGRATION.md`](STYLES_AND_MIGRATION.md), [`SHOWCASE.md`](SHOWCASE.md) and [`CONTRACT_COVERAGE.md`](CONTRACT_COVERAGE.md). Semantic icon work #279 and brand work #291 remain separate product owners; when their contracts land on `main`, their owning PRs must update this living documentation if they change the documented design-system boundary.

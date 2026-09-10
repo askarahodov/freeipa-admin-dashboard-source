@@ -1,4 +1,6 @@
-# Render with envsubst from trusted server-side environment variables.
+# Render only the documented deployment placeholders; unrestricted envsubst would erase
+# Nginx runtime variables such as $host, $request_uri and $remote_addr.
+# envsubst '${PORTAL_UPSTREAM_HOST} ${PORTAL_SERVER_NAME} ${TLS_CERTIFICATE} ${TLS_CERTIFICATE_KEY} ${PORTAL_TRUSTED_PROXY_SECRET}' < deploy/nginx/portal.conf.template
 # PORTAL_TRUSTED_PROXY_SECRET must never be supplied by or exposed to clients.
 upstream portal_backend {
     server ${PORTAL_UPSTREAM_HOST}:3001;

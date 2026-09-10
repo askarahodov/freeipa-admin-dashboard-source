@@ -10,7 +10,7 @@ const serviceRoot = fs.readFileSync(new URL("../../worker/service-admin-root-ent
 const maintenanceGate = fs.readFileSync(new URL("../../worker/maintenance-mode-root-entry.ts", import.meta.url), "utf8");
 const schemaRoot = fs.readFileSync(new URL("../../worker/schema-migrations-entry.ts", import.meta.url), "utf8");
 const viteConfig = fs.readFileSync(new URL("../../vite.config.ts", import.meta.url), "utf8");
-const bridge = fs.readFileSync(new URL("../../app/LocalAdminSessionBridge.tsx", import.meta.url), "utf8");
+const bridge = fs.readFileSync(new URL("../../app/shell/LocalAdminSessionBridge.tsx", import.meta.url), "utf8");
 const layout = fs.readFileSync(new URL("../../app/layout.tsx", import.meta.url), "utf8");
 const styles = fs.readFileSync(new URL("../../app/local-admin-session.css", import.meta.url), "utf8");
 

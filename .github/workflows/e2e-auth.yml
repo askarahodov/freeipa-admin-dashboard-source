@@ -92,10 +92,74 @@ jobs:
         if: steps.scope.outputs.browser_specs != ''
         run: cp fixtures/env/e2e.example .env.e2e
 
+      - name: Set up Docker Buildx
+        if: steps.scope.outputs.browser_specs != ''
+        uses: docker/setup-buildx-action@v3
+
+      - name: Restore dashboard BuildKit cache
+        if: steps.scope.outputs.browser_specs != ''
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/e2e-dashboard-buildkit
+          key: e2e-dashboard-buildkit-${{ runner.os }}-${{ hashFiles('Dockerfile', 'package-lock.json') }}-${{ github.sha }}
+          restore-keys: |
+            e2e-dashboard-buildkit-${{ runner.os }}-${{ hashFiles('Dockerfile', 'package-lock.json') }}-
+
+      - name: Restore Playwright BuildKit cache
+        if: steps.scope.outputs.browser_specs != ''
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/e2e-playwright-buildkit
+          key: e2e-playwright-buildkit-${{ runner.os }}-${{ hashFiles('e2e/Dockerfile', 'package-lock.json') }}-${{ github.sha }}
+          restore-keys: |
+            e2e-playwright-buildkit-${{ runner.os }}-${{ hashFiles('e2e/Dockerfile', 'package-lock.json') }}-
+
+      - name: Build E2E images with restored BuildKit cache
+        if: steps.scope.outputs.browser_specs != ''
+        shell: bash
+        env:
+          TRUSTED_CACHE_WRITER: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        run: |
+          set -euo pipefail
+          dashboard_cache=()
+          playwright_cache=()
+          if [[ -f /tmp/e2e-dashboard-buildkit/index.json ]]; then
+            dashboard_cache+=(--cache-from type=local,src=/tmp/e2e-dashboard-buildkit)
+          fi
+          if [[ -f /tmp/e2e-playwright-buildkit/index.json ]]; then
+            playwright_cache+=(--cache-from type=local,src=/tmp/e2e-playwright-buildkit)
+          fi
+          if [[ "$TRUSTED_CACHE_WRITER" == "true" ]]; then
+            dashboard_cache+=(--cache-to type=local,dest=/tmp/e2e-dashboard-buildkit-next,mode=max)
+            playwright_cache+=(--cache-to type=local,dest=/tmp/e2e-playwright-buildkit-next,mode=max)
+          fi
+          docker buildx build --load --tag freeipa-admin-dashboard:e2e "${dashboard_cache[@]}" .
+          docker buildx build --load --file e2e/Dockerfile --tag freeipa-admin-dashboard-playwright:e2e "${playwright_cache[@]}" .
+          if [[ "$TRUSTED_CACHE_WRITER" == "true" ]]; then
+            rm -rf /tmp/e2e-dashboard-buildkit /tmp/e2e-playwright-buildkit
+            mv /tmp/e2e-dashboard-buildkit-next /tmp/e2e-dashboard-buildkit
+            mv /tmp/e2e-playwright-buildkit-next /tmp/e2e-playwright-buildkit
+          fi
+
+      - name: Save dashboard BuildKit cache from trusted main
+        if: steps.scope.outputs.browser_specs != '' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/e2e-dashboard-buildkit
+          key: e2e-dashboard-buildkit-${{ runner.os }}-${{ hashFiles('Dockerfile', 'package-lock.json') }}-${{ github.sha }}
+
+      - name: Save Playwright BuildKit cache from trusted main
+        if: steps.scope.outputs.browser_specs != '' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/e2e-playwright-buildkit
+          key: e2e-playwright-buildkit-${{ runner.os }}-${{ hashFiles('e2e/Dockerfile', 'package-lock.json') }}-${{ github.sha }}
+
       - name: Run affected Chromium scenarios
         if: steps.scope.outputs.browser_specs != ''
         env:
           CI: "true"
+          E2E_PREBUILT_IMAGES: "true"
           E2E_SPECS: ${{ steps.scope.outputs.browser_specs }}
         run: npm run test:e2e:auth
 

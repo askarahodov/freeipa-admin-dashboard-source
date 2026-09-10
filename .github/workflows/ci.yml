@@ -238,12 +238,43 @@ jobs:
         with:
           node-version: 22.13.0
 
-      - name: Build runtime image
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Restore runtime BuildKit cache
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/runtime-buildkit
+          key: runtime-buildkit-${{ runner.os }}-${{ hashFiles('Dockerfile', 'package-lock.json') }}-${{ github.sha }}
+          restore-keys: |
+            runtime-buildkit-${{ runner.os }}-${{ hashFiles('Dockerfile', 'package-lock.json') }}-
+
+      - name: Build measured runtime image with restored cache
         shell: bash
+        env:
+          TRUSTED_CACHE_WRITER: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
         run: |
           set -euo pipefail
           mkdir -p artifacts/packaging
-          docker build --progress=plain --target runtime -t portal-security-scan . 2>&1 | tee artifacts/packaging/runtime-build.log
+          cache_args=()
+          if [[ -f /tmp/runtime-buildkit/index.json ]]; then
+            cache_args+=(--cache-from type=local,src=/tmp/runtime-buildkit)
+          fi
+          if [[ "$TRUSTED_CACHE_WRITER" == "true" ]]; then
+            cache_args+=(--cache-to type=local,dest=/tmp/runtime-buildkit-next,mode=max)
+          fi
+          docker buildx build --progress=plain --load --target runtime --tag portal-security-scan "${cache_args[@]}" . 2>&1 | tee artifacts/packaging/runtime-build.log
+          if [[ "$TRUSTED_CACHE_WRITER" == "true" ]]; then
+            rm -rf /tmp/runtime-buildkit
+            mv /tmp/runtime-buildkit-next /tmp/runtime-buildkit
+          fi
+
+      - name: Save runtime BuildKit cache from trusted main
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/runtime-buildkit
+          key: runtime-buildkit-${{ runner.os }}-${{ hashFiles('Dockerfile', 'package-lock.json') }}-${{ github.sha }}
 
       - name: Record runtime packaging metrics
         shell: bash
@@ -314,12 +345,43 @@ jobs:
       - name: Run recovery contracts
         run: node --experimental-strip-types --test tests/recovery/recovery-container-contract.test.mjs tests/recovery/recovery-compose-smoke.test.mjs tests/recovery/recovery-fault-matrix.test.mjs
 
-      - name: Build isolated recovery image
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Restore recovery BuildKit cache
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/recovery-buildkit
+          key: recovery-buildkit-${{ runner.os }}-${{ hashFiles('Dockerfile', 'package-lock.json') }}-${{ github.sha }}
+          restore-keys: |
+            recovery-buildkit-${{ runner.os }}-${{ hashFiles('Dockerfile', 'package-lock.json') }}-
+
+      - name: Build measured recovery image with restored cache
         shell: bash
+        env:
+          TRUSTED_CACHE_WRITER: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
         run: |
           set -euo pipefail
           mkdir -p artifacts/packaging
-          docker build --progress=plain --target recovery -t portal-recovery-ci . 2>&1 | tee artifacts/packaging/recovery-build.log
+          cache_args=()
+          if [[ -f /tmp/recovery-buildkit/index.json ]]; then
+            cache_args+=(--cache-from type=local,src=/tmp/recovery-buildkit)
+          fi
+          if [[ "$TRUSTED_CACHE_WRITER" == "true" ]]; then
+            cache_args+=(--cache-to type=local,dest=/tmp/recovery-buildkit-next,mode=max)
+          fi
+          docker buildx build --progress=plain --load --target recovery --tag portal-recovery-ci "${cache_args[@]}" . 2>&1 | tee artifacts/packaging/recovery-build.log
+          if [[ "$TRUSTED_CACHE_WRITER" == "true" ]]; then
+            rm -rf /tmp/recovery-buildkit
+            mv /tmp/recovery-buildkit-next /tmp/recovery-buildkit
+          fi
+
+      - name: Save recovery BuildKit cache from trusted main
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/recovery-buildkit
+          key: recovery-buildkit-${{ runner.os }}-${{ hashFiles('Dockerfile', 'package-lock.json') }}-${{ github.sha }}
 
       - name: Record recovery packaging metrics
         shell: bash

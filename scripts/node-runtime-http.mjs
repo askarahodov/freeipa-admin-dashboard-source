@@ -20,6 +20,17 @@ const contentTypes = new Map([
   [".woff2", "font/woff2"],
 ]);
 
+const baselineSecurityHeaders = Object.freeze([
+  ["x-content-type-options", "nosniff"],
+  ["x-frame-options", "DENY"],
+  ["referrer-policy", "no-referrer"],
+  ["permissions-policy", "camera=(), microphone=(), geolocation=()"],
+]);
+
+export function applyBaselineSecurityHeaders(responseStream) {
+  for (const [name, value] of baselineSecurityHeaders) responseStream.setHeader(name, value);
+}
+
 export function createExecutionContext() {
   const pending = new Set();
 
@@ -70,6 +81,7 @@ export async function writeWebResponse(responseStream, response) {
     responseStream.setHeader(name, value);
   }
   if (setCookies.length > 0) responseStream.setHeader("set-cookie", setCookies);
+  applyBaselineSecurityHeaders(responseStream);
 
   if (!response.body) {
     responseStream.end();

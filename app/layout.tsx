@@ -26,7 +26,7 @@ import PortalInteractionLayer from "./PortalInteractionLayer";
 import { ToastProvider } from "./ui/Toast";
 import FreeIpaUserBrowser from "./FreeIpaUserBrowser";
 import FreeIpaGroupMemberBrowser from "./FreeIpaGroupMemberBrowser";
-import OperationExplorer from "./OperationExplorer";
+import OperationExplorer from "./operations/OperationExplorer";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

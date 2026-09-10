@@ -3,7 +3,7 @@ import fs from "node:fs";
 import test from "node:test";
 
 test("user browser exposes RBAC-aware bulk controls and filtered CSV export", () => {
-  const component = fs.readFileSync(new URL("../../app/FreeIpaUserBrowser.tsx", import.meta.url), "utf8");
+  const component = fs.readFileSync(new URL("../../app/directory/FreeIpaUserBrowser.tsx", import.meta.url), "utf8");
   const worker = fs.readFileSync(new URL("../../worker/freeipa-user-bulk-entry.ts", import.meta.url), "utf8");
   const topWorker = fs.readFileSync(new URL("../../worker/freeipa-group-member-entry.ts", import.meta.url), "utf8");
   const selectiveRoot = fs.readFileSync(new URL("../../worker/backup-selective-restore-root-entry.ts", import.meta.url), "utf8");

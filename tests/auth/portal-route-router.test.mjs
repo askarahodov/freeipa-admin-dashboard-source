@@ -37,11 +37,20 @@ test("rejects query fragments and unknown route shapes instead of normalizing th
   assert.equal(matchPortalRoute("GET", "/api/not-a-real-route"), undefined);
 });
 
-test("returns immutable match metadata", () => {
+test("returns immutable match metadata and contract snapshots", () => {
   const match = matchPortalRoute("DELETE", "/api/auth/users/user-1/sessions");
   assert.ok(match);
   assert.equal(match.contract.id, "auth.users.sessions-revoke");
   assert.deepEqual(match.params, { userId: "user-1" });
   assert.equal(Object.isFrozen(match), true);
   assert.equal(Object.isFrozen(match.params), true);
+  assert.equal(Object.isFrozen(match.contract), true);
+
+  assert.throws(() => {
+    match.contract.auth = "public";
+  }, TypeError);
+
+  const again = matchPortalRoute("DELETE", "/api/auth/users/user-1/sessions");
+  assert.ok(again);
+  assert.equal(again.contract.auth, "admin-session");
 });

@@ -1,12 +1,14 @@
-# Root TypeScript module migration map
+# Root TypeScript module migration record
 
-Status: migration planning for #251 / Epic #246. This document defines structural ownership before production modules are moved. It is not a runtime contract and does not authorize behavior changes.
+Status: **completed migration record for Epic #246 / inventory #251**.
 
-## Goal
+This document records the completed migration of the selected root production-module families into explicit `src/` domain ownership. It is **not an active execution plan**, not a runtime contract and not a source of new backlog. For current repository ownership use [`../architecture/PROJECT_STRUCTURE.md`](../architecture/PROJECT_STRUCTURE.md); for current work use GitHub Issues and active PRs.
 
-The repository root should contain project/tool entrypoints and configuration, not unrelated production domains. Production TypeScript modules currently accumulated at root will move incrementally to explicit domain directories only after their imports, tests and runtime entrypoints are updated in the same focused PR.
+## Why this record exists
 
-## Target domain layout
+The migration program reduced ambiguous root-level production ownership without changing product behavior. Structural moves were executed in dependency-closed slices with import, routing, security and behavior contracts preserved.
+
+The final ownership model established by the completed slices is:
 
 ```text
 src/
@@ -18,149 +20,157 @@ src/
   storage/
 ```
 
-Existing `app/`, `runtime/`, `worker/`, `db/`, `scripts/`, `tests/` and `e2e/` remain separate owners. Moving or merging those boundaries is not implied by this map.
+`app/`, `runtime/`, `worker/`, `db/`, `scripts/`, `tests/` and `e2e/` remain separate architectural owners and were never intended to be folded into this migration.
 
-## Root production module inventory
-
-### Auth, access and shared contracts → `src/auth/`
-
-- `src/auth/admin-session-authorization.ts`
-- `src/auth/local-auth.ts`
-- `src/auth/local-session-management.ts`
-- `src/auth/portal-permissions.ts`
-- `src/auth/portal-route-contract.ts`
-- `src/auth/stable-error-contract.ts`
-
-Risk: **high**. These modules participate in authorization, session and route contracts. Move only after all `app/`, `worker/`, `runtime/`, tests and scripts importing them are enumerated. Do not combine this move with auth/RBAC behavior changes.
-
-Current #267 checkpoint: all six auth/access/contract implementations are canonical under `src/auth/`; active app/Worker/test/script consumers use canonical paths directly, auth/RBAC E2E routing and collision ownership are keyed to `src/auth/`, and the temporary root compatibility shims are removed. Authorization, cookie/session, RBAC, route metadata and stable-error semantics are unchanged.
-
-### Backup → `src/backup/`
-
-- `backup-encrypted-export.ts`
-- `backup-export-domains.ts`
-- `backup-full-domains.ts`
-- `backup-import-preview.ts`
-- `backup-isolated-restore.ts`
-- `backup-manifest.ts`
-- `backup-restore-stage-repository.ts`
-- `backup-restore-stage.ts`
-- `backup-selective-restore-commit.ts`
-- `backup-selective-restore-prepare.ts`
-- `backup-selective-write-plan.ts`
-
-Risk: **medium-high**. The family is cohesive by naming but intersects recovery, storage/schema, encryption, maintenance and route/RBAC owners. Preserve one-way dependency direction; do not create a generic utility bucket while moving it.
-
-Current #265 checkpoint: the read-only full-backup projection owner is canonical at `src/backup/preview/backup-full-projections.ts`; its root implementation is removed and active consumers use the canonical path directly. Export orchestration is canonical at `src/backup/export/backup-export.ts`; all production, Worker and focused behavior-test consumers use the canonical path directly, and the temporary root `backup-export.ts` compatibility entrypoint has been removed. Restore selection is canonical at `src/backup/restore/backup-restore-selection.ts`; all production and focused test consumers use the canonical path directly, and the temporary root `backup-restore-selection.ts` compatibility entrypoint has been removed. Isolated restore staging is canonical at `src/backup/restore/backup-isolated-store.ts`; all production and focused test consumers use the canonical path directly, and the temporary root `backup-isolated-store.ts` compatibility entrypoint has been removed. Selective restore policy is canonical at `src/backup/restore/backup-selective-restore-policy.ts`; all production and focused test consumers use the canonical path directly, and the temporary root `backup-selective-restore-policy.ts` compatibility entrypoint has been removed. Isolated restore verification is canonical at `src/backup/restore/backup-isolated-verification.ts`; all production and focused test consumers use the canonical path directly, and the temporary root `backup-isolated-verification.ts` compatibility entrypoint has been removed. Restore planning is canonical at `src/backup/restore/backup-restore-plan.ts`; all production and focused test consumers use the canonical path directly, and the temporary root `backup-restore-plan.ts` compatibility entrypoint has been removed. Selective recovery-point creation and verification are canonical at `src/backup/restore/backup-selective-recovery-point.ts`; all production and focused test consumers use the canonical path directly, and the temporary root `backup-selective-recovery-point.ts` compatibility entrypoint has been removed. Selective write planning is canonical at `src/backup/restore/backup-selective-write-plan.ts`; production and focused source-contract consumers use the canonical path directly, and the temporary root `backup-selective-write-plan.ts` compatibility entrypoint has been removed. Import preview is canonical at `src/backup/preview/backup-import-preview.ts`; all production, Worker and focused test/source-contract consumers use the canonical path directly, and the temporary root `backup-import-preview.ts` compatibility entrypoint has been removed. Encrypted backup preview is canonical at `src/backup/preview/backup-encrypted-preview.ts`; all production, Worker, recovery and focused test/source-contract consumers use the canonical path directly, and the temporary root `backup-encrypted-preview.ts` compatibility entrypoint has been removed. Backup encryption is canonical at `src/backup/crypto/backup-encryption.ts`; all production, recovery and focused test/source-contract consumers use the canonical path directly, and the temporary root `backup-encryption.ts` compatibility entrypoint has been removed. The final backup core-contract batch moves `backup-manifest.ts` to `src/backup/backup-manifest.ts` and both sanitized/full domain registries to `src/backup/export/`, migrates their complete active fan-out together, and removes the last root `backup-*.ts` implementations. After this batch, backup production ownership is fully canonical under `src/backup/`.
-
-### Recovery and maintenance → `src/recovery/`
-
-- `maintenance-mode.ts`
-- `maintenance-repository.ts`
-- `maintenance-verification-smoke.ts`
-- `recovery-candidate.ts`
-- `recovery-cli-runtime.ts`
-- `recovery-cli.ts`
-- `recovery-command-handlers.ts`
-- `recovery-maintenance.ts`
-- `recovery-online-verification.ts`
-- `recovery-point.ts`
-- `recovery-preflight.ts`
-- `recovery-reconcile.ts`
-- `recovery-runtime-command-handlers.ts`
-- `recovery-swap.ts`
-
-Risk: **high**. Recovery owns destructive/offline flows, atomic swap, locks, maintenance state and secret handling. It should move only after backup/storage boundaries are explicit and recovery container/script entrypoints are mapped.
-
-Current #266 checkpoint: shared recovery errors, path validation, receipts, bounded SQLite access, lock handling, restore policy, discovery, secret input handling and backup-source ownership are canonical under `src/recovery/foundation/`; schema/local restore adapters are canonical under `src/recovery/adapters/`. The destructive-core slice is also canonical: candidate construction, preflight, reconcile and atomic swap live under `src/recovery/orchestration/`, while encrypted raw SQLite recovery-point ownership lives under `src/recovery/artifacts/`. Their active command-handler/test consumers use canonical paths and the corresponding root implementations are removed. Maintenance mode, repository persistence and online verification-smoke ownership are canonical under `src/recovery/maintenance/` with active Worker/storage/recovery/test consumers migrated and root implementations removed. The final #266 CLI/runtime slice is canonical: CLI parsing/runtime dependencies and command-handler composition live under `src/recovery/cli/`, offline failed-maintenance recovery lives under `src/recovery/maintenance/`, and online verification lives under `src/recovery/verification/`. All active script/test consumers use canonical paths, root `recovery-*.ts`/`maintenance-*.ts` production implementations are removed, and recovery production ownership is fully canonical under `src/recovery/`.
-
-### Storage and migrations → `src/storage/`
-
-- `storage-encryption-self-test.ts`
-- `storage-inspect-cli.ts`
-- `storage-integrity-contract.ts`
-- `storage-integrity-inspect-cli.ts`
-- `storage-integrity.ts`
-- `storage-migration-apply-context.ts`
-- `storage-migration-apply-contract.ts`
-- `storage-migration-apply-executor.ts`
-- `storage-migration-apply.ts`
-- `storage-migration-locked-preflight.ts`
-- `storage-migration-operation-repository.ts`
-- `storage-migration-operation.ts`
-- `storage-migration-preflight-contract.ts`
-- `storage-migration-preflight-inspect-cli.ts`
-- `storage-migration-preflight.ts`
-- `storage-quick-check.ts`
-- `storage-status-contract.ts`
-- `storage-status.ts`
-
-Risk: **medium-high**. This family is strongly coupled to canonical `db/` schema/migration ownership and recovery/backup prerequisites. `db/` remains canonical; moving these files must not relocate schema ownership into `src/storage/`.
-
-Current status: #263 and #264 are complete. Read-only storage contracts/inspectors and the storage migration preflight/apply/operation mutation path are canonical under `src/storage/`; their root compatibility entrypoints have been removed. `db/` remains the schema/migration source of truth.
+## Completed domain migrations
 
 ### FreeIPA → `src/freeipa/`
 
-- `freeipa-group-member-query.ts`
-- `freeipa-ui-events.ts`
-- `freeipa-user-query.ts`
+Completed by #253 and follow-up consumer/shim cleanup.
 
-Risk: **medium**. Small root family and a likely early source-move candidate, but imports from Worker/UI and server query contracts must be preserved exactly.
+Canonical ownership includes the former root FreeIPA query/UI helper family under `src/freeipa/`. Active consumers use canonical paths and no root compatibility copy remains.
 
-Current status: **completed (#253, implementation started in PR #255 and completed by subsequent consumer/shim cleanup).** All three implementations are canonical under `src/freeipa/`, active consumers use the domain paths, and no root compatibility copy remains.
+Preserved contracts:
 
-### Operations, catalog and automation → `src/operations/`
+- server-side FreeIPA credential/session boundary;
+- existing query behavior and errors;
+- Worker/UI consumer behavior;
+- routed test coverage for runtime paths.
 
-- `automation-types.ts`
-- `field-conditions.ts`
+### Operations/catalog → `src/operations/`
 
-Risk: **medium-high**. This is not necessarily one final module: approval, catalog/presentation and run lifecycle may become subdomains after import analysis. Keep this grouping provisional rather than forcing unrelated code behind one facade.
+Completed by #262 and its implementation slices.
 
-Current #262 checkpoint: approval gates are canonical under `src/operations/approvals/`; catalog policy ownership under `src/operations/catalog/`; explorer model/legacy bridge under `src/operations/explorer/`; process presentation under `src/operations/presentation/`; and run notifications/replays/results under `src/operations/run/`. Root implementations/shims for these modules are removed. Shared automation contracts remain canonical under `src/automation/`.
+Canonical subdomains include approvals, catalog policy, explorer, presentation and run-lifecycle ownership. Shared automation contracts remain under their explicit automation owner rather than being forced behind one generic facade.
 
-## Files that stay at repository root
+Preserved contracts:
 
-Root project/tool entrypoints are intentionally not part of the production-domain move, including:
+- approval semantics and execution safety;
+- catalog/presentation behavior;
+- run history/result/replay behavior;
+- stable errors, audit and API compatibility.
 
-- `Dockerfile` and Compose entrypoints until the dedicated deployment-layout audit;
-- `package.json`, lockfile, TypeScript/Vite/Next/PostCSS/ESLint/Drizzle configuration;
+### Storage → `src/storage/`
+
+Completed by #263 and #264.
+
+Read-only storage status/integrity contracts and migration preflight/apply/operation logic are canonical under `src/storage/`. The canonical database schema and released migration definitions remain in `db/`; this migration did not move schema ownership.
+
+Preserved contracts:
+
+- migration journal/checksum semantics;
+- storage status/integrity behavior;
+- locks/preflight/apply/failure behavior;
+- recovery prerequisites and stable errors.
+
+### Backup → `src/backup/`
+
+Completed by #265 and its dependency-closed follow-up slices.
+
+Backup ownership is canonical under explicit `src/backup/` subdomains covering projection/preview, export, manifest/domain contracts, restore planning/staging/selection, selective restore and encryption. Temporary root compatibility shims were removed after active consumers migrated.
+
+Preserved contracts:
+
+- backup formats/manifests;
+- encryption compatibility and secret boundaries;
+- restore selection/planning semantics;
+- RBAC/audit behavior;
+- failure and recovery behavior.
+
+### Recovery/maintenance → `src/recovery/`
+
+Completed by #266 and its implementation slices.
+
+Canonical subdomains cover foundation, adapters, orchestration, artifacts, maintenance, CLI/runtime composition and verification. Root `recovery-*` / `maintenance-*` production implementations were removed after active consumers moved.
+
+Preserved contracts:
+
+- destructive/offline confirmation boundaries;
+- locks and atomic swap/reconcile behavior;
+- maintenance persistence;
+- recovery secrets and receipts;
+- rollback/failure semantics;
+- CLI/container entrypoint behavior.
+
+### Auth/access → `src/auth/`
+
+Completed by #267 as the final security-sensitive root migration family.
+
+Authentication, local sessions, portal permissions, route contracts and stable error ownership are canonical under `src/auth/`. Active app/Worker/test/script consumers use canonical paths and temporary root compatibility shims are gone.
+
+Preserved contracts:
+
+- authentication mechanisms and trust boundaries;
+- session/cookie behavior;
+- RBAC and permission semantics;
+- route metadata and stable errors;
+- negative/bypass coverage and CI routing.
+
+## Completion matrix
+
+| Migration family | Issue | Current status | Canonical owner |
+| --- | ---: | --- | --- |
+| FreeIPA helpers | #253 | completed | `src/freeipa/` |
+| Operations/catalog | #262 | completed | `src/operations/` |
+| Storage read/integrity | #263 | completed | `src/storage/` |
+| Storage migration mutation path | #264 | completed | `src/storage/` + canonical schema in `db/` |
+| Backup | #265 | completed | `src/backup/` |
+| Recovery/maintenance | #266 | completed | `src/recovery/` |
+| Auth/access/contracts | #267 | completed | `src/auth/` |
+
+Historical issue descriptions and old checkpoints may still contain intermediate phrases such as “next slice”, “in progress” or temporary shim names. Those statements describe the state at that historical checkpoint and must not be used as current scheduling data.
+
+## What intentionally remains outside this migration
+
+The program did not mean “move every root file into `src/`”. Repository/tool entrypoints and configuration remain at their appropriate top-level locations, including:
+
+- `Dockerfile` and `compose.yaml`;
+- `package.json`, lockfile and build/tool configuration;
 - `README.md` and `AGENTS.md`;
-- environment examples until the configuration-layout audit.
+- environment examples;
+- other root modules that have their own canonical ownership and were not part of the completed migration families above.
 
-## Ordered migration slices
+Do not create a new cleanup task merely because a TypeScript file is located at repository root. First prove an ownership, maintainability or collision problem on current `main`.
 
-1. **FreeIPA query helpers — completed (#253).** The three implementations are canonical under `src/freeipa/` with no root compatibility entrypoints.
-2. **Operations leaf modules** — move only leaf modules with low inbound fan-out; split approval/catalog/run subdomains if import evidence requires it.
-3. **Storage read-only contracts/inspectors — completed (#263).** Status/integrity read paths are canonical under `src/storage/`.
-4. **Backup read/export contracts — in progress (#265).** Read-only preview/projection leaves move first; remaining manifest/export/restore modules stay in dependency-closed follow-up slices.
-5. **Storage migration mutation path — completed (#264).** Preflight/apply/operation ownership is canonical under `src/storage/migration/` with no root compatibility entrypoints.
-6. **Recovery/maintenance** — only after backup/storage paths are stable.
-7. **Auth/access/shared route contracts** — last, because of the widest security-sensitive fan-out.
+## Invariants preserved by the migration
 
-Each numbered item can require multiple PRs. A slice must remain reviewable and must not mix structural move with implementation cleanup.
+Every structural slice was expected to preserve:
 
-## Required checks before every move
+1. public/runtime behavior;
+2. authentication, RBAC and security boundaries;
+3. stable error and API contracts;
+4. audit behavior;
+5. database/migration semantics;
+6. backup/recovery safety and compatibility;
+7. test discovery and CI routing for moved runtime paths;
+8. absence of duplicate active production copies after compatibility cleanup.
 
-For every candidate file, collect and record before editing:
+A future structural refactor must re-inventory current `main`; this record does not authorize repeating an already completed move.
 
-1. inbound imports from root, `app/`, `runtime/`, `worker/`, `db/`, `scripts/`, `tests/` and `e2e/`;
-2. outbound relative imports and cross-domain edges;
-3. package/script/Docker/CI references that use a literal path;
-4. source-reading tests that treat a physical path as a contract;
-5. TypeScript/build resolution assumptions;
-6. documentation/source-of-truth references to the physical path.
+## Historical migration method
 
-After moving, search for the old literal path/name, then run lint/build plus the domain tests selected by existing CI routing. Security/destructive domains require their existing negative and failure-path tests; a move is not a reason to weaken them.
+The migration was intentionally executed as narrow structural slices:
 
-## Dependency rules during migration
+1. inventory inbound/outbound imports and literal-path consumers;
+2. identify source-reading/path-contract tests;
+3. move one dependency-closed owner;
+4. migrate active consumers;
+5. remove compatibility shim only after no active consumers remain;
+6. update path/routing contracts;
+7. run focused tests plus required CI/routed E2E;
+8. verify the resulting `main` before declaring the slice complete.
 
-- `db/` remains the schema/migration source of truth.
-- `worker/` and `runtime/` remain orchestration/runtime boundaries, not dumping grounds for moved root code.
-- Do not introduce `src/utils/`, `src/common/` or `src/shared/` merely to avoid deciding ownership.
-- Cross-domain imports should point toward an explicit public contract/module, not deep implementation files where a stable boundary already exists.
-- Circular dependencies discovered during a move block that slice until ownership is clarified; do not hide a cycle with dynamic imports or path aliases.
-- Keep public behavior, stable error codes, RBAC, audit, recovery safety and storage semantics unchanged in structure-only PRs.
+This method remains useful guidance for future structural work, but the numbered sequence above is historical process guidance, **not an ordered queue of unfinished migration tasks**.
 
-## Completed first implementation slice
+## Current navigation
 
-The three-file FreeIPA family is complete under `src/freeipa/`. The next structural work should follow the ordered slices above and re-inventory current `main` before every move, because parallel work may already have completed individual modules or consumers.
+Use these sources for present-day decisions:
+
+- [`../architecture/PROJECT_STRUCTURE.md`](../architecture/PROJECT_STRUCTURE.md) — current repository/module ownership and where-to-change routing;
+- [`../architecture/ARCHITECTURE.md`](../architecture/ARCHITECTURE.md) — runtime/trust/data-flow architecture;
+- [`../reference/SOURCE_OF_TRUTH.md`](../reference/SOURCE_OF_TRUTH.md) — authoritative contract owners;
+- [`../README.md`](../README.md) — engineering documentation index;
+- [`../guide/developer/README.md`](../guide/developer/README.md) — developer/AI task-first navigation;
+- GitHub Issues and active PRs — current execution state.
+
+If this historical record conflicts with current code/tests or current ownership docs, current code/tests and canonical owners win.

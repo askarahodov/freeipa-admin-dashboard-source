@@ -4,15 +4,19 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+const httpSecurityRoot = new URL("../../worker/http-security-root-entry.ts", import.meta.url);
 const entry = new URL("../../worker/schema-migrations-entry.ts", import.meta.url);
 const maintenanceGate = new URL("../../worker/maintenance-mode-root-entry.ts", import.meta.url);
 const helpers = new URL("../../worker/schema-migrations-boundary.ts", import.meta.url);
 const vite = fs.readFileSync(new URL("../../vite.config.ts", import.meta.url), "utf8");
 const testsDirectory = path.dirname(fileURLToPath(import.meta.url));
 
-test("Vite uses the schema migration boundary as the outer worker entry", () => {
+test("Vite uses HTTP security as the outer worker entry while preserving schema migration immediately downstream", () => {
+  assert.equal(fs.existsSync(httpSecurityRoot), true, "worker/http-security-root-entry.ts must exist");
   assert.equal(fs.existsSync(entry), true, "worker/schema-migrations-entry.ts must exist");
-  assert.equal(vite.includes('main: "./worker/schema-migrations-entry.ts"'), true);
+  assert.equal(vite.includes('main: "./worker/http-security-root-entry.ts"'), true);
+  const httpSecuritySource = fs.readFileSync(httpSecurityRoot, "utf8");
+  assert.equal(httpSecuritySource.includes('import rootRuntime from "./schema-migrations-entry.ts"'), true);
 });
 
 test("normal fetch and scheduled dispatch require a ready production schema before maintenance gating", async () => {

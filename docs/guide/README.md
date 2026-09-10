@@ -6,7 +6,7 @@
 
 ## Текущее состояние
 
-Foundation, Getting Started, User / Viewer, Operator, Administrator и Developer / AI agent guides уже доступны; остальные ролевые разделы добавляются отдельными задачами и PR. Пока нужная статья ещё не опубликована, используйте связанные канонические инженерные документы из раздела «Связанные канонические документы» ниже.
+Foundation и основные ролевые guides уже доступны: Getting Started, User / Viewer, Operator, Administrator, Operations / DevOps, Support и Developer / AI agent. Также доступен symptom-first Troubleshooting. База знаний развивается вместе с пользовательскими workflow; точные технические процедуры остаются в связанных canonical references и runbooks.
 
 ## Выберите свою роль
 
@@ -28,11 +28,11 @@ Foundation, Getting Started, User / Viewer, Operator, Administrator и Developer
 
 ### Operations / DevOps
 
-Раздел `operations/` запланирован в #557 и будет объяснять deployment, update/rollback, health/readiness, Docker, network/TLS, monitoring, backup/restore и incident troubleshooting с ссылками на точные runbooks.
+Используйте [`operations/README.md`](operations/README.md) для deployment/update/rollback, health/readiness, Docker/runtime/storage, network/DNS/TLS troubleshooting, monitoring, backup/restore и incident escalation с переходом к authoritative runbooks.
 
 ### Support
 
-Раздел `support/` запланирован в #557 и будет содержать безопасную первичную диагностику, correlation ID, допустимые данные для запроса у пользователя и escalation path. Поддержка не должна запрашивать пароли, session cookies, API keys, encryption keys или raw database.
+Используйте [`support/README.md`](support/README.md) для безопасной первичной диагностики, сбора минимальной evidence и escalation matrix. Поддержка не должна запрашивать пароли, session cookies, API keys, encryption keys или raw database.
 
 ### Developer / AI agent
 
@@ -40,9 +40,9 @@ Foundation, Getting Started, User / Viewer, Operator, Administrator и Developer
 
 ## Дополнительные разделы
 
-- [`concepts/TERMINOLOGY.md`](concepts/TERMINOLOGY.md) — уже доступные правила терминологии и ключевые понятия.
-- `troubleshooting/` — запланированный в #557 поиск решения по симптому.
-- [`ARTICLE_TEMPLATE.md`](ARTICLE_TEMPLATE.md) — уже доступный шаблон новой практической статьи.
+- [`concepts/TERMINOLOGY.md`](concepts/TERMINOLOGY.md) — правила терминологии и ключевые понятия.
+- [`troubleshooting/README.md`](troubleshooting/README.md) — поиск причины по симптому и безопасная первичная диагностика.
+- [`ARTICLE_TEMPLATE.md`](ARTICLE_TEMPLATE.md) — шаблон новой практической статьи.
 
 ## Как устроена документация
 

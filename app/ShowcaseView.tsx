@@ -10,7 +10,7 @@ import { Spinner } from "./ui/Spinner";
 import { Skeleton } from "./ui/Skeleton";
 import { useToast } from "./ui/Toast";
 import { IconCheck, IconClose, IconWarning, IconPlay, IconRefresh, IconPlus, IconStorage } from "./icons";
-import ThemeToggle from "./ThemeToggle";
+import ThemeToggle from "./ui/ThemeToggle";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (

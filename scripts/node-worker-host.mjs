@@ -8,6 +8,7 @@ import {
   nodeRequestToWebRequest,
   writeWebResponse,
 } from "./node-runtime-http.mjs";
+import { applyHttpSecurityHeaders } from "./http-security.mjs";
 import { resolveTrustedRequestProtocol } from "./trusted-proxy-policy.mjs";
 
 function runtimeOrigin(request, host, port, env) {
@@ -52,19 +53,19 @@ export async function startNodeWorkerHost(options = {}) {
   let closing = false;
 
   const server = createServer(async (request, responseStream) => {
-    if (closing) {
-      responseStream.statusCode = 503;
-      responseStream.end("Service Unavailable");
-      return;
-    }
-
     const origin = runtimeOrigin(request, host, port, runtimeEnv);
     const webRequest = nodeRequestToWebRequest(request, origin);
+
+    if (closing) {
+      const response = applyHttpSecurityHeaders(webRequest, new Response("Service Unavailable", { status: 503 }), runtimeEnv);
+      await writeWebResponse(responseStream, response);
+      return;
+    }
 
     if ((webRequest.method === "GET" || webRequest.method === "HEAD") && new URL(webRequest.url).pathname.includes(".")) {
       const assetResponse = await assets.fetch(webRequest);
       if (assetResponse.status !== 404) {
-        await writeWebResponse(responseStream, assetResponse);
+        await writeWebResponse(responseStream, applyHttpSecurityHeaders(webRequest, assetResponse, runtimeEnv));
         return;
       }
     }
@@ -73,13 +74,17 @@ export async function startNodeWorkerHost(options = {}) {
     activeContexts.add(ctx);
     try {
       const response = await worker.fetch(webRequest, runtimeEnv, ctx);
-      await writeWebResponse(responseStream, response);
+      await writeWebResponse(responseStream, applyHttpSecurityHeaders(webRequest, response, runtimeEnv));
     } catch (error) {
       if (!responseStream.headersSent) {
-        responseStream.statusCode = 500;
-        responseStream.setHeader("content-type", "application/json; charset=utf-8");
+        const failure = applyHttpSecurityHeaders(webRequest, new Response(JSON.stringify({ error: "runtime_request_failed" }), {
+          status: 500,
+          headers: { "content-type": "application/json; charset=utf-8" },
+        }), runtimeEnv);
+        await writeWebResponse(responseStream, failure);
+      } else if (!responseStream.writableEnded) {
+        responseStream.end();
       }
-      if (!responseStream.writableEnded) responseStream.end(JSON.stringify({ error: "runtime_request_failed" }));
       console.error(`Node Worker request failed: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       await ctx.drain();

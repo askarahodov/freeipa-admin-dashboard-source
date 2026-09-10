@@ -33,16 +33,17 @@ test("production dependency graph uses patched Next and Sharp versions", () => {
   for (const version of productionSharp) assert.equal(versionAtLeast(version, "0.35.0"), true, `production sharp=${version}`);
 });
 
-test("production runtime keeps the verified dependency line and canonical hardened entrypoint", () => {
+test("production runtime keeps verified dependency metadata without shipping the project npm tree", () => {
   assert.equal(packageJson.dependencies.wrangler, "4.113.0");
   assert.equal(packageJson.devDependencies.wrangler, undefined);
   assert.equal(packageJson.devDependencies["@cloudflare/vite-plugin"], "1.46.0");
   assert.equal(packageJson.overrides?.sharp, "0.35.4");
   assert.equal(packageJson.overrides?.undici, "7.29.0");
-  assert.match(dockerfile, /AS production-dependencies[\s\S]*npm prune --omit=dev/u);
-  assert.match(dockerfile, /COPY --from=production-dependencies[^\n]*\/app\/node_modules \.\/node_modules/u);
-  assert.match(dockerfile, /rm -rf [^\n]*\/usr\/local\/lib\/node_modules\/npm/u);
+  assert.doesNotMatch(dockerfile, /AS production-dependencies[\s\S]*npm prune --omit=dev/u);
   const runtimeStage = dockerfile.slice(dockerfile.indexOf("FROM node:22-bookworm-slim AS runtime"));
+  assert.doesNotMatch(runtimeStage, /COPY[^\n]*\/app\/node_modules\s+\.\/node_modules/u);
+  assert.doesNotMatch(runtimeStage, /npm\s+(?:ci|install|prune)/u);
+  assert.match(runtimeStage, /rm -rf [^\n]*\/usr\/local\/lib\/node_modules\/npm/u);
   assert.match(runtimeStage, /USER dashboard/u);
   assert.match(runtimeStage, /CMD \["node", "--experimental-strip-types", "scripts\/start-production\.mjs"\]/u);
   assert.doesNotMatch(runtimeStage, /start-worker\.mjs|wrangler dev|--persist-to|\.wrangler/u);

@@ -13,13 +13,13 @@ Exact public exports are defined by:
 
 Exact behavior and props remain owned by the component implementations and tests linked below. If this document disagrees with current code/tests, fix the document rather than adding compatibility behavior to match stale prose.
 
-# Forms and dialogs
+## Forms and dialogs
 
-## `Dialog`
+### `Dialog`
 
 Source: [`../../app/ui/forms/Dialog.tsx`](../../app/ui/forms/Dialog.tsx).
 
-### Current API
+#### Current API
 
 `DialogSize` is `"sm" | "md" | "lg"`.
 
@@ -39,19 +39,19 @@ Source: [`../../app/ui/forms/Dialog.tsx`](../../app/ui/forms/Dialog.tsx).
 | `closeOnBackdrop?: boolean` | no | Defaults to `true`. |
 | `initialFocusRef?: RefObject<HTMLElement \| null>` | no | Preferred initial focus target when the dialog opens. |
 
-### Accessibility and lifecycle
+#### Accessibility and lifecycle
 
 The current implementation renders `role="dialog"`, `aria-modal="true"`, generated title/description relationships, a labelled icon close button, Escape handling, a Tab/Shift+Tab focus loop and focus restoration to the element active before opening. While open it prevents body scrolling and restores the previous overflow value on cleanup.
 
 If a workflow must not close on Escape or backdrop—for example because the user would silently lose an important in-progress action—set the corresponding prop explicitly and provide a clear visible exit path. Do not remove the focus loop or focus restoration merely to simplify a feature-specific dialog.
 
-### Do / don't
+#### Do / don't
 
 **Do:** put the semantic heading in `title`, use `description` for concise context, place actual form content in `children`, and use `DialogFooter` for separated danger and normal action areas.
 
 **Don't:** create a second generic modal wrapper in a feature folder, make a clickable `div` act as the only close control, or bypass the existing destructive confirmation contract from `PortalInteractionLayer` just because the visual dialog shell is reusable.
 
-## `DialogFooter`
+### `DialogFooter`
 
 Source: [`../../app/ui/forms/DialogFooter.tsx`](../../app/ui/forms/DialogFooter.tsx).
 
@@ -63,11 +63,11 @@ Current props are:
 
 Use `danger` to keep destructive controls structurally separate from ordinary cancel/save actions. The component is layout only; it does not authorize or confirm destructive mutations.
 
-## `FormField`
+### `FormField`
 
 Source: [`../../app/ui/forms/FormField.tsx`](../../app/ui/forms/FormField.tsx).
 
-### Current API
+#### Current API
 
 | Prop | Required | Current meaning |
 | --- | --- | --- |
@@ -84,13 +84,13 @@ The component connects `label[for]` to the cloned child `id`, composes existing 
 
 A child control may already be `required`; `FormField` resolves that state with the wrapper props through the existing `form-field-state` owner. Do not manually duplicate “required” text beside a `FormField` and create conflicting semantics.
 
-### Do / don't
+#### Do / don't
 
 **Do:** use a stable `id`, keep concise help text separate from validation errors, and pass the real input/select/textarea as the child.
 
 **Don't:** use placeholder text as the only label, render an error visually without associating it with the field, or generate unstable ids from display text when persisted links/focus targets depend on them.
 
-## `FormErrorSummary`
+### `FormErrorSummary`
 
 Source: [`../../app/ui/forms/FormErrorSummary.tsx`](../../app/ui/forms/FormErrorSummary.tsx).
 
@@ -100,7 +100,7 @@ The component renders nothing when `errors` is empty. When errors exist, the sum
 
 The summary complements field-level errors; it is not a reason to remove the local error association from `FormField`.
 
-## `FormSection`
+### `FormSection`
 
 Source: [`../../app/ui/forms/FormSection.tsx`](../../app/ui/forms/FormSection.tsx).
 
@@ -108,9 +108,9 @@ Source: [`../../app/ui/forms/FormSection.tsx`](../../app/ui/forms/FormSection.ts
 
 Use it to group meaningful subsections such as Basic, Membership or Advanced when the form is large enough to benefit from hierarchy. Do not wrap every pair of fields in a section or create heading-level jumps that conflict with the surrounding page/dialog structure.
 
-# Data-list compositions
+## Data-list compositions
 
-## `DataListPage`
+### `DataListPage`
 
 Source: [`../../app/ui/data-list/DataListPage.tsx`](../../app/ui/data-list/DataListPage.tsx).
 
@@ -128,7 +128,7 @@ Composition order is PageHeader → optional toolbar → body → optional foote
 
 Do not add a second page-level `h1` inside `children` when `DataListPage.title` already owns the heading.
 
-## `DataListState`
+### `DataListState`
 
 Source: [`../../app/ui/data-list/DataListState.tsx`](../../app/ui/data-list/DataListState.tsx).
 
@@ -146,7 +146,7 @@ Current props are `kind`, `title`, optional `description` and optional `action`.
 
 Distinguish `empty` from `filtered-empty`: the first means there is no data for the underlying collection; the second means the current filter/search yields no visible matches. The recovery action and wording should reflect that distinction.
 
-## `DataTable`
+### `DataTable`
 
 Source: [`../../app/ui/data-list/DataTable.tsx`](../../app/ui/data-list/DataTable.tsx).
 
@@ -154,7 +154,7 @@ Source: [`../../app/ui/data-list/DataTable.tsx`](../../app/ui/data-list/DataTabl
 
 Use a specific label such as the entity set or purpose, not a generic “Таблица”. Keep native table structure (`thead`, `tbody`, headers/cells) inside the component; do not replace it with a visually similar div grid unless the interaction truly is not tabular.
 
-## `Pagination`
+### `Pagination`
 
 Source: [`../../app/ui/data-list/Pagination.tsx`](../../app/ui/data-list/Pagination.tsx).
 
@@ -173,9 +173,9 @@ The component renders a `nav` labelled `Пагинация`, a polite live summa
 
 Keep page/data ownership in the feature or query model. `Pagination` does not fetch data, mutate URL state or infer server cursors.
 
-# Common admin compositions
+## Common admin compositions
 
-## List/search screen
+### List/search screen
 
 Preferred structure:
 
@@ -187,7 +187,7 @@ Preferred structure:
 
 Do not render “0 results” with the same UI as an upstream/server error; those states have different recovery paths.
 
-## Create/edit form
+### Create/edit form
 
 Preferred structure:
 
@@ -200,18 +200,18 @@ Preferred structure:
 
 Do not silently persist password/token fields in browser draft storage. Product-specific unsaved/conflict recovery belongs to the owning flow and its security contract.
 
-## Destructive action
+### Destructive action
 
 `Dialog` and `DialogFooter` are presentation/composition primitives, not a replacement for the existing destructive-operation safety contract. Reuse the product confirmation flow owned by `PortalInteractionLayer` and the server-side authorization/audit path. Do not create a feature-local confirmation mechanism with weaker semantics.
 
-# Responsive and keyboard review
+## Responsive and keyboard review
 
 A shared composition change should be reviewed at the level of the surfaces that consume it. At minimum verify, as applicable:
 
 - keyboard entry, Tab/Shift+Tab order and visible focus;
 - Escape/backdrop rules for dialogs;
 - focus return after close;
-- error-summary links focus/navigate to valid field ids;
+- error-summary links target valid field ids and navigate to those anchors;
 - table region remains operable when content overflows horizontally;
 - pagination controls expose disabled boundaries correctly;
 - narrow-screen action/footer layout does not hide the primary or recovery action;
@@ -219,7 +219,7 @@ A shared composition change should be reviewed at the level of the surfaces that
 
 Use current routed browser tests for consuming flows; do not claim responsive/keyboard correctness from Markdown review alone.
 
-# Governance
+## Governance
 
 Public composition changes require all of the following:
 

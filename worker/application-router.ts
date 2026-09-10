@@ -54,16 +54,38 @@ export type PortalApplicationRoute =
       pathname: string;
     }>;
 
-export type PortalApplicationDispatchInput<Env, Context> = Readonly<{
+export type PortalStableApplicationRoute = Extract<PortalApplicationRoute, { kind: "stable" }>;
+export type PortalNegativeApplicationRoute =
+  | Extract<PortalApplicationRoute, { kind: "method-not-allowed" }>
+  | Extract<PortalApplicationRoute, { kind: "unknown-api" }>;
+export type PortalSupplementalApplicationRoute = Extract<PortalApplicationRoute, { kind: "supplemental" }>;
+export type PortalFrameworkApplicationRoute = Extract<PortalApplicationRoute, { kind: "framework" }>;
+
+export type PortalApplicationHandlerInput<
+  Env,
+  Context,
+  Route extends PortalApplicationRoute,
+> = Readonly<{
   request: Request;
   env: Env;
   ctx: Context;
-  route: PortalApplicationRoute;
+  route: Route;
 }>;
 
-export type PortalApplicationDispatch<Env, Context> = (
-  input: PortalApplicationDispatchInput<Env, Context>,
+export type PortalApplicationHandler<
+  Env,
+  Context,
+  Route extends PortalApplicationRoute,
+> = (
+  input: PortalApplicationHandlerInput<Env, Context, Route>,
 ) => Promise<Response>;
+
+export type PortalApplicationHandlers<Env, Context> = Readonly<{
+  stable: PortalApplicationHandler<Env, Context, PortalStableApplicationRoute>;
+  negative: PortalApplicationHandler<Env, Context, PortalNegativeApplicationRoute>;
+  supplemental: PortalApplicationHandler<Env, Context, PortalSupplementalApplicationRoute>;
+  framework: PortalApplicationHandler<Env, Context, PortalFrameworkApplicationRoute>;
+}>;
 
 function requestMethod(method: string): PortalRouteMethod | undefined {
   const normalized = method.toUpperCase();
@@ -158,23 +180,30 @@ export function finalizePortalApplicationResponse(
 }
 
 /**
- * Creates the single HTTP application routing boundary. The dispatcher is
- * intentionally injected so the current wrapper graph can remain the behavior
- * owner while route families are migrated incrementally without another router.
+ * Creates the single HTTP application routing boundary with explicit dispatch
+ * registration by route kind. Registrations are intentionally coarse-grained:
+ * canonical route metadata stays the route source of truth, while individual
+ * domain handlers can replace compatibility-backed registrations incrementally.
  */
 export function createPortalApplicationRouter<Env, Context>(
-  dispatch: PortalApplicationDispatch<Env, Context>,
+  handlers: PortalApplicationHandlers<Env, Context>,
 ): Readonly<{
   fetch(request: Request, env: Env, ctx: Context): Promise<Response>;
 }> {
   return Object.freeze({
     async fetch(request: Request, env: Env, ctx: Context): Promise<Response> {
-      return dispatch(Object.freeze({
-        request,
-        env,
-        ctx,
-        route: resolvePortalApplicationRoute(request),
-      }));
+      const route = resolvePortalApplicationRoute(request);
+      switch (route.kind) {
+        case "stable":
+          return handlers.stable(Object.freeze({ request, env, ctx, route }));
+        case "method-not-allowed":
+        case "unknown-api":
+          return handlers.negative(Object.freeze({ request, env, ctx, route }));
+        case "supplemental":
+          return handlers.supplemental(Object.freeze({ request, env, ctx, route }));
+        case "framework":
+          return handlers.framework(Object.freeze({ request, env, ctx, route }));
+      }
     },
   });
 }

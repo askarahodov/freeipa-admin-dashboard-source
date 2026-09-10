@@ -13,6 +13,12 @@ function concretePath(pattern) {
   return pattern.replace(/:[A-Za-z0-9_]+/g, "sample-id");
 }
 
+function unexpectedHandler(kind) {
+  return async () => {
+    throw new Error(`unexpected ${kind} dispatch`);
+  };
+}
+
 test("every canonical stable route resolves through the explicit application router", () => {
   for (const contract of portalRouteContracts) {
     const pathname = concretePath(contract.path);
@@ -22,6 +28,34 @@ test("every canonical stable route resolves through the explicit application rou
     assert.equal(route.kind, "stable", `${contract.method} ${contract.path}`);
     assert.equal(route.match.contract.id, contract.id, `${contract.method} ${contract.path}`);
     assert.ok(route.allowedMethods.includes(contract.method), `${contract.method} ${contract.path}`);
+  }
+});
+
+test("every canonical stable route dispatches through the stable registration", async () => {
+  const env = { marker: "env" };
+  const ctx = { marker: "ctx" };
+  let observed;
+  const router = createPortalApplicationRouter({
+    stable: async (input) => {
+      observed = input;
+      return new Response("stable");
+    },
+    negative: unexpectedHandler("negative"),
+    supplemental: unexpectedHandler("supplemental"),
+    framework: unexpectedHandler("framework"),
+  });
+
+  for (const contract of portalRouteContracts) {
+    observed = undefined;
+    const pathname = concretePath(contract.path);
+    const request = new Request(`https://portal.test${pathname}`, { method: contract.method });
+    const response = await router.fetch(request, env, ctx);
+    assert.equal(response.status, 200, `${contract.method} ${contract.path}`);
+    assert.equal(observed.request, request, `${contract.method} ${contract.path}`);
+    assert.equal(observed.env, env, `${contract.method} ${contract.path}`);
+    assert.equal(observed.ctx, ctx, `${contract.method} ${contract.path}`);
+    assert.equal(observed.route.kind, "stable", `${contract.method} ${contract.path}`);
+    assert.equal(observed.route.match.contract.id, contract.id, `${contract.method} ${contract.path}`);
   }
 });
 
@@ -65,7 +99,40 @@ test("unknown API and framework/static traffic are classified separately", () =>
   assert.deepEqual(framework, { kind: "framework", pathname: "/settings/general" });
 });
 
-test("compatibility dispatcher receives the original request, env and context unchanged", async () => {
+test("route kinds select exactly one explicit dispatch registration", async () => {
+  const observed = [];
+  const handler = (owner) => async ({ route }) => {
+    observed.push([owner, route.kind]);
+    return new Response(owner);
+  };
+  const router = createPortalApplicationRouter({
+    stable: handler("stable"),
+    negative: handler("negative"),
+    supplemental: handler("supplemental"),
+    framework: handler("framework"),
+  });
+  const cases = [
+    [new Request("https://portal.test/api/auth/session"), "stable"],
+    [new Request("https://portal.test/api/auth/login", { method: "GET" }), "negative"],
+    [new Request("https://portal.test/api/not-a-real-route"), "negative"],
+    [new Request("https://portal.test/api/maintenance/status"), "supplemental"],
+    [new Request("https://portal.test/settings/general"), "framework"],
+  ];
+
+  for (const [request, owner] of cases) {
+    const response = await router.fetch(request, {}, {});
+    assert.equal(await response.text(), owner);
+  }
+  assert.deepEqual(observed, [
+    ["stable", "stable"],
+    ["negative", "method-not-allowed"],
+    ["negative", "unknown-api"],
+    ["supplemental", "supplemental"],
+    ["framework", "framework"],
+  ]);
+});
+
+test("stable registration receives the original request env and context unchanged", async () => {
   const request = new Request("https://portal.test/api/auth/session", {
     headers: { "x-test-marker": "preserve-me" },
   });
@@ -74,9 +141,14 @@ test("compatibility dispatcher receives the original request, env and context un
   const expectedResponse = new Response("compatibility-response", { status: 202 });
   let observed;
 
-  const router = createPortalApplicationRouter(async (input) => {
-    observed = input;
-    return expectedResponse;
+  const router = createPortalApplicationRouter({
+    stable: async (input) => {
+      observed = input;
+      return expectedResponse;
+    },
+    negative: unexpectedHandler("negative"),
+    supplemental: unexpectedHandler("supplemental"),
+    framework: unexpectedHandler("framework"),
   });
 
   const response = await router.fetch(request, env, ctx);
@@ -173,7 +245,7 @@ test("stable supplemental and framework responses are never rewritten as routing
   }
 });
 
-test("schema-gated traffic enters one application composition and scheduled remains compatibility delegated", async () => {
+test("schema-gated traffic enters one registered application composition and scheduled remains compatibility delegated", async () => {
   const [schemaSource, applicationSource, maintenanceSource] = await Promise.all([
     readFile(new URL("../../worker/schema-migrations-entry.ts", import.meta.url), "utf8"),
     readFile(new URL("../../worker/application.ts", import.meta.url), "utf8"),
@@ -183,8 +255,11 @@ test("schema-gated traffic enters one application composition and scheduled rema
   assert.match(schemaSource, /import rootRuntime from "\.\/application\.ts"/);
   assert.match(applicationSource, /import compatibilityRuntime from "\.\/maintenance-mode-root-entry\.ts"/);
   assert.match(applicationSource, /createPortalApplicationRouter/);
-  assert.match(applicationSource, /const response = await compatibilityRuntime\.fetch\(request, env, ctx\)/);
+  assert.match(applicationSource, /stable: \(\{ request, env, ctx \}\) => compatibilityFetch\(request, env, ctx\)/);
+  assert.match(applicationSource, /negative: async \(\{ request, env, ctx, route \}\) =>/);
   assert.match(applicationSource, /return finalizePortalApplicationResponse\(route, response\)/);
+  assert.match(applicationSource, /supplemental: \(\{ request, env, ctx \}\) => compatibilityFetch\(request, env, ctx\)/);
+  assert.match(applicationSource, /framework: \(\{ request, env, ctx \}\) => compatibilityFetch\(request, env, ctx\)/);
   assert.match(applicationSource, /return router\.fetch\(request, sourceEnv, ctx\)/);
   assert.match(applicationSource, /return compatibilityRuntime\.scheduled\?\.\(controller, env, ctx\)/);
   assert.doesNotMatch(maintenanceSource, /application-router/);

@@ -10,10 +10,8 @@ import {
 } from "./node-runtime-http.mjs";
 
 function runtimeOrigin(request, host, port) {
-  const forwardedProto = String(request.headers["x-forwarded-proto"] || "").split(",", 1)[0].trim();
-  const protocol = forwardedProto === "https" ? "https" : "http";
   const headerHost = request.headers.host;
-  return `${protocol}://${headerHost || `${host}:${port}`}`;
+  return `http://${headerHost || `${host}:${port}`}`;
 }
 
 function publicAddress(server) {

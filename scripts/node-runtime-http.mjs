@@ -24,7 +24,7 @@ const baselineSecurityHeaders = Object.freeze([
   ["x-content-type-options", "nosniff"],
   ["x-frame-options", "DENY"],
   ["referrer-policy", "no-referrer"],
-  ["permissions-policy", "camera=(), microphone=(), geolocation=()"],
+  ["permissions-policy", "camera=(), microphone=(), geolocation=(), payment=(), usb=()"],
 ]);
 
 export function applyBaselineSecurityHeaders(responseStream) {

@@ -8,6 +8,7 @@ const selectiveRoot = fs.readFileSync(new URL("../../worker/backup-selective-res
 const maintenanceControlRoot = fs.readFileSync(new URL("../../worker/maintenance-control-root-entry.ts", import.meta.url), "utf8");
 const serviceRoot = fs.readFileSync(new URL("../../worker/service-admin-root-entry.ts", import.meta.url), "utf8");
 const maintenanceGate = fs.readFileSync(new URL("../../worker/maintenance-mode-root-entry.ts", import.meta.url), "utf8");
+const application = fs.readFileSync(new URL("../../worker/application.ts", import.meta.url), "utf8");
 const schemaRoot = fs.readFileSync(new URL("../../worker/schema-migrations-entry.ts", import.meta.url), "utf8");
 const viteConfig = fs.readFileSync(new URL("../../vite.config.ts", import.meta.url), "utf8");
 const bridge = fs.readFileSync(new URL("../../app/shell/LocalAdminSessionBridge.tsx", import.meta.url), "utf8");
@@ -48,7 +49,8 @@ test("local session mutations require same-origin while service token access sta
   assert.equal(runtime.includes("sameOriginAdminMutation(request)"), true);
   assert.equal(runtime.includes("service-admin@portal.local"), true);
   assert.equal(viteConfig.includes('main: "./worker/schema-migrations-entry.ts"'), true);
-  assert.equal(schemaRoot.includes('import rootRuntime from "./maintenance-mode-root-entry.ts"'), true);
+  assert.equal(schemaRoot.includes('import rootRuntime from "./application.ts"'), true);
+  assert.equal(application.includes('import compatibilityRuntime from "./maintenance-mode-root-entry.ts"'), true);
   assert.equal(maintenanceGate.includes('import rootRuntime from "./service-admin-root-entry.ts"'), true);
   assert.equal(serviceRoot.includes("serviceAdminTokenAuthorized(request, sourceEnv.ADMIN_TOKEN)"), true);
   assert.equal(serviceRoot.includes('PORTAL_IDENTITY_MODE: "static"'), true);

@@ -4,6 +4,7 @@ import test from "node:test";
 
 const gatePath = new URL("../../worker/maintenance-mode-gate.ts", import.meta.url);
 const rootPath = new URL("../../worker/maintenance-mode-root-entry.ts", import.meta.url);
+const applicationPath = new URL("../../worker/application.ts", import.meta.url);
 const schemaRootPath = new URL("../../worker/schema-migrations-entry.ts", import.meta.url);
 const serviceRootPath = new URL("../../worker/service-admin-root-entry.ts", import.meta.url);
 const repositoryPath = new URL("../../src/recovery/maintenance/maintenance-repository.ts", import.meta.url);
@@ -16,11 +17,13 @@ function source(url) {
 
 test("schema readiness composes the maintenance gate outside service-admin authorization", () => {
   const schemaRoot = source(schemaRootPath);
+  const application = source(applicationPath);
   const root = source(rootPath);
   const gate = source(gatePath);
   const serviceRoot = source(serviceRootPath);
 
-  assert.equal(schemaRoot.includes('import rootRuntime from "./maintenance-mode-root-entry.ts"'), true);
+  assert.equal(schemaRoot.includes('import rootRuntime from "./application.ts"'), true);
+  assert.equal(application.includes('import compatibilityRuntime from "./maintenance-mode-root-entry.ts"'), true);
   assert.equal(root.includes('import rootRuntime from "./service-admin-root-entry.ts"'), true);
   assert.equal(root.includes('from "./maintenance-mode-gate.ts"'), true);
   assert.equal(serviceRoot.includes('import rootRuntime from "./maintenance-control-root-entry.ts"'), true);

@@ -81,12 +81,16 @@ Detailed destructive recovery procedure belongs to [`OFFLINE_FULL_RESTORE.md`](.
 
 ### Actual Worker entry chain
 
-The built Worker entry is currently `worker/schema-migrations-entry.ts`. Request handling is composed through a series of wrapper/entry modules before the base `worker/index.ts` implementation.
+The built Worker entry is currently `worker/schema-migrations-entry.ts`. After its pre-application infrastructure/schema handling, ordinary HTTP traffic enters the explicit `worker/application.ts` composition boundary. `worker/application-router.ts` classifies the request using canonical route metadata and currently delegates it unchanged into the compatibility wrapper graph before the base `worker/index.ts` implementation.
 
 The current chain is approximately:
 
 ```text
 worker/schema-migrations-entry.ts
+  -> application.ts
+  -> application-router.ts
+       -> canonical match/classification
+       -> compatibility dispatch
   -> maintenance-mode-root-entry.ts
   -> service-admin-root-entry.ts
   -> maintenance-control-root-entry.ts
@@ -107,11 +111,11 @@ worker/schema-migrations-entry.ts
   -> worker/index.ts
 ```
 
-This wrapper chain is part of the **current application request architecture**, even though the production process hosting it is now the canonical Node runtime. Refactoring the Worker chain into a clearer router/middleware/module structure remains a separate concern tracked by #56.
+The explicit application/router boundary is part of the **current application request architecture**, but route classification is not yet authoritative for authorization, handler selection, or 404/405 behavior. The downstream wrapper chain remains the compatibility/enforcement runtime while #56 incrementally replaces it with explicit composition backed by parity tests.
 
 ### Request lifecycle
 
-The exact gates depend on the route, but protected requests are evaluated through the current wrapper/handler chain using the following concerns:
+The exact gates depend on the route, but protected requests are evaluated through the current application boundary and compatibility handler graph using the following concerns:
 
 1. request routing and correlation/error handling;
 2. schema startup/boundary readiness;
@@ -248,7 +252,7 @@ Use:
 
 These are current-state constraints, not recommendations:
 
-1. **Large Worker wrapper chain and base entrypoint.** Request concerns are spread across many wrapper entries plus `worker/index.ts`; #56 tracks refactoring.
+1. **Explicit application boundary plus large compatibility Worker chain.** `worker/application.ts`/`application-router.ts` now provide one post-schema composition/classification point, while request enforcement and handlers remain spread across many compatibility wrappers plus `worker/index.ts`; #56 tracks the incremental cutover.
 2. **Actively changing frontend ownership.** Shared tokens/primitives and the AppShell foundation exist, while screen/presentation extraction has continued beyond the original shell foundation; exact ownership must be checked against current `main` rather than historical UI plans.
 3. **Local SQLite/D1-compatible ownership.** The canonical Node runtime uses a local SQLite-backed D1-compatible persistence boundary and does not establish a horizontally scaled multi-writer database architecture.
 4. **Profile-specific persistence paths.** Current Compose mounts the shared `dashboard-data` volume at `/data` in the dashboard service and `/portal-data` in the recovery profile; both paths refer to the same persistent volume.

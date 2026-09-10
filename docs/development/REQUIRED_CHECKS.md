@@ -2,79 +2,95 @@
 
 This repository keeps three stable branch-protection contexts for pull requests targeting `main`:
 
-- `CI / Required CI` — aggregate gate over deterministic test discovery/shard validation, documentation consistency, dependency policy, lint/build, runtime-image Trivy scanning, all server-test shards, and recovery-container verification.
-- `Scoped E2E / scoped-e2e` — always exists for pull requests. It first validates the canonical routing contracts and planner outputs, then runs selected contract/Chromium coverage or records an intentional no-browser plan.
-- `PR Collision Guard / ownership-collision` — read-only ownership gate that compares exact changed paths with other open PRs targeting `main`; exact overlap on canonical/high-conflict ownership surfaces blocks until merge order or ownership is resolved.
+- `CI / Required CI` — stable aggregate over the canonical plan for Required CI and the jobs that plan marks required for the current diff.
+- `Scoped E2E / scoped-e2e` — always exists for pull requests. It validates browser-routing contracts/planner outputs, then runs selected contract/Chromium coverage or records an intentional no-browser plan.
+- `PR Collision Guard / ownership-collision` — read-only ownership gate that compares exact changed paths with other open PRs targeting `main`.
 
-Branch protection for `main` should require all three contexts. Dynamic shard job names should not be configured as individual required checks; `CI / Required CI` is the stable aggregate for them.
+Branch protection should require all three stable contexts. Dynamic shard jobs are not required contexts individually.
 
-## Required CI composition
+## Required CI planning
 
-`CI / Required CI` currently waits for these boundaries:
+`scripts/ci-required-plan.mjs` projects the canonical changed-input semantics into Required CI job requirements. It reuses `parseChangedInputs` from `scripts/auth-e2e-scope.mjs`, including NUL-delimited rename/delete-safe parsing. `.github/workflows/ci.yml` prepares the full pull-request diff from merge-base to head; it does not classify only the last commit.
 
-1. `discover-tests` — finds top-level `tests/*.test.mjs` and validates deterministic shard membership;
-2. `docs-consistency` — checks active documentation contracts;
-3. `dependency-security` — validates dependency security policy and conditionally performs live audit/SBOM work under the current policy;
-4. `build` — installs dependencies, validates the production dependency tree, lints and builds the product;
-5. `container-security` — builds the final runtime image and scans fixable HIGH/CRITICAL vulnerabilities;
-6. `test` — executes every discovered server test exactly once in the normal server-test matrix;
-7. `recovery-compose` — verifies recovery contracts, the isolated recovery image and disposable named-volume smoke.
+The plan is versioned and includes changed inputs, execution mode, per-job booleans and reasons. `scripts/ci-required-gate.mjs` compares actual terminal job results with those booleans. YAML does not contain a second docs allowlist or a second success interpretation.
 
-A failure in any required boundary fails the stable aggregate check. Epic #560 may optimize when these jobs run, but only through later fail-closed planner integration; task #562 does not skip existing CI jobs.
+## Ordinary documentation-only fast path
 
-## Canonical plan contract
+The positive allowlist is deliberately narrow and limited to user-facing Knowledge Base prose:
 
-`scripts/auth-e2e-scope.mjs` is the executable canonical plan for risk-based integration/browser routing. `tests/auth/auth-e2e-routing.test.mjs` and `tests/architecture/test-scope-routing.test.mjs` protect the contract.
+- `docs/guide/README.md`;
+- Markdown below `docs/guide/getting-started/**`, `user/**`, `operator/**`, `administrator/**`, `support/**`, `concepts/**` or `troubleshooting/**`.
 
-For pull requests the workflow uses the merge-base of the current base/head and evaluates the complete PR diff with name status and rename detection. Both sides of rename/copy records are classified; deletions are classified by their removed path. Base-only changes are therefore not attributed to a PR.
+The root `README.md`, `docs/README.md`, `docs/guide/developer/**` and `docs/guide/operations/**` remain on full CI because their current content includes development, deployment, security, testing or operational instructions. Testing/development policy, AI instructions, security/operations references, workflows, executable examples/fixtures and any mixed documentation + non-documentation PR are also not ordinary docs-only.
 
-The planner exposes:
+For an allowed docs-only PR these jobs remain required:
 
-- scoped versus full-regression mode and the full-fallback reason;
-- changed inputs and selected categories;
-- browser specs and contract tests;
-- the current required-job inventory;
-- decision reasons rendered to `GITHUB_STEP_SUMMARY` from the same plan.
+1. `plan` — computes and validates the canonical Required CI plan;
+2. `discover-tests` — preserves deterministic repository test-inventory/shard validation without installing dependencies;
+3. `docs-consistency` — runs `npm run docs:check`; this script uses Node core APIs and does not require `npm ci`;
+4. `dependency-security` — preserves deterministic dependency-policy/allowlist validation; live audit/SBOM remains conditional on dependency inputs;
+5. `required` / `Required CI` — verifies the plan and all actual results.
 
-Planner failure, invalid diff input, missing mandatory outputs or inability to prepare the PR diff blocks the Scoped E2E check. An intentional no-browser result is valid only after a successful canonical plan explicitly selects no browser specs.
+The fast path may mark `build`, `test`, `container-security` and `recovery-compose` not required. That means no product `npm ci`/build, no eight server-test shard jobs, and no runtime/recovery Docker builds for confirmed ordinary prose-only changes.
 
-## Browser routing examples
+No workflow-level `paths-ignore` is used, so `Required CI` is always created for pull requests.
 
-| Representative change | Canonical plan |
+## Fail-closed aggregate semantics
+
+`CI / Required CI` runs with `if: always()` and checks the planner result before parsing the plan. The gate accepts only these states:
+
+- plan says **required** → job result must be `success`;
+- plan says **not required** → job result may be `success` or `skipped`;
+- `failure` or `cancelled` never becomes a successful intentional skip;
+- missing/unknown result, missing requirement, malformed/missing plan or failed planner blocks the aggregate.
+
+A required job reporting `skipped` also blocks the aggregate. This prevents dependency-chain skips, expression mistakes or broken planner outputs from silently satisfying branch protection.
+
+## Full CI path
+
+All non-docs-only pull requests retain the existing complete CI topology:
+
+1. deterministic test discovery;
+2. documentation consistency;
+3. dependency security policy and conditional live audit/SBOM;
+4. dependency install, production dependency-tree validation, lint and build;
+5. runtime-image vulnerability scan;
+6. every discovered Node/server test exactly once through the shard matrix;
+7. recovery contracts, isolated recovery image and named-volume smoke;
+8. stable aggregate verification.
+
+Pushes to `main` force full CI regardless of changed paths. The docs-only fast path is therefore PR-only and cannot reduce post-merge `main` verification.
+
+## Browser planner contract
+
+`scripts/auth-e2e-scope.mjs` remains the canonical browser/risk planner. `tests/auth/auth-e2e-routing.test.mjs` and `tests/architecture/test-scope-routing.test.mjs` protect browser routing. It uses full PR merge-base diff semantics, evaluates additions/deletions and both sides of rename/copy records, and conservatively expands unknown runtime-sensitive paths.
+
+Browser routing examples remain:
+
+| Representative change | Browser plan |
 | --- | --- |
 | `src/auth/local-auth.ts` | auth browser coverage |
 | `src/auth/portal-request-context.ts` | auth + RBAC browser coverage |
 | `src/freeipa/freeipa-user-query.ts` | FreeIPA browser coverage |
-| `app/**` known feature/UI component | owning functional category + UI as applicable |
 | `db/**` schema change | schema contracts; no unrelated browser category by default |
 | `fixtures/compose/e2e.yaml`, `fixtures/env/e2e.example` | full browser regression |
-| dependency graph/lockfile, runtime/build package script | full browser regression |
-| recognized `package.json` server-test/docs/lint script only | no automatic full browser regression |
-| routing policy / E2E workflow / E2E runner | full browser regression |
-| documentation-only change | routing contract only; browser skipped by explicit plan |
+| dependency graph/lockfile or runtime/build package script | full browser regression |
+| ordinary allowlisted guide prose | no browser suite after routing contract |
 | unknown runtime-sensitive path | conservative full browser regression |
-| push to `main`, manual dispatch, weekly schedule | full browser regression |
+| push to `main`, manual dispatch or schedule | full browser regression |
 
 ## Server test sharding
 
-`scripts/ci-test-shards.mjs` normalizes and sorts discovered test paths, distributes them round-robin into at most eight shards, and fails closed if shard membership contains a missing, duplicate or unexpected test file. Shard-count optimization belongs to #564 and must use measured before/after evidence from `docs/development/CI_BASELINE.md`.
-
-Each shard uploads its own short-lived TAP log. Recovery contracts may also appear in the independent recovery gate because that job proves container/volume behavior in addition to ordinary server-test execution.
+`scripts/ci-test-shards.mjs` normalizes and sorts discovered test paths, distributes them round-robin into at most eight deterministic shards, and fails closed on missing, duplicate or unexpected membership. Shard-count optimization belongs to #564 and must use `docs/development/CI_BASELINE.md` evidence; #563 does not reduce the test inventory for code changes.
 
 ## Security artifacts
 
-Dependency/SBOM and runtime-image scan behavior is governed by the active CI workflow and security policy. Sharding/routing optimization must never remove, bypass or downgrade required security coverage. Scheduled dependency/image security work is owned by #566.
+Dependency/SBOM and runtime-image scan behavior remains governed by the active CI/security policy. The docs-only fast path does not classify package/security policy changes as ordinary prose. Scheduled dependency/image security work remains owned by #566.
 
-## PR ownership collision guard
+## Concurrency and artifacts
 
-`scripts/pr-collision-guard.mjs` is the canonical policy/analyzer for the stable `PR Collision Guard / ownership-collision` check. The workflow has only `contents: read` and `pull-requests: read` permissions and evaluates open PRs targeting `main`.
+Obsolete pull-request runs may be cancelled when a newer commit is pushed to the same PR. `main` runs are not cancelled by newer runs. Full browser runs keep sanitized Playwright artifacts under the existing retention policy; docs-only runs do not create browser/Docker/build artifacts that were not executed.
 
-Blocking exact-path overlap on canonical/high-conflict ownership surfaces must be resolved through explicit merge/dependency order, scope narrowing or replay after the owning PR merges. Do not weaken the collision policy merely to make CI green.
+## Regression contracts
 
-## Concurrency
-
-Obsolete pull-request runs may be cancelled when a newer commit is pushed to the same PR. `main`, manual and scheduled runs are not cancelled by newer runs; each retains its own verification evidence.
-
-## Artifacts
-
-Full browser runs keep the existing sanitized Playwright report, test results and Compose log for 14 days. Documentation-only or other intentional no-browser plans do not create those heavy artifacts because Chromium is not executed.
+`tests/architecture/ci-required-plan.test.mjs` covers the positive docs allowlist, exclusions, mixed diffs, full-main behavior, empty-diff failure, planner/gate missing data, unknown results, required skip/failure/cancellation, unauthorized failure of skipped jobs and stable workflow trigger/gate structure.

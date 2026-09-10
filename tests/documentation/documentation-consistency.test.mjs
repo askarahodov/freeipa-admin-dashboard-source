@@ -32,5 +32,6 @@ test('documentation consistency guard is available locally and required by CI', 
   assert.equal(packageJson.scripts['docs:check'], 'node scripts/documentation-consistency.mjs');
   assert.match(ciSource, /docs-consistency:/);
   assert.match(ciSource, /npm run docs:check/);
-  assert.match(ciSource, /needs: \[discover-tests, docs-consistency, dependency-security, build, container-security, recovery-compose, test\]/);
+  assert.match(ciSource, /needs: \[plan, discover-tests, docs-consistency, dependency-security, build, container-security, recovery-compose, test\]/);
+  assert.match(ciSource, /DOCS_RESULT: \$\{\{ needs\.docs-consistency\.result \}\}/);
 });

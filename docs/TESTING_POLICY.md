@@ -2,17 +2,32 @@
 
 This repository uses **risk-based test selection**. A pull request must run the cheapest tests that prove the changed behavior, plus any tests required by the affected runtime boundary. Do not run unrelated browser suites merely because a file lives under `app/`, `tests/`, `scripts/`, `worker/`, or `db/`.
 
-The executable canonical planner is `scripts/auth-e2e-scope.mjs`. The planner owns path classification, package-semantic classification, selected browser categories, contract tests, full-regression fallback reasons, required-job inventory and the human-readable Actions summary. Workflows must consume this plan instead of maintaining an independent copy of the same policy.
+The executable canonical browser/risk planner is `scripts/auth-e2e-scope.mjs`. `scripts/ci-required-plan.mjs` is the Required CI projection for job execution and reuses the canonical changed-input parser instead of inventing independent diff semantics. `scripts/ci-required-gate.mjs` validates actual job results against that plan. Workflows must consume these executable contracts rather than duplicating allowlists or fail-open result logic in YAML.
 
-## Always-on pull request checks
+## Pull request CI policy
 
-The normal CI remains the baseline for every code change: install/lockfile validation, lint, build, security checks, unit/contract test shards, and the stable aggregate `Required CI` check. Browser E2E is an additional risk check, not a replacement for build or unit tests. Epic #560 does not weaken these jobs until a later task explicitly changes their execution policy with fail-closed gates.
+Every pull request still creates the stable `CI / Required CI` aggregate. Code, runtime, policy, executable example/fixture, developer-instruction and mixed changes use the complete current CI path. Browser E2E remains an additional risk check, not a replacement for build or unit tests.
+
+A narrowly defined **ordinary documentation-only** fast path is allowed only when every changed path is user-facing Knowledge Base prose in this positive allowlist:
+
+- `docs/guide/README.md`;
+- Markdown below `docs/guide/getting-started/**`, `user/**`, `operator/**`, `administrator/**`, `support/**`, `concepts/**` or `troubleshooting/**`.
+
+The root `README.md`, `docs/README.md`, `docs/guide/developer/**` and `docs/guide/operations/**` are deliberately excluded because current repository content there includes development, deployment, security, testing or operational instructions. Testing/development policy, AI instructions, security/operations reference material, workflow files, executable examples/fixtures and anything outside the allowlist are not classified as ordinary docs-only. A mixed docs + runtime diff is never docs-only.
+
+For an ordinary docs-only pull request, Required CI still runs the canonical planner, deterministic test discovery, documentation consistency and dependency-security policy validation. It may intentionally skip the product build, server-test matrix, runtime-image Docker scan and recovery-container job. None of these skips is accepted merely because GitHub reports `skipped`: the aggregate gate accepts a skip only when the successful canonical CI plan marks that exact job not required.
 
 ## Pull-request diff semantics
 
 For pull requests, routing is based on the full PR change from the **merge-base of the current base and head** to the PR head. This avoids treating changes that exist only on an advanced base branch as if the PR introduced them, while still covering all commits in the PR.
 
-The input includes git change status. Additions, modifications and deletions are evaluated. For rename/copy records both the old and new paths are evaluated, so a rename cannot escape the policy by moving a sensitive file to or from a different boundary. If merge-base/diff generation fails or the planner receives invalid diff records, the workflow fails closed instead of reporting an empty successful plan.
+The input includes git change status. Additions, modifications and deletions are evaluated. For rename/copy records both the old and new paths are evaluated, so a rename cannot escape the policy by moving a sensitive file to or from a different boundary. Workflows use NUL-delimited `git diff --name-status -z --find-renames` input so unusual pathnames are preserved. If merge-base/diff generation fails, a planner receives invalid input, or a pull-request diff is unexpectedly empty, the stable gate fails closed.
+
+## Required CI gate semantics
+
+`CI / Required CI` verifies the successful planner result, a versioned plan payload and terminal results for every governed job. A job marked required must finish `success`. A job marked not required may finish only `success` or `skipped`; failure/cancellation is never converted into success. Missing plan fields, missing/unknown job results, required `skipped`, required `cancelled`, required `failure`, malformed JSON and planner failure all block the aggregate.
+
+The workflow does not use workflow-level `paths-ignore`, so the stable required status is created for docs-only PRs instead of remaining permanently pending.
 
 ## Browser E2E categories
 
@@ -47,13 +62,11 @@ A change to `package.json` is not automatically equivalent to a full browser-run
 - unknown semantic top-level fields are conservative and require full regression;
 - if base/head package data cannot be compared, the planner requires full regression.
 
-This distinction only scopes browser coverage. Outside an explicitly approved later policy change, the normal Node/CI suite remains required for code changes.
+This distinction scopes browser coverage only. `package.json` is outside the ordinary docs-only allowlist, so Required CI remains complete for any package manifest change.
 
-## Explainable plan
+## Explainable plans
 
-Every Scoped E2E run writes `GITHUB_STEP_SUMMARY` from the same canonical plan used for machine outputs. The summary shows changed inputs, scoped/full mode, full-fallback reason, selected categories/specs/contracts, required jobs and decision reasons. It must not contain secrets or a separately maintained classification table.
-
-The workflow validates that mandatory planner outputs exist. Missing/invalid outputs, planner exceptions, invalid diff records or failed diff preparation fail the stable check rather than being interpreted as an intentional skip.
+Scoped E2E and Required CI write `GITHUB_STEP_SUMMARY` from their executable plan. The summaries show selected mode, required coverage/jobs and decision reasons without secrets. Missing/invalid outputs or failed diff preparation fail the stable checks rather than being interpreted as intentional skips.
 
 ## Agent workflow
 
@@ -61,9 +74,9 @@ Before changing code, every human or AI agent must:
 
 1. Identify the changed files and the functional/risk boundaries they belong to.
 2. Run focused unit/contract tests for the code being changed while developing.
-3. Use the repository canonical planner for integration/browser coverage; do not manually add unrelated E2E suites "just in case".
-4. If a changed runtime path has no routing rule, extend the canonical planner and its contract tests in the same PR.
+3. Use the repository executable planners for CI/browser coverage; do not manually add or remove suites "just in case".
+4. If a changed runtime path has no routing rule, extend the canonical browser planner and its contract tests in the same PR.
 5. If a test outside the selected category fails, first verify whether it is actually coupled to the change. Do not weaken or delete valid tests to make an unrelated PR green.
 6. For shared infrastructure or cross-cutting runtime changes, deliberately request full regression.
 
-The routing contracts are `tests/auth/auth-e2e-routing.test.mjs` and `tests/architecture/test-scope-routing.test.mjs`.
+Routing/gate contracts are protected by `tests/auth/auth-e2e-routing.test.mjs`, `tests/architecture/test-scope-routing.test.mjs` and `tests/architecture/ci-required-plan.test.mjs`.

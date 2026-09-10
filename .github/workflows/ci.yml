@@ -14,7 +14,60 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  plan:
+    name: Canonical CI plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      plan_json: ${{ steps.scope.outputs.plan_json }}
+      docs_only: ${{ steps.scope.outputs.docs_only }}
+      discover_tests: ${{ steps.scope.outputs.discover_tests }}
+      docs_consistency: ${{ steps.scope.outputs.docs_consistency }}
+      dependency_security: ${{ steps.scope.outputs.dependency_security }}
+      build: ${{ steps.scope.outputs.build }}
+      container_security: ${{ steps.scope.outputs.container_security }}
+      recovery_compose: ${{ steps.scope.outputs.recovery_compose }}
+      test: ${{ steps.scope.outputs.test }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          show-progress: false
+          fetch-depth: 0
+
+      - id: scope
+        name: Determine canonical Required CI plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          changed="$RUNNER_TEMP/ci-changed-inputs.bin"
+          planner_args=(--github-output "$GITHUB_OUTPUT" --github-step-summary "$GITHUB_STEP_SUMMARY")
+          if [[ "${{ github.event_name }}" != "pull_request" ]]; then
+            : > "$changed"
+            node scripts/ci-required-plan.mjs "${planner_args[@]}" --full "$changed"
+            exit 0
+          fi
+          base_sha="${{ github.event.pull_request.base.sha }}"
+          head_sha="${{ github.event.pull_request.head.sha }}"
+          merge_base="$(git merge-base "$base_sha" "$head_sha")"
+          test -n "$merge_base"
+          git diff --name-status -z --find-renames "$merge_base" "$head_sha" > "$changed"
+          node scripts/ci-required-plan.mjs "${planner_args[@]}" "$changed"
+
+      - name: Validate mandatory planner outputs
+        shell: bash
+        env:
+          PLAN_JSON: ${{ steps.scope.outputs.plan_json }}
+          DOCS_ONLY: ${{ steps.scope.outputs.docs_only }}
+        run: |
+          set -euo pipefail
+          test -n "$PLAN_JSON"
+          [[ "$DOCS_ONLY" == "true" || "$DOCS_ONLY" == "false" ]]
+          node -e 'const plan=JSON.parse(process.env.PLAN_JSON); if (plan.version !== 1 || !plan.jobs) process.exit(1)'
+
   discover-tests:
+    needs: plan
+    if: needs.plan.result == 'success' && needs.plan.outputs.discover_tests == 'true'
     runs-on: ubuntu-latest
     outputs:
       shards: ${{ steps.list.outputs.shards }}
@@ -38,6 +91,8 @@ jobs:
 
   docs-consistency:
     name: Documentation consistency
+    needs: plan
+    if: needs.plan.result == 'success' && needs.plan.outputs.docs_consistency == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -56,6 +111,8 @@ jobs:
 
   dependency-security:
     name: Dependency security
+    needs: plan
+    if: needs.plan.result == 'success' && needs.plan.outputs.dependency_security == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -116,6 +173,8 @@ jobs:
           retention-days: 14
 
   build:
+    needs: plan
+    if: needs.plan.result == 'success' && needs.plan.outputs.build == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -164,7 +223,8 @@ jobs:
 
   container-security:
     name: Runtime image security
-    needs: build
+    needs: [plan, build]
+    if: ${{ always() && needs.plan.result == 'success' && needs.plan.outputs.container_security == 'true' && needs.build.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -201,7 +261,8 @@ jobs:
 
   recovery-compose:
     name: Test recovery container and volume
-    needs: build
+    needs: [plan, build]
+    if: ${{ always() && needs.plan.result == 'success' && needs.plan.outputs.recovery_compose == 'true' && needs.build.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -230,7 +291,8 @@ jobs:
 
   test:
     name: Test shard ${{ matrix.shard.name }}
-    needs: [discover-tests, build]
+    needs: [plan, discover-tests, build]
+    if: ${{ always() && needs.plan.result == 'success' && needs.plan.outputs.test == 'true' && needs.discover-tests.result == 'success' && needs.build.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -285,12 +347,19 @@ jobs:
   required:
     name: Required CI
     if: always()
-    needs: [discover-tests, docs-consistency, dependency-security, build, container-security, recovery-compose, test]
+    needs: [plan, discover-tests, docs-consistency, dependency-security, build, container-security, recovery-compose, test]
     runs-on: ubuntu-latest
     steps:
-      - name: Verify all required CI jobs succeeded
+      - name: Checkout gate contract
+        uses: actions/checkout@v4
+        with:
+          show-progress: false
+
+      - name: Verify canonical plan and required CI results
         shell: bash
         env:
+          PLAN_RESULT: ${{ needs.plan.result }}
+          PLAN_JSON: ${{ needs.plan.outputs.plan_json }}
           DISCOVER_RESULT: ${{ needs.discover-tests.result }}
           DOCS_RESULT: ${{ needs.docs-consistency.result }}
           SECURITY_RESULT: ${{ needs.dependency-security.result }}
@@ -300,9 +369,7 @@ jobs:
           TEST_RESULT: ${{ needs.test.result }}
         run: |
           set -euo pipefail
-          for result in "$DISCOVER_RESULT" "$DOCS_RESULT" "$SECURITY_RESULT" "$BUILD_RESULT" "$CONTAINER_RESULT" "$RECOVERY_RESULT" "$TEST_RESULT"; do
-            if [[ "$result" != "success" ]]; then
-              echo "A required CI dependency finished with result: $result"
-              exit 1
-            fi
-          done
+          [[ "$PLAN_RESULT" == "success" ]]
+          test -n "$PLAN_JSON"
+          results="$(node -e 'process.stdout.write(JSON.stringify({"discover-tests":process.env.DISCOVER_RESULT,"docs-consistency":process.env.DOCS_RESULT,"dependency-security":process.env.SECURITY_RESULT,build:process.env.BUILD_RESULT,"container-security":process.env.CONTAINER_RESULT,"recovery-compose":process.env.RECOVERY_RESULT,test:process.env.TEST_RESULT}))')"
+          node scripts/ci-required-gate.mjs "$PLAN_JSON" "$results"

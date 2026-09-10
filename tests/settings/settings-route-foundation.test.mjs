@@ -52,8 +52,9 @@ test("presentation route migrates the existing JSON contract onto local admin se
   assert.match(presentationPage, /JSON\.parse\(text\)/u);
   assert.match(presentationPage, /hasUnsavedChanges=\{dirty\}/u);
   assert.match(presentationPage, /beforeunload/u);
-  assert.match(presentationPage, /#32/u);
-  assert.doesNotMatch(presentationPage, /ADMIN_TOKEN|x-admin-token|sessionStorage|localStorage/u);
+  assert.match(presentationPage, /loaded && text !== baseline/u);
+  assert.match(presentationPage, /admin && loaded/u);
+  assert.doesNotMatch(presentationPage, /Date\.now\(\)|ADMIN_TOKEN|x-admin-token|sessionStorage|localStorage/u);
 });
 
 test("settings route shell exposes only implemented routes and guards dirty navigation", () => {

@@ -24,7 +24,7 @@ import LocalAdminSessionBridge from "./shell/LocalAdminSessionBridge";
 import SettingsLifecycleWizard from "./SettingsLifecycleWizard";
 import PortalInteractionLayer from "./PortalInteractionLayer";
 import { ToastProvider } from "./ui/Toast";
-import FreeIpaUserBrowser from "./FreeIpaUserBrowser";
+import FreeIpaUserBrowser from "./directory/FreeIpaUserBrowser";
 import FreeIpaGroupMemberBrowser from "./directory/FreeIpaGroupMemberBrowser";
 import OperationExplorer from "./operations/OperationExplorer";
 

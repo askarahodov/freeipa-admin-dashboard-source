@@ -76,7 +76,7 @@ test("CI runs one validated sharded server-test pass and preserves all security 
   assert.match(ciWorkflow, /--test-concurrency=1/u);
   assert.match(ciWorkflow, /server-shard-\$\{SHARD_NAME\}\.tap/u);
   assert.match(ciWorkflow, /server-shard-\$\{\{ matrix\.shard\.name \}\}-log/u);
-  assert.match(ciWorkflow, /recovery-compose:[\s\S]*?needs:\s*build/u);
+  assert.match(ciWorkflow, /recovery-compose:[\s\S]*?needs:\s*\[plan, build\]/u);
 
   assert.match(ciWorkflow, /\n  docs-consistency:\n/u);
   assert.match(ciWorkflow, /npm run docs:check/u);
@@ -85,8 +85,10 @@ test("CI runs one validated sharded server-test pass and preserves all security 
   assert.match(ciWorkflow, /security:sbom/u);
   assert.match(ciWorkflow, /\n  container-security:\n/u);
   assert.match(ciWorkflow, /aquasecurity\/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25/u);
-  assert.match(ciWorkflow, /needs:\s*\[discover-tests, docs-consistency, dependency-security, build, container-security, recovery-compose, test\]/u);
+  assert.match(ciWorkflow, /needs:\s*\[plan, discover-tests, docs-consistency, dependency-security, build, container-security, recovery-compose, test\]/u);
   assert.match(ciWorkflow, /DOCS_RESULT:\s*\$\{\{ needs\.docs-consistency\.result \}\}/u);
   assert.match(ciWorkflow, /SECURITY_RESULT:\s*\$\{\{ needs\.dependency-security\.result \}\}/u);
   assert.match(ciWorkflow, /CONTAINER_RESULT:\s*\$\{\{ needs\.container-security\.result \}\}/u);
+  assert.match(ciWorkflow, /PLAN_RESULT:\s*\$\{\{ needs\.plan\.result \}\}/u);
+  assert.match(ciWorkflow, /node scripts\/ci-required-gate\.mjs/u);
 });

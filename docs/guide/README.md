@@ -6,7 +6,7 @@
 
 ## Текущее состояние
 
-Foundation, Getting Started, User / Viewer, Operator и Administrator guides уже доступны; остальные ролевые разделы добавляются отдельными задачами и PR. Пока нужная статья ещё не опубликована, используйте связанные канонические инженерные документы из раздела «Связанные канонические документы» ниже.
+Foundation, Getting Started, User / Viewer, Operator, Administrator и Developer / AI agent guides уже доступны; остальные ролевые разделы добавляются отдельными задачами и PR. Пока нужная статья ещё не опубликована, используйте связанные канонические инженерные документы из раздела «Связанные канонические документы» ниже.
 
 ## Выберите свою роль
 
@@ -36,7 +36,7 @@ Foundation, Getting Started, User / Viewer, Operator и Administrator guides у�
 
 ### Developer / AI agent
 
-Раздел `developer/` запланирован в #558 и будет служить входной точкой в разработку: current-main-first workflow, source of truth, repository ownership, testing policy, PR/CI lifecycle, multi-agent collision checks и Knowledge Base impact.
+Используйте [`developer/README.md`](developer/README.md) для current-main-first разработки, source-of-truth navigation, risk-based testing, PR/CI lifecycle, multi-agent collision checks и обязательной оценки Knowledge Base impact. ИИ-агенты должны начинать обязательный порядок чтения через [`../ai/README.md`](../ai/README.md).
 
 ## Дополнительные разделы
 

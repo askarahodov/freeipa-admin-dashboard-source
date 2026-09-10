@@ -44,8 +44,15 @@ test("lowercase proxy variables take precedence and loopback gateway bypass is m
     NODE_USE_ENV_PROXY: "1",
     HTTPS_PROXY: "http://proxy.example:8080",
     NO_PROXY: "localhost,127.0.0.1",
-    no_proxy: "   ",
+    no_proxy: "",
   }, "22.21.0"), /must bypass 127\.0\.0\.1/u);
+
+  assert.throws(() => outboundProxyPolicy({
+    NODE_USE_ENV_PROXY: "1",
+    HTTPS_PROXY: "http://proxy.example:8080",
+    https_proxy: "",
+    NO_PROXY: "127.0.0.1",
+  }, "22.21.0"), /requires HTTP_PROXY\/HTTPS_PROXY/u);
 
   const policy = outboundProxyPolicy({
     NODE_USE_ENV_PROXY: "1",

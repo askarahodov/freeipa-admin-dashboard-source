@@ -19,6 +19,7 @@
 | --- | --- | --- | --- |
 | `README.md` | runtime + Compose + package/config | `verified-active` | Product overview / quick start |
 | `docs/README.md` | documentation policy + inventory | `verified-active` | Main engineering-doc index |
+| `docs/design-system/README.md` | `app/ui/index.ts` + `app/ui/forms/index.ts` + `app/ui/data-list/index.ts` + `app/styles/tokens.css` | `verified-active` | Current shared UI API, usage and governance foundation; remaining #293 slices are explicit |
 | `docs/architecture/ARCHITECTURE.md` | current runtime, Compose/startup, canonical owners/tests | `verified-active` | Production runtime and persistence resynced |
 | `docs/architecture/PROJECT_STRUCTURE.md` | repository paths + `SOURCE_OF_TRUTH.md` | `verified-active` | Module ownership map |
 | `docs/architecture/MODULE_COVERAGE.md` | module boundaries + local READMEs + scoped tests | `verified-active` | Central-vs-local documentation coverage |
@@ -103,6 +104,7 @@ Normalized references orient humans and agents; they do not replace runtime/doma
 - XYOps ownership/inspection/presentation contracts.
 - P0/local acceptance entrypoints.
 - ADR/navigation/AI-agent precedence rules.
+- Shared UI tokens, public primitives and design-system governance foundation.
 
 Machine-readable ownership status:
 

@@ -44,6 +44,7 @@ export default function VisibilitySettingsPage() {
   const [loaded, setLoaded] = useState(false);
   const [text, setText] = useState(serialize(emptyPolicy));
   const [baseline, setBaseline] = useState(serialize(emptyPolicy));
+  const [ruleCount, setRuleCount] = useState(0);
   const [source, setSource] = useState<PolicyResponse["source"]>(undefined);
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   const [busy, setBusy] = useState<"load" | "save" | null>("load");
@@ -64,6 +65,7 @@ export default function VisibilitySettingsPage() {
       const nextText = serialize(data.policy);
       setText(nextText);
       setBaseline(nextText);
+      setRuleCount(data.policy.rules.length);
       setSource(data.source ?? "default");
       setUpdatedAt(data.updatedAt ?? null);
       setLoaded(true);
@@ -116,6 +118,7 @@ export default function VisibilitySettingsPage() {
       const nextText = serialize(accepted);
       setText(nextText);
       setBaseline(nextText);
+      setRuleCount(accepted.rules.length);
       setSource(data.source ?? "database");
       setUpdatedAt(data.updatedAt ?? null);
       setMessage("Политики видимости сохранены.");
@@ -155,7 +158,7 @@ export default function VisibilitySettingsPage() {
         </label>
         <div className={styles.meta}>
           <span>Состояние: <strong>{dirty ? "есть несохранённые изменения" : "синхронизировано"}</strong></span>
-          <span>Правил в JSON: <strong>{isCatalogPolicySet(JSON.parse(baseline)) ? JSON.parse(baseline).rules.length : 0}</strong></span>
+          <span>Правил в сохранённой политике: <strong>{ruleCount}</strong></span>
           <span>{updatedAt ? `Сохранено: ${new Date(updatedAt).toLocaleString("ru-RU")}` : "D1 override отсутствует"}</span>
         </div>
         <div className={styles.actions}>

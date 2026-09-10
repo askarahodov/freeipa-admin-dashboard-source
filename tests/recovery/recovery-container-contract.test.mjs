@@ -31,6 +31,16 @@ test("Dockerfile contains a dedicated non-root recovery target", () => {
   assert.doesNotMatch(target, /ENV[^\n]*(?:ADMIN_TOKEN|CONFIG_ENCRYPTION_KEY|PASSWORD)/u);
 });
 
+test("Recovery image copies only the recovery execution source closure", () => {
+  const target = dockerTarget(dockerfile, "FROM dependencies AS recovery");
+  assert.doesNotMatch(target, /^COPY(?:\s+--[^\n]+)?\s+\.\s+\./mu);
+  assert.match(target, /COPY --chown=recovery:recovery scripts\/portal-recovery\.ts \.\/scripts\/portal-recovery\.ts/u);
+  assert.match(target, /COPY --chown=recovery:recovery src\/recovery \.\/src\/recovery/u);
+  assert.match(target, /COPY --chown=recovery:recovery src\/backup \.\/src\/backup/u);
+  assert.match(target, /COPY --chown=recovery:recovery db\/portal-schema\.ts \.\/db\/portal-schema\.ts/u);
+  assert.doesNotMatch(target, /COPY[^\n]+(?:app|worker|runtime|tests|docs)(?:\/|\s)/u);
+});
+
 test("Compose recovery profile is opt-in and shares only bounded mounts", () => {
   const service = recoveryService(compose);
   assert.match(service, /profiles:\s*\["recovery"\]/u);

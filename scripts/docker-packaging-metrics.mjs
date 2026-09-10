@@ -1,4 +1,4 @@
-import { createReadStream, readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
 import { execFileSync, spawn } from "node:child_process";
@@ -125,6 +125,10 @@ export async function collectDockerPackagingMetrics({ image, target, buildLog, s
   if (!Array.isArray(inspect) || inspect.length !== 1) throw new Error(`Expected exactly one Docker image for ${image}`);
   const imageInfo = inspect[0];
   const dockerVersion = dockerJson(["version", "--format", "{{json .}}"]) ?? {};
+
+  if (!Number.isFinite(imageInfo.Size) || imageInfo.Size < 0) {
+    throw new Error(`Docker image ${image} does not expose a valid logical size`);
+  }
 
   return {
     schema_version: 1,

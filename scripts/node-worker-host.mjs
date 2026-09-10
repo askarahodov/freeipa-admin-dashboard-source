@@ -3,6 +3,7 @@ import { createServer } from "node:http";
 import { resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { applyHttpSecurityHeaders } from "./http-security.mjs";
 import {
   createExecutionContext,
   createStaticAssetsFetcher,
@@ -89,6 +90,10 @@ export async function startNodeWorkerHost(options = {}) {
   const activeContexts = new Set();
   let closing = false;
 
+  const writeSecuredResponse = async (responseStream, webRequest, webResponse) => {
+    await writeWebResponse(responseStream, applyHttpSecurityHeaders(webRequest, webResponse, runtimeEnv));
+  };
+
   const server = createServer(async (request, responseStream) => {
     if (closing) {
       responseStream.statusCode = 503;
@@ -102,7 +107,7 @@ export async function startNodeWorkerHost(options = {}) {
     if ((webRequest.method === "GET" || webRequest.method === "HEAD") && new URL(webRequest.url).pathname.includes(".")) {
       const assetResponse = await assets.fetch(webRequest);
       if (assetResponse.status !== 404) {
-        await writeWebResponse(responseStream, assetResponse);
+        await writeSecuredResponse(responseStream, webRequest, assetResponse);
         return;
       }
     }
@@ -111,7 +116,7 @@ export async function startNodeWorkerHost(options = {}) {
     activeContexts.add(ctx);
     try {
       const response = await worker.fetch(webRequest, runtimeEnv, ctx);
-      await writeWebResponse(responseStream, response);
+      await writeSecuredResponse(responseStream, webRequest, response);
     } catch (error) {
       if (!responseStream.headersSent) {
         responseStream.statusCode = 500;

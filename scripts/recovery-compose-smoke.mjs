@@ -29,6 +29,15 @@ function commandPlan(project, artifactRoot, secretsRoot) {
     "CREATE TABLE portal_users (id TEXT PRIMARY KEY);",
     "INSERT INTO portal_schema_migrations(version) VALUES (3);",
   ].join(" ");
+  const moduleClosureCode = [
+    "Promise.all([",
+    "import('./src/recovery/cli/recovery-cli-runtime.ts'),",
+    "import('./src/recovery/cli/recovery-cli.ts'),",
+    "import('./src/recovery/cli/recovery-runtime-command-handlers.ts')",
+    "])",
+    ".then(()=>process.stdout.write(JSON.stringify({moduleClosure:'ok'})+'\\n'))",
+    ".catch((error)=>{process.stderr.write(String(error?.code||error?.message||'smoke_failed')+'\\n');process.exit(1);});",
+  ].join("");
   const discoveryCode = [
     "import('./src/recovery/foundation/recovery-discovery.ts')",
     ".then(async ({discoverPortalDatabase}) => {",
@@ -52,6 +61,7 @@ function commandPlan(project, artifactRoot, secretsRoot) {
       compose("run", "--rm", "--entrypoint", "id", "recovery", "-u"),
       compose("run", "--rm", "--entrypoint", "which", "recovery", "sqlite3"),
       compose("run", "--rm", "--entrypoint", "which", "recovery", "flock"),
+      compose("run", "--rm", "--entrypoint", "node", "recovery", "--experimental-strip-types", "-e", moduleClosureCode),
       compose("run", "--rm", "--entrypoint", "mkdir", "recovery", "-p", "/portal-data/state/v3/d1"),
       compose("run", "--rm", "--entrypoint", "sqlite3", "recovery", "/portal-data/state/v3/d1/fixture.sqlite", sql),
       compose("run", "--rm", "--entrypoint", "node", "recovery", "--experimental-strip-types", "-e", discoveryCode),
@@ -125,7 +135,7 @@ async function execute() {
     return;
   }
 
-  const summary = { image: "pending", uid: null, sqlite: "pending", flock: "pending", discovery: "pending", integrity: "pending", contention: "pending", cleanup: "pending" };
+  const summary = { image: "pending", uid: null, sqlite: "pending", flock: "pending", moduleClosure: "pending", discovery: "pending", integrity: "pending", contention: "pending", cleanup: "pending" };
   try {
     for (let index = 0; index < plan.commands.length; index += 1) {
       const entry = plan.commands[index];
@@ -137,11 +147,12 @@ async function execute() {
       }
       if (index === 2) summary.sqlite = result.stdout.includes("sqlite3") ? "ok" : "invalid";
       if (index === 3) summary.flock = result.stdout.includes("flock") ? "ok" : "invalid";
-      if (index === 6) {
+      if (index === 4) summary.moduleClosure = JSON.parse(result.stdout.trim()).moduleClosure;
+      if (index === 7) {
         const parsed = JSON.parse(result.stdout.trim());
         summary.discovery = String(parsed.database).endsWith("/state/v3/d1/fixture.sqlite") ? "ok" : "invalid";
       }
-      if (index === 7) summary.integrity = JSON.parse(result.stdout.trim()).integrity;
+      if (index === 8) summary.integrity = JSON.parse(result.stdout.trim()).integrity;
     }
 
     const holder = spawn(plan.holder.command, plan.holder.args, {
@@ -178,7 +189,7 @@ async function execute() {
     summary.cleanup = cleanup.code === 0 ? "ok" : "failed";
     await rm(root, { recursive: true, force: true });
   }
-  if (Object.values(summary).includes("invalid") || summary.cleanup !== "ok") throw new Error("recovery_compose_smoke_failed");
+  if (Object.values(summary).includes("invalid") || Object.values(summary).includes("pending") || summary.cleanup !== "ok") throw new Error("recovery_compose_smoke_failed");
   process.stdout.write(`${JSON.stringify(summary)}\n`);
 }
 

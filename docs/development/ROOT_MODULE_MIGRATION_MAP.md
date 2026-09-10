@@ -1,14 +1,16 @@
 # Root TypeScript module migration record
 
-Status: **completed migration record for Epic #246 / inventory #251**.
+Status: **historical completion record for Epic #246 / inventory #251, with current residual defects tracked separately**.
 
-This document records the completed migration of the selected root production-module families into explicit `src/` domain ownership. It is **not an active execution plan**, not a runtime contract and not a source of new backlog. For current repository ownership use [`../architecture/PROJECT_STRUCTURE.md`](../architecture/PROJECT_STRUCTURE.md); for current work use GitHub Issues and active PRs.
+This document records the completed migration program that moved selected root production-module families into explicit `src/` domain ownership. It is **not an active execution plan**, not a runtime contract and not a source of new backlog. For current repository ownership use [`../architecture/PROJECT_STRUCTURE.md`](../architecture/PROJECT_STRUCTURE.md); for current work use GitHub Issues and active PRs.
+
+A closed migration issue is historical status, not proof that every current consumer is still correct. During #539 reconciliation, current `main` revealed one stale backup type import to a removed root path; that bounded cleanup is tracked by #579 and is called out below rather than hidden by the historical completion state.
 
 ## Why this record exists
 
-The migration program reduced ambiguous root-level production ownership without changing product behavior. Structural moves were executed in dependency-closed slices with import, routing, security and behavior contracts preserved.
+The migration program reduced ambiguous root-level production ownership without intending to change product behavior. Structural moves were executed in dependency-closed slices with import, routing, security and behavior contracts preserved.
 
-The final ownership model established by the completed slices is:
+The ownership model established by the program is:
 
 ```text
 src/
@@ -65,11 +67,13 @@ Preserved contracts:
 
 ### Backup → `src/backup/`
 
-Completed by #265 and its dependency-closed follow-up slices.
+Issue #265 is closed/completed and canonical backup ownership is under explicit `src/backup/` subdomains covering projection/preview, export, manifest/domain contracts, restore planning/staging/selection, selective restore and encryption.
 
-Backup ownership is canonical under explicit `src/backup/` subdomains covering projection/preview, export, manifest/domain contracts, restore planning/staging/selection, selective restore and encryption. Temporary root compatibility shims were removed after active consumers migrated.
+Current-main reconciliation for #539 found a residual stale active consumer: `src/backup/restore/backup-restore-plan.ts` still imports the `EncryptedBackupDocument` type from removed root path `../../../backup-encrypted-export.ts`, while the canonical module is `src/backup/export/backup-encrypted-export.ts`. The root file is absent. This is tracked as bounded cleanup #579.
 
-Preserved contracts:
+Therefore the historical migration issue remains completed, but documentation must not claim that every current backup consumer is fully reconciled until #579 is merged and verified.
+
+Preserved contracts expected from the migration and #579 cleanup:
 
 - backup formats/manifests;
 - encryption compatibility and secret boundaries;
@@ -108,15 +112,15 @@ Preserved contracts:
 
 ## Completion matrix
 
-| Migration family | Issue | Current status | Canonical owner |
-| --- | ---: | --- | --- |
-| FreeIPA helpers | #253 | completed | `src/freeipa/` |
-| Operations/catalog | #262 | completed | `src/operations/` |
-| Storage read/integrity | #263 | completed | `src/storage/` |
-| Storage migration mutation path | #264 | completed | `src/storage/` + canonical schema in `db/` |
-| Backup | #265 | completed | `src/backup/` |
-| Recovery/maintenance | #266 | completed | `src/recovery/` |
-| Auth/access/contracts | #267 | completed | `src/auth/` |
+| Migration family | Historical issue status | Current reconciliation | Canonical owner |
+| --- | --- | --- | --- |
+| FreeIPA helpers | #253 completed | reconciled | `src/freeipa/` |
+| Operations/catalog | #262 completed | reconciled | `src/operations/` |
+| Storage read/integrity | #263 completed | reconciled | `src/storage/` |
+| Storage migration mutation path | #264 completed | reconciled | `src/storage/` + canonical schema in `db/` |
+| Backup | #265 completed | residual stale type import tracked by #579 | `src/backup/` |
+| Recovery/maintenance | #266 completed | reconciled | `src/recovery/` |
+| Auth/access/contracts | #267 completed | reconciled | `src/auth/` |
 
 Historical issue descriptions and old checkpoints may still contain intermediate phrases such as “next slice”, “in progress” or temporary shim names. Those statements describe the state at that historical checkpoint and must not be used as current scheduling data.
 
@@ -128,7 +132,9 @@ The program did not mean “move every root file into `src/`”. Repository/tool
 - `package.json`, lockfile and build/tool configuration;
 - `README.md` and `AGENTS.md`;
 - environment examples;
-- other root modules that have their own canonical ownership and were not part of the completed migration families above.
+- frozen transitional root exceptions explicitly owned by the repository placement policy.
+
+The exact current transitional root exceptions are documented in [`../architecture/PROJECT_STRUCTURE.md`](../architecture/PROJECT_STRUCTURE.md) and enforced by `scripts/repository-placement-policy.mjs` plus `tests/architecture/repository-placement-policy.test.mjs`.
 
 Do not create a new cleanup task merely because a TypeScript file is located at repository root. First prove an ownership, maintainability or collision problem on current `main`.
 
@@ -145,7 +151,7 @@ Every structural slice was expected to preserve:
 7. test discovery and CI routing for moved runtime paths;
 8. absence of duplicate active production copies after compatibility cleanup.
 
-A future structural refactor must re-inventory current `main`; this record does not authorize repeating an already completed move.
+A future structural refactor must re-inventory current `main`; this record does not authorize repeating an already completed move. A newly discovered residual defect, such as #579, should receive its own bounded owner rather than rewriting historical completion status into a fictional active migration queue.
 
 ## Historical migration method
 

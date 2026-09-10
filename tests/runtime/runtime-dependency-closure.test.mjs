@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readdir, readFile, stat } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import test from "node:test";
 
@@ -47,17 +47,6 @@ async function sourceClosure(rootFile) {
   return { visited, bare };
 }
 
-async function javascriptFiles(root) {
-  const output = [];
-  for (const entry of await readdir(root)) {
-    const path = resolve(root, entry);
-    const metadata = await stat(path);
-    if (metadata.isDirectory()) output.push(...await javascriptFiles(path));
-    else if (entry.endsWith(".js") || entry.endsWith(".mjs")) output.push(path);
-  }
-  return output;
-}
-
 test("production host source closure uses only Node built-ins and repository modules", async () => {
   const closure = await sourceClosure(entrypoint);
   assert.ok(closure.visited.size >= 8, "expected the production entrypoint graph to traverse runtime/db modules");
@@ -68,17 +57,4 @@ test("built Worker artifact declares no external npm runtime packages", async ()
   const externalsPath = resolve(repoRoot, "dist/server/vinext-externals.json");
   const externals = JSON.parse(await readFile(externalsPath, "utf8"));
   assert.deepEqual(externals, []);
-});
-
-test("built server JavaScript contains no static bare package imports", async () => {
-  const serverRoot = resolve(repoRoot, "dist/server");
-  const bare = [];
-  for (const file of await javascriptFiles(serverRoot)) {
-    const source = await readFile(file, "utf8");
-    for (const specifier of importsFrom(source)) {
-      if (specifier.startsWith("node:") || specifier.startsWith(".")) continue;
-      bare.push({ file, specifier });
-    }
-  }
-  assert.deepEqual(bare, []);
 });

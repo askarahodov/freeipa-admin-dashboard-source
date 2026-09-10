@@ -72,7 +72,9 @@ test("engineering, policy, executable and mixed diffs keep build and full Node s
 test("container and recovery jobs follow table-driven risk boundaries", () => {
   const cases = [
     { input: ["app/users/UserTable.tsx"], container: false, recovery: false, reason: "isolated UI" },
-    { input: ["src/freeipa/freeipa-user-query.ts"], container: false, recovery: false, reason: "runtime behavior without package composition" },
+    { input: ["src/auth/local-auth.ts"], container: false, recovery: false, reason: "auth behavior without image or recovery composition" },
+    { input: ["src/freeipa/freeipa-user-query.ts"], container: false, recovery: false, reason: "application runtime behavior without package composition" },
+    { input: ["runtime/node-request-handler.ts"], container: false, recovery: false, reason: "runtime source changes image contents but not installed vulnerability composition or recovery closure" },
     { input: ["Dockerfile"], container: true, recovery: true, reason: "shared image definition" },
     { input: ["package-lock.json"], container: true, recovery: true, reason: "dependency graph" },
     { input: ["security/audit-allowlist.json"], container: true, recovery: false, reason: "security enforcement" },

@@ -25,7 +25,7 @@ import SettingsLifecycleWizard from "./SettingsLifecycleWizard";
 import PortalInteractionLayer from "./PortalInteractionLayer";
 import { ToastProvider } from "./ui/Toast";
 import FreeIpaUserBrowser from "./FreeIpaUserBrowser";
-import FreeIpaGroupMemberBrowser from "./FreeIpaGroupMemberBrowser";
+import FreeIpaGroupMemberBrowser from "./directory/FreeIpaGroupMemberBrowser";
 import OperationExplorer from "./operations/OperationExplorer";
 
 const geistSans = Geist({

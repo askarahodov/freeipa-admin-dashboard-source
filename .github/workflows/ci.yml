@@ -233,8 +233,39 @@ jobs:
         with:
           show-progress: false
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+
       - name: Build runtime image
-        run: docker build --target runtime -t portal-security-scan .
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/packaging
+          docker build --progress=plain --target runtime -t portal-security-scan . 2>&1 | tee artifacts/packaging/runtime-build.log
+
+      - name: Record runtime packaging metrics
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          node scripts/docker-packaging-metrics.mjs \
+            --image portal-security-scan \
+            --target runtime \
+            --build-log artifacts/packaging/runtime-build.log \
+            --output artifacts/packaging/runtime-packaging-metrics.json \
+            --source-sha "$SOURCE_SHA"
+
+      - name: Upload runtime packaging metrics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-packaging-metrics
+          path: artifacts/packaging/runtime-*
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Prepare security artifacts
         run: mkdir -p artifacts/security
@@ -284,7 +315,33 @@ jobs:
         run: node --experimental-strip-types --test tests/recovery/recovery-container-contract.test.mjs tests/recovery/recovery-compose-smoke.test.mjs tests/recovery/recovery-fault-matrix.test.mjs
 
       - name: Build isolated recovery image
-        run: docker build --target recovery -t portal-recovery-ci .
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/packaging
+          docker build --progress=plain --target recovery -t portal-recovery-ci . 2>&1 | tee artifacts/packaging/recovery-build.log
+
+      - name: Record recovery packaging metrics
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          node scripts/docker-packaging-metrics.mjs \
+            --image portal-recovery-ci \
+            --target recovery \
+            --build-log artifacts/packaging/recovery-build.log \
+            --output artifacts/packaging/recovery-packaging-metrics.json \
+            --source-sha "$SOURCE_SHA"
+
+      - name: Upload recovery packaging metrics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: recovery-packaging-metrics
+          path: artifacts/packaging/recovery-*
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Run disposable named-volume smoke
         run: npm run test:recovery:compose

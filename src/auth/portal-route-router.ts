@@ -5,12 +5,12 @@ import {
 } from "./portal-route-contract.ts";
 
 export type PortalRouteMatch = Readonly<{
-  contract: PortalRouteContract;
+  contract: Readonly<PortalRouteContract>;
   params: Readonly<Record<string, string>>;
 }>;
 
 type CompiledRoute = Readonly<{
-  contract: PortalRouteContract;
+  contract: Readonly<PortalRouteContract>;
   segments: readonly string[];
   staticSegments: number;
 }>;
@@ -21,8 +21,18 @@ function pathSegments(path: string): readonly string[] | null {
   return path.slice(1).split("/");
 }
 
+function immutableContract(contract: PortalRouteContract): Readonly<PortalRouteContract> {
+  return Object.freeze({
+    ...contract,
+    conditionalPermissions: contract.conditionalPermissions
+      ? Object.freeze([...contract.conditionalPermissions])
+      : undefined,
+  });
+}
+
 const compiledRoutes: readonly CompiledRoute[] = portalRouteContracts
-  .map((contract) => {
+  .map((sourceContract) => {
+    const contract = immutableContract(sourceContract);
     const segments = pathSegments(contract.path) ?? [];
     return Object.freeze({
       contract,

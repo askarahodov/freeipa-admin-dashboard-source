@@ -8,10 +8,12 @@ import {
   nodeRequestToWebRequest,
   writeWebResponse,
 } from "./node-runtime-http.mjs";
+import { resolveTrustedRequestProtocol } from "./trusted-proxy-policy.mjs";
 
-function runtimeOrigin(request, host, port) {
+function runtimeOrigin(request, host, port, env) {
+  const protocol = resolveTrustedRequestProtocol({ headers: request.headers, env });
   const headerHost = request.headers.host;
-  return `http://${headerHost || `${host}:${port}`}`;
+  return `${protocol}://${headerHost || `${host}:${port}`}`;
 }
 
 function publicAddress(server) {
@@ -56,7 +58,7 @@ export async function startNodeWorkerHost(options = {}) {
       return;
     }
 
-    const origin = runtimeOrigin(request, host, port);
+    const origin = runtimeOrigin(request, host, port, runtimeEnv);
     const webRequest = nodeRequestToWebRequest(request, origin);
 
     if ((webRequest.method === "GET" || webRequest.method === "HEAD") && new URL(webRequest.url).pathname.includes(".")) {

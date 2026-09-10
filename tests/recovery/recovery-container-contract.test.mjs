@@ -20,19 +20,21 @@ function dockerTarget(source, marker) {
 }
 
 test("Dockerfile contains a dedicated non-root recovery target", () => {
-  assert.match(dockerfile, /FROM dependencies AS recovery/u);
+  assert.match(dockerfile, /FROM node:22-bookworm-slim AS recovery/u);
+  assert.doesNotMatch(dockerfile, /FROM dependencies AS recovery/u);
   assert.match(dockerfile, /apt-get install[^\n]*sqlite3[^\n]*util-linux[^\n]*ca-certificates/u);
   assert.match(dockerfile, /useradd[^\n]*--uid 10001[^\n]*recovery/u);
   assert.match(dockerfile, /mkdir -p \/portal-data \/recovery \/run\/portal-recovery-secrets/u);
   assert.match(dockerfile, /USER recovery/u);
   assert.match(dockerfile, /ENTRYPOINT \["node", "--experimental-strip-types", "scripts\/portal-recovery\.ts"\]/u);
-  const target = dockerTarget(dockerfile, "FROM dependencies AS recovery");
+  const target = dockerTarget(dockerfile, "FROM node:22-bookworm-slim AS recovery");
+  assert.doesNotMatch(target, /node_modules/u);
   assert.doesNotMatch(target, /CMD \["npm", "run", "start:docker"\]/u);
   assert.doesNotMatch(target, /ENV[^\n]*(?:ADMIN_TOKEN|CONFIG_ENCRYPTION_KEY|PASSWORD)/u);
 });
 
 test("Recovery image copies only the recovery execution source closure", () => {
-  const target = dockerTarget(dockerfile, "FROM dependencies AS recovery");
+  const target = dockerTarget(dockerfile, "FROM node:22-bookworm-slim AS recovery");
   assert.doesNotMatch(target, /^COPY(?:\s+--[^\n]+)?\s+\.\s+\./mu);
   assert.match(target, /COPY --chown=recovery:recovery scripts\/portal-recovery\.ts \.\/scripts\/portal-recovery\.ts/u);
   assert.match(target, /COPY --chown=recovery:recovery src\/recovery \.\/src\/recovery/u);

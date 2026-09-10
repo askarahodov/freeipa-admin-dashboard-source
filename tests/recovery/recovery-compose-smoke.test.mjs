@@ -24,7 +24,7 @@ test("compose smoke dry-run is deterministic and shell-free", async () => {
   assert.equal(result.stderr, "");
   const plan = JSON.parse(result.stdout);
   assert.equal(plan.dryRun, true);
-  assert.ok(plan.commands.length >= 8);
+  assert.ok(plan.commands.length >= 9);
   for (const command of [...plan.commands, plan.holder, plan.contender, plan.cleanup]) {
     assert.equal(command[0], "docker");
     assert.equal(command[1], "compose");
@@ -35,6 +35,15 @@ test("compose smoke dry-run is deterministic and shell-free", async () => {
   assert.ok(plan.commands.some((command) => command.includes("build") && command.includes("recovery")));
   assert.ok(plan.commands.some((command) => command.includes("sqlite3")));
   assert.ok(plan.commands.some((command) => command.some((value) => value.includes("recovery-discovery.ts"))));
+  const moduleClosureCommand = plan.commands.find((command) => command.some((value) => value.includes("moduleClosure")));
+  assert.ok(moduleClosureCommand, "module closure import command must be present");
+  for (const modulePath of [
+    "recovery-cli-runtime.ts",
+    "recovery-cli.ts",
+    "recovery-runtime-command-handlers.ts",
+  ]) {
+    assert.ok(moduleClosureCommand.some((value) => value.includes(modulePath)), `${modulePath} must be loaded in-image`);
+  }
   assert.ok(plan.holder.includes("flock"));
   assert.ok(plan.contender.includes("-xn"));
   assert.ok(plan.cleanup.includes("--volumes"));

@@ -55,6 +55,7 @@ Normalized references orient humans and agents; they do not replace runtime/doma
 | `docs/operations/DATABASE_MIGRATIONS.md` | canonical migration registry/runtime/tests | `verified-active` |
 | `docs/operations/MAINTENANCE_MODE.md` | maintenance runtime + persistent state | `verified-active` |
 | `docs/operations/OFFLINE_FULL_RESTORE.md` | recovery CLI/scripts | `verified-active` |
+| `docs/operations/NETWORK_CONFIGURATION.md` | `compose.yaml` + `compose.network.example.yaml` + network architecture tests | `verified-active` |
 | `docs/operations/HEALTH_CONTRACTS.md` | health handlers/contracts | `verified-active` |
 | `docs/operations/HEALTH_METRICS.md` | health metrics owner/rules | `verified-active` |
 | `docs/operations/STORAGE_STATUS.md` | storage status contract | `verified-active` |
@@ -101,6 +102,7 @@ Normalized references orient humans and agents; they do not replace runtime/doma
 - API routes, permissions, configuration and stable machine-code references.
 - Security/auth/session/service-admin/FreeIPA isolation/audit/recovery boundaries.
 - Health/storage/migrations/maintenance/backup operational contracts.
+- Production bridge-network exposure and supported DNS/search-domain/host-alias override workflow.
 - XYOps ownership/inspection/presentation contracts.
 - P0/local acceptance entrypoints.
 - ADR/navigation/AI-agent precedence rules.

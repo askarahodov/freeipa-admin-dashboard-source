@@ -65,7 +65,7 @@ Docker liveness uses `GET /health/live`.
 
 The canonical production image declares `PORTAL_DATA_DIR=/data`, and the Node SQLite persistence boundary owns the production database path under that persistence root unless explicitly configured otherwise.
 
-Current `compose.yaml`, however, still mounts the `dashboard-data` named volume at `/app/.wrangler`. That does not match the canonical `/data` production persistence root introduced by the Node runtime cutover. This is a confirmed current deployment-contract defect tracked by #209; documentation must not claim that the existing Compose mount persists the canonical production database until that issue is resolved.
+Current `compose.yaml` mounts the `dashboard-data` named volume at `/data` for the dashboard service. The recovery profile mounts the same named volume at `/portal-data`. The container paths differ, but both profiles address the same persistent volume; this is the current Compose persistence contract.
 
 ### Current network model
 
@@ -73,7 +73,7 @@ The current Compose service uses `network_mode: host`. This document records tha
 
 ### Recovery container
 
-The Compose `recovery` profile uses a separate recovery image/entrypoint, runs as a non-root recovery user, mounts portal data explicitly, uses a read-only root filesystem plus `/tmp` tmpfs, and executes the offline recovery CLI. Because the production persistence mount is currently inconsistent with the canonical `/data` runtime root, recovery/production volume alignment must be verified as part of #209 before relying on Compose persistence claims.
+The Compose `recovery` profile uses a separate recovery image/entrypoint, runs as a non-root recovery user, mounts the shared `dashboard-data` volume at `/portal-data`, uses a read-only root filesystem plus `/tmp` tmpfs, and executes the offline recovery CLI. Production and recovery therefore address the same named persistent volume through profile-specific container paths.
 
 Detailed destructive recovery procedure belongs to [`OFFLINE_FULL_RESTORE.md`](../OFFLINE_FULL_RESTORE.md).
 
@@ -251,7 +251,7 @@ These are current-state constraints, not recommendations:
 1. **Large Worker wrapper chain and base entrypoint.** Request concerns are spread across many wrapper entries plus `worker/index.ts`; #56 tracks refactoring.
 2. **Actively changing frontend ownership.** Shared tokens/primitives and the AppShell foundation exist, while screen/presentation extraction has continued beyond the original shell foundation; exact ownership must be checked against current `main` rather than historical UI plans.
 3. **Local SQLite/D1-compatible ownership.** The canonical Node runtime uses a local SQLite-backed D1-compatible persistence boundary and does not establish a horizontally scaled multi-writer database architecture.
-4. **Compose persistence mismatch.** The canonical production persistence root is `/data`, while current Compose still mounts `dashboard-data` at `/app/.wrangler`; #209 tracks correction and regression coverage.
+4. **Profile-specific persistence paths.** Current Compose mounts the shared `dashboard-data` volume at `/data` in the dashboard service and `/portal-data` in the recovery profile; both paths refer to the same persistent volume.
 5. **Host networking.** Current Compose uses `network_mode: host`; #52 tracks a different network model.
 6. **Distributed route/reference ownership.** A single declarative API/permission registry does not yet exist; until it does, route contracts must be verified against current handlers/wrappers/tests plus owner documents.
 

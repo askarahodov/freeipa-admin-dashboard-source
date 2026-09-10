@@ -79,25 +79,15 @@ export function outboundProxyPolicy(env = process.env, nodeVersion = process.ver
   };
 }
 
-export async function configureOutboundProxy({
+export function configureOutboundProxy({
   env = process.env,
   nodeVersion = process.versions.node,
-  setGlobalProxyFromEnv,
 } = {}) {
-  const policy = outboundProxyPolicy(env, nodeVersion);
-  if (!policy.enabled) return policy;
-
-  let apply = setGlobalProxyFromEnv;
-  if (!apply) {
-    const http = await import("node:http");
-    apply = http.setGlobalProxyFromEnv;
-  }
-  if (typeof apply !== "function") {
-    throw new Error("This Node.js runtime does not expose built-in global proxy configuration");
-  }
-
-  apply(env);
-  return policy;
+  // NODE_USE_ENV_PROXY is consumed by Node during process startup. Keep this
+  // function as a fail-closed preflight before any application/runtime work;
+  // do not depend on the newer http.setGlobalProxyFromEnv() runtime API,
+  // which is unavailable on otherwise supported Node 22 proxy releases.
+  return outboundProxyPolicy(env, nodeVersion);
 }
 
 export const OUTBOUND_PROXY_MINIMUMS = Object.freeze(minimumSupportedProxyVersions.map((item) => Object.freeze({ ...item })));

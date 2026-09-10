@@ -30,6 +30,7 @@
 Основной набор:
 
 - [`DEPLOYMENT_MATRIX.md`](architecture/DEPLOYMENT_MATRIX.md)
+- [`operations/NETWORK_CONFIGURATION.md`](operations/NETWORK_CONFIGURATION.md)
 - [`operations/HEALTH_CONTRACTS.md`](operations/HEALTH_CONTRACTS.md)
 - [`operations/HEALTH_METRICS.md`](operations/HEALTH_METRICS.md)
 - [`operations/STORAGE_STATUS.md`](operations/STORAGE_STATUS.md)
@@ -99,7 +100,7 @@
 | Документ | Назначение |
 | --- | --- |
 | [`reference/API.md`](reference/API.md) | Route families, methods, authorization boundaries and owners |
-| [`reference/PERMISSIONS.md`](reference/PERMISSIONS.md) | Built-in roles and canonical permission codes |
+| [`reference/PERMISSIONS.md`](reference/PERMISSIONS.md) | Built-in roles and canonical permissions |
 | [`reference/CONFIGURATION.md`](reference/CONFIGURATION.md) | Production/runtime/dynamic/recovery/test configuration classes |
 | [`reference/ERROR_CODES.md`](reference/ERROR_CODES.md) | Verified stable machine-readable error/status codes |
 | [`ERROR_CODE_OWNERSHIP.md`](reference/ERROR_CODE_OWNERSHIP.md) | `src/auth/stable-error-contract.ts` ownership/verification rules |
@@ -126,10 +127,11 @@ Machine-readable ownership work referenced by the documentation platform is comp
 | [`operations/OFFLINE_FULL_RESTORE.md`](operations/OFFLINE_FULL_RESTORE.md) | Offline destructive restore, atomic swap, verify, rollback |
 | [`CONFIG_ENCRYPTION_KEY.md`](security/CONFIG_ENCRYPTION_KEY.md) | Production encryption-key requirements |
 
-## Health / monitoring
+## Network / health / monitoring
 
 | Документ | Назначение |
 | --- | --- |
+| [`operations/NETWORK_CONFIGURATION.md`](operations/NETWORK_CONFIGURATION.md) | Canonical bridge exposure plus supported DNS/search-domain/host-alias override workflow |
 | [`operations/HEALTH_CONTRACTS.md`](operations/HEALTH_CONTRACTS.md) | Liveness, readiness, dependency health and diagnostics |
 | [`operations/HEALTH_METRICS.md`](operations/HEALTH_METRICS.md) | Prometheus-compatible baseline health metrics |
 

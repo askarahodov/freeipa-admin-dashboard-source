@@ -11,5 +11,6 @@ This section contains active operator-facing runbooks and operational safety con
 - [`LOCAL_ACCEPTANCE_TESTS.md`](LOCAL_ACCEPTANCE_TESTS.md) — manual local acceptance scenario for authentication/RBAC, FreeIPA, XYOps, persistence and secret-safe reporting.
 - [`HEALTH_CONTRACTS.md`](HEALTH_CONTRACTS.md) — liveness, readiness, dependency-health and operator-diagnostics contracts.
 - [`HEALTH_METRICS.md`](HEALTH_METRICS.md) — Prometheus-compatible health metrics, cardinality and alerting baseline.
+- [`NETWORK_CONFIGURATION.md`](NETWORK_CONFIGURATION.md) — canonical bridge-network exposure rules and the supported local Compose override workflow for DNS, search domains and host aliases.
 
 Other operational families remain at their current canonical paths until migrated in dedicated #268 slices. Relocation PRs must preserve external compatibility pointers and must not rewrite operational policy while moving them.

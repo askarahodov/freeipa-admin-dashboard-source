@@ -14,6 +14,7 @@ This document describes the deployment modes that are supported by the current r
 | Deployment mode | Status | Canonical owner / evidence | Notes |
 | --- | --- | --- | --- |
 | Docker Compose using repository `compose.yaml` and the runtime image from `Dockerfile` | **Supported production** | `compose.yaml`, `Dockerfile`, `scripts/start-production.mjs`, runtime tests, recovery/persistence tests | Canonical production entrypoint is the Node runtime. Dashboard and recovery use the explicit `portal` bridge network. The dashboard publishes container port `3001` to `${DASHBOARD_BIND_ADDRESS:-127.0.0.1}:${DASHBOARD_PORT:-3001}`. The `dashboard-data` named volume is mounted at `/data`; the default SQLite store is `/data/portal.sqlite`. |
+| Standard Compose plus operator-local DNS/search/host-alias override | **Supported production customization** | `compose.network.example.yaml`, `docs/operations/NETWORK_CONFIGURATION.md`, architecture tests | Copy the tracked non-routable example to ignored `compose.network.local.yaml`, replace values, validate the merged model with `docker compose ... config`, and use the same ordered file set for lifecycle commands. This customization does not weaken TLS or change dashboard publication/security settings. |
 | Production runtime image started directly with equivalent required environment and a persistent `/data` mount | **Supported production, operator-integrated** | `Dockerfile`, `scripts/start-production.mjs`, `runtime/sqlite-runtime-store.mjs` | The repository defines the image/runtime contract, but external orchestration, restart policy, secrets injection and network exposure remain the operator's responsibility. |
 | Compose recovery profile | **Supported operational/recovery mode** | `compose.yaml`, recovery image target, recovery scripts/tests | Recovery mounts the same `dashboard-data` volume at `/portal-data` and joins the explicit `portal` bridge network; use the dedicated recovery runbooks rather than ad-hoc SQLite manipulation. |
 | Local package-script development server / development tooling | **Supported development** | `package.json`, development scripts and tests | Intended for development and verification only. It is not the production startup path. |
@@ -70,7 +71,9 @@ For the canonical bridge profile:
 | `tls` | FreeIPA TLS verification failed. | Verify the configured hostname, certificate chain and the CA/settings path owned by #40. Do not disable certificate verification. |
 | `authentication` | The upstream rejected credentials/key material. | Validate the server-side integration configuration without exposing credentials in logs or diagnostics. |
 
-Custom Compose `dns`, `dns_search`, `extra_hosts` and an application-supported HTTP(S) proxy path are still follow-up work in #52. They are **not** documented here as supported knobs until source, tests and a safe configuration contract exist. The current `env_file` behavior alone is not treated as proof that the Node integration clients honor proxy environment variables.
+For deployments that require corporate resolver addresses, search domains, or fixed host aliases, use the repository-owned procedure in `docs/operations/NETWORK_CONFIGURATION.md` and the tracked `compose.network.example.yaml`. Keep environment-specific values in ignored `compose.network.local.yaml`; validate the merged model before startup. DNS/host aliases do not disable TLS verification and must not be used to bypass certificate-name checks.
+
+An application-supported HTTP(S) proxy path remains follow-up work in #52. It is **not** documented as supported until the actual Node FreeIPA/XYOps transports are verified or adapted. The current `env_file` behavior alone is not proof that the clients honor proxy environment variables.
 
 ## Image packaging dependencies
 
@@ -82,7 +85,7 @@ Local recovery artifact and secret roots (`./recovery` and `./recovery-secrets` 
 
 ## Known deployment limitations
 
-The canonical Compose profile now uses an explicit bridge network and loopback-default dashboard publication. #52 remains open because repository-owned custom DNS/search-domain/host-alias options, a proven HTTP(S) proxy path, and a separately safeguarded opt-in legacy host-network override are not yet complete.
+The canonical Compose profile uses an explicit bridge network and loopback-default dashboard publication. Repository-owned custom DNS/search-domain/host-alias customization is available through the explicit local override procedure. #52 remains open because a proven HTTP(S) proxy path, a separately safeguarded opt-in legacy host-network override, and remaining platform/acceptance evidence are not yet complete.
 
 TLS reverse-proxy hardening is tracked separately by #53. Until a repository-owned reverse-proxy profile is implemented and accepted, operators may place the service behind their own proxy, but repository support does not imply guarantees for arbitrary forwarded-header, TLS-termination or proxy configurations.
 

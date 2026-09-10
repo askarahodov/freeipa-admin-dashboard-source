@@ -38,6 +38,9 @@ yarn-error.log*
 !.env.local-auth-acceptance.example
 !.env.e2e.example
 
+# operator-local compose overrides
+/compose.network.local.yaml
+
 # vercel
 .vercel
 

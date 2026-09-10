@@ -1,4 +1,5 @@
 import rootRuntime from "./service-admin-root-entry.ts";
+import { createPortalApplicationRouter } from "./application-router.ts";
 import {
   handleMaintenanceGate,
   handleMaintenanceScheduledGate,
@@ -21,10 +22,14 @@ type RuntimeEnv = NonNullable<Parameters<typeof rootRuntime.fetch>[1]> & {
 type RuntimeContext = Parameters<typeof rootRuntime.fetch>[2];
 type ScheduledController = Parameters<NonNullable<typeof rootRuntime.scheduled>>[0];
 
+const applicationRouter = createPortalApplicationRouter<RuntimeEnv, RuntimeContext>(
+  async ({ request, env, ctx }) => rootRuntime.fetch(request, env, ctx),
+);
+
 function dependencies() {
   return {
     nextFetch(request: Request, env: RuntimeEnv, ctx: RuntimeContext): Promise<Response> {
-      return rootRuntime.fetch(request, env, ctx);
+      return applicationRouter.fetch(request, env, ctx);
     },
     nextScheduled(
       controller: ScheduledController,

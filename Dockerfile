@@ -37,7 +37,7 @@ COPY --from=build --chown=dashboard:dashboard /app/dist ./dist
 COPY --from=build --chown=dashboard:dashboard /app/.openai ./.openai
 COPY --from=build --chown=dashboard:dashboard /app/db ./db
 COPY --from=build --chown=dashboard:dashboard /app/runtime ./runtime
-COPY --from=build --chown=dashboard:dashboard /app/scripts/config-encryption-key.mjs /app/scripts/identity-startup-policy.mjs /app/scripts/freeipa-gateway.mjs /app/scripts/node-runtime-http.mjs /app/scripts/node-worker-host.mjs /app/scripts/start-production.mjs ./scripts/
+COPY --from=build --chown=dashboard:dashboard /app/scripts/config-encryption-key.mjs /app/scripts/identity-startup-policy.mjs /app/scripts/freeipa-gateway.mjs /app/scripts/node-runtime-http.mjs /app/scripts/node-worker-host.mjs /app/scripts/outbound-proxy-policy.mjs /app/scripts/start-production.mjs ./scripts/
 USER dashboard
 EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \

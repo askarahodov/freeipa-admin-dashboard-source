@@ -8,22 +8,29 @@ type RuntimeEnv = NonNullable<Parameters<typeof compatibilityRuntime.fetch>[1]>;
 type RuntimeContext = Parameters<typeof compatibilityRuntime.fetch>[2];
 type ScheduledController = Parameters<NonNullable<typeof compatibilityRuntime.scheduled>>[0];
 
-const router = createPortalApplicationRouter<RuntimeEnv, RuntimeContext>(
-  async ({ request, env, ctx, route }) => {
-    const response = await compatibilityRuntime.fetch(request, env, ctx);
+function compatibilityFetch(request: Request, env: RuntimeEnv, ctx: RuntimeContext): Promise<Response> {
+  return compatibilityRuntime.fetch(request, env, ctx);
+}
+
+const router = createPortalApplicationRouter<RuntimeEnv, RuntimeContext>({
+  stable: ({ request, env, ctx }) => compatibilityFetch(request, env, ctx),
+  negative: async ({ request, env, ctx, route }) => {
+    const response = await compatibilityFetch(request, env, ctx);
     return finalizePortalApplicationResponse(route, response);
   },
-);
+  supplemental: ({ request, env, ctx }) => compatibilityFetch(request, env, ctx),
+  framework: ({ request, env, ctx }) => compatibilityFetch(request, env, ctx),
+});
 
 /**
  * Explicit Worker application composition boundary.
  *
- * HTTP requests are classified through the canonical route matcher before the
- * existing maintenance/security/domain wrapper graph executes. The compatibility
- * runtime remains authoritative for security and stable-route handlers. For
- * negative classifications, the application owns only the final 404/405 JSON
- * envelope after the compatibility runtime has already returned that status;
- * security/maintenance denials are never promoted to routing errors.
+ * HTTP requests are classified through canonical route metadata and dispatched
+ * through explicit stable/negative/supplemental/framework registrations. All
+ * four registrations still use the existing maintenance/security/domain
+ * compatibility runtime, so security and stable-route handler behavior remain
+ * unchanged. Only the negative registration finalizes an already-returned
+ * matching 404/405 envelope after compatibility security/status handling.
  *
  * Scheduled execution is intentionally delegated unchanged; its schema and
  * maintenance gates remain owned by the existing runtime until the final

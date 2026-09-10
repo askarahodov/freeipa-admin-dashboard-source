@@ -22,8 +22,9 @@ function nodeSupportsBuiltInProxy(value) {
 }
 
 function effectiveValue(env, upper, lower) {
-  const lowerValue = env?.[lower];
-  if (lowerValue) return String(lowerValue).trim();
+  if (env && Object.prototype.hasOwnProperty.call(env, lower)) {
+    return String(env[lower] ?? "").trim();
+  }
   return String(env?.[upper] ?? "").trim();
 }
 

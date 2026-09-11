@@ -4,20 +4,20 @@ import test from "node:test";
 
 import {
   portalAuthenticationMechanisms,
+  portalLocalSecurityOrderProfiles,
   portalSecurityGateOrder,
 } from "../../worker/security-composition-contract.ts";
 
 const read = (path) => fs.readFileSync(new URL(path, import.meta.url), "utf8");
 
-test("security composition publishes one ordered migration contract", () => {
+test("security composition publishes the universal outer migration order", () => {
   assert.deepEqual(
     portalSecurityGateOrder.map((gate) => gate.id),
     [
       "storage-migration-apply",
       "maintenance",
       "service-admin-authentication",
-      "local-session-authentication",
-      "mutation-origin",
+      "local-security-routing",
       "authorization-and-domain",
       "audit-and-error",
     ],
@@ -27,6 +27,33 @@ test("security composition publishes one ordered migration contract", () => {
     ["anonymous", "local-session", "service-admin"],
   );
   assert.equal(new Set(portalSecurityGateOrder.map((gate) => gate.id)).size, portalSecurityGateOrder.length);
+});
+
+test("local security profiles preserve route-specific origin and authentication ordering", () => {
+  const profiles = new Map(portalLocalSecurityOrderProfiles.map((profile) => [profile.id, profile]));
+  assert.deepEqual(
+    profiles.get("local-auth-mutation")?.order,
+    ["mutation-origin", "local-session-authorization"],
+  );
+  assert.deepEqual(
+    profiles.get("local-admin-integration")?.order,
+    ["local-session-authentication", "mutation-origin", "internal-token-delegation"],
+  );
+  assert.deepEqual(
+    profiles.get("local-api-no-session")?.order,
+    ["local-session-authentication", "service-admin-fallback", "anonymous-api-denial"],
+  );
+
+  const localSecure = read("../../worker/local-secure-entry.ts");
+  const authHandlerStart = localSecure.indexOf("async function handleAuthApi");
+  const authOrigin = localSecure.indexOf("sameOriginAdminMutation(request)", authHandlerStart);
+  const authRequireAdmin = localSecure.indexOf("requireAdmin(env, request)", authOrigin);
+  assert.ok(authHandlerStart >= 0 && authOrigin > authHandlerStart && authRequireAdmin > authOrigin);
+
+  const workerFetchStart = localSecure.indexOf("const worker = {");
+  const ordinarySession = localSecure.indexOf("resolveLocalSession(sourceEnv, request)", workerFetchStart);
+  const ordinaryOrigin = localSecure.indexOf("sameOriginAdminMutation(request)", ordinarySession);
+  assert.ok(workerFetchStart >= 0 && ordinarySession > workerFetchStart && ordinaryOrigin > ordinarySession);
 });
 
 test("application enters the compatibility runtime only through the security composition seam", () => {
@@ -52,7 +79,7 @@ test("compatibility ownership preserves maintenance before service-admin adaptat
   assert.equal(serviceAdminRoot.includes("PORTAL_SERVICE_ADMIN_AUTHORIZED: \"1\""), true);
 });
 
-test("local session and service-admin remain separate mechanisms with fail-closed mutation ownership", () => {
+test("local session and service-admin remain separate mechanisms with fail-closed ownership", () => {
   const localSecure = read("../../worker/local-secure-entry.ts");
 
   assert.equal(localSecure.includes("resolveLocalSession(sourceEnv, request)"), true);

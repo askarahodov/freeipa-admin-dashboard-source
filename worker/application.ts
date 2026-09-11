@@ -3,13 +3,23 @@ import {
   createPortalApplicationRouter,
   finalizePortalApplicationResponse,
 } from "./application-router.ts";
+import { createPortalSecurityComposition } from "./security-composition.ts";
 
 type RuntimeEnv = NonNullable<Parameters<typeof compatibilityRuntime.fetch>[1]>;
 type RuntimeContext = Parameters<typeof compatibilityRuntime.fetch>[2];
 type ScheduledController = Parameters<NonNullable<typeof compatibilityRuntime.scheduled>>[0];
 
+const security = createPortalSecurityComposition<RuntimeEnv, RuntimeContext, ScheduledController>({
+  fetch(request, env, ctx) {
+    return compatibilityRuntime.fetch(request, env, ctx);
+  },
+  async scheduled(controller, env, ctx) {
+    await compatibilityRuntime.scheduled?.(controller, env, ctx);
+  },
+});
+
 function compatibilityFetch(request: Request, env: RuntimeEnv, ctx: RuntimeContext): Promise<Response> {
-  return compatibilityRuntime.fetch(request, env, ctx);
+  return security.fetch(request, env, ctx);
 }
 
 const router = createPortalApplicationRouter<RuntimeEnv, RuntimeContext>({
@@ -27,14 +37,14 @@ const router = createPortalApplicationRouter<RuntimeEnv, RuntimeContext>({
  *
  * HTTP requests are classified through canonical route metadata and dispatched
  * through explicit stable/negative/supplemental/framework registrations. All
- * four registrations still use the existing maintenance/security/domain
- * compatibility runtime, so security and stable-route handler behavior remain
- * unchanged. Only the negative registration finalizes an already-returned
- * matching 404/405 envelope after compatibility security/status handling.
+ * four registrations pass through the named security composition seam, which
+ * currently delegates unchanged into the existing maintenance/security/domain
+ * compatibility runtime. Only the negative registration finalizes an
+ * already-returned matching 404/405 envelope after compatibility
+ * security/status handling.
  *
- * Scheduled execution is intentionally delegated unchanged; its schema and
- * maintenance gates remain owned by the existing runtime until the final
- * scheduled/assets cleanup phase.
+ * Scheduled execution also passes through the same named security seam while
+ * its existing schema/maintenance behavior remains compatibility-owned.
  */
 const application = {
   async fetch(request: Request, env: RuntimeEnv | undefined, ctx: RuntimeContext): Promise<Response> {
@@ -43,7 +53,7 @@ const application = {
   },
 
   async scheduled(controller: ScheduledController, env: RuntimeEnv | undefined, ctx: RuntimeContext): Promise<void> {
-    return compatibilityRuntime.scheduled?.(controller, env, ctx);
+    return security.scheduled(controller, env, ctx);
   },
 };
 

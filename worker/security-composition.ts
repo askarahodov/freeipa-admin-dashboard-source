@@ -2,10 +2,12 @@ import compatibilityRuntime from "./maintenance-mode-root-entry.ts";
 
 export {
   portalAuthenticationMechanisms,
+  portalLocalSecurityOrderProfiles,
   portalSecurityGateOrder,
 } from "./security-composition-contract.ts";
 export type {
   PortalAuthenticationMechanism,
+  PortalLocalSecurityOrderProfile,
   PortalSecurityGateId,
 } from "./security-composition-contract.ts";
 

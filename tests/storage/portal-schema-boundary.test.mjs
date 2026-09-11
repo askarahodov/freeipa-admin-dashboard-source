@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 const httpSecurityRoot = new URL("../../worker/http-security-root-entry.ts", import.meta.url);
 const entry = new URL("../../worker/schema-migrations-entry.ts", import.meta.url);
 const application = new URL("../../worker/application.ts", import.meta.url);
+const securityComposition = new URL("../../worker/security-composition.ts", import.meta.url);
 const maintenanceGate = new URL("../../worker/maintenance-mode-root-entry.ts", import.meta.url);
 const helpers = new URL("../../worker/schema-migrations-boundary.ts", import.meta.url);
 const vite = fs.readFileSync(new URL("../../vite.config.ts", import.meta.url), "utf8");
@@ -20,12 +21,14 @@ test("Vite uses HTTP security as the outer worker entry while preserving schema 
   assert.equal(httpSecuritySource.includes('import rootRuntime from "./schema-migrations-entry.ts"'), true);
 });
 
-test("normal fetch and scheduled dispatch require a ready production schema before application and maintenance gating", async () => {
+test("normal fetch and scheduled dispatch require a ready production schema before application and security/maintenance gating", async () => {
   const source = fs.readFileSync(entry, "utf8");
   const applicationSource = fs.readFileSync(application, "utf8");
+  const securitySource = fs.readFileSync(securityComposition, "utf8");
   const gateSource = fs.readFileSync(maintenanceGate, "utf8");
   assert.equal(source.includes('import rootRuntime from "./application.ts"'), true);
-  assert.equal(applicationSource.includes('import compatibilityRuntime from "./maintenance-mode-root-entry.ts"'), true);
+  assert.equal(applicationSource.includes('import securityComposition from "./security-composition.ts"'), true);
+  assert.equal(securitySource.includes('import compatibilityRuntime from "./maintenance-mode-root-entry.ts"'), true);
   assert.equal(gateSource.includes('import rootRuntime from "./service-admin-root-entry.ts"'), true);
   assert.equal(source.includes('from "./schema-migrations-boundary.ts"'), true);
   assert.equal(source.includes("await ensurePortalSchema(sourceEnv)"), true);
@@ -35,7 +38,9 @@ test("normal fetch and scheduled dispatch require a ready production schema befo
   assert.equal(source.includes("return rootRuntime.fetch(request, sourceEnv, ctx)"), true);
   assert.equal(source.includes("return rootRuntime.scheduled?.(controller, sourceEnv, ctx)"), true);
   assert.equal(applicationSource.includes("return router.fetch(request, sourceEnv, ctx)"), true);
-  assert.equal(applicationSource.includes("return compatibilityRuntime.scheduled?.(controller, env, ctx)"), true);
+  assert.equal(applicationSource.includes("return securityComposition.scheduled?.(controller, env, ctx)"), true);
+  assert.equal(securitySource.includes("return compatibilityRuntime.fetch(request, env, ctx)"), true);
+  assert.equal(securitySource.includes("return compatibilityRuntime.scheduled?.(controller, env, ctx)"), true);
   assert.equal(source.includes("NODE_TEST_CONTEXT"), false);
 
   const boundaryHelpers = await import(helpers.href);

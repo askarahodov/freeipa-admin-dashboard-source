@@ -250,12 +250,13 @@ test("schema-gated traffic enters one registered application composition and sch
     readFile(new URL("../../worker/schema-migrations-entry.ts", import.meta.url), "utf8"),
     readFile(new URL("../../worker/application.ts", import.meta.url), "utf8"),
     readFile(new URL("../../worker/security-composition.ts", import.meta.url), "utf8"),
-    readFile(new URL("../../worker/maintenance-mode-root-entry.ts", import.meta.url), "utf8"),
+    readFile(new URL("../../worker/maintenance-mode-gate.ts", import.meta.url), "utf8"),
   ]);
 
   assert.match(schemaSource, /import rootRuntime from "\.\/application\.ts"/);
   assert.match(applicationSource, /import securityComposition from "\.\/security-composition\.ts"/);
-  assert.match(securitySource, /import compatibilityRuntime from "\.\/maintenance-mode-root-entry\.ts"/);
+  assert.match(securitySource, /import compatibilityRuntime from "\.\/service-admin-root-entry\.ts"/);
+  assert.match(securitySource, /from "\.\/maintenance-mode-gate\.ts"/);
   assert.match(applicationSource, /createPortalApplicationRouter/);
   assert.match(applicationSource, /stable: \(\{ request, env, ctx \}\) => compatibilityFetch\(request, env, ctx\)/);
   assert.match(applicationSource, /negative: async \(\{ request, env, ctx, route \}\) =>/);
@@ -264,6 +265,7 @@ test("schema-gated traffic enters one registered application composition and sch
   assert.match(applicationSource, /framework: \(\{ request, env, ctx \}\) => compatibilityFetch\(request, env, ctx\)/);
   assert.match(applicationSource, /return router\.fetch\(request, sourceEnv, ctx\)/);
   assert.match(applicationSource, /return securityComposition\.scheduled\?\.\(controller, env, ctx\)/);
+  assert.match(securitySource, /handleMaintenanceScheduledGate\(controller, sourceEnv, ctx/);
   assert.match(securitySource, /return compatibilityRuntime\.scheduled\?\.\(controller, env, ctx\)/);
-  assert.doesNotMatch(maintenanceSource, /application-router/);
+  assert.doesNotMatch(maintenanceSource, /application-router|rootRuntime|service-admin-root-entry/);
 });

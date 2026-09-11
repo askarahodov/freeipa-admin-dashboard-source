@@ -6,7 +6,7 @@ const authorization = fs.readFileSync(new URL("../../src/auth/admin-session-auth
 const runtime = fs.readFileSync(new URL("../../worker/local-secure-entry.ts", import.meta.url), "utf8");
 const selectiveRoot = fs.readFileSync(new URL("../../worker/backup-selective-restore-root-entry.ts", import.meta.url), "utf8");
 const maintenanceControlRoot = fs.readFileSync(new URL("../../worker/maintenance-control-root-entry.ts", import.meta.url), "utf8");
-const serviceRoot = fs.readFileSync(new URL("../../worker/service-admin-root-entry.ts", import.meta.url), "utf8");
+const serviceAdminGate = fs.readFileSync(new URL("../../worker/middleware/service-admin-authentication.ts", import.meta.url), "utf8");
 const maintenanceGate = fs.readFileSync(new URL("../../worker/maintenance-mode-gate.ts", import.meta.url), "utf8");
 const securityComposition = fs.readFileSync(new URL("../../worker/security-composition.ts", import.meta.url), "utf8");
 const application = fs.readFileSync(new URL("../../worker/application.ts", import.meta.url), "utf8");
@@ -55,15 +55,16 @@ test("local session mutations require same-origin while service token access sta
   assert.equal(schemaRoot.includes('import rootRuntime from "./application.ts"'), true);
   assert.equal(application.includes('import securityComposition from "./security-composition.ts"'), true);
   assert.equal(securityComposition.includes('from "./maintenance-mode-gate.ts"'), true);
-  assert.equal(securityComposition.includes('import compatibilityRuntime from "./service-admin-root-entry.ts"'), true);
+  assert.equal(securityComposition.includes('import compatibilityRuntime from "./maintenance-control-root-entry.ts"'), true);
+  assert.equal(securityComposition.includes('from "./middleware/service-admin-authentication.ts"'), true);
   assert.equal(maintenanceGate.includes("rootRuntime"), false);
-  assert.equal(serviceRoot.includes("serviceAdminTokenAuthorized(request, sourceEnv.ADMIN_TOKEN)"), true);
-  assert.equal(serviceRoot.includes('PORTAL_IDENTITY_MODE: "static"'), true);
-  assert.equal(serviceRoot.includes('import rootRuntime from "./maintenance-control-root-entry.ts"'), true);
+  assert.equal(serviceAdminGate.includes("serviceAdminTokenAuthorized(request, env.ADMIN_TOKEN)"), true);
+  assert.equal(serviceAdminGate.includes('PORTAL_IDENTITY_MODE: "static"'), true);
+  assert.equal(securityComposition.includes('import compatibilityRuntime from "./maintenance-control-root-entry.ts"'), true);
   assert.equal(maintenanceControlRoot.includes('import rootRuntime from "./backup-selective-restore-root-entry.ts"'), true);
   assert.equal(selectiveRoot.includes('import rootRuntime from "./freeipa-group-member-entry.ts"'), true);
-  assert.equal(serviceRoot.includes("resolveLocalSession"), false);
-  assert.equal(serviceRoot.includes("env.DB"), false);
+  assert.equal(serviceAdminGate.includes("resolveLocalSession"), false);
+  assert.equal(serviceAdminGate.includes("env.DB"), false);
 });
 
 test("settings UI initializes only after the local admin session is verified", () => {

@@ -12,7 +12,7 @@ export type PortalSecurityCompatibilityLayer = Readonly<{
 }>;
 
 /**
- * Current security-relevant traversal order for the compatibility runtime.
+ * Current security-relevant traversal order for schema-gated HTTP requests.
  *
  * This is deliberately an ownership/composition contract, not a second route or
  * permission registry. The listed layers describe where enforcement still
@@ -58,28 +58,25 @@ export const portalSecurityCompatibilityOrder: readonly PortalSecurityCompatibil
   }),
 ]);
 
-export type PortalSecurityRuntime<Env, Context, ScheduledController> = Readonly<{
+export type PortalHttpSecurityRuntime<Env, Context> = Readonly<{
   fetch(request: Request, env: Env, ctx: Context): Promise<Response>;
-  scheduled(controller: ScheduledController, env: Env | undefined, ctx: Context): Promise<void> | void;
 }>;
 
 /**
- * Named security composition seam used by the explicit application router.
+ * Named HTTP security composition seam used by the explicit application router.
  *
  * Checkpoint 1 is intentionally transparent: it delegates to the existing
- * compatibility runtime without reordering enforcement. Later #629 slices can
- * replace individual compatibility responsibilities behind this seam only
- * after parity/negative evidence exists.
+ * compatibility runtime without reordering enforcement. Scheduled execution is
+ * intentionally excluded and remains owned by its existing compatibility path
+ * until #635. Later #629 slices can replace individual HTTP security
+ * responsibilities behind this seam only after parity/negative evidence exists.
  */
-export function createPortalSecurityComposition<Env, Context, ScheduledController>(
-  runtime: PortalSecurityRuntime<Env, Context, ScheduledController>,
-): PortalSecurityRuntime<Env, Context, ScheduledController> {
+export function createPortalSecurityComposition<Env, Context>(
+  runtime: PortalHttpSecurityRuntime<Env, Context>,
+): PortalHttpSecurityRuntime<Env, Context> {
   return Object.freeze({
     fetch(request: Request, env: Env, ctx: Context): Promise<Response> {
       return runtime.fetch(request, env, ctx);
-    },
-    scheduled(controller: ScheduledController, env: Env | undefined, ctx: Context): Promise<void> | void {
-      return runtime.scheduled(controller, env, ctx);
     },
   });
 }

@@ -28,8 +28,11 @@ test("normal fetch and scheduled dispatch require a ready production schema befo
   const gateSource = fs.readFileSync(maintenanceGate, "utf8");
   assert.equal(source.includes('import rootRuntime from "./application.ts"'), true);
   assert.equal(applicationSource.includes('import securityComposition from "./security-composition.ts"'), true);
+  assert.equal(securitySource.includes('from "./storage-migration-apply-entry.ts"'), true);
+  assert.equal(securitySource.includes('from "./middleware/storage-migration-apply.ts"'), true);
   assert.equal(securitySource.includes('import compatibilityRuntime from "./maintenance-mode-root-entry.ts"'), true);
   assert.equal(gateSource.includes('import rootRuntime from "./service-admin-root-entry.ts"'), true);
+  assert.equal(gateSource.includes("handleStorageMigrationApplyRequest"), false);
   assert.equal(source.includes('from "./schema-migrations-boundary.ts"'), true);
   assert.equal(source.includes("await ensurePortalSchema(sourceEnv)"), true);
   assert.equal(source.includes('schema.state !== "ready"'), true);
@@ -39,7 +42,9 @@ test("normal fetch and scheduled dispatch require a ready production schema befo
   assert.equal(source.includes("return rootRuntime.scheduled?.(controller, sourceEnv, ctx)"), true);
   assert.equal(applicationSource.includes("return router.fetch(request, sourceEnv, ctx)"), true);
   assert.equal(applicationSource.includes("return securityComposition.scheduled?.(controller, env, ctx)"), true);
-  assert.equal(securitySource.includes("return compatibilityRuntime.fetch(request, env, ctx)"), true);
+  assert.equal(securitySource.includes("handleStorageMigrationApplyGate(request, env, ctx"), true);
+  assert.equal(securitySource.includes("handleApply: handleStorageMigrationApplyRequest"), true);
+  assert.equal(securitySource.includes("compatibilityRuntime.fetch(nextRequest, nextEnv, nextContext)"), true);
   assert.equal(securitySource.includes("return compatibilityRuntime.scheduled?.(controller, env, ctx)"), true);
   assert.equal(source.includes("NODE_TEST_CONTEXT"), false);
 

@@ -6,7 +6,7 @@ This document records the **current HTTP Worker composition** and the ownership 
 
 It is an ownership/integration map, not a second route registry. Exact stable method/path/auth/permission/mutation metadata remains canonical in `src/auth/portal-route-contract.ts`. `src/auth/portal-route-router.ts` is the canonical metadata-derived matcher; `src/auth/portal-route-security-plan.ts` derives security stages but does not itself enforce them. The #628 application router reuses that matcher rather than defining another set of route patterns.
 
-The original #627 inventory was verified against `main` at `60c162e0d2c71b3a4fc061f3dce1147e0a119fbd` on 2026-09-10. The explicit application/security composition foundation is merged through #657; #658 extracted controlled storage migration handling and #659 extracted maintenance into the same composition boundary. The current #629 checkpoint extracts the outer service-admin authentication/adaptation boundary while preserving local-session and same-origin ownership below it. Production-host/trusted-proxy concerns remain owned by #53 and stay outside this Worker refactor.
+The original #627 inventory was verified against `main` at `60c162e0d2c71b3a4fc061f3dce1147e0a119fbd` on 2026-09-10. The explicit application/security composition foundation is merged through #657; #658 extracted controlled storage migration handling, #659 extracted maintenance, and #660 extracted the outer service-admin authentication/adaptation boundary. #661 characterized the remaining local-security decision tree, and the current #629 checkpoint wires that proven boundary through `worker/middleware/local-security-routing.ts` at the historical `local-secure-entry.ts` position without hoisting it above pre-local compatibility adapters. Production-host/trusted-proxy concerns remain owned by #53 and stay outside this Worker refactor.
 
 If code and this document disagree, current code/tests and the source-of-truth registry win. Revalidate the current branch and open PRs before using this inventory for an implementation slice.
 
@@ -76,7 +76,8 @@ schema-migrations-entry.ts
   -> session-management-entry.ts
   -> diagnostics-entry.ts
   -> settings-revisions-entry.ts
-  -> local-secure-entry.ts
+  -> local-secure-entry.ts (local-auth adapter)
+       -> middleware/local-security-routing.ts
   -> settings-input-normalizer-entry.ts
   -> settings-source-context-entry.ts
   -> settings-source-safe-entry.ts
@@ -105,7 +106,7 @@ Actual HTTP owners: `worker/health-contracts.ts` and `worker/schema-migrations-e
 
 `auth.session`, `auth.login`, `auth.logout`, `auth.users.list`, `auth.users.create`, `auth.users.update`, `auth.users.delete`, `auth.users.password-reset`, `auth.users.sessions-revoke`
 
-Actual HTTP owner: `worker/local-secure-entry.ts`, using canonical local-auth/session helpers under `src/auth/**`.
+Actual `/api/auth/**` HTTP owner: `worker/local-secure-entry.ts`, using canonical local-auth/session helpers under `src/auth/**`. Ordinary local-session/service-admin-fallback/origin routing is owned by `worker/middleware/local-security-routing.ts` and is invoked by that adapter at the same historical graph position.
 
 ### Settings lifecycle and revisions
 
@@ -198,11 +199,11 @@ A route missing from `portalRouteContracts` is **not automatically a bug**. Infr
 
 ### Service-admin environment impersonation bridge
 
-`worker/middleware/service-admin-authentication.ts` turns a valid service-admin token on supported local-mode admin integration paths into the same synthetic static identity environment (`service-admin@portal.local`, admin role/RBAC and `PORTAL_SERVICE_ADMIN_AUTHORIZED`) that the retired outer wrapper produced. This remains an adaptation shim, not a desired universal identity model. `worker/local-secure-entry.ts` still contains its route-specific service-admin fallback and must not be collapsed into this outer gate until the local-session/same-origin phase has independent parity proof.
+`worker/middleware/service-admin-authentication.ts` turns a valid service-admin token on supported local-mode admin integration paths into the same synthetic static identity environment (`service-admin@portal.local`, admin role/RBAC and `PORTAL_SERVICE_ADMIN_AUTHORIZED`) that the retired outer wrapper produced. This remains an adaptation shim, not a desired universal identity model. The narrower route-specific service-admin fallback remains distinct inside `worker/middleware/local-security-routing.ts`; it is not collapsed into the outer gate because it intentionally runs only after local-session resolution fails.
 
 ### Local-session environment/header bridge
 
-`worker/local-secure-entry.ts` resolves the local portal session, rewrites the delegated environment to a static identity/role, strips caller-provided `x-admin-token`, and for allowed admin integration paths inserts an internally derived admin token after the same-origin check. Downstream handlers therefore often observe trusted legacy headers/env rather than the original browser authentication mechanism.
+`worker/middleware/local-security-routing.ts` now owns ordinary local portal session resolution, delegated static identity/role adaptation, caller `x-admin-token` stripping, the narrow service-admin fallback, and insertion of an internally derived admin token only after valid local-admin-session plus same-origin proof. `worker/local-secure-entry.ts` remains the adapter and `/api/auth/**` owner, preserving mutation-origin-before-admin semantics for local user administration. Downstream handlers therefore still observe the same trusted legacy headers/env as before this cutover.
 
 ### Canonical request context plus legacy identity headers
 
@@ -294,7 +295,7 @@ The following are confirmed migration risks:
 
 Remaining questions for later #629 slices must be answered from tests/current code rather than assumed:
 
-- how to extract the next local-security slice without changing route-specific local-session/same-origin ordering or duplicating the remaining service-admin fallback;
+- how to retire the remaining compatibility identity/env adaptation after route/domain owners can consume canonical request context directly, without changing route-specific local-session/same-origin ordering;
 - whether each supplemental infrastructure API belongs in canonical stable route metadata or should remain a separate infrastructure classification owned by application composition;
 - when the negative **status decision** can move before compatibility dispatch without exposing route existence or bypassing existing auth behavior;
 - the smallest handler registration API that avoids a new framework/DI/container dependency.
@@ -314,6 +315,7 @@ Primary current evidence for this inventory:
 - `worker/maintenance-mode-gate.ts`
 - `worker/middleware/service-admin-authentication.ts`
 - `worker/local-secure-entry.ts`
+- `worker/middleware/local-security-routing.ts`
 - settings source/lifecycle/revision entry modules
 - FreeIPA query/bulk/group-member entry modules
 - `worker/secure-entry.ts`

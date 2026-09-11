@@ -5,7 +5,7 @@ import test from "node:test";
 import {
   portalAuthenticationMechanisms,
   portalSecurityGateOrder,
-} from "../../worker/security-composition.ts";
+} from "../../worker/security-composition-contract.ts";
 
 const read = (path) => fs.readFileSync(new URL(path, import.meta.url), "utf8");
 
@@ -35,6 +35,7 @@ test("application enters the compatibility runtime only through the security com
 
   assert.equal(application.includes('from "./security-composition.ts"'), true);
   assert.equal(application.includes('from "./maintenance-mode-root-entry.ts"'), false);
+  assert.equal(securityComposition.includes('from "./security-composition-contract.ts"'), true);
   assert.equal(securityComposition.includes('from "./maintenance-mode-root-entry.ts"'), true);
   assert.equal(securityComposition.includes("compatibilityRuntime.fetch(request, env, ctx)"), true);
 });

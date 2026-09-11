@@ -32,7 +32,8 @@ function cspHeaderName(env) {
 
 export function applyHttpSecurityHeaders(request, response, env = {}) {
   const headers = new Headers(response.headers);
-  headers.set(cspHeaderName(env), CSP_DIRECTIVES);
+  const cspHeader = cspHeaderName(env);
+  if (!headers.has(cspHeader)) headers.set(cspHeader, CSP_DIRECTIVES);
   headers.set("x-frame-options", "DENY");
   headers.set("x-content-type-options", "nosniff");
   headers.set("referrer-policy", "no-referrer");

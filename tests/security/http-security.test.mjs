@@ -21,15 +21,25 @@ test("enforcing browser security headers are present by default", () => {
   assert.equal(response.headers.get("access-control-allow-origin"), null);
 });
 
+test("route-owned enforcing CSP is preserved instead of being weakened", () => {
+  const strictCsp = "default-src 'none'; script-src 'self'; style-src 'self'; frame-ancestors 'none'";
+  const source = new Response("diagnostics", { headers: { "content-security-policy": strictCsp } });
+  const response = secured("https://portal.local/diagnostics/health", {}, source);
+  assert.equal(response.headers.get("content-security-policy"), strictCsp);
+  assert.doesNotMatch(response.headers.get("content-security-policy") ?? "", /unsafe-inline/);
+});
+
 test("HSTS requires both HTTPS and explicit opt-in", () => {
   assert.equal(secured("http://portal.local/", { PORTAL_HSTS_ENABLED: "true" }).headers.get("strict-transport-security"), null);
   assert.equal(secured("https://portal.local/").headers.get("strict-transport-security"), null);
   assert.equal(secured("https://portal.local/", { PORTAL_HSTS_ENABLED: "true" }).headers.get("strict-transport-security"), httpSecurityContract.hsts);
 });
 
-test("report-only mode is explicit and does not emit enforcing CSP", () => {
-  const response = secured("https://portal.local/", { PORTAL_CSP_MODE: "report-only" });
-  assert.equal(response.headers.get("content-security-policy"), null);
+test("report-only mode is explicit and does not replace an existing enforcing CSP", () => {
+  const strictCsp = "default-src 'none'; frame-ancestors 'none'";
+  const source = new Response("diagnostics", { headers: { "content-security-policy": strictCsp } });
+  const response = secured("https://portal.local/diagnostics/health", { PORTAL_CSP_MODE: "report-only" }, source);
+  assert.equal(response.headers.get("content-security-policy"), strictCsp);
   assert.equal(response.headers.get("content-security-policy-report-only"), httpSecurityContract.csp);
 });
 

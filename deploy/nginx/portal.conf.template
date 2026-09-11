@@ -23,7 +23,8 @@ server {
     ssl_session_cache shared:portal_tls:10m;
     ssl_session_timeout 1d;
 
-    client_max_body_size 16m;
+    # Matches the largest currently supported application request: selective restore (42 MiB).
+    client_max_body_size 42m;
     client_body_timeout 30s;
     keepalive_timeout 65s;
 

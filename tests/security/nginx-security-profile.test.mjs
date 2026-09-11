@@ -21,9 +21,9 @@ test("Nginx template preserves runtime variables and redirects HTTP to HTTPS", a
   assert.match(config, /return 308 https:\/\/\$host\$request_uri;/);
 });
 
-test("Nginx profile bounds requests/timeouts and does not enable unowned websocket upgrades", async () => {
+test("Nginx profile bounds requests/timeouts and covers the largest supported restore request", async () => {
   const config = await profile();
-  assert.match(config, /client_max_body_size 16m;/);
+  assert.match(config, /client_max_body_size 42m;/);
   assert.match(config, /client_body_timeout 30s;/);
   assert.match(config, /proxy_connect_timeout 5s;/);
   assert.match(config, /proxy_send_timeout 60s;/);

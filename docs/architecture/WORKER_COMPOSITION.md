@@ -6,7 +6,7 @@ This document records the **current HTTP Worker composition** and the ownership 
 
 It is an ownership/integration map, not a second route registry. Exact stable method/path/auth/permission/mutation metadata remains canonical in `src/auth/portal-route-contract.ts`. `src/auth/portal-route-router.ts` is the canonical metadata-derived matcher; `src/auth/portal-route-security-plan.ts` derives security stages but does not itself enforce them. The #628 application router reuses that matcher rather than defining another set of route patterns.
 
-The original #627 inventory was verified against `main` at `60c162e0d2c71b3a4fc061f3dce1147e0a119fbd` on 2026-09-10. The current #628 composition checkpoint builds on merged #648 at `95e1bef68b9a1efdeb2bb63cb881f24ae6a3da8b`. Production-host/trusted-proxy concerns remain owned by #53 and stay outside this Worker refactor.
+The original #627 inventory was verified against `main` at `60c162e0d2c71b3a4fc061f3dce1147e0a119fbd` on 2026-09-10. The explicit application/security composition foundation is merged through #657 at `0444ab3688843cd856f9dfc0175b62187819f329`; the current #629 checkpoint extracts the first security gate from that baseline. Production-host/trusted-proxy concerns remain owned by #53 and stay outside this Worker refactor.
 
 If code and this document disagree, current code/tests and the source-of-truth registry win. Revalidate the current branch and open PRs before using this inventory for an implementation slice.
 
@@ -25,7 +25,8 @@ HTTP application composition
   worker/schema-migrations-entry.ts
     -> worker/application.ts
     -> worker/application-router.ts
-    -> compatibility wrapper/handler graph described below
+    -> worker/security-composition.ts
+    -> explicit security gates + compatibility wrapper/handler graph described below
     -> worker/index.ts
     -> Vinext application/static fallback
 ```
@@ -43,23 +44,29 @@ HTTP application composition
 - the sanitized health diagnostics document/assets through `worker/health-diagnostics-ui.ts`;
 - health metrics through `worker/health-metrics.ts`;
 - service-admin schema status;
-- explicit storage status/integrity/migration paths that must reach their guarded downstream handlers;
+- explicit storage status/integrity/migration paths that must reach their guarded downstream handlers before the ordinary schema-readiness failure;
 - the schema readiness gate for ordinary requests;
 - the same schema readiness boundary for `scheduled` execution.
 
-For downstream HTTP requests, `schema-migrations-entry.ts` delegates to `worker/application.ts`. `application.ts` is the single explicit post-schema HTTP application composition point. It classifies the request through `worker/application-router.ts` and delegates the original `Request`, environment and execution context to the existing compatibility runtime. The compatibility runtime remains authoritative for maintenance, authentication, authorization, stable-route handler selection and the status decision. For negative classifications only, the application now owns the final outward JSON envelope **after** compatibility execution: a known method mismatch is normalized only when downstream already returned `405`, and an unknown `/api/**` route is normalized only when downstream already returned `404`. Other statuses are returned unchanged.
+For downstream HTTP requests, `schema-migrations-entry.ts` delegates to `worker/application.ts`. `application.ts` is the single explicit post-schema/application composition point for ordinary traffic and also receives the intentionally allowlisted storage administration paths. It classifies the request through `worker/application-router.ts`; every classification then enters `worker/security-composition.ts`.
+
+`security-composition.ts` owns the first extracted security gate. `worker/middleware/storage-migration-apply.ts` invokes the existing controlled migration apply/status/reconcile handler before maintenance. A handled migration response short-circuits unchanged. For every other request, the middleware preserves the original `Request`, environment and execution context and delegates exactly once into `maintenance-mode-root-entry.ts`. Maintenance, authentication, authorization, stable-route handler selection and most audit/error behavior remain compatibility-owned. For negative classifications only, the application still owns the final outward JSON envelope **after** security/compatibility execution: a known method mismatch is normalized only when downstream already returned `405`, and an unknown `/api/**` route is normalized only when downstream already returned `404`. Other statuses are returned unchanged.
 
 ### Normal downstream wrapper graph
 
-For an ordinary request that reaches the compatibility chain, the verified downstream graph is:
+For a request that reaches application/security composition, the verified downstream graph is:
 
 ```text
 schema-migrations-entry.ts
   -> application.ts
   -> application-router.ts
        -> canonical match/classification
-       -> compatibility dispatch
-       -> security-preserving negative response finalization
+       -> security composition dispatch
+       -> security-preserving negative response finalization after downstream returns
+  -> security-composition.ts
+       -> middleware/storage-migration-apply.ts
+          -> storage-migration-apply-entry.ts (exact controlled migration paths only)
+       -> compatibility dispatch for all remaining traffic
   -> maintenance-mode-root-entry.ts
   -> service-admin-root-entry.ts
   -> maintenance-control-root-entry.ts
@@ -87,7 +94,7 @@ The graph is not strictly linear. `settings-source-safe-entry.ts` chooses either
 
 The following groups cover every stable route contract present in `portalRouteContracts` at the evidence checkpoint. The identifiers are repeated here only to prove inventory coverage; method/path/security metadata must still be read from the canonical contract rather than maintained independently in this document.
 
-`tests/auth/portal-application-router.test.mjs` materializes every current canonical route pattern and proves that the explicit application router resolves it back to the same route id. It also proves that negative response finalization cannot promote successful, authentication, authorization, conflict, rate-limit or maintenance responses into routing errors. Current wrappers/handlers remain the runtime enforcement owners until later route-family cutovers.
+`tests/auth/portal-application-router.test.mjs` materializes every current canonical route pattern and proves that the explicit application router resolves it back to the same route id. It also proves that negative response finalization cannot promote successful, authentication, authorization, conflict, rate-limit or maintenance responses into routing errors. Current wrappers/handlers remain the runtime enforcement owners except for the explicitly extracted controlled storage migration gate.
 
 ### Infrastructure and schema
 
@@ -135,7 +142,7 @@ HTTP ownership is distributed across the backup entry/dispatch wrappers. Canonic
 
 `storage.status`, `storage.integrity`, `storage.migrations.preflight`, `storage.migrations.apply`, `storage.migrations.apply-status`, `storage.migrations.reconcile`
 
-HTTP owners are the dedicated `worker/storage-*-entry.ts` adapters. Canonical schema remains in `db/**`; storage status/integrity/migration logic remains under `src/storage/**` and recovery/runtime owners where applicable.
+HTTP handlers are the dedicated `worker/storage-*-entry.ts` adapters. The apply/status/reconcile decision boundary is now composed explicitly by `worker/security-composition.ts` through `worker/middleware/storage-migration-apply.ts`, while the canonical handler remains `worker/storage-migration-apply-entry.ts`. Status, integrity and migration preflight continue through their existing guarded compatibility paths. Canonical schema remains in `db/**`; storage status/integrity/migration logic remains under `src/storage/**` and recovery/runtime owners where applicable.
 
 ### Maintenance administration
 
@@ -154,14 +161,14 @@ HTTP ownership is in the maintenance control/verification adapters. Canonical ma
 | XYOps/run/approval | canonical route metadata plus portal permissions | mostly `worker/index.ts`; approval/run checks remain in current handler/domain calls | portal operation/catalog/approval tables; server-side XYOps client; XYOps owns execution semantics | `tests/operations/**`, approval/run/catalog contracts, audit events from current handlers |
 | Catalog sync | admin/service-admin route metadata | `secure-entry.ts` combines resolved identity context, HTTP handler and scheduler | `xyops_catalog_sync_lock`, `xyops_catalog_sync_runs`; live catalog fetch through current Worker/XYOps path | `tests/operations/catalog-scheduled-sync.test.mjs`, route/security-plan tests; `catalog.sync` audit |
 | Backup/restore | canonical backup permissions and required admin role where declared | dedicated backup root/dispatch adapters plus local/service-admin delegation | canonical `src/backup/**`/`src/recovery/**`; DB/recovery metadata owned by canonical schema/domain modules | `tests/backup/**`, recovery/authorization/negative tests; guarded audit events |
-| Storage | admin/service-admin route metadata | dedicated storage adapters; selected paths are intentionally reachable through the schema/maintenance boundaries | `src/storage/**`, `db/**` schema/migration owner, migration journals/locks | storage/migration/integrity contract and recovery tests |
-| Maintenance | `maintenance.manage` / service-admin metadata | `maintenance-mode-root-entry.ts` + control/smoke adapters | `src/recovery/maintenance/**` and canonical maintenance persistence | maintenance positive/negative/recovery tests and audit contracts |
+| Storage | admin/service-admin route metadata | controlled migration apply/status/reconcile enters explicit `security-composition.ts` middleware and then the unchanged storage handler; other storage surfaces remain dedicated compatibility adapters | `src/storage/**`, `db/**` schema/migration owner, migration journals/locks | storage/migration/integrity contract and recovery tests |
+| Maintenance | `maintenance.manage` / service-admin metadata | `maintenance-mode-root-entry.ts` is now maintenance-only, followed by control/smoke adapters | `src/recovery/maintenance/**` and canonical maintenance persistence | maintenance positive/negative/recovery tests and audit contracts |
 
 The table intentionally names persistence/domain owners rather than duplicating a complete schema table list. `db/portal-schema.ts` is authoritative for exact table shape.
 
 ## Maintenance and recovery gate semantics
 
-`worker/application.ts` delegates classified HTTP requests through `worker/maintenance-mode-root-entry.ts`, which wraps the downstream compatibility runtime with `handleMaintenanceGate`. Negative response finalization happens only after the complete compatibility call returns, so the router cannot short-circuit this gate or replace a maintenance `503` with `404/405`.
+`worker/application.ts` sends classified HTTP requests into `worker/security-composition.ts`. Controlled migration apply/status/reconcile is evaluated first by the explicit storage migration middleware. If that handler returns a response, maintenance is intentionally not consulted, preserving the existing recovery-capable order. All other traffic delegates unchanged to `worker/maintenance-mode-root-entry.ts`, which wraps the remaining compatibility runtime with `handleMaintenanceGate`. Negative response finalization happens only after the complete security/compatibility call returns, so the router cannot short-circuit this gate or replace a maintenance `503` with `404/405`.
 
 Current behavior is fail-closed when maintenance state cannot be read. Ordinary `/api/**` traffic is rejected while maintenance is active. The following classes are intentionally reachable through the maintenance boundary so recovery can be controlled and diagnosed:
 
@@ -171,7 +178,7 @@ Current behavior is fail-closed when maintenance state cannot be read. Ordinary 
 - the public `/api/maintenance/status` compatibility/status surface;
 - legacy health is allowed through with an `x-portal-maintenance-state` response header.
 
-Non-API HTML/static traffic delegates through the gate. Scheduled work is suppressed unless maintenance is inactive (apart from the explicit test-bypass contract). Phase #628/#629 must preserve these distinctions rather than applying a blanket middleware order that blocks recovery control.
+Controlled migration apply/status/reconcile is deliberately outside the maintenance gate and keeps its own guarded authorization/input/error contract. Non-API HTML/static traffic delegates through the maintenance gate. Scheduled work is suppressed unless maintenance is inactive (apart from the explicit test-bypass contract). Phase #629 must preserve these distinctions rather than applying a blanket middleware order that blocks recovery control.
 
 ## Supplemental HTTP surfaces outside `portalRouteContracts`
 
@@ -229,31 +236,32 @@ The following ownership map is sufficient to navigate a route without treating t
 
 ## Scheduled and asset contracts
 
-`scheduled` is not a second product scheduler. The current scheduled call enters through `schema-migrations-entry.ts`, is suppressed if schema is not ready, then delegates to `application.ts`, whose `scheduled` path bypasses HTTP classification and delegates unchanged into the maintenance scheduled gate. Ultimately `secure-entry.ts` owns the current portal-side catalog synchronization trigger and uses `ctx.waitUntil` to run it. XYOps remains owner of upstream process scheduling/execution.
+`scheduled` is not a second product scheduler. The current scheduled call enters through `schema-migrations-entry.ts`, is suppressed if schema is not ready, then delegates to `application.ts`. The application calls `security-composition.ts`, whose scheduled path deliberately bypasses the HTTP-only storage migration gate and delegates unchanged into the maintenance scheduled gate. Ultimately `secure-entry.ts` owns the current portal-side catalog synchronization trigger and uses `ctx.waitUntil` to run it. XYOps remains owner of upstream process scheduling/execution.
 
 Static/RSC/application assets are ultimately served by the Vinext handler in `worker/index.ts`; the same file also owns the current route-to-root HTML compatibility behavior and `/_vinext/image` optimization path. The #628 application router classifies framework/image traffic without taking over those handlers. Their final cleanup/integration belongs to #635.
 
-## Current #628 application-composition checkpoint
+## Current #628/#629 application-composition checkpoint
 
-The current Phase #628 slices establish **one application composition point** in `worker/**` plus a security-preserving negative response finalizer:
+The current slices establish **one application composition point** plus the first explicitly extracted security gate:
 
-1. `schema-migrations-entry.ts` remains the built entry and preserves infrastructure routes plus schema readiness before ordinary application dispatch;
-2. `application.ts` is the single post-schema HTTP composition entry;
+1. `schema-migrations-entry.ts` remains the built entry and preserves infrastructure routes, bounded storage administration pass-through and ordinary schema readiness before ordinary application dispatch;
+2. `application.ts` is the single HTTP application composition entry downstream of that boundary;
 3. `application-router.ts` matches stable API metadata through the existing `portal-route-router.ts` and explicitly classifies known-path method mismatches, supplemental surfaces, unknown `/api/**` paths and framework traffic;
-4. classification is passed to the compatibility dispatcher without mutating `Request`, environment or execution context;
-5. the existing maintenance/service-admin/local-session/settings/FreeIPA/operations/recovery wrappers remain authoritative for security enforcement, handler selection and the status they return;
-6. after compatibility execution, `application-router.ts` canonicalizes only matching negative outcomes: `method-not-allowed + downstream 405` to `{ "error": "Method not allowed" }`, and `unknown-api + downstream 404` to `{ "error": "Not found" }`, preserving non-content headers and `cache-control: no-store`;
-7. the finalizer never promotes `401`, `403`, legacy `404` for a method mismatch, `409`, `429`, `5xx`, success, stable, supplemental or framework responses into a routing error;
-8. framework/static/RSC paths still reach the existing Vinext owner;
-9. `scheduled` wiring stays explicit and separate from HTTP classification.
+4. every classification enters `security-composition.ts` without mutating `Request`, environment or execution context;
+5. `security-composition.ts` now owns the controlled storage migration apply/status/reconcile gate through `middleware/storage-migration-apply.ts`; handled responses short-circuit before maintenance, while all unrelated traffic delegates to maintenance with the same request/env/context identities;
+6. the existing maintenance/service-admin/local-session/settings/FreeIPA/operations/recovery wrappers remain authoritative for their remaining security enforcement, handler selection and returned status;
+7. after downstream execution, `application-router.ts` canonicalizes only matching negative outcomes: `method-not-allowed + downstream 405` to `{ "error": "Method not allowed" }`, and `unknown-api + downstream 404` to `{ "error": "Not found" }`, preserving non-content headers and `cache-control: no-store`;
+8. the finalizer never promotes `401`, `403`, legacy `404` for a method mismatch, `409`, `429`, `5xx`, success, stable, supplemental or framework responses into a routing error;
+9. framework/static/RSC paths still reach the existing Vinext owner;
+10. `scheduled` wiring stays explicit and separate from HTTP classification and the HTTP-only storage migration gate.
 
-This checkpoint deliberately does **not** move the 404/405 **status decision** ahead of compatibility security. Doing so before #629 would bypass existing local-session/service-admin/same-origin/maintenance ordering for protected wrong-method requests. After #629 makes security composition explicit, a later cut can decide whether negative routes may short-circuit safely. Individual domain handlers also remain compatibility-owned until their route-family parity is proven.
+This checkpoint deliberately does **not** move the 404/405 **status decision** ahead of security execution. Doing so before the remaining #629 security gates are explicit could bypass local-session/service-admin/same-origin/maintenance ordering for protected wrong-method requests. Individual domain handlers also remain compatibility-owned until their route-family parity is proven.
 
 The durable target and constraints remain captured in `docs/adr/ADR-0008-explicit-worker-application-composition.md`; ADR-0008 remains Proposed until the broader cutover evidence exists.
 
-## Phase #628 parity checklist
+## Phase #628/#629 parity checklist
 
-Before any existing wrapper becomes bypassable or removable, Phase #628 must demonstrate all of the following on the candidate head:
+Before any additional existing wrapper becomes bypassable or removable, the candidate head must demonstrate all of the following:
 
 - every `portalRouteContracts` entry resolves to exactly one registered handler/adaptor or an explicitly documented compatibility delegation;
 - supplemental infrastructure/static surfaces above are classified explicitly;
@@ -271,7 +279,7 @@ Before any existing wrapper becomes bypassable or removable, Phase #628 must dem
 - representative negative tests cover anonymous, viewer, operator, admin and service-admin access;
 - `npm run lint`, `npm run build`, the complete discovered Node/server suite, documentation checks and current risk-routed CI/E2E checks are green.
 
-The current checkpoint directly proves canonical stable-route classification, known-path method classification, supplemental/unknown/framework classification, unchanged compatibility-dispatch inputs, security-preserving finalization for downstream 404/405 responses, preservation of non-content maintenance/correlation headers, and source-level schema/application/maintenance ancestry. Authorization and stable handler-response parity continues to be proven by the existing full suite until later route-family cutovers add narrower direct dispatch tests.
+The current checkpoint directly proves canonical stable-route classification, known-path method classification, supplemental/unknown/framework classification, unchanged composition inputs, storage migration short-circuit/pass-through parity, security-preserving finalization for downstream 404/405 responses, preservation of non-content maintenance/correlation headers, and source-level schema/application/security/maintenance ancestry. Authorization and stable handler-response parity continues to be proven by the existing full suite until later security/route-family cutovers add narrower direct dispatch tests.
 
 ## Confirmed risks and intentional unknowns
 
@@ -284,9 +292,9 @@ The following are confirmed migration risks:
 - `worker/index.ts` combines framework hosting and several independent integration/operation domains;
 - infrastructure/static surfaces are not all represented in the stable API metadata registry.
 
-Remaining questions for later #628/#629 slices must be answered from tests/current code rather than assumed:
+Remaining questions for later #629 slices must be answered from tests/current code rather than assumed:
 
-- which route family can safely become authoritative in explicit dispatch first without bypassing a compatibility wrapper that still owns unique semantics;
+- which remaining security gate can safely become authoritative next without bypassing a compatibility wrapper that still owns unique semantics;
 - whether each supplemental infrastructure API belongs in canonical stable route metadata or should remain a separate infrastructure classification owned by application composition;
 - when the negative **status decision** can move before compatibility dispatch without exposing route existence or bypassing existing auth/maintenance behavior;
 - the smallest handler registration API that avoids a new framework/DI/container dependency.
@@ -301,6 +309,8 @@ Primary current evidence for this inventory:
 - `worker/schema-migrations-entry.ts`
 - `worker/application.ts`
 - `worker/application-router.ts`
+- `worker/security-composition.ts` and `worker/security-composition-contract.ts`
+- `worker/middleware/storage-migration-apply.ts` and `worker/storage-migration-apply-entry.ts`
 - `worker/maintenance-mode-root-entry.ts` and `worker/maintenance-mode-gate.ts`
 - `worker/service-admin-root-entry.ts`
 - `worker/local-secure-entry.ts`
@@ -311,6 +321,8 @@ Primary current evidence for this inventory:
 - canonical domain modules under `src/**`
 - `db/portal-schema.ts`
 - `tests/auth/portal-application-router.test.mjs`
+- `tests/auth/security-composition-contract.test.mjs`
+- `tests/storage/storage-migration-apply-security-gate.test.mjs`
 - route/auth/security tests under `tests/auth/**`
 - FreeIPA tests under `tests/freeipa/**`
 - operation/catalog/approval/health tests under `tests/operations/**`

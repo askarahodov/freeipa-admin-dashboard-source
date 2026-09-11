@@ -81,7 +81,9 @@ Detailed destructive recovery procedure belongs to [`OFFLINE_FULL_RESTORE.md`](.
 
 ### Actual Worker entry chain
 
-The built Worker entry is currently `worker/schema-migrations-entry.ts`. After its pre-application infrastructure/schema handling, ordinary HTTP traffic enters the explicit `worker/application.ts` composition boundary. `worker/application-router.ts` classifies the request using canonical route metadata and currently delegates it unchanged into the compatibility wrapper graph before the base `worker/index.ts` implementation.
+The built Worker entry is currently `worker/schema-migrations-entry.ts`. It owns pre-application infrastructure handling and normal schema readiness, while the bounded storage administration paths are intentionally delegated through before the ordinary schema-ready gate so recovery/inspection can still operate. Downstream traffic enters the explicit `worker/application.ts` composition boundary. `worker/application-router.ts` classifies requests using canonical route metadata, then all classifications enter `worker/security-composition.ts`.
+
+`security-composition.ts` now owns the first extracted security gate: controlled storage migration apply/status/reconcile is evaluated by `worker/middleware/storage-migration-apply.ts` and the existing `worker/storage-migration-apply-entry.ts` before maintenance. Any handled migration response short-circuits there. All other traffic is delegated unchanged into the remaining compatibility wrapper graph.
 
 The current chain is approximately:
 
@@ -90,7 +92,11 @@ worker/schema-migrations-entry.ts
   -> application.ts
   -> application-router.ts
        -> canonical match/classification
-       -> compatibility dispatch
+       -> security composition dispatch
+  -> security-composition.ts
+       -> middleware/storage-migration-apply.ts
+          -> storage-migration-apply-entry.ts (exact controlled migration paths only)
+       -> compatibility dispatch for all remaining traffic
   -> maintenance-mode-root-entry.ts
   -> service-admin-root-entry.ts
   -> maintenance-control-root-entry.ts
@@ -111,18 +117,18 @@ worker/schema-migrations-entry.ts
   -> worker/index.ts
 ```
 
-The explicit application/router boundary is part of the **current application request architecture**, but route classification is not yet authoritative for authorization, handler selection, or 404/405 behavior. The downstream wrapper chain remains the compatibility/enforcement runtime while #56 incrementally replaces it with explicit composition backed by parity tests.
+The explicit application/router/security-composition boundary is part of the **current application request architecture**. Storage migration apply/status/reconcile is the first security decision boundary extracted from the historical wrapper chain; maintenance, service-admin, local-session, authorization, handler selection and most audit/error behavior remain compatibility-owned while #56 incrementally replaces them with explicit composition backed by parity tests.
 
 ### Request lifecycle
 
-The exact gates depend on the route, but protected requests are evaluated through the current application boundary and compatibility handler graph using the following concerns:
+The exact gates depend on the route. Current protected request processing uses these ordered concerns where applicable:
 
-1. request routing and correlation/error handling;
-2. schema startup/boundary readiness;
-3. identity resolution (anonymous, local session, or explicit service-administrator boundary where supported);
-4. server-side role/permission checks;
-5. same-origin and mutation safety checks where the route requires them;
-6. maintenance/recovery restrictions for operations that are unsafe during maintenance or recovery;
+1. pre-application infrastructure handling and either normal schema readiness or an explicitly allowlisted storage/recovery pass-through in `schema-migrations-entry.ts`;
+2. canonical application route classification;
+3. explicit controlled storage migration apply/status/reconcile gate for those exact paths;
+4. maintenance/recovery restrictions for downstream operations;
+5. identity resolution (anonymous, local session, or explicit service-administrator boundary where supported), including the preserved route-specific local session/same-origin order;
+6. server-side role/permission checks and route-specific restrictions;
 7. bounded input normalization and domain validation;
 8. domain handler or integration client;
 9. audit/result persistence where the contract requires it;
@@ -200,7 +206,7 @@ Frontend code must not become a second authorization layer: UI visibility improv
 
 ## Schema and startup boundary
 
-Canonical schema verification/migration is part of the production runtime startup boundary and remains enforced by the Worker/schema runtime before ordinary application traffic is considered ready.
+Canonical schema verification/migration is part of the production runtime startup boundary and remains enforced by the Worker/schema runtime before ordinary application traffic is considered ready. Explicit storage status/integrity/migration administration routes are the bounded exception: `schema-migrations-entry.ts` delegates those paths before the ordinary schema-readiness failure so recovery/inspection can reach their own guarded handlers.
 
 Key rules are defined in [`operations/DATABASE_MIGRATIONS.md`](../operations/DATABASE_MIGRATIONS.md):
 
@@ -252,7 +258,7 @@ Use:
 
 These are current-state constraints, not recommendations:
 
-1. **Explicit application boundary plus large compatibility Worker chain.** `worker/application.ts`/`application-router.ts` now provide one post-schema composition/classification point, while request enforcement and handlers remain spread across many compatibility wrappers plus `worker/index.ts`; #56 tracks the incremental cutover.
+1. **Explicit application/security boundary plus large compatibility Worker chain.** `worker/application.ts`/`application-router.ts` provide one post-schema composition/classification point and `worker/security-composition.ts` now owns the first extracted `storage-migration-apply` gate. Maintenance, service-admin, local-security enforcement and handlers remain spread across compatibility wrappers plus `worker/index.ts`; #56 tracks the incremental cutover.
 2. **Actively changing frontend ownership.** Shared tokens/primitives and the AppShell foundation exist, while screen/presentation extraction has continued beyond the original shell foundation; exact ownership must be checked against current `main` rather than historical UI plans.
 3. **Local SQLite/D1-compatible ownership.** The canonical Node runtime uses a local SQLite-backed D1-compatible persistence boundary and does not establish a horizontally scaled multi-writer database architecture.
 4. **Profile-specific persistence paths.** Current Compose mounts the shared `dashboard-data` volume at `/data` in the dashboard service and `/portal-data` in the recovery profile; both paths refer to the same persistent volume.

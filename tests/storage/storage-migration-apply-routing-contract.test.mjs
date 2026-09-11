@@ -9,7 +9,8 @@ import {
   isStorageMigrationApplyPath,
 } from "../../src/storage/migration/apply/storage-migration-apply-contract.ts";
 
-const [rootEntry, schemaEntry, handler] = await Promise.all([
+const [securityComposition, maintenanceRoot, schemaEntry, handler] = await Promise.all([
+  readFile(new URL("../../worker/security-composition.ts", import.meta.url), "utf8"),
   readFile(new URL("../../worker/maintenance-mode-root-entry.ts", import.meta.url), "utf8"),
   readFile(new URL("../../worker/schema-migrations-entry.ts", import.meta.url), "utf8"),
   readFile(new URL("../../worker/storage-migration-apply-entry.ts", import.meta.url), "utf8"),
@@ -29,10 +30,12 @@ test("controlled migration paths are exact and recovery allowlisted before schem
   assert.ok(recoveryIndex >= 0 && recoveryIndex < schemaEntry.indexOf("if (!sourceEnv.DB)"));
 });
 
-test("outer maintenance root dispatches controlled migration handler before maintenance gate", () => {
-  const handlerIndex = rootEntry.indexOf("handleStorageMigrationApplyRequest(request, sourceEnv)");
-  const gateIndex = rootEntry.indexOf("handleMaintenanceGate(request, sourceEnv");
-  assert.ok(handlerIndex >= 0 && gateIndex > handlerIndex);
+test("security composition dispatches controlled migration handler before remaining maintenance compatibility", () => {
+  const handlerIndex = securityComposition.indexOf("handleApply: handleStorageMigrationApplyRequest");
+  const downstreamIndex = securityComposition.indexOf("compatibilityRuntime.fetch(nextRequest, nextEnv, nextContext)");
+  assert.ok(handlerIndex >= 0 && downstreamIndex > handlerIndex);
+  assert.equal(maintenanceRoot.includes("handleStorageMigrationApplyRequest"), false);
+  assert.equal(maintenanceRoot.includes("handleMaintenanceGate(request"), true);
 });
 
 test("handler authorizes service token or local admin session before bounded body parsing", () => {

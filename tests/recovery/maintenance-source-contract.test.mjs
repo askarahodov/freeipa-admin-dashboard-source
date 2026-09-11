@@ -16,7 +16,7 @@ function source(url) {
   return fs.readFileSync(url, "utf8");
 }
 
-test("schema readiness composes the maintenance gate outside service-admin authorization", () => {
+test("schema readiness composes migration apply then maintenance outside service-admin authorization", () => {
   const schemaRoot = source(schemaRootPath);
   const application = source(applicationPath);
   const securityComposition = source(securityCompositionPath);
@@ -26,7 +26,11 @@ test("schema readiness composes the maintenance gate outside service-admin autho
 
   assert.equal(schemaRoot.includes('import rootRuntime from "./application.ts"'), true);
   assert.equal(application.includes('import securityComposition from "./security-composition.ts"'), true);
+  assert.equal(securityComposition.includes('from "./storage-migration-apply-entry.ts"'), true);
+  assert.equal(securityComposition.includes('from "./middleware/storage-migration-apply.ts"'), true);
   assert.equal(securityComposition.includes('import compatibilityRuntime from "./maintenance-mode-root-entry.ts"'), true);
+  assert.equal(securityComposition.includes("handleApply: handleStorageMigrationApplyRequest"), true);
+  assert.equal(root.includes("handleStorageMigrationApplyRequest"), false);
   assert.equal(root.includes('import rootRuntime from "./service-admin-root-entry.ts"'), true);
   assert.equal(root.includes('from "./maintenance-mode-gate.ts"'), true);
   assert.equal(serviceRoot.includes('import rootRuntime from "./maintenance-control-root-entry.ts"'), true);

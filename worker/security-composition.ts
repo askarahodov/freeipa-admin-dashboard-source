@@ -1,4 +1,6 @@
 import compatibilityRuntime from "./maintenance-mode-root-entry.ts";
+import { handleStorageMigrationApplyRequest } from "./storage-migration-apply-entry.ts";
+import { handleStorageMigrationApplyGate } from "./middleware/storage-migration-apply.ts";
 
 export {
   portalAuthenticationMechanisms,
@@ -18,16 +20,18 @@ type ScheduledController = Parameters<NonNullable<typeof compatibilityRuntime.sc
 /**
  * Single application-facing security seam during the compatibility migration.
  *
- * The ordered migration metadata lives in security-composition-contract.ts so
- * tests can inspect it without loading this legacy runtime graph. Do not add
- * security behavior here merely to make that contract "real". Each gate is
- * cut over separately only after its current behavior is captured by focused
- * negative/parity tests. Until then this adapter preserves request/env/context
- * exactly and the legacy graph remains the execution authority.
+ * `storage-migration-apply` is the first gate executed explicitly here. It
+ * preserves the legacy outer order by short-circuiting controlled migration
+ * requests before maintenance and delegating all other traffic unchanged to
+ * the remaining compatibility graph. Subsequent gates stay compatibility-
+ * owned until their behavior is captured by focused parity/negative tests.
  */
 const securityComposition = {
   fetch(request: Request, env: RuntimeEnv, ctx: RuntimeContext): Promise<Response> {
-    return compatibilityRuntime.fetch(request, env, ctx);
+    return handleStorageMigrationApplyGate(request, env, ctx, {
+      handleApply: handleStorageMigrationApplyRequest,
+      nextFetch: (nextRequest, nextEnv, nextContext) => compatibilityRuntime.fetch(nextRequest, nextEnv, nextContext),
+    });
   },
 
   async scheduled(controller: ScheduledController, env: RuntimeEnv | undefined, ctx: RuntimeContext): Promise<void> {

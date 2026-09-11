@@ -9,10 +9,7 @@ import {
   STORAGE_MIGRATION_RECONCILE_PATH,
 } from "../src/storage/migration/apply/storage-migration-apply-contract.ts";
 import { STORAGE_STATUS_PATH } from "../src/storage/status/storage-status-contract.ts";
-import { handleDependencyHealthRequest } from "./dependency-health.ts";
-import { handleHealthDiagnosticsRequest } from "./health-diagnostics-ui.ts";
-import { handleHealthMetricsRequest } from "./health-metrics.ts";
-import { handleHealthRequest } from "./health-contracts.ts";
+import { isPreSchemaHealthApplicationRequest } from "./health-http.ts";
 import {
   migrationCapableDatabase,
   schemaAuthorizationResponse,
@@ -24,16 +21,6 @@ import {
 type RuntimeEnv = NonNullable<Parameters<typeof rootRuntime.fetch>[1]> & {
   DB?: D1Database;
   ADMIN_TOKEN?: string;
-  CONFIG_ENCRYPTION_KEY?: string;
-  DEMO_MODE?: string;
-  IPA_URL?: string;
-  IPA_USERNAME?: string;
-  IPA_PASSWORD?: string;
-  IPA_NODE_GATEWAY_URL?: string;
-  IPA_NODE_GATEWAY_TOKEN?: string;
-  XYOPS_URL?: string;
-  XYOPS_API_KEY?: string;
-  PORTAL_BUILD_VERSION?: string;
 };
 type RuntimeContext = Parameters<typeof rootRuntime.fetch>[2];
 type ScheduledController = Parameters<NonNullable<typeof rootRuntime.scheduled>>[0];
@@ -47,28 +34,12 @@ const worker = {
     const sourceEnv = env ?? (process.env as unknown as RuntimeEnv);
     const url = new URL(request.url);
 
-    const healthResponse = await handleHealthRequest(request, sourceEnv, {
-      portalSchema: async (healthEnv) => await portalSchema(healthEnv as RuntimeEnv),
-      fetchImpl: fetch,
-    });
-    if (healthResponse) return healthResponse;
-
-    const dependencyHealthResponse = await handleDependencyHealthRequest(request, sourceEnv, {
-      portalSchema: async (dependencyEnv) => await portalSchema(dependencyEnv as RuntimeEnv),
-      fetchImpl: fetch,
-    });
-    if (dependencyHealthResponse) return dependencyHealthResponse;
-
-    const diagnosticsResponse = await handleHealthDiagnosticsRequest(request);
-    if (diagnosticsResponse) return diagnosticsResponse;
-
-    const metricsResponse = await handleHealthMetricsRequest(request, sourceEnv, {
-      healthHandler: async (healthRequest) => await handleHealthRequest(healthRequest, sourceEnv, {
-        portalSchema: async (healthEnv) => await portalSchema(healthEnv as RuntimeEnv),
-        fetchImpl: fetch,
-      }),
-    });
-    if (metricsResponse) return metricsResponse;
+    // Health/diagnostics infrastructure intentionally remains reachable before
+    // ordinary schema readiness. The schema boundary owns only this pass-through;
+    // actual route dispatch is registered in the explicit application composition.
+    if (isPreSchemaHealthApplicationRequest(request)) {
+      return rootRuntime.fetch(request, sourceEnv, ctx);
+    }
 
     if (
       url.pathname === STORAGE_STATUS_PATH

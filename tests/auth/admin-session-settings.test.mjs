@@ -4,6 +4,7 @@ import test from "node:test";
 
 const authorization = fs.readFileSync(new URL("../../src/auth/admin-session-authorization.ts", import.meta.url), "utf8");
 const runtime = fs.readFileSync(new URL("../../worker/local-secure-entry.ts", import.meta.url), "utf8");
+const localRouting = fs.readFileSync(new URL("../../worker/middleware/local-security-routing.ts", import.meta.url), "utf8");
 const selectiveRoot = fs.readFileSync(new URL("../../worker/backup-selective-restore-root-entry.ts", import.meta.url), "utf8");
 const maintenanceControlRoot = fs.readFileSync(new URL("../../worker/maintenance-control-root-entry.ts", import.meta.url), "utf8");
 const serviceAdminGate = fs.readFileSync(new URL("../../worker/middleware/service-admin-authentication.ts", import.meta.url), "utf8");
@@ -39,17 +40,19 @@ const protectedPaths = [
 
 test("all administrative settings restore and maintenance endpoints use the shared session authorization boundary", () => {
   for (const path of protectedPaths) assert.equal(authorization.includes(`"${path}"`), true, path);
-  assert.equal(runtime.includes("isAdminIntegrationPath(url.pathname)"), true);
-  assert.equal(runtime.includes('headers.delete("x-admin-token")'), true);
-  assert.equal(runtime.includes('headers.set("x-admin-token", internalToken)'), true);
-  assert.equal(runtime.includes("delegatedEnv(sourceEnv, session, internalToken)"), true);
+  assert.equal(localRouting.includes("isAdminIntegrationPath(url.pathname)"), true);
+  assert.equal(localRouting.includes('headers.delete("x-admin-token")'), true);
+  assert.equal(localRouting.includes('headers.set("x-admin-token", internalToken)'), true);
+  assert.equal(localRouting.includes("delegatedEnv(env, session, internalToken)"), true);
+  assert.equal(runtime.includes("handleLocalSecurityRouting(request, sourceEnv, ctx"), true);
 });
 
 test("local session mutations require same-origin while service token access stays behind the maintenance gate", () => {
   assert.equal(authorization.includes('request.headers.get("origin")'), true);
   assert.equal(authorization.includes("new URL(origin).origin === new URL(request.url).origin"), true);
-  assert.equal(runtime.includes("sameOriginAdminMutation(request)"), true);
-  assert.equal(runtime.includes("service-admin@portal.local"), true);
+  assert.equal(runtime.includes("sameOriginAdminMutation(request)"), true, "/api/auth/** origin gate stays in the adapter");
+  assert.equal(localRouting.includes("sameOriginAdminMutation(request)"), true, "ordinary admin integration origin gate is owned by local routing");
+  assert.equal(localRouting.includes("service-admin@portal.local"), true);
   assert.equal(viteConfig.includes('main: "./worker/http-security-root-entry.ts"'), true);
   assert.equal(httpSecurityRoot.includes('import rootRuntime from "./schema-migrations-entry.ts"'), true);
   assert.equal(schemaRoot.includes('import rootRuntime from "./application.ts"'), true);

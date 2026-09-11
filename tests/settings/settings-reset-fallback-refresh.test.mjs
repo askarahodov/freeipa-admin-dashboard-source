@@ -6,11 +6,13 @@ const boundary = fs.readFileSync(new URL("../../worker/settings-input-normalizer
 const safeSource = fs.readFileSync(new URL("../../worker/settings-source-safe-entry.ts", import.meta.url), "utf8");
 const sourceContext = fs.readFileSync(new URL("../../worker/settings-source-context-entry.ts", import.meta.url), "utf8");
 const localBoundary = fs.readFileSync(new URL("../../worker/local-secure-entry.ts", import.meta.url), "utf8");
+const localRouting = fs.readFileSync(new URL("../../worker/middleware/local-security-routing.ts", import.meta.url), "utf8");
 
 test("reset mutations run after local session and same-origin authorization", () => {
   assert.equal(localBoundary.includes('import secureRuntime from "./settings-input-normalizer-entry"'), true);
-  assert.equal(localBoundary.includes("sameOriginAdminMutation(request)"), true);
-  assert.equal(localBoundary.includes('headers.set("x-admin-token", internalToken)'), true);
+  assert.equal(localRouting.includes("sameOriginAdminMutation(request)"), true);
+  assert.equal(localRouting.includes('headers.set("x-admin-token", internalToken)'), true);
+  assert.equal(localBoundary.includes("handleLocalSecurityRouting(request, sourceEnv, ctx"), true);
   assert.equal(boundary.includes("authorizeSettingsMutation"), true);
   assert.equal(boundary.includes("const denied = await authorizeSettingsMutation(prepared, sourceEnv, ctx)"), true);
   assert.equal(safeSource.includes('request.headers.get("x-admin-token")'), true);

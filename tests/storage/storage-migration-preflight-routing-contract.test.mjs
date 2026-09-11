@@ -7,12 +7,14 @@ import { STORAGE_MIGRATION_PREFLIGHT_PATH } from "../../src/storage/migration/pr
 
 const [
   localSecureSource,
+  localRoutingSource,
   schemaEntrySource,
   maintenanceGateSource,
   authorizationSource,
   preflightSource,
 ] = await Promise.all([
   readFile(new URL("../../worker/local-secure-entry.ts", import.meta.url), "utf8"),
+  readFile(new URL("../../worker/middleware/local-security-routing.ts", import.meta.url), "utf8"),
   readFile(new URL("../../worker/schema-migrations-entry.ts", import.meta.url), "utf8"),
   readFile(new URL("../../worker/maintenance-mode-gate.ts", import.meta.url), "utf8"),
   readFile(new URL("../../src/auth/admin-session-authorization.ts", import.meta.url), "utf8"),
@@ -20,24 +22,24 @@ const [
 ]);
 
 test("migration preflight is dispatched only after service-token or local-session authorization", () => {
-  assert.match(localSecureSource, /import \{ STORAGE_MIGRATION_PREFLIGHT_PATH \} from ["']\.\.\/src\/storage\/migration\/preflight\/storage-migration-preflight-contract\.ts["']/);
   assert.match(localSecureSource, /import \{ handleStorageMigrationPreflightRequest \} from ["']\.\/storage-migration-preflight-entry\.ts["']/);
+  assert.match(localRoutingSource, /STORAGE_MIGRATION_PREFLIGHT_PATH/);
 
-  const nonLocalPathIndex = localSecureSource.indexOf("url.pathname === STORAGE_MIGRATION_PREFLIGHT_PATH");
-  const tokenCheckIndex = localSecureSource.indexOf("serviceAdminTokenAuthorized(request, sourceEnv.ADMIN_TOKEN)", nonLocalPathIndex);
-  const nonLocalHandlerIndex = localSecureSource.indexOf("handleStorageMigrationPreflightRequest(request, delegated)", nonLocalPathIndex);
+  const nonLocalPathIndex = localRoutingSource.indexOf("url.pathname === STORAGE_MIGRATION_PREFLIGHT_PATH");
+  const tokenCheckIndex = localRoutingSource.indexOf("serviceAdminTokenAuthorized(request, env.ADMIN_TOKEN)", nonLocalPathIndex);
+  const nonLocalHandlerIndex = localRoutingSource.indexOf("dependencies.handleStorageMigrationPreflight(request, delegated)", nonLocalPathIndex);
   assert.ok(nonLocalPathIndex >= 0 && tokenCheckIndex > nonLocalPathIndex);
   assert.ok(nonLocalHandlerIndex > tokenCheckIndex);
 
-  const sessionIndex = localSecureSource.indexOf("const session = await resolveLocalSession(sourceEnv, request)");
-  const originIndex = localSecureSource.indexOf("sameOriginAdminMutation(request)", sessionIndex);
-  const delegatedRequestIndex = localSecureSource.indexOf("const delegatedRequest = new Request(request, { headers })", sessionIndex);
-  const localHandlerIndex = localSecureSource.indexOf("handleStorageMigrationPreflightRequest(delegatedRequest, delegated)", sessionIndex);
+  const sessionIndex = localRoutingSource.indexOf("const session = await dependencies.resolveSession(env, request)");
+  const originIndex = localRoutingSource.indexOf("sameOriginAdminMutation(request)", sessionIndex);
+  const delegatedRequestIndex = localRoutingSource.indexOf("const delegatedRequest = new Request(request, { headers })", sessionIndex);
+  const localHandlerIndex = localRoutingSource.indexOf("dependencies.handleStorageMigrationPreflight(delegatedRequest, delegated)", sessionIndex);
   assert.ok(sessionIndex >= 0 && originIndex > sessionIndex);
   assert.ok(delegatedRequestIndex > originIndex && localHandlerIndex > delegatedRequestIndex);
 
-  const noSessionTokenIndex = localSecureSource.indexOf("serviceAdminTokenAuthorized(request, sourceEnv.ADMIN_TOKEN)", sessionIndex);
-  const noSessionHandlerIndex = localSecureSource.indexOf("handleStorageMigrationPreflightRequest(request, delegated)", noSessionTokenIndex);
+  const noSessionTokenIndex = localRoutingSource.indexOf("serviceAdminTokenAuthorized(request, env.ADMIN_TOKEN)", sessionIndex);
+  const noSessionHandlerIndex = localRoutingSource.indexOf("dependencies.handleStorageMigrationPreflight(request, delegated)", noSessionTokenIndex);
   assert.ok(noSessionTokenIndex > sessionIndex && noSessionHandlerIndex > noSessionTokenIndex);
   assert.match(localSecureSource, /secureRuntime\.scheduled\?\.\(controller, env, ctx\)/);
 });
@@ -64,8 +66,8 @@ test("migration preflight path is exact in admin and recovery allowlists", () =>
 });
 
 test("existing storage integrity status health and scheduled composition remains unchanged", () => {
-  assert.match(localSecureSource, /handleStorageIntegrityRequest\(delegatedRequest, delegated\)/);
-  assert.match(localSecureSource, /handleStorageStatusRequest\(delegatedRequest, delegated\)/);
+  assert.match(localRoutingSource, /dependencies\.handleStorageIntegrity\(delegatedRequest, delegated\)/);
+  assert.match(localRoutingSource, /dependencies\.handleStorageStatus\(delegatedRequest, delegated\)/);
   assert.match(schemaEntrySource, /STORAGE_STATUS_PATH/);
   assert.match(schemaEntrySource, /STORAGE_INTEGRITY_PATH/);
   assert.match(maintenanceGateSource, /STORAGE_STATUS_PATH/);

@@ -9,12 +9,9 @@ type RuntimeEnv = NonNullable<Parameters<typeof compatibilityRuntime.fetch>[1]>;
 type RuntimeContext = Parameters<typeof compatibilityRuntime.fetch>[2];
 type ScheduledController = Parameters<NonNullable<typeof compatibilityRuntime.scheduled>>[0];
 
-const security = createPortalSecurityComposition<RuntimeEnv, RuntimeContext, ScheduledController>({
+const security = createPortalSecurityComposition<RuntimeEnv, RuntimeContext>({
   fetch(request, env, ctx) {
     return compatibilityRuntime.fetch(request, env, ctx);
-  },
-  async scheduled(controller, env, ctx) {
-    await compatibilityRuntime.scheduled?.(controller, env, ctx);
   },
 });
 
@@ -37,14 +34,15 @@ const router = createPortalApplicationRouter<RuntimeEnv, RuntimeContext>({
  *
  * HTTP requests are classified through canonical route metadata and dispatched
  * through explicit stable/negative/supplemental/framework registrations. All
- * four registrations pass through the named security composition seam, which
- * currently delegates unchanged into the existing maintenance/security/domain
- * compatibility runtime. Only the negative registration finalizes an
- * already-returned matching 404/405 envelope after compatibility
- * security/status handling.
+ * four registrations pass through the named HTTP security composition seam,
+ * which currently delegates unchanged into the existing
+ * maintenance/security/domain compatibility runtime. Only the negative
+ * registration finalizes an already-returned matching 404/405 envelope after
+ * compatibility security/status handling.
  *
- * Scheduled execution also passes through the same named security seam while
- * its existing schema/maintenance behavior remains compatibility-owned.
+ * Scheduled execution remains delegated unchanged through the compatibility
+ * runtime; scheduler/assets ownership is intentionally outside #629 and stays
+ * reserved for the later #635 cleanup phase.
  */
 const application = {
   async fetch(request: Request, env: RuntimeEnv | undefined, ctx: RuntimeContext): Promise<Response> {
@@ -53,7 +51,7 @@ const application = {
   },
 
   async scheduled(controller: ScheduledController, env: RuntimeEnv | undefined, ctx: RuntimeContext): Promise<void> {
-    return security.scheduled(controller, env, ctx);
+    return compatibilityRuntime.scheduled?.(controller, env, ctx);
   },
 };
 

@@ -27,6 +27,8 @@ test("security composition publishes the universal outer migration order", () =>
     ["anonymous", "local-session", "service-admin"],
   );
   assert.equal(new Set(portalSecurityGateOrder.map((gate) => gate.id)).size, portalSecurityGateOrder.length);
+  assert.equal(portalSecurityGateOrder[0].owner, "worker/security-composition.ts");
+  assert.equal(portalSecurityGateOrder[1].owner, "worker/maintenance-mode-root-entry.ts");
 });
 
 test("local security profiles preserve route-specific origin and authentication ordering", () => {
@@ -56,23 +58,31 @@ test("local security profiles preserve route-specific origin and authentication 
   assert.ok(workerFetchStart >= 0 && ordinarySession > workerFetchStart && ordinaryOrigin > ordinarySession);
 });
 
-test("application enters the compatibility runtime only through the security composition seam", () => {
+test("application enters security composition and storage migration apply is the first explicit gate", () => {
   const application = read("../../worker/application.ts");
   const securityComposition = read("../../worker/security-composition.ts");
+  const middleware = read("../../worker/middleware/storage-migration-apply.ts");
 
   assert.equal(application.includes('from "./security-composition.ts"'), true);
   assert.equal(application.includes('from "./maintenance-mode-root-entry.ts"'), false);
   assert.equal(securityComposition.includes('from "./security-composition-contract.ts"'), true);
+  assert.equal(securityComposition.includes('from "./storage-migration-apply-entry.ts"'), true);
+  assert.equal(securityComposition.includes('from "./middleware/storage-migration-apply.ts"'), true);
   assert.equal(securityComposition.includes('from "./maintenance-mode-root-entry.ts"'), true);
-  assert.equal(securityComposition.includes("compatibilityRuntime.fetch(request, env, ctx)"), true);
+  assert.equal(securityComposition.includes("handleStorageMigrationApplyGate(request, env, ctx"), true);
+  assert.equal(securityComposition.includes("handleApply: handleStorageMigrationApplyRequest"), true);
+  assert.equal(securityComposition.includes("compatibilityRuntime.fetch(nextRequest, nextEnv, nextContext)"), true);
+  assert.equal(middleware.includes("if (response) return response"), true);
+  assert.equal(middleware.includes("dependencies.nextFetch(request, env, ctx)"), true);
 });
 
-test("compatibility ownership preserves maintenance before service-admin adaptation", () => {
+test("remaining compatibility ownership preserves maintenance before service-admin adaptation", () => {
   const maintenanceRoot = read("../../worker/maintenance-mode-root-entry.ts");
   const serviceAdminRoot = read("../../worker/service-admin-root-entry.ts");
 
   assert.equal(maintenanceRoot.includes('from "./service-admin-root-entry.ts"'), true);
-  assert.ok(maintenanceRoot.indexOf("handleStorageMigrationApplyRequest") < maintenanceRoot.indexOf("handleMaintenanceGate(request"));
+  assert.equal(maintenanceRoot.includes("handleStorageMigrationApplyRequest"), false);
+  assert.equal(maintenanceRoot.includes("handleMaintenanceGate(request"), true);
   assert.equal(serviceAdminRoot.includes("localMode(sourceEnv)"), true);
   assert.equal(serviceAdminRoot.includes("isAdminIntegrationPath(url.pathname)"), true);
   assert.equal(serviceAdminRoot.includes("serviceAdminTokenAuthorized(request, sourceEnv.ADMIN_TOKEN)"), true);
@@ -93,10 +103,12 @@ test("local session and service-admin remain separate mechanisms with fail-close
   assert.ok(sessionIndex >= 0 && serviceAdminFallbackIndex > sessionIndex);
 });
 
-test("compatibility seam does not introduce a new admin default or principal adaptation", () => {
+test("composition cutover does not introduce a new admin default or principal adaptation", () => {
   const source = read("../../worker/security-composition.ts");
-  assert.equal(source.includes("PORTAL_DEFAULT_ROLE"), false);
-  assert.equal(source.includes("PORTAL_STATIC_IDENTITY"), false);
-  assert.equal(source.includes("ADMIN_TOKEN"), false);
-  assert.equal(source.includes("request.headers.set"), false);
+  const middleware = read("../../worker/middleware/storage-migration-apply.ts");
+  const combined = `${source}\n${middleware}`;
+  assert.equal(combined.includes("PORTAL_DEFAULT_ROLE"), false);
+  assert.equal(combined.includes("PORTAL_STATIC_IDENTITY"), false);
+  assert.equal(combined.includes("ADMIN_TOKEN"), false);
+  assert.equal(combined.includes("request.headers.set"), false);
 });

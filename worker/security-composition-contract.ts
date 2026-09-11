@@ -4,7 +4,7 @@
  * Keep this module free of runtime imports so architecture/parity tests can
  * inspect the contract without loading the legacy Worker wrapper graph.
  *
- * The outer order is universal only until traffic enters local-secure-entry.
+ * The outer order is universal only until traffic reaches the local-security routing boundary.
  * Local auth/admin routes intentionally have route-specific origin/session
  * ordering today; those profiles are captured separately below so #629 does
  * not accidentally change 401/403 semantics while extracting middleware.
@@ -27,7 +27,7 @@ export const portalSecurityGateOrder = Object.freeze([
   }),
   Object.freeze({
     id: "local-security-routing",
-    owner: "worker/local-secure-entry.ts",
+    owner: "worker/middleware/local-security-routing.ts",
     responsibility: "route-specific local session, service-admin fallback and mutation-origin ordering",
   }),
   Object.freeze({

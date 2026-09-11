@@ -30,6 +30,7 @@ test("security composition publishes the universal outer migration order", () =>
   assert.equal(portalSecurityGateOrder[0].owner, "worker/security-composition.ts");
   assert.equal(portalSecurityGateOrder[1].owner, "worker/security-composition.ts");
   assert.equal(portalSecurityGateOrder[2].owner, "worker/security-composition.ts");
+  assert.equal(portalSecurityGateOrder[3].owner, "worker/middleware/local-security-routing.ts");
 });
 
 test("local security profiles preserve route-specific origin and authentication ordering", () => {
@@ -53,10 +54,11 @@ test("local security profiles preserve route-specific origin and authentication 
   const authRequireAdmin = localSecure.indexOf("requireAdmin(env, request)", authOrigin);
   assert.ok(authHandlerStart >= 0 && authOrigin > authHandlerStart && authRequireAdmin > authOrigin);
 
-  const workerFetchStart = localSecure.indexOf("const worker = {");
-  const ordinarySession = localSecure.indexOf("resolveLocalSession(sourceEnv, request)", workerFetchStart);
-  const ordinaryOrigin = localSecure.indexOf("sameOriginAdminMutation(request)", ordinarySession);
-  assert.ok(workerFetchStart >= 0 && ordinarySession > workerFetchStart && ordinaryOrigin > ordinarySession);
+  const localRouting = read("../../worker/middleware/local-security-routing.ts");
+  const ordinarySession = localRouting.indexOf("dependencies.resolveSession(env, request)");
+  const ordinaryOrigin = localRouting.indexOf("sameOriginAdminMutation(request)", ordinarySession);
+  assert.ok(ordinarySession >= 0 && ordinaryOrigin > ordinarySession);
+  assert.equal(localSecure.includes("handleLocalSecurityRouting(request, sourceEnv, ctx"), true);
 });
 
 test("application enters security composition with storage migration then maintenance as explicit gates", () => {
@@ -85,7 +87,7 @@ test("application enters security composition with storage migration then mainte
   assert.equal(maintenanceGate.includes("dependencies.nextScheduled(controller, env, ctx)"), true);
 });
 
-test("explicit composition owns outer service-admin adaptation while local security remains compatibility-owned", () => {
+test("explicit composition owns outer service-admin adaptation while local security remains at the compatibility position", () => {
   const securityComposition = read("../../worker/security-composition.ts");
   const serviceAdminGate = read("../../worker/middleware/service-admin-authentication.ts");
 
@@ -101,15 +103,17 @@ test("explicit composition owns outer service-admin adaptation while local secur
 
 test("local session and service-admin remain separate mechanisms with fail-closed ownership", () => {
   const localSecure = read("../../worker/local-secure-entry.ts");
+  const localRouting = read("../../worker/middleware/local-security-routing.ts");
 
-  assert.equal(localSecure.includes("resolveLocalSession(sourceEnv, request)"), true);
-  assert.equal(localSecure.includes("sameOriginAdminMutation(request)"), true);
-  assert.equal(localSecure.includes("isAdminIntegrationPath(url.pathname)"), true);
-  assert.equal(localSecure.includes("serviceAdminTokenAuthorized(request, sourceEnv.ADMIN_TOKEN)"), true);
-  assert.equal(localSecure.includes('json({ error: "Требуется вход в портал" }, 401)'), true);
+  assert.equal(localSecure.includes("handleLocalSecurityRouting(request, sourceEnv, ctx"), true);
+  assert.equal(localRouting.includes("dependencies.resolveSession(env, request)"), true);
+  assert.equal(localRouting.includes("sameOriginAdminMutation(request)"), true);
+  assert.equal(localRouting.includes("isAdminIntegrationPath(url.pathname)"), true);
+  assert.equal(localRouting.includes("serviceAdminTokenAuthorized(request, env.ADMIN_TOKEN)"), true);
+  assert.equal(localRouting.includes('json({ error: "Требуется вход в портал" }, 401)'), true);
 
-  const sessionIndex = localSecure.indexOf("resolveLocalSession(sourceEnv, request)");
-  const serviceAdminFallbackIndex = localSecure.indexOf("isAdminIntegrationPath(url.pathname)", sessionIndex);
+  const sessionIndex = localRouting.indexOf("dependencies.resolveSession(env, request)");
+  const serviceAdminFallbackIndex = localRouting.indexOf("isAdminIntegrationPath(url.pathname)", sessionIndex);
   assert.ok(sessionIndex >= 0 && serviceAdminFallbackIndex > sessionIndex);
 });
 

@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 
 const [
   localSecureSource,
+  localRoutingSource,
   schemaEntrySource,
   maintenanceGateSource,
   securityCompositionSource,
@@ -13,6 +14,7 @@ const [
   storageServiceSource,
 ] = await Promise.all([
   readFile(new URL("../../worker/local-secure-entry.ts", import.meta.url), "utf8"),
+  readFile(new URL("../../worker/middleware/local-security-routing.ts", import.meta.url), "utf8"),
   readFile(new URL("../../worker/schema-migrations-entry.ts", import.meta.url), "utf8"),
   readFile(new URL("../../worker/maintenance-mode-gate.ts", import.meta.url), "utf8"),
   readFile(new URL("../../worker/security-composition.ts", import.meta.url), "utf8"),
@@ -25,17 +27,18 @@ const [
 test("storage route is dispatched only after the existing local-session boundary", () => {
   assert.match(localSecureSource, /import secureRuntime from ["']\.\/settings-input-normalizer-entry(?:\.ts)?["']/);
   assert.match(localSecureSource, /import \{ handleStorageStatusRequest \} from ["']\.\/storage-status-entry\.ts["']/);
-  assert.match(localSecureSource, /const session = await resolveLocalSession\(sourceEnv, request\)/);
-  assert.match(localSecureSource, /const delegatedRequest = new Request\(request, \{ headers \}\)/);
-  assert.match(localSecureSource, /handleStorageStatusRequest\(delegatedRequest, delegated\)/);
+  assert.match(localSecureSource, /handleLocalSecurityRouting\(request, sourceEnv, ctx/);
+  assert.match(localRoutingSource, /const session = await dependencies\.resolveSession\(env, request\)/);
+  assert.match(localRoutingSource, /const delegatedRequest = new Request\(request, \{ headers \}\)/);
+  assert.match(localRoutingSource, /dependencies\.handleStorageStatus\(delegatedRequest, delegated\)/);
 
-  const sessionIndex = localSecureSource.indexOf("const session = await resolveLocalSession(sourceEnv, request)");
-  const delegatedRequestIndex = localSecureSource.indexOf("const delegatedRequest = new Request(request, { headers })");
-  const sessionHandlerIndex = localSecureSource.indexOf("handleStorageStatusRequest(delegatedRequest, delegated)");
+  const sessionIndex = localRoutingSource.indexOf("const session = await dependencies.resolveSession(env, request)");
+  const delegatedRequestIndex = localRoutingSource.indexOf("const delegatedRequest = new Request(request, { headers })");
+  const sessionHandlerIndex = localRoutingSource.indexOf("dependencies.handleStorageStatus(delegatedRequest, delegated)");
   assert.ok(sessionIndex >= 0 && delegatedRequestIndex > sessionIndex && sessionHandlerIndex > delegatedRequestIndex);
 
-  const tokenCheckIndex = localSecureSource.indexOf("serviceAdminTokenAuthorized(request, sourceEnv.ADMIN_TOKEN)");
-  const serviceHandlerIndex = localSecureSource.indexOf("handleStorageStatusRequest(request, delegated)");
+  const tokenCheckIndex = localRoutingSource.indexOf("serviceAdminTokenAuthorized(request, env.ADMIN_TOKEN)");
+  const serviceHandlerIndex = localRoutingSource.indexOf("dependencies.handleStorageStatus(request, delegated)");
   assert.ok(tokenCheckIndex >= 0 && serviceHandlerIndex > tokenCheckIndex);
   assert.match(localSecureSource, /secureRuntime\.scheduled\?\.\(controller, env, ctx\)/);
 });

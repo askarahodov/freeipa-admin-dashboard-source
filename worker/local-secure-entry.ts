@@ -6,12 +6,7 @@ import {
   recordLoginSuccess,
   type LoginRateLimitDecision,
 } from "../login-rate-limit";
-import {
-  isAdminIntegrationPath,
-  localAdminSessionToken,
-  sameOriginAdminMutation,
-  serviceAdminTokenAuthorized,
-} from "../src/auth/admin-session-authorization";
+import { sameOriginAdminMutation } from "../src/auth/admin-session-authorization";
 import {
   authenticateLocalUser,
   bootstrapLocalAdmin,
@@ -30,11 +25,10 @@ import {
   type LocalSession,
 } from "../src/auth/local-auth";
 import { localSessionRequestContext } from "../src/auth/local-session-request-context.ts";
-import { STORAGE_INTEGRITY_PATH } from "../src/storage/integrity/storage-integrity-contract.ts";
-import { STORAGE_MIGRATION_PREFLIGHT_PATH } from "../src/storage/migration/preflight/storage-migration-preflight-contract.ts";
 import { handleStorageIntegrityRequest } from "./storage-integrity-entry.ts";
 import { handleStorageMigrationPreflightRequest } from "./storage-migration-preflight-entry.ts";
 import { handleStorageStatusRequest } from "./storage-status-entry.ts";
+import { handleLocalSecurityRouting } from "./middleware/local-security-routing.ts";
 
 type RuntimeEnv = NonNullable<Parameters<typeof secureRuntime.fetch>[1]> & LocalAuthEnv & {
   PORTAL_IDENTITY_MODE?: string;
@@ -72,30 +66,6 @@ function publicSession(session: LocalSession) {
     displayName: session.displayName,
     role: session.role,
     expiresAt: session.expiresAt,
-  };
-}
-
-function delegatedEnv(env: RuntimeEnv, session: LocalSession, internalAdminToken?: string): RuntimeEnv {
-  return {
-    ...env,
-    PORTAL_IDENTITY_MODE: "static",
-    PORTAL_STATIC_IDENTITY: session.identity,
-    PORTAL_STATIC_NAME: session.displayName,
-    PORTAL_DEFAULT_ROLE: session.role,
-    PORTAL_RBAC_JSON: JSON.stringify({ [session.identity]: session.role }),
-    ADMIN_TOKEN: internalAdminToken ?? env.ADMIN_TOKEN,
-  };
-}
-
-function serviceAdminEnv(env: RuntimeEnv): RuntimeEnv {
-  const identity = "service-admin@portal.local";
-  return {
-    ...env,
-    PORTAL_IDENTITY_MODE: "static",
-    PORTAL_STATIC_IDENTITY: identity,
-    PORTAL_STATIC_NAME: "Service administrator",
-    PORTAL_DEFAULT_ROLE: "admin",
-    PORTAL_RBAC_JSON: JSON.stringify({ [identity]: "admin" }),
   };
 }
 
@@ -310,73 +280,16 @@ async function handleAuthApi(request: Request, env: RuntimeEnv, url: URL): Promi
 const worker = {
   async fetch(request: Request, env: RuntimeEnv | undefined, ctx: RuntimeContext): Promise<Response> {
     const sourceEnv = env ?? (process.env as unknown as RuntimeEnv);
-    const url = new URL(request.url);
-    if (!localMode(sourceEnv)) {
-      if (url.pathname === STORAGE_MIGRATION_PREFLIGHT_PATH) {
-        if (!await serviceAdminTokenAuthorized(request, sourceEnv.ADMIN_TOKEN)) {
-          return json({ error: "Требуется токен администратора" }, 401);
-        }
-        const delegated = serviceAdminEnv(sourceEnv);
-        const preflightResponse = await handleStorageMigrationPreflightRequest(request, delegated);
-        if (preflightResponse) return preflightResponse;
-      }
-      if (url.pathname === STORAGE_INTEGRITY_PATH) {
-        if (!await serviceAdminTokenAuthorized(request, sourceEnv.ADMIN_TOKEN)) {
-          return json({ error: "Требуется токен администратора" }, 401);
-        }
-        const delegated = serviceAdminEnv(sourceEnv);
-        const integrityResponse = await handleStorageIntegrityRequest(request, delegated);
-        if (integrityResponse) return integrityResponse;
-      }
-      const storageResponse = await handleStorageStatusRequest(request, sourceEnv);
-      if (storageResponse) return storageResponse;
-      return secureRuntime.fetch(request, sourceEnv, ctx);
-    }
-
-    if (url.pathname.startsWith("/api/auth/")) return handleAuthApi(request, sourceEnv, url);
-    if (url.pathname === "/api/integrations/health") return secureRuntime.fetch(request, sourceEnv, ctx);
-
-    const session = await resolveLocalSession(sourceEnv, request);
-    if (!session) {
-      if (isAdminIntegrationPath(url.pathname) && await serviceAdminTokenAuthorized(request, sourceEnv.ADMIN_TOKEN)) {
-        const delegated = serviceAdminEnv(sourceEnv);
-        const preflightResponse = await handleStorageMigrationPreflightRequest(request, delegated);
-        if (preflightResponse) return preflightResponse;
-        const integrityResponse = await handleStorageIntegrityRequest(request, delegated);
-        if (integrityResponse) return integrityResponse;
-        const storageResponse = await handleStorageStatusRequest(request, delegated);
-        if (storageResponse) return storageResponse;
-        return secureRuntime.fetch(request, delegated, ctx);
-      }
-      if (url.pathname.startsWith("/api/")) return json({ error: "Требуется вход в портал" }, 401);
-      if (request.method === "GET" && request.headers.get("accept")?.includes("text/html") && url.pathname !== "/login") {
-        const next = `${url.pathname}${url.search}`;
-        return Response.redirect(new URL(`/login?next=${encodeURIComponent(next)}`, request.url), 302);
-      }
-      return secureRuntime.fetch(request, { ...sourceEnv, PORTAL_IDENTITY_MODE: "anonymous", PORTAL_DEFAULT_ROLE: "viewer" }, ctx);
-    }
-
-    if (url.pathname === "/login") return Response.redirect(new URL("/", request.url), 302);
-    if (url.pathname === "/access" && session.role !== "admin") return new Response("Недостаточно прав", { status: 403, headers: { "content-type": "text/plain; charset=utf-8" } });
-
-    const headers = new Headers(request.headers);
-    headers.delete("x-admin-token");
-    let delegated = delegatedEnv(sourceEnv, session);
-    if (session.role === "admin" && isAdminIntegrationPath(url.pathname)) {
-      if (!sameOriginAdminMutation(request)) return json({ error: "Административный запрос заблокирован проверкой источника" }, 403);
-      const internalToken = localAdminSessionToken(session);
-      headers.set("x-admin-token", internalToken);
-      delegated = delegatedEnv(sourceEnv, session, internalToken);
-    }
-
-    const delegatedRequest = new Request(request, { headers });
-    const preflightResponse = await handleStorageMigrationPreflightRequest(delegatedRequest, delegated);
-    if (preflightResponse) return preflightResponse;
-    const integrityResponse = await handleStorageIntegrityRequest(delegatedRequest, delegated);
-    if (integrityResponse) return integrityResponse;
-    const storageResponse = await handleStorageStatusRequest(delegatedRequest, delegated);
-    if (storageResponse) return storageResponse;
-    return secureRuntime.fetch(delegatedRequest, delegated, ctx);
+    return handleLocalSecurityRouting(request, sourceEnv, ctx, {
+      resolveSession: resolveLocalSession,
+      handleAuthApi,
+      handleStorageMigrationPreflight: handleStorageMigrationPreflightRequest,
+      handleStorageIntegrity: handleStorageIntegrityRequest,
+      handleStorageStatus: handleStorageStatusRequest,
+      nextFetch(nextRequest, nextEnv, nextContext) {
+        return secureRuntime.fetch(nextRequest, nextEnv, nextContext);
+      },
+    });
   },
 
   async scheduled(controller: ScheduledController, env: RuntimeEnv | undefined, ctx: RuntimeContext): Promise<void> {

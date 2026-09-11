@@ -106,7 +106,8 @@ worker/schema-migrations-entry.ts
   -> session-management-entry.ts
   -> diagnostics-entry.ts
   -> settings-revisions-entry.ts
-  -> local-secure-entry.ts
+  -> local-secure-entry.ts (local-auth adapter)
+       -> middleware/local-security-routing.ts (ordinary local session/service-admin/origin routing)
   -> settings-input-normalizer-entry.ts
   -> settings-source-context-entry.ts
   -> settings-source-safe-entry.ts
@@ -116,7 +117,7 @@ worker/schema-migrations-entry.ts
   -> worker/index.ts
 ```
 
-The explicit application/router/security-composition boundary is part of the **current application request architecture**. Storage migration apply/status/reconcile, maintenance and the outer service-admin authentication/adaptation boundary are now explicitly composed there; local-session routing, route/domain authorization, handler selection and most audit/error behavior remain compatibility-owned while #56 incrementally replaces them with explicit composition backed by parity tests.
+The explicit application/router/security-composition boundary is part of the **current application request architecture**. Storage migration apply/status/reconcile, maintenance and the outer service-admin authentication/adaptation boundary are now explicitly composed there. Local-session/service-admin-fallback/origin routing is now isolated in `worker/middleware/local-security-routing.ts` but deliberately executes at the historical `local-secure-entry.ts` position below the pre-local compatibility adapters; route/domain authorization, handler selection and most audit/error behavior remain compatibility-owned while #56 incrementally replaces them with explicit composition backed by parity tests.
 
 ### Request lifecycle
 

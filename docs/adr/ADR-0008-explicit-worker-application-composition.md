@@ -125,7 +125,7 @@ Current-state evidence and ownership map:
 - canonical request-context/auth/permission modules under `src/auth/**`;
 - `worker/schema-migrations-entry.ts` and the current wrapper/handler graph;
 - `worker/maintenance-mode-gate.ts`;
-- `worker/local-secure-entry.ts` and `worker/middleware/service-admin-authentication.ts`;
+- `worker/local-secure-entry.ts`, `worker/middleware/local-security-routing.ts` and `worker/middleware/service-admin-authentication.ts`;
 - settings lifecycle/source wrappers;
 - `worker/secure-entry.ts` and `worker/index.ts`;
 - canonical domain modules under `src/**`;

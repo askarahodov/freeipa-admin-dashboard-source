@@ -29,7 +29,7 @@ test("security composition publishes the universal outer migration order", () =>
   assert.equal(new Set(portalSecurityGateOrder.map((gate) => gate.id)).size, portalSecurityGateOrder.length);
   assert.equal(portalSecurityGateOrder[0].owner, "worker/security-composition.ts");
   assert.equal(portalSecurityGateOrder[1].owner, "worker/security-composition.ts");
-  assert.equal(portalSecurityGateOrder[2].owner, "worker/service-admin-root-entry.ts");
+  assert.equal(portalSecurityGateOrder[2].owner, "worker/security-composition.ts");
 });
 
 test("local security profiles preserve route-specific origin and authentication ordering", () => {
@@ -71,7 +71,8 @@ test("application enters security composition with storage migration then mainte
   assert.equal(securityComposition.includes('from "./storage-migration-apply-entry.ts"'), true);
   assert.equal(securityComposition.includes('from "./middleware/storage-migration-apply.ts"'), true);
   assert.equal(securityComposition.includes('from "./maintenance-mode-gate.ts"'), true);
-  assert.equal(securityComposition.includes('import compatibilityRuntime from "./service-admin-root-entry.ts"'), true);
+  assert.equal(securityComposition.includes('import compatibilityRuntime from "./maintenance-control-root-entry.ts"'), true);
+  assert.equal(securityComposition.includes('from "./middleware/service-admin-authentication.ts"'), true);
   assert.equal(securityComposition.includes('from "./maintenance-mode-root-entry.ts"'), false);
   assert.equal(securityComposition.includes("handleStorageMigrationApplyGate(request, env, ctx"), true);
   assert.equal(securityComposition.includes("handleApply: handleStorageMigrationApplyRequest"), true);
@@ -84,14 +85,18 @@ test("application enters security composition with storage migration then mainte
   assert.equal(maintenanceGate.includes("dependencies.nextScheduled(controller, env, ctx)"), true);
 });
 
-test("remaining compatibility ownership starts at service-admin adaptation", () => {
-  const serviceAdminRoot = read("../../worker/service-admin-root-entry.ts");
+test("explicit composition owns outer service-admin adaptation while local security remains compatibility-owned", () => {
+  const securityComposition = read("../../worker/security-composition.ts");
+  const serviceAdminGate = read("../../worker/middleware/service-admin-authentication.ts");
 
-  assert.equal(serviceAdminRoot.includes('import rootRuntime from "./maintenance-control-root-entry.ts"'), true);
-  assert.equal(serviceAdminRoot.includes("localMode(sourceEnv)"), true);
-  assert.equal(serviceAdminRoot.includes("isAdminIntegrationPath(url.pathname)"), true);
-  assert.equal(serviceAdminRoot.includes("serviceAdminTokenAuthorized(request, sourceEnv.ADMIN_TOKEN)"), true);
-  assert.equal(serviceAdminRoot.includes("PORTAL_SERVICE_ADMIN_AUTHORIZED: \"1\""), true);
+  assert.equal(securityComposition.includes('import compatibilityRuntime from "./maintenance-control-root-entry.ts"'), true);
+  assert.equal(securityComposition.includes('from "./middleware/service-admin-authentication.ts"'), true);
+  assert.equal(securityComposition.includes("handleServiceAdminAuthenticationGate(request, env, ctx, compatibilityDependencies())"), true);
+  assert.equal(serviceAdminGate.includes("localMode(env)"), true);
+  assert.equal(serviceAdminGate.includes("isAdminIntegrationPath(url.pathname)"), true);
+  assert.equal(serviceAdminGate.includes("serviceAdminTokenAuthorized(request, env.ADMIN_TOKEN)"), true);
+  assert.equal(serviceAdminGate.includes('PORTAL_SERVICE_ADMIN_AUTHORIZED: "1"'), true);
+  assert.equal(securityComposition.includes("service-admin-root-entry"), false);
 });
 
 test("local session and service-admin remain separate mechanisms with fail-closed ownership", () => {
@@ -112,9 +117,14 @@ test("composition cutover does not introduce a new admin default or principal ad
   const source = read("../../worker/security-composition.ts");
   const migrationMiddleware = read("../../worker/middleware/storage-migration-apply.ts");
   const maintenanceGate = read("../../worker/maintenance-mode-gate.ts");
-  const combined = `${source}\n${migrationMiddleware}\n${maintenanceGate}`;
-  assert.equal(combined.includes("PORTAL_DEFAULT_ROLE"), false);
-  assert.equal(combined.includes("PORTAL_STATIC_IDENTITY"), false);
-  assert.equal(combined.includes("ADMIN_TOKEN"), false);
-  assert.equal(combined.includes("request.headers.set"), false);
+  const serviceAdminGate = read("../../worker/middleware/service-admin-authentication.ts");
+  const preServiceAdmin = `${migrationMiddleware}\n${maintenanceGate}`;
+  assert.equal(preServiceAdmin.includes("PORTAL_DEFAULT_ROLE"), false);
+  assert.equal(preServiceAdmin.includes("PORTAL_STATIC_IDENTITY"), false);
+  assert.equal(preServiceAdmin.includes("ADMIN_TOKEN"), false);
+  assert.equal(source.includes("PORTAL_DEFAULT_ROLE"), true, "composition type surface reflects the explicit service-admin gate");
+  assert.equal(serviceAdminGate.includes('PORTAL_DEFAULT_ROLE: "admin"'), true);
+  assert.equal(serviceAdminGate.includes('PORTAL_STATIC_IDENTITY: identity'), true);
+  assert.equal(serviceAdminGate.includes("serviceAdminTokenAuthorized"), true);
+  assert.equal(`${source}\n${serviceAdminGate}`.includes("request.headers.set"), false);
 });

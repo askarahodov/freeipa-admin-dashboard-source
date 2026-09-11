@@ -97,10 +97,13 @@ test("every maintenance control path is inside the service-admin allowlist", () 
   ]) assert.equal(isAdminIntegrationPath(path), true, path);
 });
 
-test("service-admin root composes the maintenance control root", () => {
-  const serviceRoot = fs.readFileSync(new URL("../../worker/service-admin-root-entry.ts", import.meta.url), "utf8");
+test("explicit service-admin composition delegates into the maintenance control root", () => {
+  const securityComposition = fs.readFileSync(new URL("../../worker/security-composition.ts", import.meta.url), "utf8");
+  const serviceAdminGate = fs.readFileSync(new URL("../../worker/middleware/service-admin-authentication.ts", import.meta.url), "utf8");
   const maintenanceRoot = fs.readFileSync(new URL("../../worker/maintenance-control-root-entry.ts", import.meta.url), "utf8");
-  assert.equal(serviceRoot.includes('from "./maintenance-control-root-entry.ts"'), true);
+  assert.equal(securityComposition.includes('import compatibilityRuntime from "./maintenance-control-root-entry.ts"'), true);
+  assert.equal(securityComposition.includes('from "./middleware/service-admin-authentication.ts"'), true);
+  assert.equal(serviceAdminGate.includes("dependencies.nextFetch(request, serviceAdminEnv(env), ctx)"), true);
   assert.equal(maintenanceRoot.includes('from "./backup-selective-restore-root-entry.ts"'), true);
   assert.equal(maintenanceRoot.includes("handleMaintenanceControlRoute"), true);
 });

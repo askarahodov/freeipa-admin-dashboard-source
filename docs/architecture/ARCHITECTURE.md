@@ -83,7 +83,7 @@ Detailed destructive recovery procedure belongs to [`OFFLINE_FULL_RESTORE.md`](.
 
 The built Worker entry is currently `worker/schema-migrations-entry.ts`. It owns pre-application infrastructure handling and normal schema readiness, while the bounded storage administration paths are intentionally delegated through before the ordinary schema-ready gate so recovery/inspection can still operate. Downstream traffic enters the explicit `worker/application.ts` composition boundary. `worker/application-router.ts` classifies requests using canonical route metadata, then all classifications enter `worker/security-composition.ts`.
 
-`security-composition.ts` now owns the first two extracted security gates. Controlled storage migration apply/status/reconcile is evaluated by `worker/middleware/storage-migration-apply.ts` and the existing `worker/storage-migration-apply-entry.ts`; any handled migration response short-circuits before maintenance. All remaining HTTP traffic then enters the existing dependency-injected `worker/maintenance-mode-gate.ts`, which preserves its recovery allowlist, public maintenance status, integration-health maintenance header and fail-closed behavior before delegating unchanged traffic to `worker/service-admin-root-entry.ts`. Scheduled execution also enters the maintenance scheduled gate here before the remaining compatibility runtime.
+`security-composition.ts` now owns the first three extracted security gates. Controlled storage migration apply/status/reconcile is evaluated by `worker/middleware/storage-migration-apply.ts` and the existing `worker/storage-migration-apply-entry.ts`; any handled migration response short-circuits before maintenance. All remaining HTTP traffic then enters the existing dependency-injected `worker/maintenance-mode-gate.ts`, which preserves its recovery allowlist, public maintenance status, integration-health maintenance header and fail-closed behavior. Maintenance-approved HTTP traffic then enters `worker/middleware/service-admin-authentication.ts`, which preserves the existing local-mode administrative allowlist, constant-time `ADMIN_TOKEN` check and synthetic `service-admin@portal.local` environment adaptation before delegating to `worker/maintenance-control-root-entry.ts`. Scheduled execution enters the maintenance scheduled gate and then delegates directly to the remaining compatibility runtime, preserving the former service-admin wrapper's scheduled pass-through semantics.
 
 The current chain is approximately:
 
@@ -97,7 +97,7 @@ worker/schema-migrations-entry.ts
        -> middleware/storage-migration-apply.ts
           -> storage-migration-apply-entry.ts (exact controlled migration paths only)
        -> maintenance-mode-gate.ts
-       -> service-admin-root-entry.ts
+       -> middleware/service-admin-authentication.ts
   -> maintenance-control-root-entry.ts
   -> backup-selective-restore-root-entry.ts
   -> freeipa-group-member-entry.ts
@@ -116,7 +116,7 @@ worker/schema-migrations-entry.ts
   -> worker/index.ts
 ```
 
-The explicit application/router/security-composition boundary is part of the **current application request architecture**. Storage migration apply/status/reconcile and maintenance are now explicitly composed there; service-admin, local-session, authorization, handler selection and most audit/error behavior remain compatibility-owned while #56 incrementally replaces them with explicit composition backed by parity tests.
+The explicit application/router/security-composition boundary is part of the **current application request architecture**. Storage migration apply/status/reconcile, maintenance and the outer service-admin authentication/adaptation boundary are now explicitly composed there; local-session routing, route/domain authorization, handler selection and most audit/error behavior remain compatibility-owned while #56 incrementally replaces them with explicit composition backed by parity tests.
 
 ### Request lifecycle
 
@@ -259,7 +259,7 @@ Use:
 
 These are current-state constraints, not recommendations:
 
-1. **Explicit application/security boundary plus large compatibility Worker chain.** `worker/application.ts`/`application-router.ts` provide one post-schema composition/classification point and `worker/security-composition.ts` now explicitly owns storage-migration and maintenance gates. Service-admin, local-security enforcement and handlers remain spread across compatibility wrappers plus `worker/index.ts`; #56 tracks the incremental cutover.
+1. **Explicit application/security boundary plus large compatibility Worker chain.** `worker/application.ts`/`application-router.ts` provide one post-schema composition/classification point and `worker/security-composition.ts` now explicitly owns storage-migration, maintenance and outer service-admin gates. Local-security enforcement and handlers remain spread across compatibility wrappers plus `worker/index.ts`; #56 tracks the incremental cutover.
 2. **Actively changing frontend ownership.** Shared tokens/primitives and the AppShell foundation exist, while screen/presentation extraction has continued beyond the original shell foundation; exact ownership must be checked against current `main` rather than historical UI plans.
 3. **Local SQLite/D1-compatible ownership.** The canonical Node runtime uses a local SQLite-backed D1-compatible persistence boundary and does not establish a horizontally scaled multi-writer database architecture.
 4. **Profile-specific persistence paths.** Current Compose mounts the shared `dashboard-data` volume at `/data` in the dashboard service and `/portal-data` in the recovery profile; both paths refer to the same persistent volume.

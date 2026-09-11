@@ -22,8 +22,8 @@ export const portalSecurityGateOrder = Object.freeze([
   }),
   Object.freeze({
     id: "service-admin-authentication",
-    owner: "worker/service-admin-root-entry.ts",
-    responsibility: "outer local-mode allowlisted service-admin token adaptation",
+    owner: "worker/security-composition.ts",
+    responsibility: "explicit outer local-mode allowlisted service-admin token authentication and adaptation",
   }),
   Object.freeze({
     id: "local-security-routing",

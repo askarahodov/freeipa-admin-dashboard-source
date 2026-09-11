@@ -255,7 +255,8 @@ test("schema-gated traffic enters one registered application composition and sch
 
   assert.match(schemaSource, /import rootRuntime from "\.\/application\.ts"/);
   assert.match(applicationSource, /import securityComposition from "\.\/security-composition\.ts"/);
-  assert.match(securitySource, /import compatibilityRuntime from "\.\/service-admin-root-entry\.ts"/);
+  assert.match(securitySource, /import compatibilityRuntime from "\.\/maintenance-control-root-entry\.ts"/);
+  assert.match(securitySource, /from "\.\/middleware\/service-admin-authentication\.ts"/);
   assert.match(securitySource, /from "\.\/maintenance-mode-gate\.ts"/);
   assert.match(applicationSource, /createPortalApplicationRouter/);
   assert.match(applicationSource, /stable: \(\{ request, env, ctx \}\) => compatibilityFetch\(request, env, ctx\)/);

@@ -6,7 +6,8 @@ const gatePath = new URL("../../worker/maintenance-mode-gate.ts", import.meta.ur
 const securityCompositionPath = new URL("../../worker/security-composition.ts", import.meta.url);
 const applicationPath = new URL("../../worker/application.ts", import.meta.url);
 const schemaRootPath = new URL("../../worker/schema-migrations-entry.ts", import.meta.url);
-const serviceRootPath = new URL("../../worker/service-admin-root-entry.ts", import.meta.url);
+const serviceAdminGatePath = new URL("../../worker/middleware/service-admin-authentication.ts", import.meta.url);
+const maintenanceControlRootPath = new URL("../../worker/maintenance-control-root-entry.ts", import.meta.url);
 const repositoryPath = new URL("../../src/recovery/maintenance/maintenance-repository.ts", import.meta.url);
 const controlEntryPath = new URL("../../worker/maintenance-control-entry.ts", import.meta.url);
 const modePath = new URL("../../src/recovery/maintenance/maintenance-mode.ts", import.meta.url);
@@ -20,21 +21,25 @@ test("schema readiness composes migration apply then maintenance outside service
   const application = source(applicationPath);
   const securityComposition = source(securityCompositionPath);
   const gate = source(gatePath);
-  const serviceRoot = source(serviceRootPath);
+  const serviceAdminGate = source(serviceAdminGatePath);
+  const maintenanceControlRoot = source(maintenanceControlRootPath);
 
   assert.equal(schemaRoot.includes('import rootRuntime from "./application.ts"'), true);
   assert.equal(application.includes('import securityComposition from "./security-composition.ts"'), true);
   assert.equal(securityComposition.includes('from "./storage-migration-apply-entry.ts"'), true);
   assert.equal(securityComposition.includes('from "./middleware/storage-migration-apply.ts"'), true);
   assert.equal(securityComposition.includes('from "./maintenance-mode-gate.ts"'), true);
-  assert.equal(securityComposition.includes('import compatibilityRuntime from "./service-admin-root-entry.ts"'), true);
+  assert.equal(securityComposition.includes('import compatibilityRuntime from "./maintenance-control-root-entry.ts"'), true);
+  assert.equal(securityComposition.includes('from "./middleware/service-admin-authentication.ts"'), true);
   assert.equal(securityComposition.includes('from "./maintenance-mode-root-entry.ts"'), false);
   assert.equal(securityComposition.includes("handleApply: handleStorageMigrationApplyRequest"), true);
   assert.ok(
     securityComposition.indexOf("handleStorageMigrationApplyGate(request, env, ctx")
       < securityComposition.indexOf("handleMaintenanceGate("),
   );
-  assert.equal(serviceRoot.includes('import rootRuntime from "./maintenance-control-root-entry.ts"'), true);
+  assert.equal(serviceAdminGate.includes("serviceAdminTokenAuthorized(request, env.ADMIN_TOKEN)"), true);
+  assert.equal(serviceAdminGate.includes("dependencies.nextFetch(request, serviceAdminEnv(env), ctx)"), true);
+  assert.equal(maintenanceControlRoot.includes('import rootRuntime from "./backup-selective-restore-root-entry.ts"'), true);
   assert.equal(gate.includes("service-admin-root-entry"), false);
   assert.equal(gate.includes("x-admin-token"), false);
   assert.equal(gate.includes("serviceAdminTokenAuthorized"), false);

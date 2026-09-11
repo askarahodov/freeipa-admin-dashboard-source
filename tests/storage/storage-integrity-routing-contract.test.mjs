@@ -6,7 +6,8 @@ const [
   localSecureSource,
   schemaEntrySource,
   maintenanceGateSource,
-  serviceAdminSource,
+  securityCompositionSource,
+  serviceAdminGateSource,
   authorizationSource,
   dockerfileSource,
   integrityServiceSource,
@@ -15,7 +16,8 @@ const [
   readFile(new URL("../../worker/local-secure-entry.ts", import.meta.url), "utf8"),
   readFile(new URL("../../worker/schema-migrations-entry.ts", import.meta.url), "utf8"),
   readFile(new URL("../../worker/maintenance-mode-gate.ts", import.meta.url), "utf8"),
-  readFile(new URL("../../worker/service-admin-root-entry.ts", import.meta.url), "utf8"),
+  readFile(new URL("../../worker/security-composition.ts", import.meta.url), "utf8"),
+  readFile(new URL("../../worker/middleware/service-admin-authentication.ts", import.meta.url), "utf8"),
   readFile(new URL("../../src/auth/admin-session-authorization.ts", import.meta.url), "utf8"),
   readFile(new URL("../../Dockerfile", import.meta.url), "utf8"),
   readFile(new URL("../../src/storage/integrity/storage-integrity.ts", import.meta.url), "utf8"),
@@ -61,7 +63,9 @@ test("integrity route is exact for service-admin and available through recovery 
 });
 
 test("existing service-admin settings health and storage-status contracts remain unchanged", () => {
-  assert.match(serviceAdminSource, /import rootRuntime from ["']\.\/maintenance-control-root-entry(?:\.ts)?["']/);
+  assert.match(securityCompositionSource, /import compatibilityRuntime from ["']\.\/maintenance-control-root-entry(?:\.ts)?["']/);
+  assert.match(securityCompositionSource, /middleware\/service-admin-authentication\.ts/);
+  assert.match(serviceAdminGateSource, /serviceAdminTokenAuthorized\(request, env\.ADMIN_TOKEN\)/);
   assert.match(localSecureSource, /import secureRuntime from ["']\.\/settings-input-normalizer-entry(?:\.ts)?["']/);
   assert.match(localSecureSource, /handleStorageStatusRequest\(delegatedRequest, delegated\)/);
   assert.match(localSecureSource, /handleStorageStatusRequest\(request, sourceEnv\)/);

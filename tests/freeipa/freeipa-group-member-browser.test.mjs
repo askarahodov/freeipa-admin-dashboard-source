@@ -9,7 +9,7 @@ test("group member browser uses direct FreeIPA actions and the paginated API", (
   const selectiveRoot = fs.readFileSync(new URL("../../worker/backup-selective-restore-root-entry.ts", import.meta.url), "utf8");
   const maintenanceControlRoot = fs.readFileSync(new URL("../../worker/maintenance-control-root-entry.ts", import.meta.url), "utf8");
   const serviceRoot = fs.readFileSync(new URL("../../worker/service-admin-root-entry.ts", import.meta.url), "utf8");
-  const maintenanceGate = fs.readFileSync(new URL("../../worker/maintenance-mode-root-entry.ts", import.meta.url), "utf8");
+  const maintenanceGate = fs.readFileSync(new URL("../../worker/maintenance-mode-gate.ts", import.meta.url), "utf8");
   const securityComposition = fs.readFileSync(new URL("../../worker/security-composition.ts", import.meta.url), "utf8");
   const application = fs.readFileSync(new URL("../../worker/application.ts", import.meta.url), "utf8");
   const schemaRoot = fs.readFileSync(new URL("../../worker/schema-migrations-entry.ts", import.meta.url), "utf8");
@@ -31,9 +31,10 @@ test("group member browser uses direct FreeIPA actions and the paginated API", (
   assert.equal(selectiveRoot.includes('import rootRuntime from "./freeipa-group-member-entry.ts"'), true);
   assert.equal(maintenanceControlRoot.includes('import rootRuntime from "./backup-selective-restore-root-entry.ts"'), true);
   assert.equal(serviceRoot.includes('import rootRuntime from "./maintenance-control-root-entry.ts"'), true);
-  assert.equal(maintenanceGate.includes('import rootRuntime from "./service-admin-root-entry.ts"'), true);
+  assert.equal(maintenanceGate.includes("rootRuntime"), false);
+  assert.equal(securityComposition.includes('from "./maintenance-mode-gate.ts"'), true);
+  assert.equal(securityComposition.includes('import compatibilityRuntime from "./service-admin-root-entry.ts"'), true);
   assert.equal(application.includes('import securityComposition from "./security-composition.ts"'), true);
-  assert.equal(securityComposition.includes('import compatibilityRuntime from "./maintenance-mode-root-entry.ts"'), true);
   assert.equal(schemaRoot.includes('import rootRuntime from "./application.ts"'), true);
   assert.equal(httpSecurityRoot.includes('import rootRuntime from "./schema-migrations-entry.ts"'), true);
   assert.equal(layout.includes("<FreeIpaGroupMemberBrowser />"), true);

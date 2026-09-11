@@ -28,7 +28,8 @@ test("security composition publishes the universal outer migration order", () =>
   );
   assert.equal(new Set(portalSecurityGateOrder.map((gate) => gate.id)).size, portalSecurityGateOrder.length);
   assert.equal(portalSecurityGateOrder[0].owner, "worker/security-composition.ts");
-  assert.equal(portalSecurityGateOrder[1].owner, "worker/maintenance-mode-root-entry.ts");
+  assert.equal(portalSecurityGateOrder[1].owner, "worker/security-composition.ts");
+  assert.equal(portalSecurityGateOrder[2].owner, "worker/service-admin-root-entry.ts");
 });
 
 test("local security profiles preserve route-specific origin and authentication ordering", () => {
@@ -58,31 +59,35 @@ test("local security profiles preserve route-specific origin and authentication 
   assert.ok(workerFetchStart >= 0 && ordinarySession > workerFetchStart && ordinaryOrigin > ordinarySession);
 });
 
-test("application enters security composition and storage migration apply is the first explicit gate", () => {
+test("application enters security composition with storage migration then maintenance as explicit gates", () => {
   const application = read("../../worker/application.ts");
   const securityComposition = read("../../worker/security-composition.ts");
-  const middleware = read("../../worker/middleware/storage-migration-apply.ts");
+  const migrationMiddleware = read("../../worker/middleware/storage-migration-apply.ts");
+  const maintenanceGate = read("../../worker/maintenance-mode-gate.ts");
 
   assert.equal(application.includes('from "./security-composition.ts"'), true);
   assert.equal(application.includes('from "./maintenance-mode-root-entry.ts"'), false);
   assert.equal(securityComposition.includes('from "./security-composition-contract.ts"'), true);
   assert.equal(securityComposition.includes('from "./storage-migration-apply-entry.ts"'), true);
   assert.equal(securityComposition.includes('from "./middleware/storage-migration-apply.ts"'), true);
-  assert.equal(securityComposition.includes('from "./maintenance-mode-root-entry.ts"'), true);
+  assert.equal(securityComposition.includes('from "./maintenance-mode-gate.ts"'), true);
+  assert.equal(securityComposition.includes('import compatibilityRuntime from "./service-admin-root-entry.ts"'), true);
+  assert.equal(securityComposition.includes('from "./maintenance-mode-root-entry.ts"'), false);
   assert.equal(securityComposition.includes("handleStorageMigrationApplyGate(request, env, ctx"), true);
   assert.equal(securityComposition.includes("handleApply: handleStorageMigrationApplyRequest"), true);
-  assert.equal(securityComposition.includes("compatibilityRuntime.fetch(nextRequest, nextEnv, nextContext)"), true);
-  assert.equal(middleware.includes("if (response) return response"), true);
-  assert.equal(middleware.includes("dependencies.nextFetch(request, env, ctx)"), true);
+  assert.equal(securityComposition.includes("handleMaintenanceGate("), true);
+  assert.equal(securityComposition.includes("handleMaintenanceScheduledGate("), true);
+  assert.equal(securityComposition.includes("compatibilityRuntime.fetch(request, env, ctx)"), true);
+  assert.equal(migrationMiddleware.includes("if (response) return response"), true);
+  assert.equal(migrationMiddleware.includes("dependencies.nextFetch(request, env, ctx)"), true);
+  assert.equal(maintenanceGate.includes("dependencies.nextFetch(request, env, ctx)"), true);
+  assert.equal(maintenanceGate.includes("dependencies.nextScheduled(controller, env, ctx)"), true);
 });
 
-test("remaining compatibility ownership preserves maintenance before service-admin adaptation", () => {
-  const maintenanceRoot = read("../../worker/maintenance-mode-root-entry.ts");
+test("remaining compatibility ownership starts at service-admin adaptation", () => {
   const serviceAdminRoot = read("../../worker/service-admin-root-entry.ts");
 
-  assert.equal(maintenanceRoot.includes('from "./service-admin-root-entry.ts"'), true);
-  assert.equal(maintenanceRoot.includes("handleStorageMigrationApplyRequest"), false);
-  assert.equal(maintenanceRoot.includes("handleMaintenanceGate(request"), true);
+  assert.equal(serviceAdminRoot.includes('import rootRuntime from "./maintenance-control-root-entry.ts"'), true);
   assert.equal(serviceAdminRoot.includes("localMode(sourceEnv)"), true);
   assert.equal(serviceAdminRoot.includes("isAdminIntegrationPath(url.pathname)"), true);
   assert.equal(serviceAdminRoot.includes("serviceAdminTokenAuthorized(request, sourceEnv.ADMIN_TOKEN)"), true);
@@ -105,8 +110,9 @@ test("local session and service-admin remain separate mechanisms with fail-close
 
 test("composition cutover does not introduce a new admin default or principal adaptation", () => {
   const source = read("../../worker/security-composition.ts");
-  const middleware = read("../../worker/middleware/storage-migration-apply.ts");
-  const combined = `${source}\n${middleware}`;
+  const migrationMiddleware = read("../../worker/middleware/storage-migration-apply.ts");
+  const maintenanceGate = read("../../worker/maintenance-mode-gate.ts");
+  const combined = `${source}\n${migrationMiddleware}\n${maintenanceGate}`;
   assert.equal(combined.includes("PORTAL_DEFAULT_ROLE"), false);
   assert.equal(combined.includes("PORTAL_STATIC_IDENTITY"), false);
   assert.equal(combined.includes("ADMIN_TOKEN"), false);

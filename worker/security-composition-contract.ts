@@ -17,8 +17,8 @@ export const portalSecurityGateOrder = Object.freeze([
   }),
   Object.freeze({
     id: "maintenance",
-    owner: "worker/maintenance-mode-root-entry.ts",
-    responsibility: "maintenance and recovery availability restrictions",
+    owner: "worker/security-composition.ts",
+    responsibility: "explicit maintenance and recovery availability restrictions",
   }),
   Object.freeze({
     id: "service-admin-authentication",

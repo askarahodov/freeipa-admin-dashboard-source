@@ -8,7 +8,7 @@ const httpSecurityRoot = new URL("../../worker/http-security-root-entry.ts", imp
 const entry = new URL("../../worker/schema-migrations-entry.ts", import.meta.url);
 const application = new URL("../../worker/application.ts", import.meta.url);
 const securityComposition = new URL("../../worker/security-composition.ts", import.meta.url);
-const maintenanceGate = new URL("../../worker/maintenance-mode-root-entry.ts", import.meta.url);
+const maintenanceGate = new URL("../../worker/maintenance-mode-gate.ts", import.meta.url);
 const helpers = new URL("../../worker/schema-migrations-boundary.ts", import.meta.url);
 const vite = fs.readFileSync(new URL("../../vite.config.ts", import.meta.url), "utf8");
 const testsDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -21,7 +21,7 @@ test("Vite uses HTTP security as the outer worker entry while preserving schema 
   assert.equal(httpSecuritySource.includes('import rootRuntime from "./schema-migrations-entry.ts"'), true);
 });
 
-test("normal fetch and scheduled dispatch require a ready production schema before application and security/maintenance gating", async () => {
+test("normal fetch and scheduled dispatch require a ready production schema before application and explicit security gates", async () => {
   const source = fs.readFileSync(entry, "utf8");
   const applicationSource = fs.readFileSync(application, "utf8");
   const securitySource = fs.readFileSync(securityComposition, "utf8");
@@ -30,9 +30,11 @@ test("normal fetch and scheduled dispatch require a ready production schema befo
   assert.equal(applicationSource.includes('import securityComposition from "./security-composition.ts"'), true);
   assert.equal(securitySource.includes('from "./storage-migration-apply-entry.ts"'), true);
   assert.equal(securitySource.includes('from "./middleware/storage-migration-apply.ts"'), true);
-  assert.equal(securitySource.includes('import compatibilityRuntime from "./maintenance-mode-root-entry.ts"'), true);
-  assert.equal(gateSource.includes('import rootRuntime from "./service-admin-root-entry.ts"'), true);
+  assert.equal(securitySource.includes('from "./maintenance-mode-gate.ts"'), true);
+  assert.equal(securitySource.includes('import compatibilityRuntime from "./service-admin-root-entry.ts"'), true);
+  assert.equal(securitySource.includes('from "./maintenance-mode-root-entry.ts"'), false);
   assert.equal(gateSource.includes("handleStorageMigrationApplyRequest"), false);
+  assert.equal(gateSource.includes("service-admin-root-entry"), false);
   assert.equal(source.includes('from "./schema-migrations-boundary.ts"'), true);
   assert.equal(source.includes("await ensurePortalSchema(sourceEnv)"), true);
   assert.equal(source.includes('schema.state !== "ready"'), true);
@@ -44,7 +46,9 @@ test("normal fetch and scheduled dispatch require a ready production schema befo
   assert.equal(applicationSource.includes("return securityComposition.scheduled?.(controller, env, ctx)"), true);
   assert.equal(securitySource.includes("handleStorageMigrationApplyGate(request, env, ctx"), true);
   assert.equal(securitySource.includes("handleApply: handleStorageMigrationApplyRequest"), true);
-  assert.equal(securitySource.includes("compatibilityRuntime.fetch(nextRequest, nextEnv, nextContext)"), true);
+  assert.equal(securitySource.includes("handleMaintenanceGate("), true);
+  assert.equal(securitySource.includes("handleMaintenanceScheduledGate(controller, sourceEnv, ctx"), true);
+  assert.equal(securitySource.includes("return compatibilityRuntime.fetch(request, env, ctx)"), true);
   assert.equal(securitySource.includes("return compatibilityRuntime.scheduled?.(controller, env, ctx)"), true);
   assert.equal(source.includes("NODE_TEST_CONTEXT"), false);
 

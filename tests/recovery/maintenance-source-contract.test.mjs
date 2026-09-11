@@ -3,7 +3,6 @@ import fs from "node:fs";
 import test from "node:test";
 
 const gatePath = new URL("../../worker/maintenance-mode-gate.ts", import.meta.url);
-const rootPath = new URL("../../worker/maintenance-mode-root-entry.ts", import.meta.url);
 const securityCompositionPath = new URL("../../worker/security-composition.ts", import.meta.url);
 const applicationPath = new URL("../../worker/application.ts", import.meta.url);
 const schemaRootPath = new URL("../../worker/schema-migrations-entry.ts", import.meta.url);
@@ -20,7 +19,6 @@ test("schema readiness composes migration apply then maintenance outside service
   const schemaRoot = source(schemaRootPath);
   const application = source(applicationPath);
   const securityComposition = source(securityCompositionPath);
-  const root = source(rootPath);
   const gate = source(gatePath);
   const serviceRoot = source(serviceRootPath);
 
@@ -28,11 +26,14 @@ test("schema readiness composes migration apply then maintenance outside service
   assert.equal(application.includes('import securityComposition from "./security-composition.ts"'), true);
   assert.equal(securityComposition.includes('from "./storage-migration-apply-entry.ts"'), true);
   assert.equal(securityComposition.includes('from "./middleware/storage-migration-apply.ts"'), true);
-  assert.equal(securityComposition.includes('import compatibilityRuntime from "./maintenance-mode-root-entry.ts"'), true);
+  assert.equal(securityComposition.includes('from "./maintenance-mode-gate.ts"'), true);
+  assert.equal(securityComposition.includes('import compatibilityRuntime from "./service-admin-root-entry.ts"'), true);
+  assert.equal(securityComposition.includes('from "./maintenance-mode-root-entry.ts"'), false);
   assert.equal(securityComposition.includes("handleApply: handleStorageMigrationApplyRequest"), true);
-  assert.equal(root.includes("handleStorageMigrationApplyRequest"), false);
-  assert.equal(root.includes('import rootRuntime from "./service-admin-root-entry.ts"'), true);
-  assert.equal(root.includes('from "./maintenance-mode-gate.ts"'), true);
+  assert.ok(
+    securityComposition.indexOf("handleStorageMigrationApplyGate(request, env, ctx")
+      < securityComposition.indexOf("handleMaintenanceGate("),
+  );
   assert.equal(serviceRoot.includes('import rootRuntime from "./maintenance-control-root-entry.ts"'), true);
   assert.equal(gate.includes("service-admin-root-entry"), false);
   assert.equal(gate.includes("x-admin-token"), false);
@@ -44,7 +45,7 @@ test("schema readiness composes migration apply then maintenance outside service
 });
 
 test("maintenance production modules do not access backup crypto filesystems or encryption configuration", () => {
-  const combined = [source(rootPath), source(gatePath), source(repositoryPath), source(controlEntryPath), source(modePath)].join("\n");
+  const combined = [source(gatePath), source(repositoryPath), source(controlEntryPath), source(modePath)].join("\n");
   assert.doesNotMatch(combined, /CONFIG_ENCRYPTION_KEY/);
   assert.doesNotMatch(combined, /backup-encrypted|decryptEncrypted|validateEncryptedBackup|createSelectiveRecoveryPoint/);
   assert.doesNotMatch(combined, /node:(?:fs|path|child_process)|from\s+["']fs["']|Deno\.|Bun\.|process\.cwd/);
@@ -64,7 +65,7 @@ test("maintenance repository mutates only its singleton and session revocation a
 
 test("gate allows only bounded recovery control surfaces during maintenance", () => {
   const gate = source(gatePath);
-  const root = source(rootPath);
+  const securityComposition = source(securityCompositionPath);
   for (const path of [
     "/api/maintenance/status",
     "/api/integrations/health",
@@ -72,6 +73,7 @@ test("gate allows only bounded recovery control surfaces during maintenance", ()
   ]) assert.equal(gate.includes(`"${path}"`), true, path);
   assert.equal(gate.includes("MAINTENANCE_CONTROL_PATHS"), true);
   assert.equal(gate.includes("request.method"), false, "gate must not duplicate control authorization");
-  assert.equal(root.includes("rootRuntime.scheduled"), true);
+  assert.equal(securityComposition.includes("handleMaintenanceScheduledGate(controller, sourceEnv, ctx"), true);
+  assert.equal(securityComposition.includes("compatibilityRuntime.scheduled?.(controller, env, ctx)"), true);
   assert.equal(gate.includes("rootRuntime"), false, "pure gate must not import runtime composition");
 });

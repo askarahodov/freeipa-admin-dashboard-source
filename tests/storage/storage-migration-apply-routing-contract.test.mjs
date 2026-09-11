@@ -9,9 +9,9 @@ import {
   isStorageMigrationApplyPath,
 } from "../../src/storage/migration/apply/storage-migration-apply-contract.ts";
 
-const [securityComposition, maintenanceRoot, schemaEntry, handler] = await Promise.all([
+const [securityComposition, maintenanceGate, schemaEntry, handler] = await Promise.all([
   readFile(new URL("../../worker/security-composition.ts", import.meta.url), "utf8"),
-  readFile(new URL("../../worker/maintenance-mode-root-entry.ts", import.meta.url), "utf8"),
+  readFile(new URL("../../worker/maintenance-mode-gate.ts", import.meta.url), "utf8"),
   readFile(new URL("../../worker/schema-migrations-entry.ts", import.meta.url), "utf8"),
   readFile(new URL("../../worker/storage-migration-apply-entry.ts", import.meta.url), "utf8"),
 ]);
@@ -30,12 +30,13 @@ test("controlled migration paths are exact and recovery allowlisted before schem
   assert.ok(recoveryIndex >= 0 && recoveryIndex < schemaEntry.indexOf("if (!sourceEnv.DB)"));
 });
 
-test("security composition dispatches controlled migration handler before remaining maintenance compatibility", () => {
+test("security composition dispatches controlled migration handler before explicit maintenance", () => {
   const handlerIndex = securityComposition.indexOf("handleApply: handleStorageMigrationApplyRequest");
-  const downstreamIndex = securityComposition.indexOf("compatibilityRuntime.fetch(nextRequest, nextEnv, nextContext)");
-  assert.ok(handlerIndex >= 0 && downstreamIndex > handlerIndex);
-  assert.equal(maintenanceRoot.includes("handleStorageMigrationApplyRequest"), false);
-  assert.equal(maintenanceRoot.includes("handleMaintenanceGate(request"), true);
+  const maintenanceIndex = securityComposition.indexOf("handleMaintenanceGate(");
+  assert.ok(handlerIndex >= 0 && maintenanceIndex > handlerIndex);
+  assert.equal(securityComposition.includes('from "./maintenance-mode-gate.ts"'), true);
+  assert.equal(securityComposition.includes('from "./maintenance-mode-root-entry.ts"'), false);
+  assert.equal(maintenanceGate.includes("handleStorageMigrationApplyRequest"), false);
 });
 
 test("handler authorizes service token or local admin session before bounded body parsing", () => {

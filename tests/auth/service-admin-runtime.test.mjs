@@ -7,6 +7,10 @@ import {
   serviceAdminTokenAuthorized,
 } from "../../src/auth/admin-session-authorization.ts";
 import { handleMaintenanceControlRoute } from "../../worker/maintenance-control-dispatch.ts";
+import {
+  resolveServiceAdminCompatibilityEnv,
+  serviceAdminCompatibilityEnv,
+} from "../../worker/security/service-admin-authentication.ts";
 
 const serviceAdminRoot = fs.readFileSync(
   new URL("../../worker/service-admin-root-entry.ts", import.meta.url),
@@ -23,6 +27,14 @@ function request(path = maintenanceStatusPath, marker) {
   return new Request(`https://portal.test${path}`, { headers });
 }
 
+function localEnv() {
+  return {
+    PORTAL_IDENTITY_MODE: "local",
+    PORTAL_DEFAULT_ROLE: "viewer",
+    ADMIN_TOKEN: expectedMarker,
+  };
+}
+
 test("service-admin token helper fails closed for missing and mismatched markers", async () => {
   assert.equal(await serviceAdminTokenAuthorized(request(), expectedMarker), false);
   assert.equal(await serviceAdminTokenAuthorized(request(maintenanceStatusPath, mismatchedMarker), expectedMarker), false);
@@ -30,22 +42,63 @@ test("service-admin token helper fails closed for missing and mismatched markers
   assert.equal(await serviceAdminTokenAuthorized(request(maintenanceStatusPath, expectedMarker), undefined), false);
 });
 
-test("service-admin root keeps local mode, allowlist and token as one adaptation gate", () => {
-  const local = serviceAdminRoot.indexOf("localMode(sourceEnv)");
-  const allowlisted = serviceAdminRoot.indexOf("isAdminIntegrationPath(url.pathname)");
-  const token = serviceAdminRoot.indexOf("serviceAdminTokenAuthorized(request, sourceEnv.ADMIN_TOKEN)");
-  const adaptation = serviceAdminRoot.indexOf("serviceAdminEnv(sourceEnv)");
-  const fallback = serviceAdminRoot.lastIndexOf("rootRuntime.fetch(request, sourceEnv, ctx)");
+test("service-admin authentication adapter preserves local-mode allowlist and token boundary", async () => {
+  const env = localEnv();
 
-  assert.ok(local >= 0, "service-admin adaptation must remain local-mode-only");
-  assert.ok(allowlisted > local, "route allowlist must remain inside the service-admin gate");
-  assert.ok(token > allowlisted, "token authorization must remain inside the service-admin gate");
-  assert.ok(adaptation > token, "service-admin identity adaptation must happen only after authorization");
-  assert.ok(fallback > adaptation, "ordinary requests must retain the unadapted environment fallback");
+  assert.equal(
+    await resolveServiceAdminCompatibilityEnv(request(maintenanceStatusPath, mismatchedMarker), env),
+    null,
+  );
+  assert.equal(
+    await resolveServiceAdminCompatibilityEnv(request("/api/integrations/catalog", expectedMarker), env),
+    null,
+  );
+  assert.equal(
+    await resolveServiceAdminCompatibilityEnv(
+      request(maintenanceStatusPath, expectedMarker),
+      { ...env, PORTAL_IDENTITY_MODE: "static" },
+    ),
+    null,
+  );
+
+  const delegated = await resolveServiceAdminCompatibilityEnv(
+    request(maintenanceStatusPath, expectedMarker),
+    env,
+  );
+  assert.ok(delegated);
+  assert.notEqual(delegated, env);
+  assert.equal(env.PORTAL_IDENTITY_MODE, "local", "authentication must not mutate the source environment");
+  assert.equal(delegated.PORTAL_IDENTITY_MODE, "static");
+  assert.equal(delegated.PORTAL_STATIC_IDENTITY, "service-admin@portal.local");
+  assert.equal(delegated.PORTAL_DEFAULT_ROLE, "admin");
+  assert.equal(delegated.PORTAL_SERVICE_ADMIN_AUTHORIZED, "1");
+  assert.deepEqual(JSON.parse(delegated.PORTAL_RBAC_JSON), {
+    "service-admin@portal.local": "admin",
+  });
 
   assert.equal(isAdminIntegrationPath(maintenanceStatusPath), true);
   assert.equal(isAdminIntegrationPath("/api/integrations/catalog"), false);
   assert.equal(isAdminIntegrationPath("/api/auth/users"), false);
+});
+
+test("service-admin compatibility environment keeps unrelated configuration intact", () => {
+  const env = { ...localEnv(), UNRELATED_MARKER: "preserved" };
+  const delegated = serviceAdminCompatibilityEnv(env);
+  assert.equal(delegated.UNRELATED_MARKER, "preserved");
+  assert.equal(env.PORTAL_IDENTITY_MODE, "local");
+});
+
+test("service-admin root is a thin adapter with an unadapted fallback", () => {
+  assert.equal(
+    serviceAdminRoot.includes("resolveServiceAdminCompatibilityEnv(request, sourceEnv)"),
+    true,
+  );
+  assert.equal(
+    serviceAdminRoot.includes("rootRuntime.fetch(request, delegated ?? sourceEnv, ctx)"),
+    true,
+  );
+  assert.equal(serviceAdminRoot.includes("serviceAdminTokenAuthorized"), false);
+  assert.equal(serviceAdminRoot.includes("serviceAdminEnv"), false);
 });
 
 test("maintenance runtime preserves viewer operator admin and service-admin authorization", async () => {

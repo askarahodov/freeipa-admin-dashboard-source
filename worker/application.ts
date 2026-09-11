@@ -3,6 +3,7 @@ import {
   createPortalApplicationRouter,
   finalizePortalApplicationResponse,
 } from "./application-router.ts";
+import { handleHealthApplicationRoute } from "./health-http.ts";
 
 type RuntimeEnv = NonNullable<Parameters<typeof securityComposition.fetch>[1]>;
 type RuntimeContext = Parameters<typeof securityComposition.fetch>[2];
@@ -12,13 +13,25 @@ function compatibilityFetch(request: Request, env: RuntimeEnv, ctx: RuntimeConte
   return securityComposition.fetch(request, env, ctx);
 }
 
+async function healthOrCompatibility(
+  request: Request,
+  env: RuntimeEnv,
+  ctx: RuntimeContext,
+  route: Parameters<typeof handleHealthApplicationRoute>[2],
+): Promise<Response> {
+  const healthResponse = await handleHealthApplicationRoute(request, env, route);
+  return healthResponse ?? compatibilityFetch(request, env, ctx);
+}
+
 const router = createPortalApplicationRouter<RuntimeEnv, RuntimeContext>({
-  stable: ({ request, env, ctx }) => compatibilityFetch(request, env, ctx),
+  stable: ({ request, env, ctx, route }) => healthOrCompatibility(request, env, ctx, route),
   negative: async ({ request, env, ctx, route }) => {
+    const healthResponse = await handleHealthApplicationRoute(request, env, route);
+    if (healthResponse) return healthResponse;
     const response = await compatibilityFetch(request, env, ctx);
     return finalizePortalApplicationResponse(route, response);
   },
-  supplemental: ({ request, env, ctx }) => compatibilityFetch(request, env, ctx),
+  supplemental: ({ request, env, ctx, route }) => healthOrCompatibility(request, env, ctx, route),
   framework: ({ request, env, ctx }) => compatibilityFetch(request, env, ctx),
 });
 
@@ -26,11 +39,15 @@ const router = createPortalApplicationRouter<RuntimeEnv, RuntimeContext>({
  * Explicit Worker application composition boundary.
  *
  * HTTP requests are classified through canonical route metadata and dispatched
- * through explicit stable/negative/supplemental/framework registrations. All
- * four registrations still use the compatibility security composition, so
- * security and stable-route handler behavior remain unchanged. Only the
- * negative registration finalizes an already-returned matching 404/405
- * envelope after compatibility security/status handling.
+ * through explicit stable/negative/supplemental/framework registrations.
+ * Infrastructure health classifications are the first domain extraction: the
+ * schema boundary preserves their historical pre-schema pass-through and this
+ * composition delegates them to one `health-http.ts` owner before security.
+ * All other registrations still enter the compatibility security composition.
+ *
+ * For non-health negative classifications only, the application finalizes an
+ * already-returned matching 404/405 envelope after compatibility
+ * security/status handling.
  *
  * Scheduled execution is intentionally delegated unchanged; its schema and
  * maintenance gates remain compatibility-owned until the final cleanup phase.

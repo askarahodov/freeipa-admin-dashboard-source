@@ -31,7 +31,8 @@ test("normal fetch and scheduled dispatch require a ready production schema befo
   assert.equal(securitySource.includes('from "./storage-migration-apply-entry.ts"'), true);
   assert.equal(securitySource.includes('from "./middleware/storage-migration-apply.ts"'), true);
   assert.equal(securitySource.includes('from "./maintenance-mode-gate.ts"'), true);
-  assert.equal(securitySource.includes('import compatibilityRuntime from "./service-admin-root-entry.ts"'), true);
+  assert.equal(securitySource.includes('import compatibilityRuntime from "./maintenance-control-root-entry.ts"'), true);
+  assert.equal(securitySource.includes('from "./middleware/service-admin-authentication.ts"'), true);
   assert.equal(securitySource.includes('from "./maintenance-mode-root-entry.ts"'), false);
   assert.equal(gateSource.includes("handleStorageMigrationApplyRequest"), false);
   assert.equal(gateSource.includes("service-admin-root-entry"), false);
@@ -49,6 +50,7 @@ test("normal fetch and scheduled dispatch require a ready production schema befo
   assert.equal(securitySource.includes("handleMaintenanceGate("), true);
   assert.equal(securitySource.includes("handleMaintenanceScheduledGate(controller, sourceEnv, ctx"), true);
   assert.equal(securitySource.includes("return compatibilityRuntime.fetch(request, env, ctx)"), true);
+  assert.equal(securitySource.includes("handleServiceAdminAuthenticationGate(request, env, ctx, compatibilityDependencies())"), true);
   assert.equal(securitySource.includes("return compatibilityRuntime.scheduled?.(controller, env, ctx)"), true);
   assert.equal(source.includes("NODE_TEST_CONTEXT"), false);
 
@@ -105,12 +107,12 @@ test("built worker tests explicitly provide a database or mark a process-local b
   assert.deepEqual(violations, [], `built worker tests without DB or explicit bypass: ${violations.join(", ")}`);
 });
 
-test("no test still treats service-admin-root as the outer Vite entry", () => {
+test("no active test still treats service-admin-root as a runtime composition owner", () => {
   const stale = [];
   for (const name of fs.readdirSync(testsDirectory).filter((value) => value.endsWith(".test.mjs"))) {
     if (name === path.basename(fileURLToPath(import.meta.url))) continue;
     const source = fs.readFileSync(path.join(testsDirectory, name), "utf8");
-    if (/\.includes\(\s*["'][^"']*worker\/service-admin-root-entry\.ts["']\s*\)/.test(source)) stale.push(name);
+    if (source.includes("worker/service-admin-root-entry.ts")) stale.push(name);
   }
-  assert.deepEqual(stale, [], `stale outer worker entry assertions: ${stale.join(", ")}`);
+  assert.deepEqual(stale, [], `stale service-admin wrapper assertions: ${stale.join(", ")}`);
 });

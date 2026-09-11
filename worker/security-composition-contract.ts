@@ -12,8 +12,8 @@
 export const portalSecurityGateOrder = Object.freeze([
   Object.freeze({
     id: "storage-migration-apply",
-    owner: "worker/maintenance-mode-root-entry.ts",
-    responsibility: "privileged storage migration apply boundary",
+    owner: "worker/security-composition.ts",
+    responsibility: "explicit privileged storage migration apply boundary",
   }),
   Object.freeze({
     id: "maintenance",

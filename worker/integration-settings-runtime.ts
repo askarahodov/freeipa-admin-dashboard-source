@@ -14,6 +14,14 @@ export type FreeIpaSettingsEnv = {
   IPA_NODE_GATEWAY_TOKEN?: string;
 };
 
+export type XyOpsSettingsEnv = {
+  DB?: D1Database;
+  CONFIG_ENCRYPTION_KEY?: string;
+  XYOPS_URL?: string;
+  XYOPS_API_KEY?: string;
+  XYOPS_RESULT_FILE_MAX_BYTES?: string;
+};
+
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
@@ -108,5 +116,39 @@ export async function effectiveFreeIpaRuntime<T extends FreeIpaSettingsEnv>(env:
     return { env: effective, ipaUrl: cleanIntegrationBaseUrl(effective.IPA_URL) };
   } catch {
     return { env: fallback, ipaUrl: cleanIntegrationBaseUrl(fallback.IPA_URL) };
+  }
+}
+
+function fallbackXyOpsEnv<T extends XyOpsSettingsEnv>(env: T): T {
+  return {
+    ...env,
+    XYOPS_URL: cleanIntegrationBaseUrl(env.XYOPS_URL) ?? "",
+    XYOPS_API_KEY: env.XYOPS_API_KEY ?? "",
+  };
+}
+
+/**
+ * Resolves the persisted XYOps URL/API-key slice without importing the central
+ * Worker settings owner. This mirrors the legacy effective-settings precedence:
+ * readable persisted state wins, otherwise environment values are retained.
+ */
+export async function effectiveXyOpsRuntime<T extends XyOpsSettingsEnv>(env: T): Promise<{ env: T; xyopsUrl: string | null }> {
+  const fallback = fallbackXyOpsEnv(env);
+  if (!env.DB) return { env: fallback, xyopsUrl: cleanIntegrationBaseUrl(fallback.XYOPS_URL) };
+  try {
+    const row = await env.DB.prepare("SELECT config_json, encrypted_secrets, updated_at FROM app_settings WHERE id = ?")
+      .bind("main")
+      .first<{ config_json: string; encrypted_secrets: string; updated_at: number }>();
+    if (!row) return { env: fallback, xyopsUrl: cleanIntegrationBaseUrl(fallback.XYOPS_URL) };
+    const config = JSON.parse(String(row.config_json ?? "{}")) as Record<string, unknown>;
+    const secrets = await decryptIntegrationSecrets(String(row.encrypted_secrets ?? ""), env.CONFIG_ENCRYPTION_KEY);
+    const effective = {
+      ...env,
+      XYOPS_URL: String(config.xyopsUrl ?? ""),
+      XYOPS_API_KEY: secrets.xyopsApiKey,
+    } as T;
+    return { env: effective, xyopsUrl: cleanIntegrationBaseUrl(effective.XYOPS_URL) };
+  } catch {
+    return { env: fallback, xyopsUrl: cleanIntegrationBaseUrl(fallback.XYOPS_URL) };
   }
 }

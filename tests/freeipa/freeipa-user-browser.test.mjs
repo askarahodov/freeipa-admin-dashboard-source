@@ -32,7 +32,7 @@ test("user browser uses the shared FreeIPA action contract and exposes server qu
   assert.equal(owner.includes("queryFreeIpaUsers"), true);
   assert.equal(owner.includes("/api/integrations/freeipa/bulk"), true);
   assert.equal(owner.includes("/api/integrations/groups/members"), true);
-  assert.equal(owner.includes('import integrationRuntime from "./index"'), true);
+  assert.equal(owner.includes('import integrationRuntime from "./operations-http-entry.ts"'), true);
   assert.equal(selectiveRoot.includes('import rootRuntime from "./session-management-entry.ts"'), true);
   assert.equal(secureEntry.includes('import runtime from "./freeipa-http-entry.ts"'), true);
   assert.equal(selectiveRoot.includes("return rootRuntime.fetch"), true);

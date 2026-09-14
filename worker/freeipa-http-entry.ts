@@ -1,4 +1,4 @@
-import integrationRuntime from "./index";
+import integrationRuntime from "./operations-http-entry.ts";
 import {
   normalizeFreeIpaGroupMemberQuery,
   queryFreeIpaGroupMembers,

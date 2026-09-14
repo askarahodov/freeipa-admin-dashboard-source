@@ -21,7 +21,7 @@ async function exists(relativePath) {
 
 test("FreeIPA read/query/export/bulk/member/action HTTP behavior has one compatibility owner", async () => {
   const adapter = await source("worker/freeipa-http-entry.ts");
-  assert.match(adapter, /import integrationRuntime from ["']\.\/index["']/);
+  assert.match(adapter, /import integrationRuntime from ["']\.\/operations-http-entry\.ts["']/);
   for (const route of [
     "/api/integrations/users",
     "/api/integrations/users/export.csv",

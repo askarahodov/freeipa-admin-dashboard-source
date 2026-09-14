@@ -62,7 +62,7 @@ export const portalRouteContracts = [
   { id: "freeipa.users.export", method: "GET", path: "/api/integrations/users/export.csv", owner: "worker/freeipa-http-entry.ts", auth: "local-session", permission: "directory.read", mutation: "read", sameOrigin: false },
   { id: "freeipa.groups.list", method: "GET", path: "/api/integrations/groups", owner: "worker/freeipa-http-entry.ts", auth: "local-session", permission: "directory.read", mutation: "read", sameOrigin: false },
   { id: "freeipa.groups.members", method: "GET", path: "/api/integrations/groups/members", owner: "worker/freeipa-http-entry.ts", auth: "local-session", permission: "directory.read", mutation: "read", sameOrigin: false },
-  { id: "freeipa.actions", method: "POST", path: "/api/integrations/freeipa/actions", owner: "worker/index.ts", auth: "local-session", permission: "freeipa.write", conditionalPermissions: ["freeipa.delete"], mutation: "mutation", sameOrigin: false },
+  { id: "freeipa.actions", method: "POST", path: "/api/integrations/freeipa/actions", owner: "worker/freeipa-http-entry.ts", auth: "local-session", permission: "freeipa.write", conditionalPermissions: ["freeipa.delete"], mutation: "mutation", sameOrigin: false },
   { id: "freeipa.bulk", method: "POST", path: "/api/integrations/freeipa/bulk", owner: "worker/freeipa-http-entry.ts", auth: "local-session", permission: "freeipa.write", mutation: "mutation", sameOrigin: false },
 
   { id: "integration.status", method: "GET", path: "/api/integrations/status", owner: "worker/index.ts", auth: "local-session", mutation: "read", sameOrigin: false },

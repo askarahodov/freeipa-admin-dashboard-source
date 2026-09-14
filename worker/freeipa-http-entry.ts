@@ -1,4 +1,4 @@
-import sessionRuntime from "./session-management-entry";
+import integrationRuntime from "./index";
 import {
   normalizeFreeIpaGroupMemberQuery,
   queryFreeIpaGroupMembers,
@@ -12,10 +12,15 @@ import {
 import { isPortalRole, portalRolePermissions } from "../src/auth/portal-permissions";
 import { readFreeIpaGroups, readFreeIpaUsers } from "./freeipa-base-read.ts";
 import { effectiveFreeIpaRuntime, type FreeIpaSettingsEnv } from "./integration-settings-runtime.ts";
+import { appendAuditEvent, auditErrorCode, createAuditContext } from "../audit-log.ts";
+import { freeIpaDirectCall, isFreeIpaOperation } from "./freeipa-action-runtime.ts";
+import { freeIpaRpc } from "./freeipa-rpc.ts";
+import { operationRun, saveOperationRun } from "./operation-run-runtime.ts";
+import { portalAccess, requirePortalPermission } from "./portal-access-runtime.ts";
 
-type RuntimeEnv = NonNullable<Parameters<typeof sessionRuntime.fetch>[1]> & FreeIpaSettingsEnv;
-type RuntimeContext = Parameters<typeof sessionRuntime.fetch>[2];
-type ScheduledController = Parameters<NonNullable<typeof sessionRuntime.scheduled>>[0];
+type RuntimeEnv = NonNullable<Parameters<typeof integrationRuntime.fetch>[1]> & FreeIpaSettingsEnv;
+type RuntimeContext = Parameters<typeof integrationRuntime.fetch>[2];
+type ScheduledController = Parameters<NonNullable<typeof integrationRuntime.scheduled>>[0];
 type BulkAction = "enable" | "disable" | "add_to_group";
 
 type PublicStatus = {
@@ -138,13 +143,59 @@ async function preflightWrite(request: Request, env: RuntimeEnv, ctx: RuntimeCon
   const statusUrl = new URL(request.url);
   statusUrl.pathname = "/api/integrations/status";
   statusUrl.search = "";
-  const response = await sessionRuntime.fetch(new Request(statusUrl, { headers: request.headers }), env, ctx);
+  const response = await integrationRuntime.fetch(new Request(statusUrl, { headers: request.headers }), env, ctx);
   if (!response.ok) return response;
   const payload = await readRecord(response) as PublicStatus;
   const permissions = Array.isArray(payload.access?.permissions) ? payload.access.permissions.map(String) : [];
   return permissions.includes("freeipa.write")
     ? null
     : json({ error: "Недостаточно прав для массового изменения FreeIPA", requiredPermission: "freeipa.write" }, 403);
+}
+
+async function handleFreeIpaAction(request: Request, env: RuntimeEnv): Promise<Response> {
+  const audit = createAuditContext(portalAccess(request, env));
+  const runtime = await effectiveFreeIpaRuntime(env);
+  const effectiveEnv = runtime.env;
+  const ipaUrl = runtime.ipaUrl;
+
+  let body: Record<string, unknown>;
+  try { body = await request.json() as Record<string, unknown>; }
+  catch { return json({ error: "Invalid JSON" }, 400); }
+  if (!isFreeIpaOperation(body.operation)) return json({ error: "Unsupported operation" }, 400);
+
+  const requiredPermission = body.operation === "user_del" || body.operation === "group_del" ? "freeipa.delete" : "freeipa.write";
+  const denied = requirePortalPermission(request, env, requiredPermission);
+  if (denied) return denied;
+
+  const demoMode = effectiveEnv.DEMO_MODE === "true";
+  if (!demoMode && (!ipaUrl || !effectiveEnv.IPA_USERNAME || !effectiveEnv.IPA_PASSWORD)) return json({ error: "FreeIPA is not configured" }, 503);
+
+  let call: ReturnType<typeof freeIpaDirectCall>;
+  try { call = freeIpaDirectCall(body.operation, body); }
+  catch (error) { return json({ error: error instanceof Error ? error.message : "Некорректные параметры FreeIPA" }, 400); }
+
+  const fieldKeys = Object.keys(call.values).filter((key) => !/pass|secret|token|key/i.test(key));
+  const resourceType = body.operation.startsWith("group_") ? "freeipa_group" : "freeipa_user";
+  if (demoMode) {
+    const run = operationRun({ request, eventId: `freeipa:${body.operation}`, title: call.title, kind: "event", mode: "demo", jobId: `IPA-DEMO-${Date.now()}`, status: "success", values: call.values });
+    await saveOperationRun(env, run);
+    await appendAuditEvent(env, audit, { action: `freeipa.${body.operation}`, resourceType, resourceId: run.subject, eventId: run.eventId, runId: run.id, jobId: run.jobId, outcome: "success", metadata: { mode: "demo", operation: body.operation, fieldKeys } }).catch(() => {});
+    return json({ mode: "demo", direct: true, ok: true, runId: run.id, status: run.status });
+  }
+
+  try {
+    await freeIpaRpc(effectiveEnv, ipaUrl as string, call.method, call.args, call.options);
+    const run = operationRun({ request, eventId: `freeipa:${body.operation}`, title: call.title, kind: "event", mode: "live", jobId: `IPA-${Date.now()}`, status: "success", values: call.values });
+    await saveOperationRun(env, run);
+    await appendAuditEvent(env, audit, { action: `freeipa.${body.operation}`, resourceType, resourceId: run.subject, eventId: run.eventId, runId: run.id, jobId: run.jobId, outcome: "success", metadata: { mode: "live", operation: body.operation, fieldKeys } }).catch(() => {});
+    return json({ mode: "live", direct: true, ok: true, runId: run.id, status: run.status });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "FreeIPA request failed";
+    const run = operationRun({ request, eventId: `freeipa:${body.operation}`, title: call.title, kind: "event", mode: "live", jobId: "", status: "failed", values: call.values, error: message });
+    await saveOperationRun(env, run);
+    await appendAuditEvent(env, audit, { action: `freeipa.${body.operation}`, resourceType, resourceId: run.subject, eventId: run.eventId, runId: run.id, outcome: "failure", errorCode: auditErrorCode(error, "freeipa_request_failed"), metadata: { operation: body.operation, fieldKeys } }).catch(() => {});
+    return json({ error: message, runId: run.id }, 502);
+  }
 }
 
 async function handleBulk(request: Request, env: RuntimeEnv, ctx: RuntimeContext): Promise<Response> {
@@ -182,11 +233,11 @@ async function handleBulk(request: Request, env: RuntimeEnv, ctx: RuntimeContext
       const headers = new Headers(request.headers);
       headers.set("content-type", "application/json");
       headers.delete("content-length");
-      const response = await sessionRuntime.fetch(new Request(actionUrl, {
+      const response = await handleFreeIpaAction(new Request(actionUrl, {
         method: "POST",
         headers,
         body: JSON.stringify({ operation, username: uid, ...(group ? { group } : {}) }),
-      }), env, ctx);
+      }), env);
       const payload = await readRecord(response);
       results[index] = {
         uid,
@@ -302,13 +353,13 @@ async function withEffectivePermissions(response: Response): Promise<Response> {
 }
 
 /**
- * Single compatibility HTTP owner for FreeIPA directory reads plus the
- * consolidated query/export/bulk/member surface.
+ * Single compatibility HTTP owner for FreeIPA directory reads and mutations
+ * plus the consolidated query/export/bulk/member surface.
  *
- * B1 resolves the same persisted effective FreeIPA settings before calling the
- * shared RPC transport, while mutation actions deliberately continue through
- * the downstream runtime until B2 can extract their operation-run/audit
- * coupling without duplication.
+ * B2 keeps persisted effective-settings precedence, the shared RPC transport,
+ * canonical permission resolution, operation-run persistence and audit logging
+ * reusable without delegating FreeIPA action ownership back to the central
+ * integration runtime.
  */
 const worker = {
   async fetch(request: Request, env: RuntimeEnv | undefined, ctx: RuntimeContext): Promise<Response> {
@@ -319,8 +370,11 @@ const worker = {
       return handleGroupMembers(sourceEnv, url);
     }
     if (request.method === "GET" && url.pathname === "/api/integrations/status") {
-      const response = await sessionRuntime.fetch(request, sourceEnv, ctx);
+      const response = await integrationRuntime.fetch(request, sourceEnv, ctx);
       return withEffectivePermissions(response);
+    }
+    if (request.method === "POST" && url.pathname === "/api/integrations/freeipa/actions") {
+      return handleFreeIpaAction(request, sourceEnv);
     }
     if (request.method === "POST" && url.pathname === "/api/integrations/freeipa/bulk") {
       return handleBulk(request, sourceEnv, ctx);
@@ -334,11 +388,11 @@ const worker = {
     if (request.method === "GET" && url.pathname === "/api/integrations/groups") {
       return baseGroups(sourceEnv);
     }
-    return sessionRuntime.fetch(request, sourceEnv, ctx);
+    return integrationRuntime.fetch(request, sourceEnv, ctx);
   },
 
   async scheduled(controller: ScheduledController, env: RuntimeEnv | undefined, ctx: RuntimeContext): Promise<void> {
-    return sessionRuntime.scheduled?.(controller, env, ctx);
+    return integrationRuntime.scheduled?.(controller, env, ctx);
   },
 };
 

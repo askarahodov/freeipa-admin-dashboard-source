@@ -19,15 +19,16 @@ async function exists(relativePath) {
   }
 }
 
-test("FreeIPA read/query/export/bulk/member HTTP behavior has one compatibility owner", async () => {
+test("FreeIPA read/query/export/bulk/member/action HTTP behavior has one compatibility owner", async () => {
   const adapter = await source("worker/freeipa-http-entry.ts");
-  assert.match(adapter, /import sessionRuntime from ["']\.\/session-management-entry["']/);
+  assert.match(adapter, /import integrationRuntime from ["']\.\/index["']/);
   for (const route of [
     "/api/integrations/users",
     "/api/integrations/users/export.csv",
     "/api/integrations/groups",
     "/api/integrations/groups/members",
     "/api/integrations/freeipa/bulk",
+    "/api/integrations/freeipa/actions",
   ]) assert.equal(adapter.includes(route), true, `missing consolidated route: ${route}`);
 
   for (const retired of [
@@ -40,19 +41,25 @@ test("FreeIPA read/query/export/bulk/member HTTP behavior has one compatibility 
 test("backup predispatch is not owned by the FreeIPA adapter", async () => {
   const adapter = await source("worker/freeipa-http-entry.ts");
   const backupRoot = await source("worker/backup-selective-restore-root-entry.ts");
+  const secureEntry = await source("worker/secure-entry.ts");
   assert.equal(adapter.includes("handleEncryptedBackupRoute"), false);
   assert.equal(adapter.includes("handleBackupImportPreviewRoute"), false);
-  assert.match(backupRoot, /import rootRuntime from ["']\.\/freeipa-http-entry\.ts["']/);
+  assert.match(backupRoot, /import rootRuntime from ["']\.\/session-management-entry\.ts["']/);
+  assert.match(secureEntry, /import runtime from ["']\.\/freeipa-http-entry\.ts["']/);
+  assert.match(secureEntry, /return runtime\.fetch\(secured\.request, secured\.env, ctx\)/);
   assert.equal(backupRoot.includes("handleEncryptedBackupRoute"), true);
   assert.equal(backupRoot.includes("handleBackupImportPreviewRoute"), true);
 });
 
-test("base FreeIPA reads and RPC no longer live in the central Worker", async () => {
+test("FreeIPA action ownership is canonical in the adapter while the central compatibility fallback remains unreachable", async () => {
   const central = await source("worker/index.ts");
   const adapter = await source("worker/freeipa-http-entry.ts");
   const baseRead = await source("worker/freeipa-base-read.ts");
   const rpc = await source("worker/freeipa-rpc.ts");
   const settingsRuntime = await source("worker/integration-settings-runtime.ts");
+  const actionRuntime = await source("worker/freeipa-action-runtime.ts");
+  const operationRuntime = await source("worker/operation-run-runtime.ts");
+  const accessRuntime = await source("worker/portal-access-runtime.ts");
 
   assert.equal(central.includes("handleFreeIpaBaseRead"), false);
   assert.equal(central.includes('url.pathname === "/api/integrations/users"'), false);
@@ -72,7 +79,15 @@ test("base FreeIPA reads and RPC no longer live in the central Worker", async ()
   assert.equal(rpc.includes("/ipa/session/login_password"), true);
   assert.equal(settingsRuntime.includes("SELECT config_json, encrypted_secrets, updated_at FROM app_settings"), true);
   assert.equal(settingsRuntime.includes("decryptIntegrationSecrets"), true);
-  assert.equal(central.includes('url.pathname === "/api/integrations/freeipa/actions"'), true, "mutation ownership must remain in index until B2");
+  assert.equal(central.includes('url.pathname === "/api/integrations/freeipa/actions"'), true, "B2 cleanup removes this unreachable compatibility fallback in the next slice");
+  assert.match(adapter, /freeIpaDirectCall/);
+  assert.match(adapter, /operationRun/);
+  assert.match(adapter, /saveOperationRun/);
+  assert.match(adapter, /createAuditContext\(portalAccess\(request, env\)\)/);
+  assert.equal(actionRuntime.includes("user_password"), true);
+  assert.equal(actionRuntime.includes("/api/integrations/"), false, "action normalization must remain route-neutral");
+  assert.equal(operationRuntime.includes("INSERT INTO operation_runs"), true);
+  assert.equal(accessRuntime.includes("resolvePortalRole"), true);
 });
 
 test("canonical route metadata points FreeIPA routes at their current owners", async () => {
@@ -83,7 +98,7 @@ test("canonical route metadata points FreeIPA routes at their current owners", a
     ["freeipa.users.export", "worker/freeipa-http-entry.ts"],
     ["freeipa.groups.members", "worker/freeipa-http-entry.ts"],
     ["freeipa.bulk", "worker/freeipa-http-entry.ts"],
-    ["freeipa.actions", "worker/index.ts"],
+    ["freeipa.actions", "worker/freeipa-http-entry.ts"],
   ]);
   for (const [id, owner] of expectedOwners) {
     const line = contracts.split("\n").find((candidate) => candidate.includes(`id: "${id}"`));

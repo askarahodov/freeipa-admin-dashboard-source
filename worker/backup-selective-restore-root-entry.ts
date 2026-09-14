@@ -1,4 +1,4 @@
-import rootRuntime from "./freeipa-http-entry.ts";
+import rootRuntime from "./session-management-entry.ts";
 import {
   handleSelectiveBackupRoute,
   type SelectiveBackupRuntimeEnv,

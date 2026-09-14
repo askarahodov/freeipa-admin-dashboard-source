@@ -45,7 +45,7 @@ test("test restore audit source excludes approval and fingerprint material", asy
   assert.match(metadataBlocks, /durationMs/);
 });
 
-test("test-restore stays in encrypted backup owner and backup root wires it before FreeIPA", async () => {
+test("test-restore stays in encrypted backup owner and never leaks into the FreeIPA owner", async () => {
   const encryptedRoot = await readFile(new URL("../../worker/backup-encrypted-root-entry.ts", import.meta.url), "utf8");
   const backupRoot = await readFile(new URL("../../worker/backup-selective-restore-root-entry.ts", import.meta.url), "utf8");
   const freeipa = await readFile(new URL("../../worker/freeipa-http-entry.ts", import.meta.url), "utf8");

@@ -22,6 +22,7 @@ test("secure entry reuses canonical identity and correlation only for audit meta
   assert.match(source, /requestContext\s*\? createAuditContext\(\{ identity: requestContext\.identity, role: requestContext\.role, groups: \[\.\.\.requestContext\.groups\] \}, requestContext\.correlationId\)/u);
   assert.match(source, /if \(requestRole\(request, env\) !== "admin"\)/u);
   assert.match(source, /if \(!env\.ADMIN_TOKEN \|\| !await secretsMatch\(request\.headers\.get\("x-admin-token"\), env\.ADMIN_TOKEN\)\)/u);
+  assert.match(source, /import runtime from "\.\/freeipa-http-entry\.ts";/u);
   assert.match(source, /return runtime\.fetch\(secured\.request, secured\.env, ctx\);/u);
 
   const roleGate = source.indexOf('if (requestRole(request, env) !== "admin")');

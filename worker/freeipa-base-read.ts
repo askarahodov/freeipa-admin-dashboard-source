@@ -20,7 +20,7 @@ function boolValue(value: unknown): boolean {
   return ["true", "1", "yes", "on"].includes(String(raw ?? "").toLowerCase());
 }
 
-async function usersResponse(env: FreeIpaBaseReadEnv, ipaUrl: string | null): Promise<Response> {
+export async function readFreeIpaUsers(env: FreeIpaBaseReadEnv, ipaUrl: string | null): Promise<Response> {
   if (boolValue(env.DEMO_MODE)) return json({ mode: "demo", users: [] });
   if (!ipaUrl || !env.IPA_USERNAME || !env.IPA_PASSWORD) return json({ mode: "unconfigured", users: [] });
   try {
@@ -41,7 +41,7 @@ async function usersResponse(env: FreeIpaBaseReadEnv, ipaUrl: string | null): Pr
   }
 }
 
-async function groupsResponse(env: FreeIpaBaseReadEnv, ipaUrl: string | null): Promise<Response> {
+export async function readFreeIpaGroups(env: FreeIpaBaseReadEnv, ipaUrl: string | null): Promise<Response> {
   if (boolValue(env.DEMO_MODE)) return json({ mode: "demo", groups: [] });
   if (!ipaUrl || !env.IPA_USERNAME || !env.IPA_PASSWORD) return json({ mode: "unconfigured", groups: [] });
   let groupFindError: unknown = null;
@@ -76,11 +76,4 @@ async function groupsResponse(env: FreeIpaBaseReadEnv, ipaUrl: string | null): P
   } catch {
     return json({ error: groupFindError instanceof Error ? groupFindError.message : "FreeIPA group_find and membership fallback failed" }, 502);
   }
-}
-
-export async function handleFreeIpaBaseRead(request: Request, env: FreeIpaBaseReadEnv, ipaUrl: string | null): Promise<Response | null> {
-  const url = new URL(request.url);
-  if (request.method === "GET" && url.pathname === "/api/integrations/users") return usersResponse(env, ipaUrl);
-  if (request.method === "GET" && url.pathname === "/api/integrations/groups") return groupsResponse(env, ipaUrl);
-  return null;
 }

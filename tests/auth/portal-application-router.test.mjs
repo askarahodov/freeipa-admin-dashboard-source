@@ -245,24 +245,30 @@ test("stable supplemental and framework responses are never rewritten as routing
   }
 });
 
-test("schema-gated traffic enters one registered application composition and scheduled remains compatibility delegated", async () => {
-  const [schemaSource, applicationSource, securitySource, maintenanceSource] = await Promise.all([
+test("schema boundary preserves health pass-through while non-health traffic enters security composition", async () => {
+  const [schemaSource, applicationSource, healthSource, securitySource, maintenanceSource] = await Promise.all([
     readFile(new URL("../../worker/schema-migrations-entry.ts", import.meta.url), "utf8"),
     readFile(new URL("../../worker/application.ts", import.meta.url), "utf8"),
+    readFile(new URL("../../worker/health-http.ts", import.meta.url), "utf8"),
     readFile(new URL("../../worker/security-composition.ts", import.meta.url), "utf8"),
     readFile(new URL("../../worker/maintenance-mode-gate.ts", import.meta.url), "utf8"),
   ]);
 
   assert.match(schemaSource, /import rootRuntime from "\.\/application\.ts"/);
+  assert.match(schemaSource, /isPreSchemaHealthApplicationRequest\(request\)/);
   assert.match(applicationSource, /import securityComposition from "\.\/security-composition\.ts"/);
+  assert.match(applicationSource, /import \{ handleHealthApplicationRoute \} from "\.\/health-http\.ts"/);
+  assert.match(healthSource, /resolvePortalApplicationRoute/);
+  assert.match(healthSource, /handleHealthApplicationRoute/);
   assert.match(securitySource, /import compatibilityRuntime from "\.\/maintenance-control-root-entry\.ts"/);
   assert.match(securitySource, /from "\.\/middleware\/service-admin-authentication\.ts"/);
   assert.match(securitySource, /from "\.\/maintenance-mode-gate\.ts"/);
   assert.match(applicationSource, /createPortalApplicationRouter/);
-  assert.match(applicationSource, /stable: \(\{ request, env, ctx \}\) => compatibilityFetch\(request, env, ctx\)/);
+  assert.match(applicationSource, /stable: \(\{ request, env, ctx, route \}\) => healthOrCompatibility\(request, env, ctx, route\)/);
   assert.match(applicationSource, /negative: async \(\{ request, env, ctx, route \}\) =>/);
+  assert.match(applicationSource, /const healthResponse = await handleHealthApplicationRoute\(request, env, route\)/);
   assert.match(applicationSource, /return finalizePortalApplicationResponse\(route, response\)/);
-  assert.match(applicationSource, /supplemental: \(\{ request, env, ctx \}\) => compatibilityFetch\(request, env, ctx\)/);
+  assert.match(applicationSource, /supplemental: \(\{ request, env, ctx, route \}\) => healthOrCompatibility\(request, env, ctx, route\)/);
   assert.match(applicationSource, /framework: \(\{ request, env, ctx \}\) => compatibilityFetch\(request, env, ctx\)/);
   assert.match(applicationSource, /return router\.fetch\(request, sourceEnv, ctx\)/);
   assert.match(applicationSource, /return securityComposition\.scheduled\?\.\(controller, env, ctx\)/);

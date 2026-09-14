@@ -4,8 +4,7 @@ import test from "node:test";
 
 test("user browser exposes RBAC-aware bulk controls and filtered CSV export", () => {
   const component = fs.readFileSync(new URL("../../app/directory/FreeIpaUserBrowser.tsx", import.meta.url), "utf8");
-  const worker = fs.readFileSync(new URL("../../worker/freeipa-user-bulk-entry.ts", import.meta.url), "utf8");
-  const topWorker = fs.readFileSync(new URL("../../worker/freeipa-group-member-entry.ts", import.meta.url), "utf8");
+  const owner = fs.readFileSync(new URL("../../worker/freeipa-http-entry.ts", import.meta.url), "utf8");
   const selectiveRoot = fs.readFileSync(new URL("../../worker/backup-selective-restore-root-entry.ts", import.meta.url), "utf8");
   const maintenanceControlRoot = fs.readFileSync(new URL("../../worker/maintenance-control-root-entry.ts", import.meta.url), "utf8");
   const serviceAdminGate = fs.readFileSync(new URL("../../worker/middleware/service-admin-authentication.ts", import.meta.url), "utf8");
@@ -26,18 +25,17 @@ test("user browser exposes RBAC-aware bulk controls and filtered CSV export", ()
   assert.equal(component.includes("maxBulkUsers = 50"), true);
   assert.equal(component.includes("bulkResult.results.filter"), true);
 
-  assert.equal(worker.includes("preflightWrite"), true);
-  assert.equal(worker.includes('permissions.includes("freeipa.write")'), true);
-  assert.equal(worker.includes("maxBulkUsers = 50"), true);
-  assert.equal(worker.includes("bulkConcurrency = 3"), true);
-  assert.equal(worker.includes("207"), true);
-  assert.equal(worker.includes("csvCell"), true);
-  assert.equal(worker.includes("queryRuntime.fetch"), true);
-  assert.equal(worker.includes("/api/integrations/freeipa/actions"), true);
+  assert.equal(owner.includes("preflightWrite"), true);
+  assert.equal(owner.includes('permissions.includes("freeipa.write")'), true);
+  assert.equal(owner.includes("maxBulkUsers = 50"), true);
+  assert.equal(owner.includes("bulkConcurrency = 3"), true);
+  assert.equal(owner.includes("207"), true);
+  assert.equal(owner.includes("csvCell"), true);
+  assert.equal(owner.includes("sessionRuntime.fetch"), true);
+  assert.equal(owner.includes("/api/integrations/freeipa/actions"), true);
+  assert.equal(owner.includes("/api/integrations/groups/members"), true);
 
-  assert.equal(topWorker.includes("./freeipa-user-bulk-entry"), true);
-  assert.equal(topWorker.includes("return bulkRuntime.fetch"), true);
-  assert.equal(selectiveRoot.includes('import rootRuntime from "./freeipa-group-member-entry.ts"'), true);
+  assert.equal(selectiveRoot.includes('import rootRuntime from "./freeipa-http-entry.ts"'), true);
   assert.equal(maintenanceControlRoot.includes('import rootRuntime from "./backup-selective-restore-root-entry.ts"'), true);
   assert.equal(serviceAdminGate.includes("serviceAdminTokenAuthorized(request, env.ADMIN_TOKEN)"), true);
   assert.equal(maintenanceGate.includes("rootRuntime"), false);

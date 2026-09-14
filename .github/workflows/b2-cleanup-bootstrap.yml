@@ -1,0 +1,68 @@
+name: B2 Cleanup Bootstrap
+
+on:
+  push:
+    branches:
+      - arch/631-freeipa-b2-cleanup
+
+permissions:
+  contents: write
+
+concurrency:
+  group: b2-cleanup-bootstrap-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  apply-cleanup:
+    if: ${{ !contains(github.event.head_commit.message, '[b2-cleanup-applied]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact branch head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.0
+
+      - name: Apply reviewed cleanup patches
+        shell: bash
+        run: |
+          set -euo pipefail
+          for patch in .github/b2-cleanup/part-*.patch; do
+            echo "Applying $patch"
+            git apply "$patch"
+          done
+          git diff --check
+
+      - name: Run focused ownership and security contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --experimental-strip-types --test \
+            tests/freeipa/freeipa-http-owner.test.mjs \
+            tests/freeipa/freeipa-shared-runtime.test.mjs \
+            tests/freeipa/freeipa-action-runtime.test.mjs \
+            tests/auth/admin-session-settings.test.mjs \
+            tests/auth/secure-entry-request-context-integration.test.mjs \
+            tests/backup/backup-isolated-source-contract.test.mjs \
+            tests/backup/backup-selective-restore-source-contract.test.mjs
+          node scripts/documentation-consistency.mjs
+          node --experimental-strip-types --check worker/index.ts
+          node --experimental-strip-types --check worker/freeipa-http-entry.ts
+
+      - name: Remove bootstrap files and publish reviewed cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .github/b2-cleanup
+          rm -f .github/workflows/b2-cleanup-bootstrap.yml
+          git add -A
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "refactor(worker): remove retired FreeIPA central fallback [b2-cleanup-applied]" -m "Refs #631."
+          git push origin HEAD:${GITHUB_REF_NAME}

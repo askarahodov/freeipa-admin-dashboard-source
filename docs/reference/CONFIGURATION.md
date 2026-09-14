@@ -4,7 +4,7 @@
 
 This document normalizes the **supported current configuration surfaces** of Admin Dashboard Softrust without creating a second runtime configuration registry.
 
-Canonical values still belong to the current runtime owners: `.env.example`, Compose, `scripts/start-production.mjs`, startup validators, settings lifecycle/source handlers and recovery tooling. The lack of one machine-readable global configuration registry is tracked by **#123**.
+Canonical configuration metadata is owned by `worker/portal-configuration-contract.ts` through `PORTAL_CONFIGURATION_CONTRACT`. Runtime values and behavior still belong to their domain owners: `.env.example`, Compose, `scripts/start-production.mjs`, startup validators, settings lifecycle/source handlers and recovery tooling. The metadata registry does not replace those parsers, validators or persistence rules.
 
 Never copy real credentials, internal hostnames or active secrets into documentation, Issues, logs or examples.
 
@@ -31,6 +31,8 @@ The current project has several different configuration classes. They must not b
 | `CONFIG_ENCRYPTION_KEY` | **yes in supported production startup** | **yes** | startup; changing active key requires migration/rotation design | `scripts/config-encryption-key.mjs`; must be 32-byte canonical base64 or 64-character hex, reject published/test/weak keys outside allowed profile |
 | `ADMIN_TOKEN` | required only for the explicit service-admin capability when used | **yes** | process/startup | service-admin authorization owner; does not replace local authentication/RBAC |
 | `PORTAL_RUNTIME_PROFILE` | optional; default production semantics in validators | no | startup | startup validators; controls whether isolated fixtures/static identity are permitted |
+| `PORTAL_CSP_MODE` | optional; defaults to `enforce` | no | startup | `scripts/http-security.mjs`; `report-only` switches the centralized Node CSP to report-only for bounded migration/debugging, while every other value keeps enforcement |
+| `PORTAL_HSTS_ENABLED` | optional; defaults to disabled | no | startup | `scripts/http-security.mjs`; only truthy opt-in values enable HSTS, and the header is emitted only when the effective request URL is HTTPS |
 
 ### `CONFIG_ENCRYPTION_KEY`
 
@@ -44,6 +46,12 @@ Production startup validates this value before the Worker runtime is started. Cu
 - rejection of trivially weak repeated-byte keys.
 
 The key protects persisted encrypted integration/settings material. Do not rotate it by simply replacing ENV: existing encrypted data becomes unreadable without an explicit migration/rotation procedure.
+
+### HTTP security controls
+
+`PORTAL_CSP_MODE` and `PORTAL_HSTS_ENABLED` are process-level deployment controls, not dynamic portal settings. Changing either requires restarting the Node runtime. Keep CSP enforcement as the normal production state; use `report-only` only for a bounded compatibility investigation. Enable HSTS only after the public hostname is permanently HTTPS and certificate/redirect behavior is verified, because clients may retain an HSTS policy after the server-side opt-in is later disabled.
+
+The Node HTTP-security behavior and Nginx/TLS profile are documented in [`../HTTP_SECURITY.md`](../HTTP_SECURITY.md). These variables do not make untrusted forwarded scheme metadata authoritative; effective HTTPS still depends on the authenticated trusted-proxy boundary.
 
 ## Identity and session configuration
 
@@ -72,7 +80,7 @@ The current settings-source runtime explicitly recognizes these six fields:
 | `ipaUsername` | `IPA_USERNAME` | sensitive identifier | D1 override or inherited ENV |
 | `ipaPassword` | `IPA_PASSWORD` | **yes** | encrypted when persisted in D1; inherited ENV when not overridden |
 | `xyopsUrl` | `XYOPS_URL` | no | normalized `http`/`https` URL |
-| `xyopsApiKey` | `XYOPS_API_KEY` | **yes** | encrypted when persisted in D1; inherited ENV when not overridden |
+| `xyopsApiKey` | `XYOPS_API_KEY` | **yes** | encrypted when persisted in D1; inherited ENV |
 
 ### ENV / D1 precedence
 
@@ -146,17 +154,17 @@ These are not normal dashboard runtime settings. Destructive recovery procedure 
 - URLs must be sanitized before diagnostics if they may contain credentials or sensitive query components.
 - Configuration examples must use placeholders and non-internal example hostnames.
 
-## Known configuration ownership limitation
+## Configuration ownership boundary
 
-There is no single machine-readable registry that currently describes every supported production, development, recovery and test variable with type, secrecy, lifecycle and validation metadata. The current contract is distributed across `.env.example`, Compose, canonical production startup/runtime, startup validators, settings-source/lifecycle code and recovery tooling.
+`worker/portal-configuration-contract.ts` is the canonical machine-readable metadata registry created by completed #123. It records supported configuration names and ownership/security metadata, while concrete parsing, validation, defaults, transport and persisted D1 behavior remain in their domain owners.
 
-Follow-up **#123** tracks consolidation into a machine-readable supported configuration contract. Until then:
+When changing supported configuration:
 
-1. check this reference for orientation;
+1. update `PORTAL_CONFIGURATION_CONTRACT` together with the operator-facing `.env.example` surface;
 2. verify the exact variable in its runtime owner before changing behavior;
 3. do not document arbitrary `process.env.*` occurrences as supported operator configuration;
 4. do not promote test/E2E fixtures into production configuration;
-5. update `.env.example` and this reference together when the supported operator contract changes.
+5. update this reference when the supported operator contract changes.
 
 ## Related references
 

@@ -1,13 +1,28 @@
-import queryRuntime from "./freeipa-user-query-entry";
-import { normalizeFreeIpaUserQuery, queryFreeIpaUsers, type FreeIpaDirectoryUser } from "../src/freeipa/freeipa-user-query";
+import sessionRuntime from "./session-management-entry";
+import {
+  normalizeFreeIpaGroupMemberQuery,
+  queryFreeIpaGroupMembers,
+  type FreeIpaDirectoryGroup,
+} from "../src/freeipa/freeipa-group-member-query";
+import {
+  normalizeFreeIpaUserQuery,
+  queryFreeIpaUsers,
+  type FreeIpaDirectoryUser,
+} from "../src/freeipa/freeipa-user-query";
+import { isPortalRole, portalRolePermissions } from "../src/auth/portal-permissions";
 
-type RuntimeEnv = NonNullable<Parameters<typeof queryRuntime.fetch>[1]>;
-type RuntimeContext = Parameters<typeof queryRuntime.fetch>[2];
-type ScheduledController = Parameters<NonNullable<typeof queryRuntime.scheduled>>[0];
+type RuntimeEnv = NonNullable<Parameters<typeof sessionRuntime.fetch>[1]>;
+type RuntimeContext = Parameters<typeof sessionRuntime.fetch>[2];
+type ScheduledController = Parameters<NonNullable<typeof sessionRuntime.scheduled>>[0];
 type BulkAction = "enable" | "disable" | "add_to_group";
 
 type PublicStatus = {
-  access?: { permissions?: unknown };
+  access?: {
+    identity?: unknown;
+    role?: unknown;
+    permissions?: unknown;
+  };
+  [key: string]: unknown;
 };
 
 type LegacyUsersPayload = {
@@ -16,12 +31,20 @@ type LegacyUsersPayload = {
   error?: string;
 };
 
+type GroupsPayload = { mode?: string; groups?: unknown; error?: string };
+type UsersPayload = { mode?: string; users?: unknown; error?: string };
+
 const jsonHeaders = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
+const queryKeys = new Set(["q", "status", "group", "sort", "direction", "page", "pageSize"]);
 const maxBulkUsers = 50;
 const bulkConcurrency = 3;
 
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status, headers: jsonHeaders });
+}
+
+function hasUserQuery(url: URL): boolean {
+  return Array.from(url.searchParams.keys()).some((key) => queryKeys.has(key));
 }
 
 function userArray(value: unknown): FreeIpaDirectoryUser[] {
@@ -32,6 +55,40 @@ function userArray(value: unknown): FreeIpaDirectoryUser[] {
     && !Array.isArray(item)
     && typeof (item as { uid?: unknown }).uid === "string",
   ));
+}
+
+function groupArray(value: unknown): FreeIpaDirectoryGroup[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is FreeIpaDirectoryGroup => Boolean(
+    item
+    && typeof item === "object"
+    && !Array.isArray(item)
+    && typeof (item as { name?: unknown }).name === "string",
+  ));
+}
+
+async function readRecord(response: Response): Promise<Record<string, unknown>> {
+  const payload = await response.json().catch(() => ({}));
+  return payload && typeof payload === "object" && !Array.isArray(payload) ? payload as Record<string, unknown> : {};
+}
+
+async function readPayload<T>(response: Response): Promise<T & { error?: string }> {
+  return await readRecord(response) as T & { error?: string };
+}
+
+async function handleUserQuery(request: Request, env: RuntimeEnv, ctx: RuntimeContext, url: URL): Promise<Response> {
+  const upstreamUrl = new URL(request.url);
+  upstreamUrl.search = "";
+  const upstream = await sessionRuntime.fetch(new Request(upstreamUrl, request), env, ctx);
+  if (!upstream.ok) return upstream;
+
+  const payload = await upstream.json().catch(() => null) as LegacyUsersPayload | null;
+  if (!payload || typeof payload !== "object") {
+    return json({ error: "Некорректный ответ каталога пользователей FreeIPA" }, 502);
+  }
+
+  const result = queryFreeIpaUsers(userArray(payload.users), normalizeFreeIpaUserQuery(url.searchParams));
+  return json({ mode: payload.mode ?? "unconfigured", ...result });
 }
 
 function normalizeUid(value: unknown): string {
@@ -67,18 +124,13 @@ function normalizeGroup(value: unknown, required: boolean): string {
   return group;
 }
 
-async function readJson(response: Response): Promise<Record<string, unknown>> {
-  const payload = await response.json().catch(() => ({}));
-  return payload && typeof payload === "object" && !Array.isArray(payload) ? payload as Record<string, unknown> : {};
-}
-
 async function preflightWrite(request: Request, env: RuntimeEnv, ctx: RuntimeContext): Promise<Response | null> {
   const statusUrl = new URL(request.url);
   statusUrl.pathname = "/api/integrations/status";
   statusUrl.search = "";
-  const response = await queryRuntime.fetch(new Request(statusUrl, { headers: request.headers }), env, ctx);
+  const response = await sessionRuntime.fetch(new Request(statusUrl, { headers: request.headers }), env, ctx);
   if (!response.ok) return response;
-  const payload = await readJson(response) as PublicStatus;
+  const payload = await readRecord(response) as PublicStatus;
   const permissions = Array.isArray(payload.access?.permissions) ? payload.access.permissions.map(String) : [];
   return permissions.includes("freeipa.write")
     ? null
@@ -120,12 +172,12 @@ async function handleBulk(request: Request, env: RuntimeEnv, ctx: RuntimeContext
       const headers = new Headers(request.headers);
       headers.set("content-type", "application/json");
       headers.delete("content-length");
-      const response = await queryRuntime.fetch(new Request(actionUrl, {
+      const response = await sessionRuntime.fetch(new Request(actionUrl, {
         method: "POST",
         headers,
         body: JSON.stringify({ operation, username: uid, ...(group ? { group } : {}) }),
       }), env, ctx);
-      const payload = await readJson(response);
+      const payload = await readRecord(response);
       results[index] = {
         uid,
         ok: response.ok && payload.ok !== false,
@@ -160,9 +212,9 @@ async function handleExport(request: Request, env: RuntimeEnv, ctx: RuntimeConte
   const upstreamUrl = new URL(request.url);
   upstreamUrl.pathname = "/api/integrations/users";
   upstreamUrl.search = "";
-  const upstream = await queryRuntime.fetch(new Request(upstreamUrl, { headers: request.headers }), env, ctx);
+  const upstream = await sessionRuntime.fetch(new Request(upstreamUrl, { headers: request.headers }), env, ctx);
   if (!upstream.ok) return upstream;
-  const payload = await readJson(upstream) as LegacyUsersPayload;
+  const payload = await readRecord(upstream) as LegacyUsersPayload;
   if (payload.mode !== "live") return json({ error: "Экспорт доступен только при активном подключении FreeIPA" }, 503);
 
   const users = userArray(payload.users);
@@ -191,22 +243,99 @@ async function handleExport(request: Request, env: RuntimeEnv, ctx: RuntimeConte
   });
 }
 
+function normalizeGroupName(value: string | null): string {
+  const group = String(value ?? "").trim();
+  return group.length <= 160 && /^[A-Za-z0-9_.@$-]+$/.test(group) ? group : "";
+}
+
+async function handleGroupMembers(request: Request, env: RuntimeEnv, ctx: RuntimeContext, url: URL): Promise<Response> {
+  const groupName = normalizeGroupName(url.searchParams.get("group"));
+  if (!groupName) return json({ error: "Некорректная группа FreeIPA" }, 400);
+
+  const groupsUrl = new URL(request.url);
+  groupsUrl.pathname = "/api/integrations/groups";
+  groupsUrl.search = "";
+  const usersUrl = new URL(request.url);
+  usersUrl.pathname = "/api/integrations/users";
+  usersUrl.search = "";
+
+  const [groupsResponse, usersResponse] = await Promise.all([
+    sessionRuntime.fetch(new Request(groupsUrl, { headers: request.headers }), env, ctx),
+    sessionRuntime.fetch(new Request(usersUrl, { headers: request.headers }), env, ctx),
+  ]);
+  const [groupsPayload, usersPayload] = await Promise.all([
+    readPayload<GroupsPayload>(groupsResponse),
+    readPayload<UsersPayload>(usersResponse),
+  ]);
+  if (!groupsResponse.ok) return json({ error: groupsPayload.error || "Не удалось загрузить группы FreeIPA" }, groupsResponse.status);
+  if (!usersResponse.ok) return json({ error: usersPayload.error || "Не удалось загрузить пользователей FreeIPA" }, usersResponse.status);
+
+  const mode = groupsPayload.mode === "live" && usersPayload.mode === "live"
+    ? "live"
+    : groupsPayload.mode === "demo" || usersPayload.mode === "demo"
+      ? "demo"
+      : "unconfigured";
+  if (mode === "unconfigured") return json({ mode, error: "FreeIPA is not configured" }, 503);
+
+  const group = groupArray(groupsPayload.groups)
+    .find((item) => item.name.toLocaleLowerCase("ru") === groupName.toLocaleLowerCase("ru"));
+  if (!group) return json({ mode, error: "Группа FreeIPA не найдена" }, 404);
+
+  const result = queryFreeIpaGroupMembers(group, userArray(usersPayload.users), normalizeFreeIpaGroupMemberQuery(url.searchParams));
+  return json({ mode, ...result });
+}
+
+async function withEffectivePermissions(response: Response): Promise<Response> {
+  if (!response.ok) return response;
+  const payload = await response.clone().json().catch(() => null) as PublicStatus | null;
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return response;
+  const role = payload.access?.role;
+  if (!isPortalRole(role) || !payload.access) return response;
+  return json({
+    ...payload,
+    access: {
+      ...payload.access,
+      permissions: [...portalRolePermissions[role]],
+    },
+  }, response.status);
+}
+
+/**
+ * Single compatibility HTTP owner for FreeIPA query/export/bulk/member behavior.
+ *
+ * This entry deliberately remains at the historical wrapper position during
+ * #631 checkpoint A. It does not authenticate callers itself; every internal
+ * base request is delegated directly to the same downstream runtime that the
+ * retired wrappers used, preserving local/static/proxy/workspace identity,
+ * permission, audit and mutation behavior. Base users/groups/actions remain in
+ * the legacy integration runtime until the next bounded #631 extraction slice.
+ */
 const worker = {
   async fetch(request: Request, env: RuntimeEnv | undefined, ctx: RuntimeContext): Promise<Response> {
     const sourceEnv = env ?? (process.env as unknown as RuntimeEnv);
     const url = new URL(request.url);
 
+    if (request.method === "GET" && url.pathname === "/api/integrations/groups/members") {
+      return handleGroupMembers(request, sourceEnv, ctx, url);
+    }
+    if (request.method === "GET" && url.pathname === "/api/integrations/status") {
+      const response = await sessionRuntime.fetch(request, sourceEnv, ctx);
+      return withEffectivePermissions(response);
+    }
     if (request.method === "POST" && url.pathname === "/api/integrations/freeipa/bulk") {
       return handleBulk(request, sourceEnv, ctx);
     }
     if (request.method === "GET" && url.pathname === "/api/integrations/users/export.csv") {
       return handleExport(request, sourceEnv, ctx, url);
     }
-    return queryRuntime.fetch(request, sourceEnv, ctx);
+    if (request.method === "GET" && url.pathname === "/api/integrations/users" && hasUserQuery(url)) {
+      return handleUserQuery(request, sourceEnv, ctx, url);
+    }
+    return sessionRuntime.fetch(request, sourceEnv, ctx);
   },
 
   async scheduled(controller: ScheduledController, env: RuntimeEnv | undefined, ctx: RuntimeContext): Promise<void> {
-    return queryRuntime.scheduled?.(controller, env, ctx);
+    return sessionRuntime.scheduled?.(controller, env, ctx);
   },
 };
 

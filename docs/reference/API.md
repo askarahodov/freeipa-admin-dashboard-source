@@ -77,12 +77,12 @@ Secrets are never returned by these references. See [`CONFIGURATION.md`](CONFIGU
 
 | Method | Path | Purpose | Boundary / permission | Owner |
 | --- | --- | --- | --- | --- |
-| `GET` | `/api/integrations/users` | List FreeIPA users; optional query/pagination layer recognizes `q,status,group,sort,direction,page,pageSize`. | `directory.read` through current integration/session boundary | `worker/index.ts` + `worker/freeipa-user-query-entry.ts` |
-| `GET` | `/api/integrations/users/export.csv` | CSV export of the currently filtered FreeIPA user set with spreadsheet-formula escaping. | Read capability; live FreeIPA required | `worker/freeipa-user-bulk-entry.ts` |
+| `GET` | `/api/integrations/users` | List FreeIPA users; optional query/pagination layer recognizes `q,status,group,sort,direction,page,pageSize`. | `directory.read` through current integration/session boundary | `worker/index.ts` + `worker/freeipa-http-entry.ts` |
+| `GET` | `/api/integrations/users/export.csv` | CSV export of the currently filtered FreeIPA user set with spreadsheet-formula escaping. | Read capability; live FreeIPA required | `worker/freeipa-http-entry.ts` |
 | `GET` | `/api/integrations/groups` | List FreeIPA groups. | `directory.read` | `worker/index.ts` |
-| `GET` | `/api/integrations/groups/members?group=...` | Resolve/query members of one FreeIPA group. | Read capability | `worker/freeipa-group-member-entry.ts` |
+| `GET` | `/api/integrations/groups/members?group=...` | Resolve/query members of one FreeIPA group. | Read capability | `worker/freeipa-http-entry.ts` |
 | `POST` | `/api/integrations/freeipa/actions` | Single supported FreeIPA mutation selected by operation. | `freeipa.write`; `freeipa.delete` for `user_del`/`group_del` | `worker/index.ts` |
-| `POST` | `/api/integrations/freeipa/bulk` | Bounded bulk `enable`, `disable` or `add_to_group` (max 50, concurrency 3). | `freeipa.write` | `worker/freeipa-user-bulk-entry.ts` |
+| `POST` | `/api/integrations/freeipa/bulk` | Bounded bulk `enable`, `disable` or `add_to_group` (max 50, concurrency 3). | `freeipa.write` | `worker/freeipa-http-entry.ts` |
 
 FreeIPA credentials/session cookies remain server-side behind the private Gateway. Do not create browser-side FreeIPA clients.
 

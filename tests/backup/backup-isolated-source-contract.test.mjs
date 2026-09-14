@@ -45,12 +45,14 @@ test("test restore audit source excludes approval and fingerprint material", asy
   assert.match(metadataBlocks, /durationMs/);
 });
 
-test("new route is wired through the existing encrypted backup root only once", async () => {
-  const root = await readFile(new URL("../../worker/backup-encrypted-root-entry.ts", import.meta.url), "utf8");
-  const runtime = await readFile(new URL("../../worker/freeipa-group-member-entry.ts", import.meta.url), "utf8");
-  assert.equal((root.match(/\/api\/admin\/backups\/import\/encrypted\/test-restore/g) ?? []).length, 1);
-  assert.equal((runtime.match(/handleEncryptedBackupRoute/g) ?? []).length >= 1, true);
-  assert.equal((runtime.match(/test-restore/g) ?? []).length, 0);
+test("test-restore stays in encrypted backup owner and backup root wires it before FreeIPA", async () => {
+  const encryptedRoot = await readFile(new URL("../../worker/backup-encrypted-root-entry.ts", import.meta.url), "utf8");
+  const backupRoot = await readFile(new URL("../../worker/backup-selective-restore-root-entry.ts", import.meta.url), "utf8");
+  const freeipa = await readFile(new URL("../../worker/freeipa-http-entry.ts", import.meta.url), "utf8");
+  assert.equal((encryptedRoot.match(/\/api\/admin\/backups\/import\/encrypted\/test-restore/g) ?? []).length, 1);
+  assert.equal((backupRoot.match(/handleEncryptedBackupRoute/g) ?? []).length >= 1, true);
+  assert.equal((freeipa.match(/handleEncryptedBackupRoute/g) ?? []).length, 0);
+  assert.equal((freeipa.match(/test-restore/g) ?? []).length, 0);
 });
 
 test("production D1 access is limited to existing read-only registries and schema inspection", async () => {

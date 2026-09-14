@@ -47,7 +47,7 @@ test("production restore has no outbound calls maintenance mode or destructive s
   assert.doesNotMatch(source, /INSERT\s+INTO\s+portal_sessions/i);
 });
 
-test("dedicated outer root composes a pure admin-only selective dispatch", () => {
+test("backup root keeps selective and read-only backup predispatch ahead of FreeIPA compatibility", () => {
   const root = fs.readFileSync(new URL("../../worker/backup-selective-restore-root-entry.ts", import.meta.url), "utf8");
   const dispatch = fs.readFileSync(new URL("../../worker/backup-selective-restore-dispatch.ts", import.meta.url), "utf8");
   const readOnlyRoot = fs.readFileSync(new URL("../../worker/backup-encrypted-root-entry.ts", import.meta.url), "utf8");
@@ -66,7 +66,9 @@ test("dedicated outer root composes a pure admin-only selective dispatch", () =>
   assert.equal((dispatch.match(/commitHandler/g) ?? []).length >= 2, true);
   assert.equal((dispatch.match(/cancelHandler/g) ?? []).length >= 2, true);
   assert.equal(root.includes("backup-selective-restore-dispatch.ts"), true);
-  assert.equal(root.includes("freeipa-group-member-entry.ts"), true);
+  assert.equal(root.includes("handleEncryptedBackupRoute"), true);
+  assert.equal(root.includes("handleBackupImportPreviewRoute"), true);
+  assert.equal(root.includes("freeipa-http-entry.ts"), true);
   assert.equal(root.includes("return rootRuntime.fetch"), true);
   assert.equal(readOnlyRoot.includes("backup.restore.commit"), false);
   assert.equal(readOnlyRoot.includes("backup-selective-restore"), false);

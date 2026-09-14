@@ -100,9 +100,7 @@ worker/schema-migrations-entry.ts
        -> middleware/service-admin-authentication.ts
   -> maintenance-control-root-entry.ts
   -> backup-selective-restore-root-entry.ts
-  -> freeipa-group-member-entry.ts
-  -> freeipa-user-bulk-entry.ts
-  -> freeipa-user-query-entry.ts
+  -> freeipa-http-entry.ts
   -> session-management-entry.ts
   -> diagnostics-entry.ts
   -> settings-revisions-entry.ts

@@ -65,7 +65,7 @@ test("local session mutations require same-origin while service token access sta
   assert.equal(serviceAdminGate.includes('PORTAL_IDENTITY_MODE: "static"'), true);
   assert.equal(securityComposition.includes('import compatibilityRuntime from "./maintenance-control-root-entry.ts"'), true);
   assert.equal(maintenanceControlRoot.includes('import rootRuntime from "./backup-selective-restore-root-entry.ts"'), true);
-  assert.equal(selectiveRoot.includes('import rootRuntime from "./freeipa-group-member-entry.ts"'), true);
+  assert.equal(selectiveRoot.includes('import rootRuntime from "./freeipa-http-entry.ts"'), true);
   assert.equal(serviceAdminGate.includes("resolveLocalSession"), false);
   assert.equal(serviceAdminGate.includes("env.DB"), false);
 });

@@ -1,0 +1,47 @@
+name: Approval header hardening bootstrap
+
+on:
+  push:
+    branches:
+      - tmp/approval-header-hardening
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout staging branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Preserve reviewed patch
+        run: cp .bootstrap/review/approval-header-hardening.patch /tmp/approval-header-hardening.patch
+
+      - name: Apply on exact trusted main base
+        run: |
+          git checkout --detach b2583c7394d2bac8158e229a2db5a4bade1af28a
+          git apply --check /tmp/approval-header-hardening.patch
+          git apply /tmp/approval-header-hardening.patch
+          git diff --check
+          node --experimental-strip-types --check worker/index.ts
+          node --test tests/xyops/xyops-approval-trust-boundary.test.mjs
+
+      - name: Install dependencies
+        run: npm run install:ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Run approval runtime regression
+        run: node --test tests/xyops/xyops-approvals.test.mjs tests/xyops/xyops-approval-trust-boundary.test.mjs
+
+      - name: Publish clean product commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add worker/index.ts tests/xyops/xyops-approvals.test.mjs tests/xyops/xyops-approval-trust-boundary.test.mjs
+          git commit -m "fix(security): keep approval execution token server-side"
+          git push --force origin HEAD:refs/heads/fix/approval-execution-internal-token

@@ -58,8 +58,9 @@ test("backup preview access exposes only canonical permissions", () => {
 });
 
 test("runtime route owners do not maintain duplicate portal permission registries", async () => {
-  const [workerIndex, portalAccessRuntime, settingsSource, previewRoot, encryptedRoot] = await Promise.all([
+  const [workerIndex, operationsOwner, portalAccessRuntime, settingsSource, previewRoot, encryptedRoot] = await Promise.all([
     read("worker/index.ts"),
+    read("worker/operations-http-entry.ts"),
     read("worker/portal-access-runtime.ts"),
     read("worker/settings-source-safe-entry.ts"),
     read("worker/backup-import-preview-root-entry.ts"),
@@ -68,6 +69,7 @@ test("runtime route owners do not maintain duplicate portal permission registrie
 
   for (const [path, source] of [
     ["worker/index.ts", workerIndex],
+    ["worker/operations-http-entry.ts", operationsOwner],
     ["worker/portal-access-runtime.ts", portalAccessRuntime],
     ["worker/settings-source-safe-entry.ts", settingsSource],
   ]) {
@@ -76,6 +78,7 @@ test("runtime route owners do not maintain duplicate portal permission registrie
   }
 
   assert.match(workerIndex, /from ["']\.\/portal-access-runtime\.ts["']/, "worker/index.ts must delegate access resolution to the shared portal access runtime");
+  assert.match(operationsOwner, /from ["']\.\/portal-access-runtime\.ts["']/, "operations owner must delegate access resolution to the shared portal access runtime");
   assert.match(portalAccessRuntime, /from ["']\.\.\/src\/auth\/portal-permissions\.ts["']/, "shared portal access runtime must consume the canonical permission registry");
   assert.match(portalAccessRuntime, /portalRolePermissions/);
   assert.match(portalAccessRuntime, /resolvePortalRole/);

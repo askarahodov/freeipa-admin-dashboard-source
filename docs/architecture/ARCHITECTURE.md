@@ -112,6 +112,7 @@ worker/schema-migrations-entry.ts
   -> settings-lifecycle-entry.ts
   -> secure-entry.ts
   -> freeipa-http-entry.ts
+  -> operations-http-entry.ts
   -> worker/index.ts
 ```
 

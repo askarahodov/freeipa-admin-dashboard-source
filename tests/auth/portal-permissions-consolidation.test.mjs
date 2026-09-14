@@ -58,8 +58,9 @@ test("backup preview access exposes only canonical permissions", () => {
 });
 
 test("runtime route owners do not maintain duplicate portal permission registries", async () => {
-  const [workerIndex, settingsSource, previewRoot, encryptedRoot] = await Promise.all([
+  const [workerIndex, portalAccessRuntime, settingsSource, previewRoot, encryptedRoot] = await Promise.all([
     read("worker/index.ts"),
+    read("worker/portal-access-runtime.ts"),
     read("worker/settings-source-safe-entry.ts"),
     read("worker/backup-import-preview-root-entry.ts"),
     read("worker/backup-encrypted-root-entry.ts"),
@@ -67,12 +68,18 @@ test("runtime route owners do not maintain duplicate portal permission registrie
 
   for (const [path, source] of [
     ["worker/index.ts", workerIndex],
+    ["worker/portal-access-runtime.ts", portalAccessRuntime],
     ["worker/settings-source-safe-entry.ts", settingsSource],
   ]) {
     assert.doesNotMatch(source, /const\s+rolePermissions\s*:/, `${path} must not own a second built-in role map`);
     assert.doesNotMatch(source, /type\s+PortalPermission\s*=\s*"/, `${path} must import the canonical permission vocabulary`);
-    assert.match(source, /portalRolePermissions|roleHasPermission/, `${path} must consume canonical permission helpers`);
   }
+
+  assert.match(workerIndex, /from ["']\.\/portal-access-runtime\.ts["']/, "worker/index.ts must delegate access resolution to the shared portal access runtime");
+  assert.match(portalAccessRuntime, /from ["']\.\.\/src\/auth\/portal-permissions\.ts["']/, "shared portal access runtime must consume the canonical permission registry");
+  assert.match(portalAccessRuntime, /portalRolePermissions/);
+  assert.match(portalAccessRuntime, /resolvePortalRole/);
+  assert.match(settingsSource, /portalRolePermissions|roleHasPermission/, "settings source must consume canonical permission helpers");
 
   assert.match(previewRoot, /resolvePortalRole/);
   assert.match(previewRoot, /roleHasPermission\(role, "backup\.restore\.preview"\)/);

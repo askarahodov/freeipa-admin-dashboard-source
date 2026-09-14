@@ -100,7 +100,6 @@ worker/schema-migrations-entry.ts
        -> middleware/service-admin-authentication.ts
   -> maintenance-control-root-entry.ts
   -> backup-selective-restore-root-entry.ts
-  -> freeipa-http-entry.ts
   -> session-management-entry.ts
   -> diagnostics-entry.ts
   -> settings-revisions-entry.ts
@@ -112,6 +111,7 @@ worker/schema-migrations-entry.ts
   -> settings-source-entry.ts
   -> settings-lifecycle-entry.ts
   -> secure-entry.ts
+  -> freeipa-http-entry.ts
   -> worker/index.ts
 ```
 

@@ -6,7 +6,7 @@ This document records the **current HTTP Worker composition** and the ownership 
 
 It is an ownership/integration map, not a second route registry. Exact stable method/path/auth/permission/mutation metadata remains canonical in `src/auth/portal-route-contract.ts`. `src/auth/portal-route-router.ts` is the canonical metadata-derived matcher; `src/auth/portal-route-security-plan.ts` derives security stages but does not itself enforce them. The #628 application router reuses that matcher rather than defining another set of route patterns.
 
-The original #627 inventory was verified against `main` at `60c162e0d2c71b3a4fc061f3dce1147e0a119fbd` on 2026-09-10. The explicit application/security composition foundation is merged through #663: #658 extracted controlled storage migration handling, #659 extracted maintenance, #660 extracted the outer service-admin authentication/adaptation boundary, #661 characterized the remaining local-security decision tree, #662 wired that proven boundary through `worker/middleware/local-security-routing.ts`, and #663 moved public/infrastructure health dispatch into the explicit application-owned `worker/health-http.ts` adapter while preserving its historical pre-schema/pre-security availability boundary. Phase #630 is complete. The current #631 checkpoint A consolidates the historical FreeIPA query/export/bulk/group-member wrapper chain into one `worker/freeipa-http-entry.ts` compatibility owner at the same security position; base users/groups/actions remain in `worker/index.ts` for the next bounded #631 slice. Production-host/trusted-proxy concerns remain owned by #53 and stay outside this Worker refactor.
+The original #627 inventory was verified against `main` at `60c162e0d2c71b3a4fc061f3dce1147e0a119fbd` on 2026-09-10. The explicit application/security composition foundation is merged through #663: #658 extracted controlled storage migration handling, #659 extracted maintenance, #660 extracted the outer service-admin authentication/adaptation boundary, #661 characterized the remaining local-security decision tree, #662 wired that proven boundary through `worker/middleware/local-security-routing.ts`, and #663 moved public/infrastructure health dispatch into the explicit application-owned `worker/health-http.ts` adapter while preserving its historical pre-schema/pre-security availability boundary. Phase #630 is complete. Phase #631 then consolidated all FreeIPA HTTP routes into one `worker/freeipa-http-entry.ts` owner: checkpoint A removed the historical query/bulk/member wrapper chain, B1 moved base users/groups reads, and B2 moved canonical action handling after `secure-entry.ts` identity normalization while sharing access/run/action primitives instead of duplicating them in the central Worker. Production-host/trusted-proxy concerns remain owned by #53 and stay outside this Worker refactor.
 
 If code and this document disagree, current code/tests and the source-of-truth registry win. Revalidate the current branch and open PRs before using this inventory for an implementation slice.
 
@@ -80,7 +80,6 @@ schema-migrations-entry.ts
             -> maintenance-control-root-entry.ts
             -> backup-selective-restore-root-entry.ts
                  -> selective/encrypted/preview backup predispatch
-            -> freeipa-http-entry.ts
             -> session-management-entry.ts
             -> diagnostics-entry.ts
             -> settings-revisions-entry.ts
@@ -91,18 +90,18 @@ schema-migrations-entry.ts
             -> settings-source-safe-entry.ts
                  |-> settings-source-entry.ts ---------|
                  |                                     v
-                 `-> settings-lifecycle-entry.ts -> secure-entry.ts -> worker/index.ts
+                 `-> settings-lifecycle-entry.ts -> secure-entry.ts -> freeipa-http-entry.ts -> worker/index.ts
 ```
 
-The graph is not strictly linear. `settings-source-safe-entry.ts` chooses either the source-aware path or the lifecycle path depending on the request and may construct an effective integration environment before delegation. `freeipa-http-entry.ts` is also a compatibility adapter rather than a new security boundary: for nested base users/groups/status/actions calls it delegates directly to `session-management-entry.ts`, which is the same downstream runtime the retired FreeIPA wrappers ultimately used. Future migration must preserve these branch behaviors until explicit replacements have parity evidence.
+The graph is not strictly linear. `settings-source-safe-entry.ts` chooses either the source-aware path or the lifecycle path depending on the request and may construct an effective integration environment before delegation. `secure-entry.ts` normalizes the accepted workspace/proxy/static identity context before delegating to `freeipa-http-entry.ts`. That adapter owns the complete FreeIPA HTTP surface and falls through unmatched requests to `worker/index.ts`; it is not a second authentication boundary and does not expose Gateway credentials or upstream session material.
 
-`worker/index.ts` remains the broad base HTTP owner. It currently owns much of `/api/integrations/**`, including base FreeIPA users/groups/actions, the sanitized backup export entry, Vinext image optimization, route-to-root HTML adaptation for the SPA-like administrative screens, and the final Vinext application/static fallback.
+`worker/index.ts` remains a broad base HTTP owner for the remaining integration/operations surface, the sanitized backup export entry, Vinext image optimization, route-to-root HTML adaptation for the SPA-like administrative screens, and the final Vinext application/static fallback. It no longer owns a FreeIPA HTTP route; FreeIPA-specific unmatched requests are not re-dispatched there.
 
 ## Canonical stable route coverage
 
 The following groups cover every stable route contract present in `portalRouteContracts` at the evidence checkpoint. The identifiers are repeated here only to prove inventory coverage; method/path/security metadata must still be read from the canonical contract rather than maintained independently in this document.
 
-`tests/auth/portal-application-router.test.mjs` materializes every current canonical route pattern and proves that the explicit application router resolves it back to the same route id. It also proves that non-health negative response finalization cannot promote successful, authentication, authorization, conflict, rate-limit or maintenance responses into routing errors. `tests/runtime/health-http-owner.test.mjs` proves the separate health branch and its pre-schema availability/parity. `tests/freeipa/freeipa-http-owner.test.mjs` proves the single checkpoint-A FreeIPA compatibility owner, retired wrapper files, backup ownership separation and route-owner metadata.
+`tests/auth/portal-application-router.test.mjs` materializes every current canonical route pattern and proves that the explicit application router resolves it back to the same route id. It also proves that non-health negative response finalization cannot promote successful, authentication, authorization, conflict, rate-limit or maintenance responses into routing errors. `tests/runtime/health-http-owner.test.mjs` proves the separate health branch and its pre-schema availability/parity. `tests/freeipa/freeipa-http-owner.test.mjs` proves the single FreeIPA HTTP owner, absence of the retired wrappers and central fallback, backup/security ancestry, shared runtime ownership and route-owner metadata.
 
 ### Infrastructure and schema
 
@@ -128,7 +127,7 @@ Actual HTTP ownership is currently split across `worker/index.ts`, `worker/setti
 
 `freeipa.users.list`, `freeipa.users.export`, `freeipa.groups.list`, `freeipa.groups.members`, `freeipa.actions`, `freeipa.bulk`
 
-Checkpoint A has one compatibility HTTP owner, `worker/freeipa-http-entry.ts`, for user query/filter projection, CSV export, bulk orchestration, group-member projection and the status permission projection previously distributed across three nested FreeIPA wrappers. Canonical query/domain logic remains under `src/freeipa/**`. Base `freeipa.users.list`, `freeipa.groups.list` and `freeipa.actions` still execute in `worker/index.ts`; extracting those handlers, their RPC boundary and operation-run/audit coupling is the next bounded #631 slice. The private Gateway remains the upstream trust boundary and FreeIPA credentials stay server-only.
+`worker/freeipa-http-entry.ts` is the single HTTP owner for base user/group reads, query/filter projection, CSV export, group-member projection, bounded bulk orchestration and direct FreeIPA actions. Mutation handling runs only after `secure-entry.ts` has normalized the accepted identity context. Canonical query/projection logic remains under `src/freeipa/**`; route-neutral mutation normalization is in `worker/freeipa-action-runtime.ts`; shared access/run persistence stays in `portal-access-runtime.ts` and `operation-run-runtime.ts`; `freeipa-rpc.ts` remains the server-side Gateway/direct transport. The private Gateway remains the upstream trust boundary and FreeIPA credentials/session cookies stay server-only.
 
 ### XYOps catalog, runs, approvals and notifications
 
@@ -167,7 +166,7 @@ The availability/security decision boundary is `worker/maintenance-mode-gate.ts`
 | Health/schema | `portal-route-contract.ts`; schema status uses explicit service-admin boundary | `schema-migrations-entry.ts` preserves health pre-schema pass-through; `application.ts` registers `health-http.ts` as health dispatch owner; schema status remains at schema boundary | canonical schema/migrations under `db/**`; readiness probes private Gateway; dependency health may probe FreeIPA/XYOps | `health-http-owner`, health/dependency contracts, schema boundary tests |
 | Local auth/users | local-auth/session/permission helpers under `src/auth/**` | `local-secure-entry.ts` owns login/logout/admin-user HTTP behavior; `local-security-routing.ts` owns ordinary local-session/origin/service-admin fallback | `portal_users`, `portal_sessions`; no FreeIPA identity ownership | auth/RBAC/same-origin/request-context tests; audit for user administration and rate-limit denials |
 | Settings | canonical permissions + route contract | settings lifecycle/source/revision wrappers plus base Worker; source-safe path has its own admin-token authorization that may represent service-admin proof or internal local-admin delegation | `app_settings`, settings drafts/revisions/apply/reset/source-lock state; encrypted integration secrets | settings lifecycle/source/revision tests; settings audit/compensation events |
-| FreeIPA | canonical route permissions (`directory.read`, `freeipa.write`, conditional delete) | established identity/security path remains authoritative; `freeipa-http-entry.ts` owns query/export/bulk/member compatibility behavior, while base users/groups/actions still execute in `worker/index.ts` | `src/freeipa/**` + private server-side FreeIPA Gateway; FreeIPA owns directory data | `tests/freeipa/**`, `freeipa-http-owner`, permission/route contracts, operation/audit tests for mutations |
+| FreeIPA | canonical route permissions (`directory.read`, `freeipa.write`, conditional delete) | established identity/security path remains authoritative; after `secure-entry.ts` normalization, `freeipa-http-entry.ts` owns all FreeIPA reads/query/export/member/bulk/action HTTP dispatch | `src/freeipa/**` + route-neutral Worker helpers + private server-side FreeIPA Gateway; FreeIPA owns directory data | `tests/freeipa/**`, `freeipa-http-owner`, permission/route contracts, operation/audit tests for mutations |
 | XYOps/run/approval | canonical route metadata plus portal permissions | mostly `worker/index.ts`; approval/run checks remain in current handler/domain calls | portal operation/catalog/approval tables; server-side XYOps client; XYOps owns execution semantics | `tests/operations/**`, approval/run/catalog contracts, audit events from current handlers |
 | Catalog sync | admin/service-admin route metadata | `secure-entry.ts` combines resolved identity context, HTTP handler and scheduler | `xyops_catalog_sync_lock`, `xyops_catalog_sync_runs`; live catalog fetch through current Worker/XYOps path | `tests/operations/catalog-scheduled-sync.test.mjs`, route/security-plan tests; `catalog.sync` audit |
 | Backup/restore | canonical backup permissions and required admin role where declared | dedicated backup root/dispatch adapters plus local/service-admin delegation; encrypted/preview predispatch is kept in backup root, not FreeIPA | canonical `src/backup/**`/`src/recovery/**`; DB/recovery metadata owned by canonical schema/domain modules | `tests/backup/**`, recovery/authorization/negative tests; guarded audit events |
@@ -231,7 +230,7 @@ The following ownership map is sufficient to navigate a route without treating t
 - **Permissions/stable route metadata:** `src/auth/portal-permissions.ts` and `src/auth/portal-route-contract.ts`.
 - **Health/diagnostics infrastructure:** HTTP composition in `worker/health-http.ts`; bounded stable/dependency/diagnostics/metrics behavior remains in the existing dedicated health modules.
 - **Settings:** existing settings lifecycle/source modules plus canonical schema; secrets remain encrypted server-side.
-- **FreeIPA:** canonical query/projection logic under `src/freeipa/**`; checkpoint-A compatibility composition in `worker/freeipa-http-entry.ts`; base users/groups/actions and shared RPC/audit/run helpers still in `worker/index.ts`; private `scripts/freeipa-gateway.mjs` remains the upstream trust boundary; browser code never owns credentials/session cookies.
+- **FreeIPA:** canonical query/projection logic under `src/freeipa/**`; all FreeIPA HTTP dispatch in `worker/freeipa-http-entry.ts` after normalized security identity; route-neutral action normalization in `worker/freeipa-action-runtime.ts`; shared access/run helpers in `worker/portal-access-runtime.ts` and `worker/operation-run-runtime.ts`; private `scripts/freeipa-gateway.mjs` remains the upstream trust boundary; browser code never owns credentials/session cookies.
 - **XYOps:** server-side integration plus `src/operations/**`; portal records local history/policies/approvals, while XYOps owns upstream process execution.
 - **Operations:** `operation_runs`, replay/result/notification persistence and existing `src/operations/run/**` owners.
 - **Approvals/policies/presentation:** existing `src/operations/**` owners and their canonical tables.
@@ -247,7 +246,7 @@ Static/RSC/application assets are ultimately served by the Vinext handler in `wo
 
 ## Current #628/#629/#630/#631 application-composition checkpoint
 
-The current slices establish **one application composition point**, explicit security gates, the public health extraction and the first protected-domain wrapper consolidation:
+The current slices establish **one application composition point**, explicit security gates, the public health extraction and a completed FreeIPA protected-domain HTTP ownership extraction:
 
 1. `schema-migrations-entry.ts` remains the built entry and preserves health classifications as a pre-schema pass-through, bounded storage administration pass-through and ordinary schema readiness;
 2. `application.ts` is the single HTTP application composition entry downstream of that boundary;
@@ -257,14 +256,15 @@ The current slices establish **one application composition point**, explicit sec
 6. `security-composition.ts` owns the controlled storage migration apply/status/reconcile gate through `middleware/storage-migration-apply.ts`; handled responses short-circuit before maintenance, while unrelated traffic keeps the same request/env/context identities;
 7. the same composition point executes `maintenance-mode-gate.ts` for non-health HTTP and scheduled work, preserving recovery allowlists, fail-closed state-unavailable behavior and scheduled suppression before service-admin;
 8. the outer service-admin gate is explicit in `middleware/service-admin-authentication.ts`, while local-session/settings/FreeIPA/operations/recovery compatibility paths remain authoritative for their remaining security enforcement, handler selection and returned status;
-9. at the historical protected-domain position, `backup-selective-restore-root-entry.ts` now owns selective/encrypted/preview backup predispatch and delegates to one `freeipa-http-entry.ts` compatibility owner instead of the former three FreeIPA wrappers;
-10. `freeipa-http-entry.ts` owns query/filter projection, CSV export, bulk orchestration, group-member projection and status permission projection, while delegating base users/groups/status/actions to the same downstream runtime as before; base users/groups/actions still remain in `worker/index.ts` pending checkpoint B;
-11. after non-health downstream execution, `application-router.ts` canonicalizes only matching negative outcomes: `method-not-allowed + downstream 405` to `{ "error": "Method not allowed" }`, and `unknown-api + downstream 404` to `{ "error": "Not found" }`, preserving non-content headers and `cache-control: no-store`;
-12. the generic finalizer never promotes `401`, `403`, legacy `404` for a method mismatch, `409`, `429`, `5xx`, success, stable, supplemental or framework responses into a routing error; health-owned 405 responses are returned before this finalizer;
-13. framework/static/RSC paths still reach the existing Vinext owner;
-14. `scheduled` wiring stays explicit and separate from HTTP classification and both HTTP-only storage migration and service-admin gates.
+9. `backup-selective-restore-root-entry.ts` owns selective/encrypted/preview backup predispatch and delegates ordinary traffic back into the existing session/settings/security chain without cross-domain FreeIPA ownership;
+10. after local/session/settings compatibility handling, `secure-entry.ts` normalizes the accepted identity context and delegates to `freeipa-http-entry.ts`;
+11. `freeipa-http-entry.ts` owns base users/groups reads, query/filter projection, CSV export, group-member projection, bulk orchestration, status permission projection and direct FreeIPA actions, while unmatched traffic falls through to `worker/index.ts`;
+12. after non-health downstream execution, `application-router.ts` canonicalizes only matching negative outcomes: `method-not-allowed + downstream 405` to `{ "error": "Method not allowed" }`, and `unknown-api + downstream 404` to `{ "error": "Not found" }`, preserving non-content headers and `cache-control: no-store`;
+13. the generic finalizer never promotes `401`, `403`, legacy `404` for a method mismatch, `409`, `429`, `5xx`, success, stable, supplemental or framework responses into a routing error; health-owned 405 responses are returned before this finalizer;
+14. framework/static/RSC paths still reach the existing Vinext owner;
+15. `scheduled` wiring stays explicit and separate from HTTP classification and both HTTP-only storage migration and service-admin gates.
 
-This checkpoint deliberately does **not** move protected non-health 404/405 status decisions ahead of security execution. The #631A FreeIPA consolidation also deliberately does not hoist protected handlers toward `application.ts`: it removes wrapper depth while preserving the established identity/security position. The next #631 slice must isolate base FreeIPA users/groups/actions from `worker/index.ts` without duplicating RPC/settings/audit/run ownership.
+This checkpoint deliberately does **not** move protected non-health 404/405 status decisions ahead of security execution. The #631 FreeIPA extraction likewise does not hoist protected handlers toward `application.ts`: it removes central/wrapper ownership while preserving the established identity/security position. Base FreeIPA reads/actions no longer dispatch from `worker/index.ts`, and access/run/action primitives are shared rather than duplicated.
 
 The durable target and constraints remain captured in `docs/adr/ADR-0008-explicit-worker-application-composition.md`; ADR-0008 remains Proposed until the broader cutover evidence exists.
 
@@ -300,7 +300,7 @@ The following are confirmed migration risks:
 - current authorization context is partly canonical and partly reconstructed from trusted legacy headers/env;
 - service-admin and local-admin compatibility paths synthesize downstream identity/admin state;
 - authenticated local administrator diagnostics remain in `diagnostics-entry.ts` as an auth/settings compatibility concern distinct from public health diagnostics;
-- base FreeIPA users/groups/actions remain coupled in `worker/index.ts` to shared RPC/settings connection-test, operation-run persistence and audit helpers;
+- the central Worker still contains several independent non-FreeIPA integration/operation domains, so later extraction work must continue to preserve shared access/run/audit helpers instead of forking them;
 - settings source behavior contains a real dispatch branch and DB/environment virtualization;
 - catalog synchronization mixes identity adaptation, HTTP route ownership, persistence, audit and scheduled execution in `secure-entry.ts`;
 - `worker/index.ts` combines framework hosting and several independent integration/operation domains;
@@ -308,8 +308,7 @@ The following are confirmed migration risks:
 
 Remaining questions for later slices must be answered from tests/current code rather than assumed:
 
-- how to extract base FreeIPA users/groups/actions and their RPC boundary from `worker/index.ts` without creating a second settings connection-test, operation-run or audit owner;
-- whether the FreeIPA adapter should ultimately consume canonical request context directly at/after `secure-entry.ts`, and how to do so while preserving local/static/proxy/workspace semantics;
+- whether the FreeIPA adapter should eventually consume a structured canonical request context directly rather than the normalized trusted headers produced before/at `secure-entry.ts`, while preserving local/static/proxy/workspace semantics;
 - how to retire remaining compatibility identity/env adaptation after route/domain owners can consume canonical request context directly, without changing route-specific local-session/same-origin ordering;
 - whether each supplemental infrastructure API belongs in canonical stable route metadata or should remain a separate infrastructure classification owned by application composition;
 - when the protected non-health negative status decision can move before compatibility dispatch without exposing route existence or bypassing existing auth behavior;

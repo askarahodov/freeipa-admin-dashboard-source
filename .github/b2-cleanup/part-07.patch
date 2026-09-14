@@ -1,0 +1,18 @@
+--- a/docs/architecture/ARCHITECTURE.md
++++ b/docs/architecture/ARCHITECTURE.md
+@@ -100,7 +100,6 @@
+        -> middleware/service-admin-authentication.ts
+   -> maintenance-control-root-entry.ts
+   -> backup-selective-restore-root-entry.ts
+-  -> freeipa-http-entry.ts
+   -> session-management-entry.ts
+   -> diagnostics-entry.ts
+   -> settings-revisions-entry.ts
+@@ -112,6 +111,7 @@
+   -> settings-source-entry.ts
+   -> settings-lifecycle-entry.ts
+   -> secure-entry.ts
++  -> freeipa-http-entry.ts
+   -> worker/index.ts
+ ```
+ 

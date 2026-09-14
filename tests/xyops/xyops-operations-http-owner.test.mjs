@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const source = (relativePath) => readFile(path.join(repoRoot, relativePath), "utf8");
 
-test("#632 checkpoint A gives run reads and notifications one post-security operations owner", async () => {
+test("#632 checkpoint B gives run reads, notifications, cancel, and rerun one post-security operations owner", async () => {
   const [freeIpaOwner, operationsOwner, central, runRuntime] = await Promise.all([
     source("worker/freeipa-http-entry.ts"),
     source("worker/operations-http-entry.ts"),
@@ -16,25 +16,32 @@ test("#632 checkpoint A gives run reads and notifications one post-security oper
   ]);
 
   assert.match(freeIpaOwner, /import integrationRuntime from ["']\.\/operations-http-entry\.ts["']/);
-  assert.match(operationsOwner, /import integrationRuntime from ["']\.\/index["']/);
+  assert.match(operationsOwner, /import integrationRuntime, \{ handleCatalogRunRequest \} from ["']\.\/index["']/);
 
   for (const route of [
     "/api/integrations/runs",
     "/api/integrations/notifications",
     "/api/integrations/notifications/read",
   ]) assert.equal(operationsOwner.includes(route), true, `operations owner missing ${route}`);
+  assert.match(operationsOwner, /runs\\\/\(\[A-Za-z0-9_-\]\{1,160\}\)\\\/\(cancel\|rerun\)/);
   assert.match(operationsOwner, /runs\\\/\(\[A-Za-z0-9_-\]\{1,160\}\)\\\/files/);
 
   assert.equal(central.includes('url.pathname === "/api/integrations/notifications"'), false);
   assert.equal(central.includes('url.pathname === "/api/integrations/notifications/read"'), false);
   assert.equal(central.includes('url.pathname === "/api/integrations/runs"'), false);
   assert.equal(central.includes("readRunResultFile"), false);
+  assert.equal(central.includes("const runActionMatch"), false);
+  assert.equal(central.includes("readRunReplay"), false);
   assert.equal(central.includes("function runStatus"), false);
   assert.equal(central.includes("async function listOperationRuns"), false);
   assert.equal(central.includes("async function syncOperationRuns"), false);
   assert.match(central, /from ["']\.\/xyops-run-runtime\.ts["']/);
   assert.match(central, /import \{[^}]*extractJobStages[^}]*\} from ["\']\.\/xyops-run-runtime\.ts["\']/s);
   assert.match(central, /stages: extractJobStages\(result\)/u);
+  assert.match(operationsOwner, /handleCatalogRunRequest/);
+  assert.match(operationsOwner, /expectedSchemaVersion: replay\.summary\.schemaVersion/);
+  assert.match(operationsOwner, /dangerousConfirmed: actionBody\.confirm === true/);
+  assert.match(central, /export async function handleCatalogRunRequest/);
 
   assert.match(runRuntime, /export function runStatus/);
   assert.match(runRuntime, /export async function listOperationRuns/);
@@ -44,15 +51,15 @@ test("#632 checkpoint A gives run reads and notifications one post-security oper
   assert.match(runRuntime, /xyops\.run\.status_changed/);
 });
 
-test("canonical route metadata moves only the bounded #632 read-side slice", async () => {
+test("canonical route metadata moves the bounded #632 run mutation slice without moving catalog or approvals", async () => {
   const contracts = await source("src/auth/portal-route-contract.ts");
   const line = (id) => contracts.split("\n").find((candidate) => candidate.includes(`id: "${id}"`)) ?? "";
 
-  for (const id of ["xyops.runs.list", "xyops.runs.file", "xyops.notifications.list", "xyops.notifications.read"]) {
+  for (const id of ["xyops.runs.list", "xyops.runs.file", "xyops.runs.cancel", "xyops.runs.rerun", "xyops.notifications.list", "xyops.notifications.read"]) {
     assert.match(line(id), /owner: "worker\/operations-http-entry\.ts"/u, `stale owner for ${id}`);
   }
-  for (const id of ["xyops.runs.cancel", "xyops.runs.rerun", "xyops.catalog.run", "xyops.approvals.execute"]) {
-    assert.match(line(id), /owner: "worker\/index\.ts"/u, `${id} moved before its mutation slice`);
+  for (const id of ["xyops.catalog.run", "xyops.approvals.execute"]) {
+    assert.match(line(id), /owner: "worker\/index\.ts"/u, `${id} moved before its bounded slice`);
   }
 });
 

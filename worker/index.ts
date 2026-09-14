@@ -12,6 +12,8 @@ import { appendAuditEvent, auditCorrelationFor, auditErrorCode, createAuditConte
 import { applyProcessPresentation, availableProcessPresentationLocales, presentationLocalePreferences, readProcessPresentationSet, resolveProcessPresentationLocale, saveProcessPresentationSet } from "../src/operations/presentation/process-presentation";
 import { handleBackupExportRequest } from "./backup-export-entry";
 import { portalRolePermissions, resolvePortalRole, type PortalPermission, type PortalRole } from "../src/auth/portal-permissions";
+import { handleFreeIpaBaseRead } from "./freeipa-base-read.ts";
+import { freeIpaRpc as ipaRpc } from "./freeipa-rpc.ts";
 
 interface Env {
   ASSETS: Fetcher;
@@ -579,64 +581,6 @@ async function handleSettingsApi(request: Request, env: Env, url: URL, audit: Au
     }
   }
   return json({ error: "Not found" }, 404);
-}
-
-function freeIpaNetworkError(error: unknown, stage: "вход" | "JSON-RPC" | "Node Gateway"): Error {
-  const name = error instanceof Error ? error.name : "RequestError";
-  const cause = error && typeof error === "object" && "cause" in error ? (error as { cause?: unknown }).cause : null;
-  const rawCode = cause && typeof cause === "object" && "code" in cause ? (cause as { code?: unknown }).code : error && typeof error === "object" && "code" in error ? (error as { code?: unknown }).code : "";
-  const code = typeof rawCode === "string" && /^[A-Z0-9_]+$/.test(rawCode) ? rawCode : "";
-  if (name === "TimeoutError" || name === "AbortError" || ["ETIMEDOUT", "UND_ERR_CONNECT_TIMEOUT"].includes(code)) return new Error(`Таймаут подключения к FreeIPA на этапе «${stage}»`);
-  if (["SELF_SIGNED_CERT_IN_CHAIN", "DEPTH_ZERO_SELF_SIGNED_CERT", "UNABLE_TO_VERIFY_LEAF_SIGNATURE", "CERT_HAS_EXPIRED", "ERR_TLS_CERT_ALTNAME_INVALID"].includes(code)) return new Error(`TLS-сертификат FreeIPA не принят средой портала (${code})`);
-  if (["ENOTFOUND", "EAI_AGAIN"].includes(code)) return new Error(`DNS-имя FreeIPA не разрешается из среды портала (${code})`);
-  if (["ECONNREFUSED", "ECONNRESET"].includes(code)) return new Error(`FreeIPA разорвал или отклонил соединение на этапе «${stage}» (${code})`);
-  return new Error(`FreeIPA недоступен из среды портала на этапе «${stage}»: проверьте публичный DNS, TLS-сертификат, firewall и доступ к /ipa/session/*`);
-}
-
-async function freeIpaFetch(url: string, init: RequestInit, stage: "вход" | "JSON-RPC"): Promise<Response> {
-  try { return await fetch(url, init); }
-  catch (error) { throw freeIpaNetworkError(error, stage); }
-}
-
-async function ipaRpc(env: Env, ipaUrl: string, method: string, args: unknown[] = [""], options: Record<string, unknown> = {}): Promise<Array<Record<string, unknown>>> {
-  if (!env.IPA_USERNAME || !env.IPA_PASSWORD) throw new Error("FreeIPA credentials are not configured");
-  if (env.IPA_NODE_GATEWAY_URL && env.IPA_NODE_GATEWAY_TOKEN) {
-    let gatewayResponse: Response;
-    try {
-      gatewayResponse = await fetch(`${env.IPA_NODE_GATEWAY_URL}/rpc`, {
-        method: "POST",
-        headers: { "content-type": "application/json", authorization: `Bearer ${env.IPA_NODE_GATEWAY_TOKEN}` },
-        body: JSON.stringify({ ipaUrl, username: env.IPA_USERNAME, password: env.IPA_PASSWORD, method, args, options }),
-        signal: AbortSignal.timeout(35000),
-      });
-    } catch (error) { throw freeIpaNetworkError(error, "Node Gateway"); }
-    const gatewayPayload = await gatewayResponse.json().catch(() => null) as { result?: Array<Record<string, unknown>>; error?: string } | null;
-    if (!gatewayResponse.ok) throw new Error(gatewayPayload?.error || `FreeIPA Node Gateway вернул HTTP ${gatewayResponse.status}`);
-    return Array.isArray(gatewayPayload?.result) ? gatewayPayload.result : [];
-  }
-  const login = await freeIpaFetch(`${ipaUrl}/ipa/session/login_password`, {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded", accept: "text/plain", referer: `${ipaUrl}/ipa/ui/` },
-    body: new URLSearchParams({ user: env.IPA_USERNAME, password: env.IPA_PASSWORD }),
-    signal: AbortSignal.timeout(10000),
-    redirect: "manual",
-  }, "вход");
-  if (login.status >= 300 && login.status < 400) throw new Error(`FreeIPA перенаправляет endpoint входа (HTTP ${login.status}); укажите конечный HTTPS-адрес сервера`);
-  if (login.status === 401 || login.status === 403) throw new Error(`FreeIPA отклонил учётные данные (HTTP ${login.status})`);
-  if (!login.ok) throw new Error(`Endpoint входа FreeIPA вернул HTTP ${login.status}`);
-  const cookie = login.headers.get("set-cookie")?.split(";")[0];
-  if (!cookie) throw new Error("FreeIPA session cookie missing");
-  const rpc = await freeIpaFetch(`${ipaUrl}/ipa/session/json`, {
-    method: "POST",
-    headers: { "content-type": "application/json", accept: "application/json", referer: `${ipaUrl}/ipa/ui/`, cookie },
-    body: JSON.stringify({ method, params: [args, options], id: 0 }),
-    signal: AbortSignal.timeout(20000),
-    redirect: "manual",
-  }, "JSON-RPC");
-  if (rpc.status >= 300 && rpc.status < 400) throw new Error(`FreeIPA перенаправляет JSON-RPC endpoint (HTTP ${rpc.status})`);
-  const payload = await rpc.json().catch(() => { throw new Error(`JSON-RPC FreeIPA вернул не-JSON ответ (HTTP ${rpc.status})`); }) as { result?: { result?: Array<Record<string, unknown>> }; error?: { message?: string } | null };
-  if (!rpc.ok || payload.error) throw new Error(payload.error?.message ?? `${method} failed`);
-  return payload.result?.result ?? [];
 }
 
 const allowedOperations = new Set(["user_add", "user_mod", "user_password", "user_enable", "user_disable", "user_del", "group_add", "group_del", "group_add_member", "group_remove_member"]);
@@ -1573,63 +1517,8 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL, in
     }
   }
 
-  if (request.method === "GET" && url.pathname === "/api/integrations/users") {
-    if (boolValue(env.DEMO_MODE)) return json({ mode: "demo", users: [] });
-    if (!ipaUrl || !env.IPA_USERNAME || !env.IPA_PASSWORD) return json({ mode: "unconfigured", users: [] });
-    try {
-      const list = await ipaRpc(env, ipaUrl, "user_find", [""], { all: true, sizelimit: 0 });
-      const users = list.map((entry) => ({
-        uid: String(firstValue(entry.uid) ?? ""),
-        name: String(firstValue(entry.cn) ?? firstValue(entry.displayname) ?? firstValue(entry.uid) ?? ""),
-        firstName: String(firstValue(entry.givenname) ?? ""),
-        lastName: String(firstValue(entry.sn) ?? ""),
-        email: String(firstValue(entry.mail) ?? ""),
-        active: !boolValue(entry.nsaccountlock),
-        groups: Array.isArray(entry.memberof_group) ? entry.memberof_group.length : 0,
-        groupNames: (Array.isArray(entry.memberof_group) ? entry.memberof_group : entry.memberof_group ? [entry.memberof_group] : []).map(String).filter(Boolean),
-      })).filter((user) => user.uid);
-      return json({ mode: "live", users });
-    } catch (error) {
-      return json({ error: error instanceof Error ? error.message : "FreeIPA request failed" }, 502);
-    }
-  }
-
-  if (request.method === "GET" && url.pathname === "/api/integrations/groups") {
-    if (boolValue(env.DEMO_MODE)) return json({ mode: "demo", groups: [] });
-    if (!ipaUrl || !env.IPA_USERNAME || !env.IPA_PASSWORD) return json({ mode: "unconfigured", groups: [] });
-    let groupFindError: unknown = null;
-    try {
-      const list = await ipaRpc(env, ipaUrl, "group_find", [""], { all: true, sizelimit: 0 });
-      const groups = list.map((entry) => ({
-        name: String(firstValue(entry.cn) ?? ""),
-        description: String(firstValue(entry.description) ?? "Без описания"),
-        members: Array.isArray(entry.member_user) ? entry.member_user.length : 0,
-        memberUids: (Array.isArray(entry.member_user) ? entry.member_user : entry.member_user ? [entry.member_user] : []).map(String).filter(Boolean),
-        type: firstValue(entry.gidnumber) ? "POSIX" : "Non-POSIX",
-      })).filter((group) => group.name);
-      if (groups.length) return json({ mode: "live", source: "group_find", groups });
-    } catch (error) {
-      groupFindError = error;
-    }
-    try {
-      const users = await ipaRpc(env, ipaUrl, "user_find", [""], { all: true, sizelimit: 0 });
-      const membersByGroup = new Map<string, Set<string>>();
-      for (const entry of users) {
-        const uid = String(firstValue(entry.uid) ?? "");
-        const memberships = Array.isArray(entry.memberof_group) ? entry.memberof_group : entry.memberof_group ? [entry.memberof_group] : [];
-        for (const value of new Set(memberships.map(String).filter(Boolean))) {
-          const members = membersByGroup.get(value) ?? new Set<string>();
-          if (uid) members.add(uid);
-          membersByGroup.set(value, members);
-        }
-      }
-      const groups = Array.from(membersByGroup, ([name, memberUids]) => ({ name, description: "Получено из членства пользователей", members: memberUids.size, memberUids: Array.from(memberUids).sort(), type: "Directory" }))
-        .sort((left, right) => left.name.localeCompare(right.name));
-      return json({ mode: "live", source: "user_membership", degraded: true, groups });
-    } catch {
-      return json({ error: groupFindError instanceof Error ? groupFindError.message : "FreeIPA group_find and membership fallback failed" }, 502);
-    }
-  }
+  const freeIpaBaseRead = await handleFreeIpaBaseRead(request, env, ipaUrl);
+  if (freeIpaBaseRead) return freeIpaBaseRead;
 
   if (request.method === "POST" && url.pathname === "/api/integrations/freeipa/actions") {
     let body: Record<string, unknown>;

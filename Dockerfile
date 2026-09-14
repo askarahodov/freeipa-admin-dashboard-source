@@ -10,7 +10,7 @@ RUN npm run build
 FROM node:22-bookworm-slim AS recovery
 WORKDIR /app
 RUN apt-get update \
- && apt-get install -y --no-install-recommends sqlite3 util-linux ca-certificates \
+ && apt-get install -y --no-install-recommends sqlite3 util-linux ca-certificates libpcre2-8-0 \
  && rm -rf /var/lib/apt/lists/*
 RUN useradd --system --uid 10001 recovery \
  && mkdir -p /portal-data /recovery /run/portal-recovery-secrets \
@@ -28,7 +28,10 @@ ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORTAL_DATA_DIR=/data
 WORKDIR /app
-RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx \
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends libpcre2-8-0 \
+ && rm -rf /var/lib/apt/lists/* \
+ && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx \
  && useradd --system --uid 10001 dashboard \
  && mkdir -p /data \
  && chown dashboard:dashboard /data

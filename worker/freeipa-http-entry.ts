@@ -10,8 +10,10 @@ import {
   type FreeIpaDirectoryUser,
 } from "../src/freeipa/freeipa-user-query";
 import { isPortalRole, portalRolePermissions } from "../src/auth/portal-permissions";
+import { readFreeIpaGroups, readFreeIpaUsers } from "./freeipa-base-read.ts";
+import { effectiveFreeIpaRuntime, type FreeIpaSettingsEnv } from "./integration-settings-runtime.ts";
 
-type RuntimeEnv = NonNullable<Parameters<typeof sessionRuntime.fetch>[1]>;
+type RuntimeEnv = NonNullable<Parameters<typeof sessionRuntime.fetch>[1]> & FreeIpaSettingsEnv;
 type RuntimeContext = Parameters<typeof sessionRuntime.fetch>[2];
 type ScheduledController = Parameters<NonNullable<typeof sessionRuntime.scheduled>>[0];
 type BulkAction = "enable" | "disable" | "add_to_group";
@@ -76,10 +78,18 @@ async function readPayload<T>(response: Response): Promise<T & { error?: string 
   return await readRecord(response) as T & { error?: string };
 }
 
-async function handleUserQuery(request: Request, env: RuntimeEnv, ctx: RuntimeContext, url: URL): Promise<Response> {
-  const upstreamUrl = new URL(request.url);
-  upstreamUrl.search = "";
-  const upstream = await sessionRuntime.fetch(new Request(upstreamUrl, request), env, ctx);
+async function baseUsers(env: RuntimeEnv): Promise<Response> {
+  const runtime = await effectiveFreeIpaRuntime(env);
+  return readFreeIpaUsers(runtime.env, runtime.ipaUrl);
+}
+
+async function baseGroups(env: RuntimeEnv): Promise<Response> {
+  const runtime = await effectiveFreeIpaRuntime(env);
+  return readFreeIpaGroups(runtime.env, runtime.ipaUrl);
+}
+
+async function handleUserQuery(env: RuntimeEnv, url: URL): Promise<Response> {
+  const upstream = await baseUsers(env);
   if (!upstream.ok) return upstream;
 
   const payload = await upstream.json().catch(() => null) as LegacyUsersPayload | null;
@@ -208,11 +218,8 @@ function csvCell(value: unknown): string {
   return `"${text.replaceAll('"', '""')}"`;
 }
 
-async function handleExport(request: Request, env: RuntimeEnv, ctx: RuntimeContext, url: URL): Promise<Response> {
-  const upstreamUrl = new URL(request.url);
-  upstreamUrl.pathname = "/api/integrations/users";
-  upstreamUrl.search = "";
-  const upstream = await sessionRuntime.fetch(new Request(upstreamUrl, { headers: request.headers }), env, ctx);
+async function handleExport(env: RuntimeEnv, url: URL): Promise<Response> {
+  const upstream = await baseUsers(env);
   if (!upstream.ok) return upstream;
   const payload = await readRecord(upstream) as LegacyUsersPayload;
   if (payload.mode !== "live") return json({ error: "Экспорт доступен только при активном подключении FreeIPA" }, 503);
@@ -248,20 +255,14 @@ function normalizeGroupName(value: string | null): string {
   return group.length <= 160 && /^[A-Za-z0-9_.@$-]+$/.test(group) ? group : "";
 }
 
-async function handleGroupMembers(request: Request, env: RuntimeEnv, ctx: RuntimeContext, url: URL): Promise<Response> {
+async function handleGroupMembers(env: RuntimeEnv, url: URL): Promise<Response> {
   const groupName = normalizeGroupName(url.searchParams.get("group"));
   if (!groupName) return json({ error: "Некорректная группа FreeIPA" }, 400);
 
-  const groupsUrl = new URL(request.url);
-  groupsUrl.pathname = "/api/integrations/groups";
-  groupsUrl.search = "";
-  const usersUrl = new URL(request.url);
-  usersUrl.pathname = "/api/integrations/users";
-  usersUrl.search = "";
-
+  const runtime = await effectiveFreeIpaRuntime(env);
   const [groupsResponse, usersResponse] = await Promise.all([
-    sessionRuntime.fetch(new Request(groupsUrl, { headers: request.headers }), env, ctx),
-    sessionRuntime.fetch(new Request(usersUrl, { headers: request.headers }), env, ctx),
+    readFreeIpaGroups(runtime.env, runtime.ipaUrl),
+    readFreeIpaUsers(runtime.env, runtime.ipaUrl),
   ]);
   const [groupsPayload, usersPayload] = await Promise.all([
     readPayload<GroupsPayload>(groupsResponse),
@@ -301,14 +302,13 @@ async function withEffectivePermissions(response: Response): Promise<Response> {
 }
 
 /**
- * Single compatibility HTTP owner for FreeIPA query/export/bulk/member behavior.
+ * Single compatibility HTTP owner for FreeIPA directory reads plus the
+ * consolidated query/export/bulk/member surface.
  *
- * This entry deliberately remains at the historical wrapper position during
- * #631 checkpoint A. It does not authenticate callers itself; every internal
- * base request is delegated directly to the same downstream runtime that the
- * retired wrappers used, preserving local/static/proxy/workspace identity,
- * permission, audit and mutation behavior. Base users/groups/actions remain in
- * the legacy integration runtime until the next bounded #631 extraction slice.
+ * B1 resolves the same persisted effective FreeIPA settings before calling the
+ * shared RPC transport, while mutation actions deliberately continue through
+ * the downstream runtime until B2 can extract their operation-run/audit
+ * coupling without duplication.
  */
 const worker = {
   async fetch(request: Request, env: RuntimeEnv | undefined, ctx: RuntimeContext): Promise<Response> {
@@ -316,7 +316,7 @@ const worker = {
     const url = new URL(request.url);
 
     if (request.method === "GET" && url.pathname === "/api/integrations/groups/members") {
-      return handleGroupMembers(request, sourceEnv, ctx, url);
+      return handleGroupMembers(sourceEnv, url);
     }
     if (request.method === "GET" && url.pathname === "/api/integrations/status") {
       const response = await sessionRuntime.fetch(request, sourceEnv, ctx);
@@ -326,10 +326,13 @@ const worker = {
       return handleBulk(request, sourceEnv, ctx);
     }
     if (request.method === "GET" && url.pathname === "/api/integrations/users/export.csv") {
-      return handleExport(request, sourceEnv, ctx, url);
+      return handleExport(sourceEnv, url);
     }
-    if (request.method === "GET" && url.pathname === "/api/integrations/users" && hasUserQuery(url)) {
-      return handleUserQuery(request, sourceEnv, ctx, url);
+    if (request.method === "GET" && url.pathname === "/api/integrations/users") {
+      return hasUserQuery(url) ? handleUserQuery(sourceEnv, url) : baseUsers(sourceEnv);
+    }
+    if (request.method === "GET" && url.pathname === "/api/integrations/groups") {
+      return baseGroups(sourceEnv);
     }
     return sessionRuntime.fetch(request, sourceEnv, ctx);
   },

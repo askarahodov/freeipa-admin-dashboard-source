@@ -19,12 +19,13 @@ async function exists(relativePath) {
   }
 }
 
-test("FreeIPA query/bulk/member HTTP behavior has one compatibility owner", async () => {
+test("FreeIPA read/query/export/bulk/member HTTP behavior has one compatibility owner", async () => {
   const adapter = await source("worker/freeipa-http-entry.ts");
   assert.match(adapter, /import sessionRuntime from ["']\.\/session-management-entry["']/);
   for (const route of [
     "/api/integrations/users",
     "/api/integrations/users/export.csv",
+    "/api/integrations/groups",
     "/api/integrations/groups/members",
     "/api/integrations/freeipa/bulk",
   ]) assert.equal(adapter.includes(route), true, `missing consolidated route: ${route}`);
@@ -48,28 +49,37 @@ test("backup predispatch is not owned by the FreeIPA adapter", async () => {
 
 test("base FreeIPA reads and RPC no longer live in the central Worker", async () => {
   const central = await source("worker/index.ts");
+  const adapter = await source("worker/freeipa-http-entry.ts");
   const baseRead = await source("worker/freeipa-base-read.ts");
   const rpc = await source("worker/freeipa-rpc.ts");
+  const settingsRuntime = await source("worker/integration-settings-runtime.ts");
 
-  assert.match(central, /import \{ handleFreeIpaBaseRead \} from ["']\.\/freeipa-base-read\.ts["']/);
-  assert.match(central, /import \{ freeIpaRpc as ipaRpc \} from ["']\.\/freeipa-rpc\.ts["']/);
+  assert.equal(central.includes("handleFreeIpaBaseRead"), false);
   assert.equal(central.includes('url.pathname === "/api/integrations/users"'), false);
   assert.equal(central.includes('url.pathname === "/api/integrations/groups"'), false);
   assert.equal(central.includes("function freeIpaNetworkError"), false);
   assert.equal(central.includes("async function ipaRpc"), false);
-  assert.ok(central.indexOf("const env = await effectiveEnv(baseEnv)") < central.indexOf("handleFreeIpaBaseRead(request, env, ipaUrl)"), "base reads must continue to receive the existing effective integration environment");
-  assert.equal(baseRead.includes('url.pathname === "/api/integrations/users"'), true);
-  assert.equal(baseRead.includes('url.pathname === "/api/integrations/groups"'), true);
+  assert.equal(central.includes("async function encryptSecrets"), false);
+  assert.equal(central.includes("async function decryptSecrets"), false);
+  assert.match(central, /decryptIntegrationSecrets as decryptSecrets/);
+  assert.match(central, /encryptIntegrationSecrets as encryptSecrets/);
+
+  assert.match(adapter, /readFreeIpaUsers/);
+  assert.match(adapter, /readFreeIpaGroups/);
+  assert.match(adapter, /effectiveFreeIpaRuntime/);
+  assert.equal(baseRead.includes("/api/integrations/"), false, "base read helper must remain HTTP-route neutral");
   assert.equal(rpc.includes("IPA_NODE_GATEWAY_URL"), true);
   assert.equal(rpc.includes("/ipa/session/login_password"), true);
+  assert.equal(settingsRuntime.includes("SELECT config_json, encrypted_secrets, updated_at FROM app_settings"), true);
+  assert.equal(settingsRuntime.includes("decryptIntegrationSecrets"), true);
   assert.equal(central.includes('url.pathname === "/api/integrations/freeipa/actions"'), true, "mutation ownership must remain in index until B2");
 });
 
 test("canonical route metadata points FreeIPA routes at their current owners", async () => {
   const contracts = await source("src/auth/portal-route-contract.ts");
   const expectedOwners = new Map([
-    ["freeipa.users.list", "worker/freeipa-base-read.ts"],
-    ["freeipa.groups.list", "worker/freeipa-base-read.ts"],
+    ["freeipa.users.list", "worker/freeipa-http-entry.ts"],
+    ["freeipa.groups.list", "worker/freeipa-http-entry.ts"],
     ["freeipa.users.export", "worker/freeipa-http-entry.ts"],
     ["freeipa.groups.members", "worker/freeipa-http-entry.ts"],
     ["freeipa.bulk", "worker/freeipa-http-entry.ts"],

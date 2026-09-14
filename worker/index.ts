@@ -12,8 +12,8 @@ import { appendAuditEvent, auditCorrelationFor, auditErrorCode, createAuditConte
 import { applyProcessPresentation, availableProcessPresentationLocales, presentationLocalePreferences, readProcessPresentationSet, resolveProcessPresentationLocale, saveProcessPresentationSet } from "../src/operations/presentation/process-presentation";
 import { handleBackupExportRequest } from "./backup-export-entry";
 import { portalRolePermissions, resolvePortalRole, type PortalPermission, type PortalRole } from "../src/auth/portal-permissions";
-import { handleFreeIpaBaseRead } from "./freeipa-base-read.ts";
 import { freeIpaRpc as ipaRpc } from "./freeipa-rpc.ts";
+import { decryptIntegrationSecrets as decryptSecrets, encryptIntegrationSecrets as encryptSecrets } from "./integration-settings-runtime.ts";
 
 interface Env {
   ASSETS: Fetcher;
@@ -413,45 +413,6 @@ type StoredSecrets = {
 
 type StoredSettings = { config: StoredConfig; secrets: StoredSecrets; updatedAt: number };
 
-function bytesToBase64(bytes: Uint8Array): string {
-  let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary);
-}
-
-function base64ToBytes(value: string): Uint8Array {
-  const binary = atob(value);
-  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
-}
-
-async function encryptionKey(value?: string): Promise<CryptoKey> {
-  const normalized = value?.trim();
-  if (!normalized) throw new Error("CONFIG_ENCRYPTION_KEY is not configured");
-  let bytes: Uint8Array;
-  if (/^[0-9a-f]{64}$/i.test(normalized)) bytes = Uint8Array.from(normalized.match(/.{2}/g) ?? [], (pair) => Number.parseInt(pair, 16));
-  else {
-    try { bytes = base64ToBytes(normalized); } catch { throw new Error("CONFIG_ENCRYPTION_KEY must be 32-byte base64 or 64-character hex"); }
-  }
-  if (bytes.byteLength !== 32) throw new Error("CONFIG_ENCRYPTION_KEY must decode to exactly 32 bytes");
-  return crypto.subtle.importKey("raw", bytes, "AES-GCM", false, ["encrypt", "decrypt"]);
-}
-
-async function encryptSecrets(secrets: StoredSecrets, keyValue?: string): Promise<string> {
-  const key = await encryptionKey(keyValue);
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const encrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(JSON.stringify(secrets)));
-  return `v1.${bytesToBase64(iv)}.${bytesToBase64(new Uint8Array(encrypted))}`;
-}
-
-async function decryptSecrets(value: string, keyValue?: string): Promise<StoredSecrets> {
-  const [version, ivValue, encryptedValue] = value.split(".");
-  if (version !== "v1" || !ivValue || !encryptedValue) throw new Error("Unsupported encrypted settings format");
-  const key = await encryptionKey(keyValue);
-  const decrypted = await crypto.subtle.decrypt({ name: "AES-GCM", iv: base64ToBytes(ivValue) }, key, base64ToBytes(encryptedValue));
-  const parsed = JSON.parse(new TextDecoder().decode(decrypted)) as Partial<StoredSecrets>;
-  return { ipaPassword: String(parsed.ipaPassword ?? ""), xyopsApiKey: String(parsed.xyopsApiKey ?? "") };
-}
-
 async function adminAuthorized(request: Request, env: Env): Promise<boolean> {
   if (!env.ADMIN_TOKEN) return false;
   const provided = request.headers.get("x-admin-token") ?? "";
@@ -541,7 +502,7 @@ async function handleSettingsApi(request: Request, env: Env, url: URL, audit: Au
   }
   if (request.method === "PUT" && url.pathname === "/api/integrations/settings") {
     if (!env.DB) return json({ error: "Persistent database is unavailable" }, 503);
-    if (!env.CONFIG_ENCRYPTION_KEY) return json({ error: "CONFIG_ENCRYPTION_KEY is not configured" }, 503);
+    if (!env.CONFIG_ENCRYPTION_KEY) return json({ error: "CONFIG_ENCRYPTION_KEY is not configured on the server" }, 503);
     let body: Record<string, unknown>;
     try { body = await request.json() as Record<string, unknown>; } catch { return json({ error: "Invalid JSON" }, 400); }
     try {
@@ -1516,9 +1477,6 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL, in
       return json({ error: message, runId: run.id }, 502);
     }
   }
-
-  const freeIpaBaseRead = await handleFreeIpaBaseRead(request, env, ipaUrl);
-  if (freeIpaBaseRead) return freeIpaBaseRead;
 
   if (request.method === "POST" && url.pathname === "/api/integrations/freeipa/actions") {
     let body: Record<string, unknown>;

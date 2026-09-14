@@ -5,15 +5,18 @@ import type { AutomationRoute, CatalogEvent, RouteField } from "../src/automatio
 import { fieldConditionMatches, normalizeFieldCondition } from "../src/automation/field-conditions";
 import { listRunReplaySummaries, readRunReplay, saveRunReplay, type RunReplaySummary } from "../src/operations/run/run-replays";
 import { listRunResults, readRunResultFile, saveRunResult, type PublicRunResult } from "../src/operations/run/run-results";
-import { listRunNotifications, markRunNotificationsRead, saveRunNotification } from "../src/operations/run/run-notifications";
+import { listRunNotifications, markRunNotificationsRead } from "../src/operations/run/run-notifications";
 import { catalogEventAllowed, readCatalogPolicySet, saveCatalogPolicySet } from "../src/operations/catalog/catalog-policies";
 import { approvalExecutionMatches, approvalRequirement, cancelApproval, claimApprovalExecution, createApprovalRequest, decideApproval, finishApprovalExecution, listApprovals, readApprovalPolicySet, readExecutingApproval, saveApprovalPolicySet } from "../src/operations/approvals/approval-gates";
 import { appendAuditEvent, auditCorrelationFor, auditErrorCode, createAuditContext, listAuditEvents, withAuditCorrelation, type AuditContext } from "../audit-log";
 import { applyProcessPresentation, availableProcessPresentationLocales, presentationLocalePreferences, readProcessPresentationSet, resolveProcessPresentationLocale, saveProcessPresentationSet } from "../src/operations/presentation/process-presentation";
 import { handleBackupExportRequest } from "./backup-export-entry";
-import { portalRolePermissions, resolvePortalRole, type PortalPermission, type PortalRole } from "../src/auth/portal-permissions";
+import type { PortalPermission } from "../src/auth/portal-permissions";
 import { freeIpaRpc as ipaRpc } from "./freeipa-rpc.ts";
 import { decryptIntegrationSecrets as decryptSecrets, encryptIntegrationSecrets as encryptSecrets } from "./integration-settings-runtime.ts";
+import { freeIpaOperations as allowedOperations } from "./freeipa-action-runtime.ts";
+import { operationRun, saveOperationRun, type OperationRun, type RunStage, type RunStatus } from "./operation-run-runtime.ts";
+import { portalAccess, requestActor, requirePortalPermission } from "./portal-access-runtime.ts";
 
 interface Env {
   ASSETS: Fetcher;
@@ -50,26 +53,6 @@ interface ExecutionContext {
   waitUntil(promise: Promise<unknown>): void;
   passThroughOnException(): void;
 }
-
-type RunStatus = "queued" | "running" | "success" | "failed" | "cancelled" | "unknown";
-type RunStage = { id: string; title: string; status: RunStatus; startedAt: number | null; completedAt: number | null; error: string };
-
-type OperationRun = {
-  id: string;
-  jobId: string;
-  eventId: string;
-  title: string;
-  kind: "event" | "workflow";
-  mode: "demo" | "live";
-  status: RunStatus;
-  actor: string;
-  subject: string;
-  error: string;
-  stages: RunStage[];
-  startedAt: number;
-  updatedAt: number;
-  completedAt: number | null;
-};
 
 type CatalogChange = { id: string; title: string; kind: "new" | "changed" | "removed" };
 type CatalogSnapshot = { events: CatalogEvent[]; syncedAt: number };
@@ -128,28 +111,6 @@ function xyopsPayloadSucceeded(payload: unknown): boolean {
   return typeof code !== "number" || code === 0;
 }
 
-function requestActor(request: Request): string {
-  const encodedName = request.headers.get("oai-authenticated-user-full-name");
-  if (encodedName && request.headers.get("oai-authenticated-user-full-name-encoding") === "percent-encoded-utf-8") {
-    try { return decodeURIComponent(encodedName).slice(0, 160); } catch {}
-  }
-  return (request.headers.get("oai-authenticated-user-email") || "portal-user").slice(0, 160);
-}
-
-function portalAccess(request: Request, env: Env): { identity: string; role: PortalRole; groups: string[]; permissions: PortalPermission[] } {
-  const identity = (request.headers.get("oai-authenticated-user-email") || "portal-user").trim().toLowerCase().slice(0, 160);
-  const groups = Array.from(new Set(String(request.headers.get("oai-authenticated-user-groups") ?? "").split(",").map((value) => value.trim().toLowerCase()).filter((value) => value && value.length <= 120 && !/[\r\n]/.test(value)))).slice(0, 100);
-  const role = resolvePortalRole(identity, env.PORTAL_DEFAULT_ROLE, env.PORTAL_RBAC_JSON, "admin");
-  return { identity, role, groups, permissions: portalRolePermissions[role] };
-}
-
-function requirePortalPermission(request: Request, env: Env, permission: PortalPermission): Response | null {
-  const access = portalAccess(request, env);
-  return access.permissions.includes(permission)
-    ? null
-    : json({ error: "Недостаточно прав для выполнения операции", requiredPermission: permission, role: access.role }, 403);
-}
-
 function runStatus(value: unknown): RunStatus {
   const normalized = String(value ?? "").toLowerCase().replace(/[\s-]+/g, "_");
   if (["success", "succeeded", "completed", "complete", "done", "ok"].includes(normalized)) return "success";
@@ -184,14 +145,6 @@ function jobTimestamp(value: unknown): number | null {
   return null;
 }
 
-function runSubject(values: Record<string, unknown>, targets: string[] = []): string {
-  for (const key of ["username", "uid", "group", "database", "server", "hostname", "name"]) {
-    const value = values[key];
-    if (typeof value === "string" && value.trim()) return value.trim().slice(0, 240);
-  }
-  return targets.filter(Boolean).slice(0, 3).join(", ").slice(0, 240) || "—";
-}
-
 function publicRun(run: OperationRun, replay: RunReplaySummary | undefined, result: PublicRunResult | undefined, canRun: boolean) {
   const active = ["queued", "running", "unknown"].includes(run.status);
   const terminal = ["success", "failed", "cancelled"].includes(run.status);
@@ -207,13 +160,6 @@ function publicRun(run: OperationRun, replay: RunReplaySummary | undefined, resu
       parentRunId: replay?.parentRunId || "",
     },
   };
-}
-
-async function saveOperationRun(env: Env, run: OperationRun): Promise<void> {
-  if (!env.DB) return;
-  await env.DB.prepare("INSERT INTO operation_runs (id, job_id, event_id, title, kind, mode, status, actor, subject, error, stages_json, started_at, updated_at, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET job_id = excluded.job_id, status = excluded.status, error = excluded.error, stages_json = excluded.stages_json, updated_at = excluded.updated_at, completed_at = excluded.completed_at")
-    .bind(run.id, run.jobId, run.eventId, run.title, run.kind, run.mode, run.status, run.actor, run.subject, run.error || null, JSON.stringify(run.stages), run.startedAt, run.updatedAt, run.completedAt).run();
-  await saveRunNotification(env, run).catch(() => {});
 }
 
 async function listOperationRuns(env: Env, limit = 100): Promise<OperationRun[]> {
@@ -544,92 +490,6 @@ async function handleSettingsApi(request: Request, env: Env, url: URL, audit: Au
   return json({ error: "Not found" }, 404);
 }
 
-const allowedOperations = new Set(["user_add", "user_mod", "user_password", "user_enable", "user_disable", "user_del", "group_add", "group_del", "group_add_member", "group_remove_member"]);
-
-type FreeIpaOperation = "user_add" | "user_mod" | "user_password" | "user_enable" | "user_disable" | "user_del" | "group_add" | "group_del" | "group_add_member" | "group_remove_member";
-
-function directText(source: Record<string, unknown>, keys: string[], maxLength = 255): string {
-  for (const key of keys) {
-    if (typeof source[key] !== "string") continue;
-    const value = source[key].trim();
-    if (value && value.length <= maxLength && !/[\u0000-\u001f\u007f]/.test(value)) return value;
-  }
-  return "";
-}
-
-function directId(source: Record<string, unknown>, keys: string[], label: string): string {
-  const value = directText(source, keys);
-  if (!value || !/^[A-Za-z0-9_.@$-]+$/.test(value)) throw new Error(`Некорректное поле: ${label}`);
-  return value;
-}
-
-function directSecret(source: Record<string, unknown>, keys: string[], maxLength = 1024): string {
-  for (const key of keys) {
-    if (typeof source[key] !== "string") continue;
-    const value = source[key];
-    if (value && value.length <= maxLength && !value.includes("\u0000")) return value;
-  }
-  return "";
-}
-
-function freeIpaDirectCall(operation: FreeIpaOperation, body: Record<string, unknown>): { method: string; args: unknown[]; options: Record<string, unknown>; title: string; values: Record<string, unknown> } {
-  const username = () => directId(body, ["username", "uid", "user"], "логин");
-  const group = () => directId(body, ["group", "groupname", "cn"], "группа");
-  if (operation === "user_add") {
-    const uid = username();
-    const givenname = directText(body, ["firstName", "givenname"]);
-    const sn = directText(body, ["lastName", "sn"]);
-    if (!givenname || !sn) throw new Error("Имя и фамилия обязательны");
-    const mail = directText(body, ["email", "mail"]);
-    const password = directSecret(body, ["password", "userpassword"]);
-    const options: Record<string, unknown> = { givenname, sn };
-    if (mail) options.mail = mail;
-    if (password) options.userpassword = password;
-    return { method: "user_add", args: [uid], options, title: "Создание пользователя FreeIPA", values: { uid, mail } };
-  }
-  if (operation === "user_mod") {
-    const uid = username();
-    const options: Record<string, unknown> = {};
-    const givenname = directText(body, ["firstName", "givenname"]);
-    const sn = directText(body, ["lastName", "sn"]);
-    const mail = directText(body, ["email", "mail"]);
-    if (givenname) options.givenname = givenname;
-    if (sn) options.sn = sn;
-    if (mail) options.mail = mail;
-    if (!Object.keys(options).length) throw new Error("Укажите хотя бы одно изменяемое поле");
-    return { method: "user_mod", args: [uid], options, title: "Редактирование пользователя FreeIPA", values: { uid, mail } };
-  }
-  if (operation === "user_password") {
-    const uid = username();
-    const password = directSecret(body, ["password", "userpassword"]);
-    if (password.length < 8) throw new Error("Новый пароль должен содержать не менее 8 символов");
-    return { method: "user_mod", args: [uid], options: { userpassword: password }, title: "Сброс пароля пользователя FreeIPA", values: { uid } };
-  }
-  if (operation === "user_enable" || operation === "user_disable" || operation === "user_del") {
-    const uid = username();
-    const titles = { user_enable: "Включение пользователя FreeIPA", user_disable: "Отключение пользователя FreeIPA", user_del: "Удаление пользователя FreeIPA" };
-    return { method: operation, args: [uid], options: {}, title: titles[operation], values: { uid } };
-  }
-  if (operation === "group_add") {
-    const cn = group();
-    const description = directText(body, ["description"], 1024);
-    return { method: "group_add", args: [cn], options: description ? { description } : {}, title: "Создание группы FreeIPA", values: { group: cn } };
-  }
-  if (operation === "group_del") {
-    const cn = group();
-    return { method: "group_del", args: [cn], options: {}, title: "Удаление группы FreeIPA", values: { group: cn } };
-  }
-  const cn = group();
-  const uid = username();
-  return {
-    method: operation,
-    args: [cn],
-    options: { user: [uid] },
-    title: operation === "group_add_member" ? "Добавление участника FreeIPA" : "Удаление участника FreeIPA",
-    values: { group: cn, uid },
-  };
-}
-
 function sanitizeRoutes(raw: unknown): AutomationRoute[] {
   if (!Array.isArray(raw) || raw.length > 100) throw new Error("routes must be an array with at most 100 items");
   const keys = new Set<string>();
@@ -943,28 +803,6 @@ function extractOptionValues(payload: unknown): string[] {
     if (values.length) return values;
   }
   return [];
-}
-
-function operationRun(input: {
-  request: Request;
-  eventId: string;
-  title: string;
-  kind: "event" | "workflow";
-  mode: "demo" | "live";
-  jobId: string;
-  status: RunStatus;
-  values?: Record<string, unknown>;
-  targets?: string[];
-  error?: string;
-  stages?: RunStage[];
-}): OperationRun {
-  const now = Date.now();
-  return {
-    id: crypto.randomUUID(), jobId: input.jobId || `LOCAL-${now}`, eventId: input.eventId, title: input.title,
-    kind: input.kind, mode: input.mode, status: input.status, actor: requestActor(input.request),
-    subject: runSubject(input.values ?? {}, input.targets), error: (input.error ?? "").slice(0, 500), stages: input.stages ?? [],
-    startedAt: now, updatedAt: now, completedAt: ["success", "failed", "cancelled"].includes(input.status) ? now : null,
-  };
 }
 
 async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL, inheritedAudit?: AuditContext): Promise<Response> {
@@ -1474,41 +1312,6 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL, in
       const run = operationRun({ request, eventId: eventId || "unknown", title: eventId || "XYOps process", kind: "event", mode: "live", jobId: "", status: "failed", values, error: message });
       await saveOperationRun(baseEnv, run);
       await appendAuditEvent(baseEnv, audit, { action: "xyops.run", resourceType: "xyops_run", resourceId: run.id, eventId: eventId || "unknown", runId: run.id, outcome: "unknown", errorCode: auditErrorCode(error, "xyops_request_failed"), metadata: { fieldKeys: Object.keys(values).filter((key) => !/pass|secret|token|key/i.test(key)) } }).catch(() => {});
-      return json({ error: message, runId: run.id }, 502);
-    }
-  }
-
-  if (request.method === "POST" && url.pathname === "/api/integrations/freeipa/actions") {
-    let body: Record<string, unknown>;
-    try { body = await request.json() as Record<string, unknown>; } catch { return json({ error: "Invalid JSON" }, 400); }
-    if (typeof body.operation !== "string" || !allowedOperations.has(body.operation)) return json({ error: "Unsupported operation" }, 400);
-    const requiredPermission: PortalPermission = body.operation === "user_del" || body.operation === "group_del" ? "freeipa.delete" : "freeipa.write";
-    const denied = requirePortalPermission(request, baseEnv, requiredPermission);
-    if (denied) return denied;
-    if (!boolValue(env.DEMO_MODE) && (!ipaUrl || !env.IPA_USERNAME || !env.IPA_PASSWORD)) return json({ error: "FreeIPA is not configured" }, 503);
-    let call: ReturnType<typeof freeIpaDirectCall>;
-    try {
-      call = freeIpaDirectCall(body.operation as FreeIpaOperation, body);
-    } catch (error) {
-      return json({ error: error instanceof Error ? error.message : "Некорректные параметры FreeIPA" }, 400);
-    }
-    if (boolValue(env.DEMO_MODE)) {
-      const run = operationRun({ request, eventId: `freeipa:${body.operation}`, title: call.title, kind: "event", mode: "demo", jobId: `IPA-DEMO-${Date.now()}`, status: "success", values: call.values });
-      await saveOperationRun(baseEnv, run);
-      await appendAuditEvent(baseEnv, audit, { action: `freeipa.${body.operation}`, resourceType: String(body.operation).startsWith("group_") ? "freeipa_group" : "freeipa_user", resourceId: run.subject, eventId: run.eventId, runId: run.id, jobId: run.jobId, outcome: "success", metadata: { mode: "demo", operation: body.operation, fieldKeys: Object.keys(call.values).filter((key) => !/pass|secret|token|key/i.test(key)) } }).catch(() => {});
-      return json({ mode: "demo", direct: true, ok: true, runId: run.id, status: run.status });
-    }
-    try {
-      await ipaRpc(env, ipaUrl as string, call.method, call.args, call.options);
-      const run = operationRun({ request, eventId: `freeipa:${body.operation}`, title: call.title, kind: "event", mode: "live", jobId: `IPA-${Date.now()}`, status: "success", values: call.values });
-      await saveOperationRun(baseEnv, run);
-      await appendAuditEvent(baseEnv, audit, { action: `freeipa.${body.operation}`, resourceType: String(body.operation).startsWith("group_") ? "freeipa_group" : "freeipa_user", resourceId: run.subject, eventId: run.eventId, runId: run.id, jobId: run.jobId, outcome: "success", metadata: { mode: "live", operation: body.operation, fieldKeys: Object.keys(call.values).filter((key) => !/pass|secret|token|key/i.test(key)) } }).catch(() => {});
-      return json({ mode: "live", direct: true, ok: true, runId: run.id, status: run.status });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "FreeIPA request failed";
-      const run = operationRun({ request, eventId: `freeipa:${body.operation}`, title: call.title, kind: "event", mode: "live", jobId: "", status: "failed", values: call.values, error: message });
-      await saveOperationRun(baseEnv, run);
-      await appendAuditEvent(baseEnv, audit, { action: `freeipa.${body.operation}`, resourceType: String(body.operation).startsWith("group_") ? "freeipa_group" : "freeipa_user", resourceId: run.subject, eventId: run.eventId, runId: run.id, outcome: "failure", errorCode: auditErrorCode(error, "freeipa_request_failed"), metadata: { operation: body.operation, fieldKeys: Object.keys(call.values).filter((key) => !/pass|secret|token|key/i.test(key)) } }).catch(() => {});
       return json({ error: message, runId: run.id }, 502);
     }
   }

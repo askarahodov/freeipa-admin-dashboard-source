@@ -51,7 +51,7 @@ test("backup predispatch is not owned by the FreeIPA adapter", async () => {
   assert.equal(backupRoot.includes("handleBackupImportPreviewRoute"), true);
 });
 
-test("FreeIPA action ownership is canonical in the adapter while the central compatibility fallback remains unreachable", async () => {
+test("FreeIPA action ownership is canonical in the adapter and absent from the central Worker", async () => {
   const central = await source("worker/index.ts");
   const adapter = await source("worker/freeipa-http-entry.ts");
   const baseRead = await source("worker/freeipa-base-read.ts");
@@ -79,7 +79,16 @@ test("FreeIPA action ownership is canonical in the adapter while the central com
   assert.equal(rpc.includes("/ipa/session/login_password"), true);
   assert.equal(settingsRuntime.includes("SELECT config_json, encrypted_secrets, updated_at FROM app_settings"), true);
   assert.equal(settingsRuntime.includes("decryptIntegrationSecrets"), true);
-  assert.equal(central.includes('url.pathname === "/api/integrations/freeipa/actions"'), true, "B2 cleanup removes this unreachable compatibility fallback in the next slice");
+  assert.equal(central.includes('url.pathname === "/api/integrations/freeipa/actions"'), false, "central Worker must not retain a second FreeIPA action route");
+  assert.equal(central.includes("function freeIpaDirectCall"), false, "FreeIPA action normalization must have one owner");
+  assert.equal(central.includes("function requestActor"), false, "portal actor resolution must use the shared runtime");
+  assert.equal(central.includes("function portalAccess"), false, "portal access resolution must use the shared runtime");
+  assert.equal(central.includes("function requirePortalPermission"), false, "permission enforcement helper must use the shared runtime");
+  assert.equal(central.includes("function operationRun"), false, "operation-run construction must use the shared runtime");
+  assert.equal(central.includes("async function saveOperationRun"), false, "operation-run persistence must use the shared runtime");
+  assert.match(central, /freeIpaOperations as allowedOperations/);
+  assert.match(central, /operationRun, saveOperationRun/);
+  assert.match(central, /portalAccess, requestActor, requirePortalPermission/);
   assert.match(adapter, /freeIpaDirectCall/);
   assert.match(adapter, /operationRun/);
   assert.match(adapter, /saveOperationRun/);

@@ -5,7 +5,7 @@ import test from "node:test";
 test("group member browser uses direct FreeIPA actions and the paginated API", () => {
   const component = fs.readFileSync(new URL("../../app/directory/FreeIpaGroupMemberBrowser.tsx", import.meta.url), "utf8");
   const events = fs.readFileSync(new URL("../../src/freeipa/freeipa-ui-events.ts", import.meta.url), "utf8");
-  const wrapper = fs.readFileSync(new URL("../../worker/freeipa-group-member-entry.ts", import.meta.url), "utf8");
+  const owner = fs.readFileSync(new URL("../../worker/freeipa-http-entry.ts", import.meta.url), "utf8");
   const selectiveRoot = fs.readFileSync(new URL("../../worker/backup-selective-restore-root-entry.ts", import.meta.url), "utf8");
   const maintenanceControlRoot = fs.readFileSync(new URL("../../worker/maintenance-control-root-entry.ts", import.meta.url), "utf8");
   const serviceAdminGate = fs.readFileSync(new URL("../../worker/middleware/service-admin-authentication.ts", import.meta.url), "utf8");
@@ -25,10 +25,11 @@ test("group member browser uses direct FreeIPA actions and the paginated API", (
   assert.equal(component.includes('className="danger-link"'), true);
   assert.equal(component.includes('data-portal-confirmation-control="1"'), true);
   assert.equal(events.includes("FREEIPA_OPEN_ACTION_EVENT"), true);
-  assert.equal(wrapper.includes("/api/integrations/groups"), true);
-  assert.equal(wrapper.includes("/api/integrations/users"), true);
-  assert.equal(wrapper.includes("queryFreeIpaGroupMembers"), true);
-  assert.equal(selectiveRoot.includes('import rootRuntime from "./freeipa-group-member-entry.ts"'), true);
+  assert.equal(owner.includes("/api/integrations/groups"), true);
+  assert.equal(owner.includes("/api/integrations/users"), true);
+  assert.equal(owner.includes("queryFreeIpaGroupMembers"), true);
+  assert.equal(owner.includes('import sessionRuntime from "./session-management-entry"'), true);
+  assert.equal(selectiveRoot.includes('import rootRuntime from "./freeipa-http-entry.ts"'), true);
   assert.equal(maintenanceControlRoot.includes('import rootRuntime from "./backup-selective-restore-root-entry.ts"'), true);
   assert.equal(serviceAdminGate.includes("serviceAdminTokenAuthorized(request, env.ADMIN_TOKEN)"), true);
   assert.equal(maintenanceGate.includes("rootRuntime"), false);

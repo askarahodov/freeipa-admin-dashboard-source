@@ -659,6 +659,7 @@ export async function handleCatalogRunRequest(
   inheritedAudit?: AuditContext,
   replayGuard?: CatalogRunReplayGuard,
   resolvedRuntime?: { env: Env; xyopsUrl: string | null },
+  approvedExecutionId?: string,
 ): Promise<Response> {
   const audit = inheritedAudit ?? createAuditContext(portalAccess(request, baseEnv));
   const env = resolvedRuntime?.env ?? await effectiveEnv(baseEnv);
@@ -711,9 +712,9 @@ export async function handleCatalogRunRequest(
       else params[field.key] = value;
     }
     const launchPayload = { id: event.id, params, input: { data: inputData }, ...(event.kind === "workflow" ? { workflowData } : {}), ...(requestedTargets.length ? { targets: requestedTargets } : event.targets.length === 1 ? { targets: event.targets } : {}) };
-    const approvalExecutionId = String(request.headers.get("x-portal-approved-execution") ?? "").slice(0, 160);
-    if (approvalExecutionId) {
-      const executing = await readExecutingApproval(baseEnv, approvalExecutionId, access);
+    const internalApprovalExecutionId = String(approvedExecutionId ?? "").slice(0, 160);
+    if (internalApprovalExecutionId) {
+      const executing = await readExecutingApproval(baseEnv, internalApprovalExecutionId, access);
       if (!executing || !await approvalExecutionMatches(executing.spec, event, values, requestedTargets)) return json({ error: "Недействительное или использованное согласование" }, 409);
     } else {
       const approvalPolicy = await readApprovalPolicySet(baseEnv);
@@ -728,7 +729,7 @@ export async function handleCatalogRunRequest(
       const run = operationRun({ request, eventId: event.id, title: displayEvent.title, kind: event.kind, mode: "demo", jobId: `DEMO-${Date.now()}`, status: "success", values, targets: requestedTargets });
       await saveOperationRun(baseEnv, run);
       await saveRunReplay(baseEnv, run.id, event, values, requestedTargets, typeof body.replayOf === "string" ? body.replayOf.slice(0, 160) : "");
-      await appendAuditEvent(baseEnv, audit, { action: "xyops.run", resourceType: "xyops_run", resourceId: run.id, eventId: event.id, schemaVersion: event.schemaVersion, approvalId: approvalExecutionId, runId: run.id, jobId: run.jobId, outcome: "success", metadata: { mode: "demo", kind: event.kind, targets: requestedTargets, replayOf: typeof body.replayOf === "string" ? body.replayOf : "" } }).catch(() => {});
+      await appendAuditEvent(baseEnv, audit, { action: "xyops.run", resourceType: "xyops_run", resourceId: run.id, eventId: event.id, schemaVersion: event.schemaVersion, approvalId: internalApprovalExecutionId, runId: run.id, jobId: run.jobId, outcome: "success", metadata: { mode: "demo", kind: event.kind, targets: requestedTargets, replayOf: typeof body.replayOf === "string" ? body.replayOf : "" } }).catch(() => {});
       return json({ mode: "demo", queued: true, runId: run.id, jobId: run.jobId, status: run.status, process: { id: event.id, title: displayEvent.title, kind: event.kind } }, 202);
     }
     const response = await fetch(`${xyopsUrl}/api/app/run_event/v1`, { method: "POST", headers: { "content-type": "application/json", "x-api-key": env.XYOPS_API_KEY }, body: JSON.stringify(launchPayload), signal: AbortSignal.timeout(15000) });
@@ -742,14 +743,14 @@ export async function handleCatalogRunRequest(
       const run = operationRun({ request, eventId: event.id, title: displayEvent.title, kind: event.kind, mode: "live", jobId, status: "failed", values, targets: requestedTargets, error: message });
       await saveOperationRun(baseEnv, run);
       await saveRunReplay(baseEnv, run.id, event, values, requestedTargets, typeof body.replayOf === "string" ? body.replayOf.slice(0, 160) : "");
-      await appendAuditEvent(baseEnv, audit, { action: "xyops.run", resourceType: "xyops_run", resourceId: run.id, eventId: event.id, schemaVersion: event.schemaVersion, approvalId: approvalExecutionId, runId: run.id, jobId, outcome: "failure", errorCode: response.status === 429 ? "xyops_rate_limited" : response.status === 409 ? "xyops_concurrency_conflict" : "xyops_run_event_rejected", metadata: { httpStatus: response.status, retryAfter, kind: event.kind, targets: requestedTargets } }).catch(() => {});
+      await appendAuditEvent(baseEnv, audit, { action: "xyops.run", resourceType: "xyops_run", resourceId: run.id, eventId: event.id, schemaVersion: event.schemaVersion, approvalId: internalApprovalExecutionId, runId: run.id, jobId, outcome: "failure", errorCode: response.status === 429 ? "xyops_rate_limited" : response.status === 409 ? "xyops_concurrency_conflict" : "xyops_run_event_rejected", metadata: { httpStatus: response.status, retryAfter, kind: event.kind, targets: requestedTargets } }).catch(() => {});
       return json({ error: message, runId: run.id, xyopsStatus: response.status, retryAfter: retryAfter || null }, portalStatus);
     }
     const reported = runStatus(result.status ?? result.state ?? resultData.status ?? resultData.state);
     const run = operationRun({ request, eventId: event.id, title: displayEvent.title, kind: event.kind, mode: "live", jobId, status: reported === "unknown" ? "queued" : reported, values, targets: requestedTargets, stages: extractJobStages(result) });
     await saveOperationRun(baseEnv, run);
     await saveRunReplay(baseEnv, run.id, event, values, requestedTargets, typeof body.replayOf === "string" ? body.replayOf.slice(0, 160) : "");
-    await appendAuditEvent(baseEnv, audit, { action: "xyops.run", resourceType: "xyops_run", resourceId: run.id, eventId: event.id, schemaVersion: event.schemaVersion, approvalId: approvalExecutionId, runId: run.id, jobId: run.jobId, outcome: "success", metadata: { mode: "live", initialStatus: run.status, kind: event.kind, targets: requestedTargets, replayOf: typeof body.replayOf === "string" ? body.replayOf : "" } }).catch(() => {});
+    await appendAuditEvent(baseEnv, audit, { action: "xyops.run", resourceType: "xyops_run", resourceId: run.id, eventId: event.id, schemaVersion: event.schemaVersion, approvalId: internalApprovalExecutionId, runId: run.id, jobId: run.jobId, outcome: "success", metadata: { mode: "live", initialStatus: run.status, kind: event.kind, targets: requestedTargets, replayOf: typeof body.replayOf === "string" ? body.replayOf : "" } }).catch(() => {});
     return json({ mode: "live", queued: true, runId: run.id, jobId: run.jobId, status: run.status, process: { id: event.id, title: displayEvent.title, kind: event.kind } }, 202);
   } catch (error) {
     const message = error instanceof Error ? error.message : "XYOps request failed";
@@ -945,11 +946,11 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL, in
       runUrl.search = "";
       const headers = new Headers(request.headers);
       headers.set("content-type", "application/json");
-      headers.set("x-portal-approved-execution", approvalId);
-      const launchResponse = await handleIntegrationApi(new Request(runUrl, {
+      headers.delete("x-portal-approved-execution");
+      const launchResponse = await handleCatalogRunRequest(new Request(runUrl, {
         method: "POST", headers,
         body: JSON.stringify({ eventId: claimed.spec.eventId, values, targets: claimed.spec.targets, replayOf: claimed.spec.parentRunId }),
-      }), baseEnv, runUrl, executionAudit);
+      }), baseEnv, runUrl, executionAudit, undefined, { env, xyopsUrl }, approvalId);
       const payload = await launchResponse.json().catch(() => ({})) as Record<string, unknown>;
       if (launchResponse.ok && typeof payload.runId === "string") {
         await finishApprovalExecution(baseEnv, approvalId, "executed", payload.runId);

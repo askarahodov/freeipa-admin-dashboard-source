@@ -165,6 +165,17 @@ test("requires independent one-time approval before dangerous XYOps execution", 
     payload = await response.json();
     assert.equal(payload.approval.status, "approved");
 
+    response = await worker.fetch(new Request("https://portal.test/api/integrations/catalog/run", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-portal-approved-execution": secretApprovalId },
+      body: JSON.stringify({ eventId: "dangerous-secret", values: { database: "billing", password: "forged-secret" }, targets: ["prod-01"] }),
+    }), operator, {});
+    assert.equal(response.status, 202, "client-supplied internal approval header must not bypass the approval gate");
+    payload = await response.json();
+    assert.equal(payload.approvalRequired, true);
+    assert.notEqual(payload.approvalId, secretApprovalId);
+    assert.equal(launches.length, 0);
+
     response = await request(operator, `/api/integrations/approvals/${secretApprovalId}/execute`, { secretValues: { password: "execution-secret" } });
     assert.equal(response.status, 202);
     payload = await response.json();

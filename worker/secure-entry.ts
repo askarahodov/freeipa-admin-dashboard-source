@@ -1,4 +1,4 @@
-import runtime from "./index";
+import runtime from "./freeipa-http-entry.ts";
 import { appendAuditEvent, createAuditContext, type AuditContext } from "../audit-log";
 import { resolvedAuthRequestContext } from "../src/auth/resolved-auth-request-context.ts";
 import type { PortalRequestContext } from "../src/auth/portal-request-context.ts";

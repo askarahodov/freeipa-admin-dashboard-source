@@ -6,6 +6,7 @@ test("user browser exposes RBAC-aware bulk controls and filtered CSV export", ()
   const component = fs.readFileSync(new URL("../../app/directory/FreeIpaUserBrowser.tsx", import.meta.url), "utf8");
   const owner = fs.readFileSync(new URL("../../worker/freeipa-http-entry.ts", import.meta.url), "utf8");
   const selectiveRoot = fs.readFileSync(new URL("../../worker/backup-selective-restore-root-entry.ts", import.meta.url), "utf8");
+  const secureEntry = fs.readFileSync(new URL("../../worker/secure-entry.ts", import.meta.url), "utf8");
   const maintenanceControlRoot = fs.readFileSync(new URL("../../worker/maintenance-control-root-entry.ts", import.meta.url), "utf8");
   const serviceAdminGate = fs.readFileSync(new URL("../../worker/middleware/service-admin-authentication.ts", import.meta.url), "utf8");
   const maintenanceGate = fs.readFileSync(new URL("../../worker/maintenance-mode-gate.ts", import.meta.url), "utf8");
@@ -31,11 +32,12 @@ test("user browser exposes RBAC-aware bulk controls and filtered CSV export", ()
   assert.equal(owner.includes("bulkConcurrency = 3"), true);
   assert.equal(owner.includes("207"), true);
   assert.equal(owner.includes("csvCell"), true);
-  assert.equal(owner.includes("sessionRuntime.fetch"), true);
+  assert.equal(owner.includes("integrationRuntime.fetch"), true);
   assert.equal(owner.includes("/api/integrations/freeipa/actions"), true);
   assert.equal(owner.includes("/api/integrations/groups/members"), true);
 
-  assert.equal(selectiveRoot.includes('import rootRuntime from "./freeipa-http-entry.ts"'), true);
+  assert.equal(selectiveRoot.includes('import rootRuntime from "./session-management-entry.ts"'), true);
+  assert.equal(secureEntry.includes('import runtime from "./freeipa-http-entry.ts"'), true);
   assert.equal(maintenanceControlRoot.includes('import rootRuntime from "./backup-selective-restore-root-entry.ts"'), true);
   assert.equal(serviceAdminGate.includes("serviceAdminTokenAuthorized(request, env.ADMIN_TOKEN)"), true);
   assert.equal(maintenanceGate.includes("rootRuntime"), false);

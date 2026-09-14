@@ -7,6 +7,7 @@ test("user browser uses the shared FreeIPA action contract and exposes server qu
   const events = fs.readFileSync(new URL("../../src/freeipa/freeipa-ui-events.ts", import.meta.url), "utf8");
   const owner = fs.readFileSync(new URL("../../worker/freeipa-http-entry.ts", import.meta.url), "utf8");
   const selectiveRoot = fs.readFileSync(new URL("../../worker/backup-selective-restore-root-entry.ts", import.meta.url), "utf8");
+  const secureEntry = fs.readFileSync(new URL("../../worker/secure-entry.ts", import.meta.url), "utf8");
   const maintenanceControlRoot = fs.readFileSync(new URL("../../worker/maintenance-control-root-entry.ts", import.meta.url), "utf8");
   const serviceAdminGate = fs.readFileSync(new URL("../../worker/middleware/service-admin-authentication.ts", import.meta.url), "utf8");
   const maintenanceGate = fs.readFileSync(new URL("../../worker/maintenance-mode-gate.ts", import.meta.url), "utf8");
@@ -31,8 +32,9 @@ test("user browser uses the shared FreeIPA action contract and exposes server qu
   assert.equal(owner.includes("queryFreeIpaUsers"), true);
   assert.equal(owner.includes("/api/integrations/freeipa/bulk"), true);
   assert.equal(owner.includes("/api/integrations/groups/members"), true);
-  assert.equal(owner.includes('import sessionRuntime from "./session-management-entry"'), true);
-  assert.equal(selectiveRoot.includes('import rootRuntime from "./freeipa-http-entry.ts"'), true);
+  assert.equal(owner.includes('import integrationRuntime from "./index"'), true);
+  assert.equal(selectiveRoot.includes('import rootRuntime from "./session-management-entry.ts"'), true);
+  assert.equal(secureEntry.includes('import runtime from "./freeipa-http-entry.ts"'), true);
   assert.equal(selectiveRoot.includes("return rootRuntime.fetch"), true);
   assert.equal(maintenanceControlRoot.includes('import rootRuntime from "./backup-selective-restore-root-entry.ts"'), true);
   assert.equal(serviceAdminGate.includes("serviceAdminTokenAuthorized(request, env.ADMIN_TOKEN)"), true);

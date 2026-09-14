@@ -502,7 +502,7 @@ async function handleSettingsApi(request: Request, env: Env, url: URL, audit: Au
   }
   if (request.method === "PUT" && url.pathname === "/api/integrations/settings") {
     if (!env.DB) return json({ error: "Persistent database is unavailable" }, 503);
-    if (!env.CONFIG_ENCRYPTION_KEY) return json({ error: "CONFIG_ENCRYPTION_KEY is not configured on the server" }, 503);
+    if (!env.CONFIG_ENCRYPTION_KEY) return json({ error: "CONFIG_ENCRYPTION_KEY is not configured" }, 503);
     let body: Record<string, unknown>;
     try { body = await request.json() as Record<string, unknown>; } catch { return json({ error: "Invalid JSON" }, 400); }
     try {

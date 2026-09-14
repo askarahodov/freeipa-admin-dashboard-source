@@ -1,26 +1,21 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { handleFreeIpaBaseRead } from "../../worker/freeipa-base-read.ts";
+import { readFreeIpaGroups, readFreeIpaUsers } from "../../worker/freeipa-base-read.ts";
 
 const liveEnv = () => ({
   IPA_USERNAME: "reader",
   IPA_PASSWORD: "secret",
 });
 
-test("base FreeIPA read owner ignores unrelated routes", async () => {
-  const response = await handleFreeIpaBaseRead(new Request("https://portal.test/api/integrations/status"), liveEnv(), "https://ipa.example.test");
-  assert.equal(response, null);
-});
+test("base FreeIPA reads preserve demo and unconfigured envelopes", async () => {
+  const demoUsers = await readFreeIpaUsers({ DEMO_MODE: "true" }, null);
+  assert.equal(demoUsers.status, 200);
+  assert.deepEqual(await demoUsers.json(), { mode: "demo", users: [] });
 
-test("base FreeIPA read owner preserves demo and unconfigured envelopes", async () => {
-  const demoUsers = await handleFreeIpaBaseRead(new Request("https://portal.test/api/integrations/users"), { DEMO_MODE: "true" }, null);
-  assert.equal(demoUsers?.status, 200);
-  assert.deepEqual(await demoUsers?.json(), { mode: "demo", users: [] });
-
-  const unconfiguredGroups = await handleFreeIpaBaseRead(new Request("https://portal.test/api/integrations/groups"), {}, null);
-  assert.equal(unconfiguredGroups?.status, 200);
-  assert.deepEqual(await unconfiguredGroups?.json(), { mode: "unconfigured", groups: [] });
+  const unconfiguredGroups = await readFreeIpaGroups({}, null);
+  assert.equal(unconfiguredGroups.status, 200);
+  assert.deepEqual(await unconfiguredGroups.json(), { mode: "unconfigured", groups: [] });
 });
 
 test("base FreeIPA users preserve normalized live projection", async () => {
@@ -44,9 +39,9 @@ test("base FreeIPA users preserve normalized live projection", async () => {
     }] }, error: null });
   };
   try {
-    const response = await handleFreeIpaBaseRead(new Request("https://portal.test/api/integrations/users"), liveEnv(), "https://ipa.example.test");
-    assert.equal(response?.status, 200);
-    assert.deepEqual(await response?.json(), { mode: "live", users: [{
+    const response = await readFreeIpaUsers(liveEnv(), "https://ipa.example.test");
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { mode: "live", users: [{
       uid: "asmirnov",
       name: "Смирнов Алексей",
       firstName: "Алексей",
@@ -75,9 +70,9 @@ test("base FreeIPA groups preserve membership fallback", async () => {
     throw new Error(`unexpected method: ${payload.method}`);
   };
   try {
-    const response = await handleFreeIpaBaseRead(new Request("https://portal.test/api/integrations/groups"), liveEnv(), "https://ipa.example.test");
-    assert.equal(response?.status, 200);
-    assert.deepEqual(await response?.json(), {
+    const response = await readFreeIpaGroups(liveEnv(), "https://ipa.example.test");
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), {
       mode: "live",
       source: "user_membership",
       degraded: true,

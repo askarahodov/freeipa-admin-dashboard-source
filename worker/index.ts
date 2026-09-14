@@ -3,7 +3,7 @@ import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } fr
 import handler from "vinext/server/app-router-entry";
 import type { AutomationRoute, CatalogEvent, RouteField } from "../src/automation/automation-types";
 import { fieldConditionMatches, normalizeFieldCondition } from "../src/automation/field-conditions";
-import { readRunReplay, saveRunReplay } from "../src/operations/run/run-replays";
+import { saveRunReplay } from "../src/operations/run/run-replays";
 import { catalogEventAllowed, readCatalogPolicySet, saveCatalogPolicySet } from "../src/operations/catalog/catalog-policies";
 import { approvalExecutionMatches, approvalRequirement, cancelApproval, claimApprovalExecution, createApprovalRequest, decideApproval, finishApprovalExecution, listApprovals, readApprovalPolicySet, readExecutingApproval, saveApprovalPolicySet } from "../src/operations/approvals/approval-gates";
 import { appendAuditEvent, auditCorrelationFor, auditErrorCode, createAuditContext, listAuditEvents, withAuditCorrelation, type AuditContext } from "../audit-log";
@@ -14,7 +14,7 @@ import { freeIpaRpc as ipaRpc } from "./freeipa-rpc.ts";
 import { decryptIntegrationSecrets as decryptSecrets, encryptIntegrationSecrets as encryptSecrets } from "./integration-settings-runtime.ts";
 import { portalAccess, requestActor, requirePortalPermission } from "./portal-access-runtime.ts";
 import { operationRun, saveOperationRun } from "./operation-run-runtime.ts";
-import { extractJobStages, listOperationRuns, publicRun, runStatus, xyopsPayloadSucceeded } from "./xyops-run-runtime.ts";
+import { extractJobStages, runStatus, xyopsPayloadSucceeded } from "./xyops-run-runtime.ts";
 
 interface Env {
   ASSETS: Fetcher;
@@ -644,6 +644,122 @@ function extractOptionValues(payload: unknown): string[] {
   return [];
 }
 
+type CatalogRunReplayGuard = {
+  expectedSchemaVersion: string;
+  dangerousConfirmed: boolean;
+  sourceRunId: string;
+  sourceJobId: string;
+  previousStatus: string;
+};
+
+export async function handleCatalogRunRequest(
+  request: Request,
+  baseEnv: Env,
+  url: URL,
+  inheritedAudit?: AuditContext,
+  replayGuard?: CatalogRunReplayGuard,
+  resolvedRuntime?: { env: Env; xyopsUrl: string | null },
+): Promise<Response> {
+  const audit = inheritedAudit ?? createAuditContext(portalAccess(request, baseEnv));
+  const env = resolvedRuntime?.env ?? await effectiveEnv(baseEnv);
+  const xyopsUrl = resolvedRuntime?.xyopsUrl ?? cleanBaseUrl(env.XYOPS_URL);
+  const denied = requirePortalPermission(request, baseEnv, "xyops.run");
+  if (denied) return denied;
+  let body: Record<string, unknown>;
+  try { body = await request.json() as Record<string, unknown>; } catch { return json({ error: "Invalid JSON" }, 400); }
+  const eventId = typeof body.eventId === "string" ? body.eventId : "";
+  const values = body.values && typeof body.values === "object" && !Array.isArray(body.values) ? body.values as Record<string, unknown> : {};
+  try {
+    const catalog = await loadCatalog(env, xyopsUrl);
+    if (catalog.mode === "unconfigured") return json({ error: "XYOps is not configured" }, 503);
+    const event = catalog.events.find((item) => item.id === eventId && item.enabled);
+    if (!event) return replayGuard
+      ? json({ error: "Исходный процесс отсутствует или отключён" }, 409)
+      : json({ error: "XYOps process not found or disabled" }, 404);
+    const access = portalAccess(request, baseEnv);
+    const policyState = await readCatalogPolicySet(baseEnv);
+    if (!catalogEventAllowed(policyState.policy, access, event)) return replayGuard
+      ? json({ error: "Процесс недоступен по политике каталога" }, 404)
+      : json({ error: "XYOps process not found or disabled" }, 404);
+    if (replayGuard?.expectedSchemaVersion && (!event.schemaVersion || event.schemaVersion !== replayGuard.expectedSchemaVersion)) {
+      return json({ error: "Схема процесса изменилась. Откройте актуальную форму и проверьте параметры заново.", schemaChanged: true }, 409);
+    }
+    if (replayGuard && event.dangerous && !replayGuard.dangerousConfirmed) {
+      return json({ error: "Для опасного процесса требуется повторное подтверждение", requiresConfirmation: true }, 409);
+    }
+    if (replayGuard) {
+      await appendAuditEvent(baseEnv, audit, {
+        action: "xyops.run.rerun_requested", resourceType: "xyops_run", resourceId: replayGuard.sourceRunId,
+        eventId: event.id, schemaVersion: replayGuard.expectedSchemaVersion, runId: replayGuard.sourceRunId,
+        jobId: replayGuard.sourceJobId, outcome: "pending", metadata: { previousStatus: replayGuard.previousStatus },
+      }).catch(() => {});
+    }
+    const presentationState = await readProcessPresentationSet(baseEnv);
+    const displayEvent = applyProcessPresentation([event], presentationState.metadata, presentationLocalePreferences(url.searchParams.get("locale"), request.headers.get("accept-language")))[0] ?? event;
+    const requestedTargets = Array.isArray(body.targets) ? body.targets.map(String) : [];
+    if (event.targets.length && requestedTargets.some((target) => !event.targets.includes(target))) return json({ error: "Unsupported target" }, 400);
+    const params: Record<string, unknown> = { source: "xyops-self-service" };
+    const inputData: Record<string, unknown> = { source: "xyops-self-service" };
+    const workflowData: Record<string, unknown> = {};
+    for (const field of event.fields) {
+      if (!fieldVisible(field, values)) continue;
+      const value = coerceField(field, values[field.key]);
+      if (value === null) return json({ error: `Invalid or missing field: ${field.key}` }, 400);
+      if (value === "" && !field.required) continue;
+      if (field.target === "workflowData") workflowData[field.key] = value;
+      else if (field.target === "input") inputData[field.key] = value;
+      else params[field.key] = value;
+    }
+    const launchPayload = { id: event.id, params, input: { data: inputData }, ...(event.kind === "workflow" ? { workflowData } : {}), ...(requestedTargets.length ? { targets: requestedTargets } : event.targets.length === 1 ? { targets: event.targets } : {}) };
+    const approvalExecutionId = String(request.headers.get("x-portal-approved-execution") ?? "").slice(0, 160);
+    if (approvalExecutionId) {
+      const executing = await readExecutingApproval(baseEnv, approvalExecutionId, access);
+      if (!executing || !await approvalExecutionMatches(executing.spec, event, values, requestedTargets)) return json({ error: "Недействительное или использованное согласование" }, 409);
+    } else {
+      const approvalPolicy = await readApprovalPolicySet(baseEnv);
+      const requirement = approvalRequirement(approvalPolicy.policy, access, event);
+      if (requirement) {
+        const approval = await createApprovalRequest(baseEnv, displayEvent, access, values, requestedTargets, requirement, typeof body.replayOf === "string" ? body.replayOf : "");
+        await appendAuditEvent(baseEnv, audit, { action: "approval.requested", resourceType: "approval", resourceId: approval.id, eventId: event.id, schemaVersion: event.schemaVersion, approvalId: approval.id, outcome: "pending", metadata: { category: event.category, kind: event.kind, targets: requestedTargets, fieldKeys: event.fields.filter((field) => fieldVisible(field, values)).map((field) => field.key), requiredApprovals: requirement.requiredApprovals, ruleId: requirement.ruleId, replayOf: typeof body.replayOf === "string" ? body.replayOf : "" } }).catch(() => {});
+        return json({ approvalRequired: true, approvalId: approval.id, status: approval.status, approval }, 202);
+      }
+    }
+    if (catalog.mode === "demo" || !xyopsUrl || !env.XYOPS_API_KEY) {
+      const run = operationRun({ request, eventId: event.id, title: displayEvent.title, kind: event.kind, mode: "demo", jobId: `DEMO-${Date.now()}`, status: "success", values, targets: requestedTargets });
+      await saveOperationRun(baseEnv, run);
+      await saveRunReplay(baseEnv, run.id, event, values, requestedTargets, typeof body.replayOf === "string" ? body.replayOf.slice(0, 160) : "");
+      await appendAuditEvent(baseEnv, audit, { action: "xyops.run", resourceType: "xyops_run", resourceId: run.id, eventId: event.id, schemaVersion: event.schemaVersion, approvalId: approvalExecutionId, runId: run.id, jobId: run.jobId, outcome: "success", metadata: { mode: "demo", kind: event.kind, targets: requestedTargets, replayOf: typeof body.replayOf === "string" ? body.replayOf : "" } }).catch(() => {});
+      return json({ mode: "demo", queued: true, runId: run.id, jobId: run.jobId, status: run.status, process: { id: event.id, title: displayEvent.title, kind: event.kind } }, 202);
+    }
+    const response = await fetch(`${xyopsUrl}/api/app/run_event/v1`, { method: "POST", headers: { "content-type": "application/json", "x-api-key": env.XYOPS_API_KEY }, body: JSON.stringify(launchPayload), signal: AbortSignal.timeout(15000) });
+    const result = await response.json().catch(() => ({})) as Record<string, unknown>;
+    const resultData = result.data && typeof result.data === "object" ? result.data as Record<string, unknown> : {};
+    const jobId = String(result.job_id ?? result.jobId ?? result.id ?? resultData.job_id ?? "");
+    if (!response.ok) {
+      const retryAfter = String(response.headers.get("retry-after") ?? "").replace(/[^0-9A-Za-z, .:-]/g, "").slice(0, 120);
+      const portalStatus = response.status === 409 || response.status === 429 ? response.status : 502;
+      const message = response.status === 429 ? "XYOps ограничил частоту запусков" : response.status === 409 ? "XYOps не разрешил параллельный запуск" : "XYOps rejected run_event";
+      const run = operationRun({ request, eventId: event.id, title: displayEvent.title, kind: event.kind, mode: "live", jobId, status: "failed", values, targets: requestedTargets, error: message });
+      await saveOperationRun(baseEnv, run);
+      await saveRunReplay(baseEnv, run.id, event, values, requestedTargets, typeof body.replayOf === "string" ? body.replayOf.slice(0, 160) : "");
+      await appendAuditEvent(baseEnv, audit, { action: "xyops.run", resourceType: "xyops_run", resourceId: run.id, eventId: event.id, schemaVersion: event.schemaVersion, approvalId: approvalExecutionId, runId: run.id, jobId, outcome: "failure", errorCode: response.status === 429 ? "xyops_rate_limited" : response.status === 409 ? "xyops_concurrency_conflict" : "xyops_run_event_rejected", metadata: { httpStatus: response.status, retryAfter, kind: event.kind, targets: requestedTargets } }).catch(() => {});
+      return json({ error: message, runId: run.id, xyopsStatus: response.status, retryAfter: retryAfter || null }, portalStatus);
+    }
+    const reported = runStatus(result.status ?? result.state ?? resultData.status ?? resultData.state);
+    const run = operationRun({ request, eventId: event.id, title: displayEvent.title, kind: event.kind, mode: "live", jobId, status: reported === "unknown" ? "queued" : reported, values, targets: requestedTargets, stages: extractJobStages(result) });
+    await saveOperationRun(baseEnv, run);
+    await saveRunReplay(baseEnv, run.id, event, values, requestedTargets, typeof body.replayOf === "string" ? body.replayOf.slice(0, 160) : "");
+    await appendAuditEvent(baseEnv, audit, { action: "xyops.run", resourceType: "xyops_run", resourceId: run.id, eventId: event.id, schemaVersion: event.schemaVersion, approvalId: approvalExecutionId, runId: run.id, jobId: run.jobId, outcome: "success", metadata: { mode: "live", initialStatus: run.status, kind: event.kind, targets: requestedTargets, replayOf: typeof body.replayOf === "string" ? body.replayOf : "" } }).catch(() => {});
+    return json({ mode: "live", queued: true, runId: run.id, jobId: run.jobId, status: run.status, process: { id: event.id, title: displayEvent.title, kind: event.kind } }, 202);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "XYOps request failed";
+    const run = operationRun({ request, eventId: eventId || "unknown", title: eventId || "XYOps process", kind: "event", mode: "live", jobId: "", status: "failed", values, error: message });
+    await saveOperationRun(baseEnv, run);
+    await appendAuditEvent(baseEnv, audit, { action: "xyops.run", resourceType: "xyops_run", resourceId: run.id, eventId: eventId || "unknown", runId: run.id, outcome: "unknown", errorCode: auditErrorCode(error, "xyops_request_failed"), metadata: { fieldKeys: Object.keys(values).filter((key) => !/pass|secret|token|key/i.test(key)) } }).catch(() => {});
+    return json({ error: message, runId: run.id }, 502);
+  }
+}
+
 async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL, inheritedAudit?: AuditContext): Promise<Response> {
   if (request.method === "GET" && url.pathname === "/api/integrations/health") return json({ ok: true });
   const audit = inheritedAudit ?? createAuditContext(portalAccess(request, baseEnv));
@@ -849,73 +965,7 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL, in
     }
   }
 
-  const runActionMatch = url.pathname.match(/^\/api\/integrations\/runs\/([A-Za-z0-9_-]{1,160})\/(cancel|rerun)$/);
-  if (request.method === "POST" && runActionMatch) {
-    const denied = requirePortalPermission(request, baseEnv, "xyops.run");
-    if (denied) return denied;
-    const runId = runActionMatch[1];
-    const action = runActionMatch[2];
-    const run = (await listOperationRuns(baseEnv, 200)).find((item) => item.id === runId);
-    if (!run) return json({ error: "Запуск не найден" }, 404);
-    const runCorrelation = await auditCorrelationFor(baseEnv, { runId }).catch(() => null);
-    const runAudit = withAuditCorrelation(audit, runCorrelation);
 
-    if (action === "cancel") {
-      if (run.mode !== "live" || !["queued", "running", "unknown"].includes(run.status)) return json({ error: "Остановить можно только активное задание XYOps" }, 409);
-      if (!xyopsUrl || !env.XYOPS_API_KEY) return json({ error: "XYOps is not configured" }, 503);
-      if (!/^[a-z0-9_]+$/.test(run.jobId)) return json({ error: "Некорректный Job ID XYOps" }, 400);
-      try {
-        const response = await fetch(`${xyopsUrl}/api/app/abort_job/v1`, {
-          method: "POST",
-          headers: { "content-type": "application/json", "x-api-key": env.XYOPS_API_KEY, accept: "application/json" },
-          body: JSON.stringify({ id: run.jobId }),
-          signal: AbortSignal.timeout(15000),
-        });
-        const payload = await response.json().catch(() => null);
-        if (!response.ok || !xyopsPayloadSucceeded(payload)) return json({ error: "XYOps не подтвердил остановку задания" }, 502);
-        const now = Date.now();
-        run.status = "cancelled";
-        run.error = `Остановлено пользователем: ${requestActor(request)}`.slice(0, 500);
-        run.updatedAt = now;
-        run.completedAt = now;
-        await saveOperationRun(baseEnv, run);
-        await appendAuditEvent(baseEnv, runAudit, { action: "xyops.run.cancel", resourceType: "xyops_run", resourceId: run.id, eventId: run.eventId, runId: run.id, jobId: run.jobId, outcome: "success", metadata: { status: run.status } }).catch(() => {});
-        return json({ ok: true, action: "cancel", run: publicRun(run, undefined, undefined, true) });
-      } catch {
-        return json({ error: "Не удалось отправить команду остановки в XYOps" }, 502);
-      }
-    }
-
-    if (["queued", "running", "unknown"].includes(run.status)) return json({ error: "Активное задание нельзя запускать повторно" }, 409);
-    const replay = await readRunReplay(baseEnv, run.id);
-    if (!replay?.summary.replayable || !replay.spec) return json({ error: replay?.summary.reason || "Параметры безопасного повтора недоступны" }, 409);
-    try {
-      const catalog = await loadCatalog(env, xyopsUrl);
-      if (catalog.mode === "unconfigured") return json({ error: "XYOps is not configured" }, 503);
-      const event = catalog.events.find((item) => item.id === replay.spec?.eventId && item.enabled);
-      if (!event) return json({ error: "Исходный процесс отсутствует или отключён" }, 409);
-      const access = portalAccess(request, baseEnv);
-      const policyState = await readCatalogPolicySet(baseEnv);
-      if (!catalogEventAllowed(policyState.policy, access, event)) return json({ error: "Процесс недоступен по политике каталога" }, 404);
-      if (!event.schemaVersion || event.schemaVersion !== replay.summary.schemaVersion) return json({ error: "Схема процесса изменилась. Откройте актуальную форму и проверьте параметры заново.", schemaChanged: true }, 409);
-      let actionBody: Record<string, unknown> = {};
-      try { actionBody = await request.json() as Record<string, unknown>; } catch {}
-      if (event.dangerous && actionBody.confirm !== true) return json({ error: "Для опасного процесса требуется повторное подтверждение", requiresConfirmation: true }, 409);
-      const rerunUrl = new URL(request.url);
-      rerunUrl.pathname = "/api/integrations/catalog/run";
-      rerunUrl.search = "";
-      const headers = new Headers(request.headers);
-      headers.set("content-type", "application/json");
-      await appendAuditEvent(baseEnv, audit, { action: "xyops.run.rerun_requested", resourceType: "xyops_run", resourceId: run.id, eventId: replay.spec.eventId, schemaVersion: replay.summary.schemaVersion, runId: run.id, jobId: run.jobId, outcome: "pending", metadata: { previousStatus: run.status } }).catch(() => {});
-      return handleIntegrationApi(new Request(rerunUrl, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ eventId: replay.spec.eventId, values: replay.spec.values, targets: replay.spec.targets, replayOf: run.id }),
-      }), baseEnv, rerunUrl, audit);
-    } catch {
-      return json({ error: "Не удалось подготовить безопасный повтор запуска" }, 502);
-    }
-  }
 
   if (request.method === "GET" && url.pathname === "/api/integrations/routes") {
     const denied = requirePortalPermission(request, baseEnv, "settings.manage");
@@ -990,86 +1040,8 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL, in
   }
 
   if (request.method === "POST" && url.pathname === "/api/integrations/catalog/run") {
-    const denied = requirePortalPermission(request, baseEnv, "xyops.run");
-    if (denied) return denied;
-    let body: Record<string, unknown>;
-    try { body = await request.json() as Record<string, unknown>; } catch { return json({ error: "Invalid JSON" }, 400); }
-    const eventId = typeof body.eventId === "string" ? body.eventId : "";
-    const values = body.values && typeof body.values === "object" && !Array.isArray(body.values) ? body.values as Record<string, unknown> : {};
-    try {
-      const catalog = await loadCatalog(env, xyopsUrl);
-      if (catalog.mode === "unconfigured") return json({ error: "XYOps is not configured" }, 503);
-      const event = catalog.events.find((item) => item.id === eventId && item.enabled);
-      if (!event) return json({ error: "XYOps process not found or disabled" }, 404);
-      const access = portalAccess(request, baseEnv);
-      const policyState = await readCatalogPolicySet(baseEnv);
-      if (!catalogEventAllowed(policyState.policy, access, event)) return json({ error: "XYOps process not found or disabled" }, 404);
-      const presentationState = await readProcessPresentationSet(baseEnv);
-      const displayEvent = applyProcessPresentation([event], presentationState.metadata, presentationLocalePreferences(url.searchParams.get("locale"), request.headers.get("accept-language")))[0] ?? event;
-      const requestedTargets = Array.isArray(body.targets) ? body.targets.map(String) : [];
-      if (event.targets.length && requestedTargets.some((target) => !event.targets.includes(target))) return json({ error: "Unsupported target" }, 400);
-      const params: Record<string, unknown> = { source: "xyops-self-service" };
-      const inputData: Record<string, unknown> = { source: "xyops-self-service" };
-      const workflowData: Record<string, unknown> = {};
-      for (const field of event.fields) {
-        if (!fieldVisible(field, values)) continue;
-        const value = coerceField(field, values[field.key]);
-        if (value === null) return json({ error: `Invalid or missing field: ${field.key}` }, 400);
-        if (value === "" && !field.required) continue;
-        if (field.target === "workflowData") workflowData[field.key] = value;
-        else if (field.target === "input") inputData[field.key] = value;
-        else params[field.key] = value;
-      }
-      const launchPayload = { id: event.id, params, input: { data: inputData }, ...(event.kind === "workflow" ? { workflowData } : {}), ...(requestedTargets.length ? { targets: requestedTargets } : event.targets.length === 1 ? { targets: event.targets } : {}) };
-      const approvalExecutionId = String(request.headers.get("x-portal-approved-execution") ?? "").slice(0, 160);
-      if (approvalExecutionId) {
-        const executing = await readExecutingApproval(baseEnv, approvalExecutionId, access);
-        if (!executing || !await approvalExecutionMatches(executing.spec, event, values, requestedTargets)) return json({ error: "Недействительное или использованное согласование" }, 409);
-      } else {
-        const approvalPolicy = await readApprovalPolicySet(baseEnv);
-        const requirement = approvalRequirement(approvalPolicy.policy, access, event);
-        if (requirement) {
-          const approval = await createApprovalRequest(baseEnv, displayEvent, access, values, requestedTargets, requirement, typeof body.replayOf === "string" ? body.replayOf : "");
-          await appendAuditEvent(baseEnv, audit, { action: "approval.requested", resourceType: "approval", resourceId: approval.id, eventId: event.id, schemaVersion: event.schemaVersion, approvalId: approval.id, outcome: "pending", metadata: { category: event.category, kind: event.kind, targets: requestedTargets, fieldKeys: event.fields.filter((field) => fieldVisible(field, values)).map((field) => field.key), requiredApprovals: requirement.requiredApprovals, ruleId: requirement.ruleId, replayOf: typeof body.replayOf === "string" ? body.replayOf : "" } }).catch(() => {});
-          return json({ approvalRequired: true, approvalId: approval.id, status: approval.status, approval }, 202);
-        }
-      }
-      if (catalog.mode === "demo" || !xyopsUrl || !env.XYOPS_API_KEY) {
-        const run = operationRun({ request, eventId: event.id, title: displayEvent.title, kind: event.kind, mode: "demo", jobId: `DEMO-${Date.now()}`, status: "success", values, targets: requestedTargets });
-        await saveOperationRun(baseEnv, run);
-        await saveRunReplay(baseEnv, run.id, event, values, requestedTargets, typeof body.replayOf === "string" ? body.replayOf.slice(0, 160) : "");
-        await appendAuditEvent(baseEnv, audit, { action: "xyops.run", resourceType: "xyops_run", resourceId: run.id, eventId: event.id, schemaVersion: event.schemaVersion, approvalId: approvalExecutionId, runId: run.id, jobId: run.jobId, outcome: "success", metadata: { mode: "demo", kind: event.kind, targets: requestedTargets, replayOf: typeof body.replayOf === "string" ? body.replayOf : "" } }).catch(() => {});
-        return json({ mode: "demo", queued: true, runId: run.id, jobId: run.jobId, status: run.status, process: { id: event.id, title: displayEvent.title, kind: event.kind } }, 202);
-      }
-      const response = await fetch(`${xyopsUrl}/api/app/run_event/v1`, { method: "POST", headers: { "content-type": "application/json", "x-api-key": env.XYOPS_API_KEY }, body: JSON.stringify(launchPayload), signal: AbortSignal.timeout(15000) });
-      const result = await response.json().catch(() => ({})) as Record<string, unknown>;
-      const resultData = result.data && typeof result.data === "object" ? result.data as Record<string, unknown> : {};
-      const jobId = String(result.job_id ?? result.jobId ?? result.id ?? resultData.job_id ?? "");
-      if (!response.ok) {
-        const retryAfter = String(response.headers.get("retry-after") ?? "").replace(/[^0-9A-Za-z, .:-]/g, "").slice(0, 120);
-        const portalStatus = response.status === 409 || response.status === 429 ? response.status : 502;
-        const message = response.status === 429 ? "XYOps ограничил частоту запусков" : response.status === 409 ? "XYOps не разрешил параллельный запуск" : "XYOps rejected run_event";
-        const run = operationRun({ request, eventId: event.id, title: displayEvent.title, kind: event.kind, mode: "live", jobId, status: "failed", values, targets: requestedTargets, error: message });
-        await saveOperationRun(baseEnv, run);
-        await saveRunReplay(baseEnv, run.id, event, values, requestedTargets, typeof body.replayOf === "string" ? body.replayOf.slice(0, 160) : "");
-        await appendAuditEvent(baseEnv, audit, { action: "xyops.run", resourceType: "xyops_run", resourceId: run.id, eventId: event.id, schemaVersion: event.schemaVersion, approvalId: approvalExecutionId, runId: run.id, jobId, outcome: "failure", errorCode: response.status === 429 ? "xyops_rate_limited" : response.status === 409 ? "xyops_concurrency_conflict" : "xyops_run_event_rejected", metadata: { httpStatus: response.status, retryAfter, kind: event.kind, targets: requestedTargets } }).catch(() => {});
-        return json({ error: message, runId: run.id, xyopsStatus: response.status, retryAfter: retryAfter || null }, portalStatus);
-      }
-      const reported = runStatus(result.status ?? result.state ?? resultData.status ?? resultData.state);
-      const run = operationRun({ request, eventId: event.id, title: displayEvent.title, kind: event.kind, mode: "live", jobId, status: reported === "unknown" ? "queued" : reported, values, targets: requestedTargets, stages: extractJobStages(result) });
-      await saveOperationRun(baseEnv, run);
-      await saveRunReplay(baseEnv, run.id, event, values, requestedTargets, typeof body.replayOf === "string" ? body.replayOf.slice(0, 160) : "");
-      await appendAuditEvent(baseEnv, audit, { action: "xyops.run", resourceType: "xyops_run", resourceId: run.id, eventId: event.id, schemaVersion: event.schemaVersion, approvalId: approvalExecutionId, runId: run.id, jobId: run.jobId, outcome: "success", metadata: { mode: "live", initialStatus: run.status, kind: event.kind, targets: requestedTargets, replayOf: typeof body.replayOf === "string" ? body.replayOf : "" } }).catch(() => {});
-      return json({ mode: "live", queued: true, runId: run.id, jobId: run.jobId, status: run.status, process: { id: event.id, title: displayEvent.title, kind: event.kind } }, 202);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "XYOps request failed";
-      const run = operationRun({ request, eventId: eventId || "unknown", title: eventId || "XYOps process", kind: "event", mode: "live", jobId: "", status: "failed", values, error: message });
-      await saveOperationRun(baseEnv, run);
-      await appendAuditEvent(baseEnv, audit, { action: "xyops.run", resourceType: "xyops_run", resourceId: run.id, eventId: eventId || "unknown", runId: run.id, outcome: "unknown", errorCode: auditErrorCode(error, "xyops_request_failed"), metadata: { fieldKeys: Object.keys(values).filter((key) => !/pass|secret|token|key/i.test(key)) } }).catch(() => {});
-      return json({ error: message, runId: run.id }, 502);
-    }
+    return handleCatalogRunRequest(request, baseEnv, url, audit, undefined, { env, xyopsUrl });
   }
-
 
   if (request.method === "POST" && url.pathname === "/api/integrations/actions") {
     const denied = requirePortalPermission(request, baseEnv, "xyops.run");

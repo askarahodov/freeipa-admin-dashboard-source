@@ -1,10 +1,12 @@
-import integrationRuntime from "./index";
+import integrationRuntime, { handleCatalogRunRequest } from "./index";
 import { listRunNotifications, markRunNotificationsRead } from "../src/operations/run/run-notifications.ts";
-import { listRunReplaySummaries } from "../src/operations/run/run-replays.ts";
+import { readRunReplay, listRunReplaySummaries } from "../src/operations/run/run-replays.ts";
 import { listRunResults, readRunResultFile } from "../src/operations/run/run-results.ts";
+import { appendAuditEvent, auditCorrelationFor, createAuditContext, withAuditCorrelation } from "../audit-log";
+import { saveOperationRun } from "./operation-run-runtime.ts";
 import { effectiveXyOpsRuntime, type XyOpsSettingsEnv } from "./integration-settings-runtime.ts";
-import { portalAccess, requirePortalPermission } from "./portal-access-runtime.ts";
-import { listOperationRuns, publicRun, syncOperationRuns } from "./xyops-run-runtime.ts";
+import { portalAccess, requestActor, requirePortalPermission } from "./portal-access-runtime.ts";
+import { listOperationRuns, publicRun, syncOperationRuns, xyopsPayloadSucceeded } from "./xyops-run-runtime.ts";
 
 type RuntimeEnv = NonNullable<Parameters<typeof integrationRuntime.fetch>[1]> & XyOpsSettingsEnv;
 type RuntimeContext = Parameters<typeof integrationRuntime.fetch>[2];
@@ -109,11 +111,82 @@ async function handleRunsList(request: Request, env: RuntimeEnv, url: URL): Prom
   });
 }
 
+async function handleRunAction(
+  request: Request,
+  env: RuntimeEnv,
+  runId: string,
+  action: "cancel" | "rerun",
+): Promise<Response> {
+  const denied = requirePortalPermission(request, env, "xyops.run");
+  if (denied) return denied;
+
+  const run = (await listOperationRuns(env, 200)).find((item) => item.id === runId);
+  if (!run) return json({ error: "Запуск не найден" }, 404);
+  const audit = createAuditContext(portalAccess(request, env));
+
+  if (action === "cancel") {
+    if (run.mode !== "live" || !["queued", "running", "unknown"].includes(run.status)) {
+      return json({ error: "Остановить можно только активное задание XYOps" }, 409);
+    }
+    const runtime = await effectiveXyOpsRuntime(env);
+    if (!runtime.xyopsUrl || !runtime.env.XYOPS_API_KEY) return json({ error: "XYOps is not configured" }, 503);
+    if (!/^[a-z0-9_]+$/.test(run.jobId)) return json({ error: "Некорректный Job ID XYOps" }, 400);
+    try {
+      const response = await fetch(`${runtime.xyopsUrl}/api/app/abort_job/v1`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-api-key": runtime.env.XYOPS_API_KEY, accept: "application/json" },
+        body: JSON.stringify({ id: run.jobId }),
+        signal: AbortSignal.timeout(15000),
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || !xyopsPayloadSucceeded(payload)) return json({ error: "XYOps не подтвердил остановку задания" }, 502);
+      const now = Date.now();
+      run.status = "cancelled";
+      run.error = `Остановлено пользователем: ${requestActor(request)}`.slice(0, 500);
+      run.updatedAt = now;
+      run.completedAt = now;
+      await saveOperationRun(env, run);
+      const runCorrelation = await auditCorrelationFor(env, { runId }).catch(() => null);
+      await appendAuditEvent(env, withAuditCorrelation(audit, runCorrelation), {
+        action: "xyops.run.cancel", resourceType: "xyops_run", resourceId: run.id,
+        eventId: run.eventId, runId: run.id, jobId: run.jobId, outcome: "success", metadata: { status: run.status },
+      }).catch(() => {});
+      return json({ ok: true, action: "cancel", run: publicRun(run, undefined, undefined, true) });
+    } catch {
+      return json({ error: "Не удалось отправить команду остановки в XYOps" }, 502);
+    }
+  }
+
+  if (["queued", "running", "unknown"].includes(run.status)) return json({ error: "Активное задание нельзя запускать повторно" }, 409);
+  const replay = await readRunReplay(env, run.id);
+  if (!replay?.summary.replayable || !replay.spec) return json({ error: replay?.summary.reason || "Параметры безопасного повтора недоступны" }, 409);
+
+  let actionBody: Record<string, unknown> = {};
+  try { actionBody = await request.json() as Record<string, unknown>; } catch {}
+  const rerunUrl = new URL(request.url);
+  rerunUrl.pathname = "/api/integrations/catalog/run";
+  rerunUrl.search = "";
+  const headers = new Headers(request.headers);
+  headers.set("content-type", "application/json");
+  const rerunRequest = new Request(rerunUrl, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ eventId: replay.spec.eventId, values: replay.spec.values, targets: replay.spec.targets, replayOf: run.id }),
+  });
+  return handleCatalogRunRequest(rerunRequest, env, rerunUrl, audit, {
+    expectedSchemaVersion: replay.summary.schemaVersion,
+    dangerousConfirmed: actionBody.confirm === true,
+    sourceRunId: run.id,
+    sourceJobId: run.jobId,
+    previousStatus: run.status,
+  });
+}
+
 /**
- * First #632 operations owner. Read-side run history/result-file delivery and
- * per-identity run notifications live here after the established security and
- * FreeIPA adapters. Mutating run/catalog/approval routes intentionally remain
- * in the central integration runtime for the next bounded slices.
+ * #632 operations owner. Run history/result-file delivery, per-identity run
+ * notifications, and checkpoint-B cancel/rerun composition live here after the
+ * established security and FreeIPA adapters. Catalog execution and approval
+ * orchestration intentionally remain in the central integration runtime.
  */
 const worker = {
   async fetch(request: Request, env: RuntimeEnv | undefined, ctx: RuntimeContext): Promise<Response> {
@@ -125,6 +198,10 @@ const worker = {
     }
     if (request.method === "POST" && url.pathname === "/api/integrations/notifications/read") {
       return handleNotificationsRead(request, sourceEnv);
+    }
+    const runActionMatch = url.pathname.match(/^\/api\/integrations\/runs\/([A-Za-z0-9_-]{1,160})\/(cancel|rerun)$/);
+    if (request.method === "POST" && runActionMatch) {
+      return handleRunAction(request, sourceEnv, runActionMatch[1], runActionMatch[2] as "cancel" | "rerun");
     }
     const runFileMatch = url.pathname.match(/^\/api\/integrations\/runs\/([A-Za-z0-9_-]{1,160})\/files\/([A-Za-z0-9_-]{1,160})$/);
     if (request.method === "GET" && runFileMatch) {

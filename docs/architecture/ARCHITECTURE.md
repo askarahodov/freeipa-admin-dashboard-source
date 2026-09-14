@@ -250,9 +250,9 @@ Storage status, integrity inspection and migration preflight/apply expose bounde
 
 Use:
 
-- [`operations/STORAGE_STATUS.md`](../operations/STORAGE_STATUS.md);
-- [`operations/STORAGE_INTEGRITY.md`](../operations/STORAGE_INTEGRITY.md);
-- [`operations/DATABASE_MIGRATIONS.md`](../operations/DATABASE_MIGRATIONS.md).
+- [`operations/STORAGE_STATUS.md`](../operations/STORAGE_STATUS.md)
+- [`operations/STORAGE_INTEGRITY.md`](../operations/STORAGE_INTEGRITY.md)
+- [`operations/DATABASE_MIGRATIONS.md`](../operations/DATABASE_MIGRATIONS.md)
 
 ## Current architectural constraints
 

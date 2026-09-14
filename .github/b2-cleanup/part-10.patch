@@ -1,0 +1,44 @@
+--- a/docs/architecture/WORKER_COMPOSITION.md
++++ b/docs/architecture/WORKER_COMPOSITION.md
+@@ -257,14 +256,15 @@
+ 6. `security-composition.ts` owns the controlled storage migration apply/status/reconcile gate through `middleware/storage-migration-apply.ts`; handled responses short-circuit before maintenance, while unrelated traffic keeps the same request/env/context identities;
+ 7. the same composition point executes `maintenance-mode-gate.ts` for non-health HTTP and scheduled work, preserving recovery allowlists, fail-closed state-unavailable behavior and scheduled suppression before service-admin;
+ 8. the outer service-admin gate is explicit in `middleware/service-admin-authentication.ts`, while local-session/settings/FreeIPA/operations/recovery compatibility paths remain authoritative for their remaining security enforcement, handler selection and returned status;
+-9. at the historical protected-domain position, `backup-selective-restore-root-entry.ts` now owns selective/encrypted/preview backup predispatch and delegates to one `freeipa-http-entry.ts` compatibility owner instead of the former three FreeIPA wrappers;
+-10. `freeipa-http-entry.ts` owns query/filter projection, CSV export, bulk orchestration, group-member projection and status permission projection, while delegating base users/groups/status/actions to the same downstream runtime as before; base users/groups/actions still remain in `worker/index.ts` pending checkpoint B;
+-11. after non-health downstream execution, `application-router.ts` canonicalizes only matching negative outcomes: `method-not-allowed + downstream 405` to `{ "error": "Method not allowed" }`, and `unknown-api + downstream 404` to `{ "error": "Not found" }`, preserving non-content headers and `cache-control: no-store`;
+-12. the generic finalizer never promotes `401`, `403`, legacy `404` for a method mismatch, `409`, `429`, `5xx`, success, stable, supplemental or framework responses into a routing error; health-owned 405 responses are returned before this finalizer;
+-13. framework/static/RSC paths still reach the existing Vinext owner;
+-14. `scheduled` wiring stays explicit and separate from HTTP classification and both HTTP-only storage migration and service-admin gates.
++9. `backup-selective-restore-root-entry.ts` owns selective/encrypted/preview backup predispatch and delegates ordinary traffic back into the existing session/settings/security chain without cross-domain FreeIPA ownership;
++10. after local/session/settings compatibility handling, `secure-entry.ts` normalizes the accepted identity context and delegates to `freeipa-http-entry.ts`;
++11. `freeipa-http-entry.ts` owns base users/groups reads, query/filter projection, CSV export, group-member projection, bulk orchestration, status permission projection and direct FreeIPA actions, while unmatched traffic falls through to `worker/index.ts`;
++12. after non-health downstream execution, `application-router.ts` canonicalizes only matching negative outcomes: `method-not-allowed + downstream 405` to `{ "error": "Method not allowed" }`, and `unknown-api + downstream 404` to `{ "error": "Not found" }`, preserving non-content headers and `cache-control: no-store`;
++13. the generic finalizer never promotes `401`, `403`, legacy `404` for a method mismatch, `409`, `429`, `5xx`, success, stable, supplemental or framework responses into a routing error; health-owned 405 responses are returned before this finalizer;
++14. framework/static/RSC paths still reach the existing Vinext owner;
++15. `scheduled` wiring stays explicit and separate from HTTP classification and both HTTP-only storage migration and service-admin gates.
+ 
+-This checkpoint deliberately does **not** move protected non-health 404/405 status decisions ahead of security execution. The #631A FreeIPA consolidation also deliberately does not hoist protected handlers toward `application.ts`: it removes wrapper depth while preserving the established identity/security position. The next #631 slice must isolate base FreeIPA users/groups/actions from `worker/index.ts` without duplicating RPC/settings/audit/run ownership.
++This checkpoint deliberately does **not** move protected non-health 404/405 status decisions ahead of security execution. The #631 FreeIPA extraction likewise does not hoist protected handlers toward `application.ts`: it removes central/wrapper ownership while preserving the established identity/security position. Base FreeIPA reads/actions no longer dispatch from `worker/index.ts`, and access/run/action primitives are shared rather than duplicated.
+ 
+ The durable target and constraints remain captured in `docs/adr/ADR-0008-explicit-worker-application-composition.md`; ADR-0008 remains Proposed until the broader cutover evidence exists.
+ 
+@@ -300,7 +300,7 @@
+ - current authorization context is partly canonical and partly reconstructed from trusted legacy headers/env;
+ - service-admin and local-admin compatibility paths synthesize downstream identity/admin state;
+ - authenticated local administrator diagnostics remain in `diagnostics-entry.ts` as an auth/settings compatibility concern distinct from public health diagnostics;
+-- base FreeIPA users/groups/actions remain coupled in `worker/index.ts` to shared RPC/settings connection-test, operation-run persistence and audit helpers;
++- the central Worker still contains several independent non-FreeIPA integration/operation domains, so later extraction work must continue to preserve shared access/run/audit helpers instead of forking them;
+ - settings source behavior contains a real dispatch branch and DB/environment virtualization;
+ - catalog synchronization mixes identity adaptation, HTTP route ownership, persistence, audit and scheduled execution in `secure-entry.ts`;
+ - `worker/index.ts` combines framework hosting and several independent integration/operation domains;
+@@ -308,8 +308,7 @@
+ 
+ Remaining questions for later slices must be answered from tests/current code rather than assumed:
+ 
+-- how to extract base FreeIPA users/groups/actions and their RPC boundary from `worker/index.ts` without creating a second settings connection-test, operation-run or audit owner;
+-- whether the FreeIPA adapter should ultimately consume canonical request context directly at/after `secure-entry.ts`, and how to do so while preserving local/static/proxy/workspace semantics;
++- whether the FreeIPA adapter should eventually consume a structured canonical request context directly rather than the normalized trusted headers produced before/at `secure-entry.ts`, while preserving local/static/proxy/workspace semantics;
+ - how to retire remaining compatibility identity/env adaptation after route/domain owners can consume canonical request context directly, without changing route-specific local-session/same-origin ordering;
+ - whether each supplemental infrastructure API belongs in canonical stable route metadata or should remain a separate infrastructure classification owned by application composition;
+ - when the protected non-health negative status decision can move before compatibility dispatch without exposing route existence or bypassing existing auth behavior;

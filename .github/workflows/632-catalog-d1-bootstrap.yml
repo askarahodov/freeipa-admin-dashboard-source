@@ -1,0 +1,349 @@
+name: "#632 catalog D1 bootstrap"
+
+on:
+  push:
+    branches:
+      - tmp/632-catalog-d1-bootstrap
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply catalog D1 product changes
+        shell: bash
+        run: |
+          git checkout --detach fcb472044514a21b2ac1d6b170451b7ba2b95fec
+          git switch -c arch/632-catalog-read-owner
+          python - <<'PY'
+          from pathlib import Path
+
+          index = Path("worker/index.ts")
+          text = index.read_text()
+
+          type_start = text.index("type CatalogChange =")
+          type_end = text.index("// Image security config.", type_start)
+          type_block = text[type_start:type_end]
+          text = text[:type_start] + text[type_end:]
+
+          cache_start = text.index("async function readCatalogSnapshot")
+          cache_end = text.index("function cleanBaseUrl", cache_start)
+          cache_block = text[cache_start:cache_end]
+          text = text[:cache_start] + text[cache_end:]
+
+          helper_start = text.index("const allowedOperations =")
+          helper_end = text.index("type CatalogRunReplayGuard =", helper_start)
+          helper_block = text[helper_start:helper_end]
+          text = text[:helper_start] + text[helper_end:]
+
+          route_start = text.index('  if (request.method === "GET" && url.pathname === "/api/integrations/catalog") {')
+          route_end = text.index('  if (request.method === "POST" && url.pathname === "/api/integrations/catalog/run") {', route_start)
+          text = text[:route_start] + text[route_end:]
+
+          old_type_import = 'import type { AutomationRoute, CatalogEvent, RouteField } from "../src/automation/automation-types";'
+          if text.count(old_type_import) != 1:
+              raise SystemExit("central automation type import mismatch")
+          text = text.replace(old_type_import, 'import type { AutomationRoute } from "../src/automation/automation-types";', 1)
+
+          old_field_import = 'import { fieldConditionMatches, normalizeFieldCondition } from "../src/automation/field-conditions";\n'
+          if text.count(old_field_import) != 1:
+              raise SystemExit("central field-condition import mismatch")
+          text = text.replace(old_field_import, "", 1)
+
+          runtime_import_marker = 'import { extractJobStages, runStatus, xyopsPayloadSucceeded } from "./xyops-run-runtime.ts";\n'
+          catalog_import = 'import { allowedOperations, automationRoutes, coerceField, fieldVisible, loadCatalog, publicRoute, sanitizeRoutes } from "./xyops-catalog-runtime.ts";\n'
+          if text.count(runtime_import_marker) != 1:
+              raise SystemExit("central runtime import marker mismatch")
+          text = text.replace(runtime_import_marker, runtime_import_marker + catalog_import, 1)
+          index.write_text(text)
+
+          runtime = Path("worker/xyops-catalog-runtime.ts")
+          cache_block = cache_block.replace("env: Env", "env: XyOpsCatalogEnv")
+          helper_block = helper_block.replace("env: Env", "env: XyOpsCatalogEnv")
+          helper_block = helper_block.replace("const allowedOperations =", "export const allowedOperations =", 1)
+          for name in ["sanitizeRoutes", "automationRoutes", "publicRoute", "coerceField", "fieldVisible", "extractOptionValues"]:
+              helper_block = helper_block.replace(f"function {name}(", f"export function {name}(", 1)
+          helper_block = helper_block.replace("async function portalCatalog(", "export async function portalCatalog(", 1)
+          cache_block = cache_block.replace("async function listCatalogHistory(", "export async function listCatalogHistory(", 1)
+
+          runtime.write_text('''import type { AutomationRoute, CatalogEvent, RouteField } from "../src/automation/automation-types";
+          import { fieldConditionMatches, normalizeFieldCondition } from "../src/automation/field-conditions";
+          import { xyopsPayloadSucceeded } from "./xyops-run-runtime.ts";
+
+          export type XyOpsCatalogEnv = {
+            DB?: D1Database;
+            DEMO_MODE?: string;
+            XYOPS_API_KEY?: string;
+            XYOPS_EVENT_ID?: string;
+            XYOPS_ROUTES_JSON?: string;
+          };
+
+          function boolValue(value: unknown): boolean {
+            const raw = Array.isArray(value) ? value[0] : value;
+            if (typeof raw === "boolean") return raw;
+            return ["true", "1", "yes", "on"].includes(String(raw ?? "").toLowerCase());
+          }
+
+          ''' + type_block + cache_block + helper_block)
+
+          operations = Path("worker/operations-http-entry.ts")
+          text = operations.read_text()
+          old_central_import = 'import integrationRuntime, { handleCatalogRunRequest, loadCatalog, resolveCatalogRuntime } from "./index";'
+          if text.count(old_central_import) != 1:
+              raise SystemExit("operations central import mismatch")
+          text = text.replace(old_central_import, 'import integrationRuntime, { handleCatalogRunRequest, resolveCatalogRuntime } from "./index";', 1)
+
+          policy_marker = 'import { catalogEventAllowed, readCatalogPolicySet } from "../src/operations/catalog/catalog-policies.ts";\n'
+          presentation_import = 'import { applyProcessPresentation, availableProcessPresentationLocales, presentationLocalePreferences, readProcessPresentationSet, resolveProcessPresentationLocale } from "../src/operations/presentation/process-presentation.ts";\n'
+          if text.count(policy_marker) != 1:
+              raise SystemExit("operations catalog policy import mismatch")
+          text = text.replace(policy_marker, policy_marker + presentation_import, 1)
+
+          run_runtime_marker = 'import { listOperationRuns, publicRun, syncOperationRuns, xyopsPayloadSucceeded } from "./xyops-run-runtime.ts";\n'
+          catalog_runtime_import = 'import { extractOptionValues, listCatalogHistory, loadCatalog, portalCatalog } from "./xyops-catalog-runtime.ts";\n'
+          if text.count(run_runtime_marker) != 1:
+              raise SystemExit("operations run runtime import mismatch")
+          text = text.replace(run_runtime_marker, run_runtime_marker + catalog_runtime_import, 1)
+
+          handler_marker = 'async function handleApprovalsList(request: Request, env: RuntimeEnv, url: URL): Promise<Response> {'
+          catalog_handlers = '''async function handleCatalogRead(request: Request, env: RuntimeEnv, url: URL): Promise<Response> {
+            const runtime = await resolveCatalogRuntime(env);
+            try {
+              const catalog = await portalCatalog(runtime.env, runtime.xyopsUrl);
+              const access = portalAccess(request, env);
+              const policyState = await readCatalogPolicySet(env);
+              const sourceEvents = catalog.events.filter((event) => catalogEventAllowed(policyState.policy, access, event));
+              const visibleIds = new Set(sourceEvents.map((event) => event.id));
+              const changes = catalog.changes.filter((change) => visibleIds.has(change.id) || catalogEventAllowed(policyState.policy, access, { id: change.id, category: "" }));
+              const presentationState = await readProcessPresentationSet(env);
+              const localePreferences = presentationLocalePreferences(url.searchParams.get("locale"), request.headers.get("accept-language"));
+              const resolvedLocale = resolveProcessPresentationLocale(presentationState.metadata, localePreferences);
+              const availableLocales = availableProcessPresentationLocales(presentationState.metadata);
+              const events = applyProcessPresentation(sourceEvents, presentationState.metadata, localePreferences);
+              const response = json({ ...catalog, events, changes, policy: { source: policyState.source, filtered: sourceEvents.length !== catalog.events.length }, presentation: { source: presentationState.source, updatedAt: presentationState.updatedAt, locale: resolvedLocale, availableLocales } });
+              response.headers.set("vary", "Accept-Language");
+              if (resolvedLocale) response.headers.set("content-language", resolvedLocale);
+              return response;
+            } catch (error) {
+              return json({ error: error instanceof Error ? error.message : "XYOps catalog request failed" }, 502);
+            }
+          }
+
+          async function handleCatalogHistory(env: RuntimeEnv, url: URL): Promise<Response> {
+            const limit = Number(url.searchParams.get("limit") ?? 20);
+            try { return json({ persistenceAvailable: Boolean(env.DB), history: await listCatalogHistory(env, Number.isFinite(limit) ? limit : 20) }); }
+            catch { return json({ persistenceAvailable: Boolean(env.DB), history: [] }); }
+          }
+
+          async function handleCatalogOptions(request: Request, env: RuntimeEnv, url: URL): Promise<Response> {
+            const runtime = await resolveCatalogRuntime(env);
+            if (!runtime.xyopsUrl || !runtime.env.XYOPS_API_KEY) return json({ error: "XYOps is not configured" }, 503);
+            try {
+              const catalog = await loadCatalog(runtime.env, runtime.xyopsUrl);
+              const event = catalog.events.find((item) => item.id === url.searchParams.get("eventId"));
+              const access = portalAccess(request, env);
+              const policyState = await readCatalogPolicySet(env);
+              if (!event || !catalogEventAllowed(policyState.policy, access, event)) return json({ error: "XYOps process not found" }, 404);
+              const field = event.fields.find((item) => item.key === url.searchParams.get("fieldKey"));
+              if (!field?.optionsSource) return json({ error: "Dynamic option source not found" }, 404);
+              const endpoint = new URL(`${runtime.xyopsUrl}${field.optionsSource.endpoint}`);
+              const query = String(url.searchParams.get("query") ?? "").slice(0, 200);
+              if (query) endpoint.searchParams.set(field.optionsSource.queryParam ?? "query", query);
+              const response = await fetch(endpoint, { headers: { "x-api-key": runtime.env.XYOPS_API_KEY, accept: "application/json" }, signal: AbortSignal.timeout(12000) });
+              if (!response.ok) return json({ error: "XYOps option provider failed" }, 502);
+              return json({ options: extractOptionValues(await response.json().catch(() => null)) });
+            } catch (error) {
+              return json({ error: error instanceof Error ? error.message : "Cannot load options" }, 502);
+            }
+          }
+
+          '''
+          if text.count(handler_marker) != 1:
+              raise SystemExit("operations handler marker mismatch")
+          text = text.replace(handler_marker, catalog_handlers + handler_marker, 1)
+
+          dispatch_marker = '    if (request.method === "GET" && url.pathname === "/api/integrations/approvals") {\n'
+          catalog_dispatch = '''    if (request.method === "GET" && url.pathname === "/api/integrations/catalog") {
+              return handleCatalogRead(request, sourceEnv, url);
+            }
+            if (request.method === "GET" && url.pathname === "/api/integrations/catalog/history") {
+              return handleCatalogHistory(sourceEnv, url);
+            }
+            if (request.method === "GET" && url.pathname === "/api/integrations/catalog/options") {
+              return handleCatalogOptions(request, sourceEnv, url);
+            }
+          '''
+          if text.count(dispatch_marker) != 1:
+              raise SystemExit("operations dispatch marker mismatch")
+          text = text.replace(dispatch_marker, catalog_dispatch + dispatch_marker, 1)
+
+          old_comment = ''' * #632 operations owner. Run history/result-file delivery, per-identity run
+           * notifications, cancel/rerun, and checkpoint-C approval HTTP composition live
+           * here after the established security and FreeIPA adapters. Canonical catalog
+           * execution and approval-policy administration remain in the central integration
+           * runtime; approval execution reuses that catalog-run handler with a server-side
+           * approval identifier.
+           */'''
+          new_comment = ''' * #632 operations owner. Run history/result-file delivery, per-identity run
+           * notifications, cancel/rerun, approval HTTP composition, and checkpoint-D1
+           * catalog read/history/options composition live here after the established security
+           * and FreeIPA adapters. Canonical catalog execution and approval-policy
+           * administration remain in the central integration runtime; approval execution and
+           * rerun continue to reuse that catalog-run handler.
+           */'''
+          if text.count(old_comment) != 1:
+              raise SystemExit("operations owner comment mismatch")
+          text = text.replace(old_comment, new_comment, 1)
+          operations.write_text(text)
+
+          contracts = Path("src/auth/portal-route-contract.ts")
+          text = contracts.read_text()
+          for route_id in ["xyops.catalog.read", "xyops.catalog.history", "xyops.catalog.options"]:
+              needle = f'id: "{route_id}"'
+              pos = text.find(needle)
+              if pos < 0:
+                  raise SystemExit(f"missing route {route_id}")
+              line_start = text.rfind("\n", 0, pos) + 1
+              line_end = text.find("\n", pos)
+              line = text[line_start:line_end]
+              if 'owner: "worker/index.ts"' not in line:
+                  raise SystemExit(f"unexpected owner for {route_id}: {line}")
+              text = text[:line_start] + line.replace('owner: "worker/index.ts"', 'owner: "worker/operations-http-entry.ts"') + text[line_end:]
+          contracts.write_text(text)
+
+          owner_test = Path("tests/xyops/xyops-catalog-http-owner.test.mjs")
+          owner_test.write_text('''import assert from "node:assert/strict";
+          import { readFile } from "node:fs/promises";
+          import path from "node:path";
+          import test from "node:test";
+          import { fileURLToPath } from "node:url";
+
+          const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+          const source = (relativePath) => readFile(path.join(repoRoot, relativePath), "utf8");
+
+          test("#632 checkpoint D1 moves catalog read/history/options HTTP ownership without moving execution", async () => {
+            const [operations, central, runtime, contracts] = await Promise.all([
+              source("worker/operations-http-entry.ts"),
+              source("worker/index.ts"),
+              source("worker/xyops-catalog-runtime.ts"),
+              source("src/auth/portal-route-contract.ts"),
+            ]);
+
+            for (const route of [
+              "/api/integrations/catalog",
+              "/api/integrations/catalog/history",
+              "/api/integrations/catalog/options",
+            ]) assert.equal(operations.includes(route), true, `operations owner missing ${route}`);
+
+            assert.equal(central.includes('request.method === "GET" && url.pathname === "/api/integrations/catalog"'), false);
+            assert.equal(central.includes('request.method === "GET" && url.pathname === "/api/integrations/catalog/history"'), false);
+            assert.equal(central.includes('request.method === "GET" && url.pathname === "/api/integrations/catalog/options"'), false);
+            assert.match(central, /request\.method === "POST" && url\.pathname === "\/api\/integrations\/catalog\/run"/u);
+            assert.match(central, /from "\.\/xyops-catalog-runtime\.ts"/u);
+            assert.equal(central.includes("async function portalCatalog"), false);
+            assert.equal(central.includes("async function readCatalogSnapshot"), false);
+            assert.equal(central.includes("function extractOptionValues"), false);
+
+            for (const symbol of [
+              "export async function portalCatalog",
+              "export async function listCatalogHistory",
+              "export async function loadCatalog",
+              "export function extractOptionValues",
+              "export function sanitizeRoutes",
+              "export function automationRoutes",
+              "export function coerceField",
+              "export function fieldVisible",
+            ]) assert.equal(runtime.includes(symbol), true, `catalog runtime missing ${symbol}`);
+            assert.equal(runtime.includes('from "./index"'), false, "catalog runtime must not depend on central Worker");
+
+            const line = (id) => contracts.split("\n").find((candidate) => candidate.includes(`id: "${id}"`)) ?? "";
+            for (const id of ["xyops.catalog.read", "xyops.catalog.history", "xyops.catalog.options"]) {
+              assert.match(line(id), /owner: "worker\/operations-http-entry\.ts"/u, `stale owner for ${id}`);
+            }
+            assert.match(line("xyops.catalog.run"), /owner: "worker\/index\.ts"/u);
+            assert.match(line("xyops.routes.read"), /owner: "worker\/index\.ts"/u);
+            assert.match(line("xyops.catalog-policies.read"), /owner: "worker\/index\.ts"/u);
+          });
+
+          test("catalog read owner preserves visibility presentation and option-provider boundaries", async () => {
+            const operations = await source("worker/operations-http-entry.ts");
+            assert.match(operations, /readCatalogPolicySet/u);
+            assert.match(operations, /catalogEventAllowed/u);
+            assert.match(operations, /readProcessPresentationSet/u);
+            assert.match(operations, /presentationLocalePreferences/u);
+            assert.match(operations, /response\.headers\.set\("vary", "Accept-Language"\)/u);
+            assert.match(operations, /content-language/u);
+            assert.match(operations, /field\.optionsSource/u);
+            assert.match(operations, /x-api-key/u);
+            assert.match(operations, /AbortSignal\.timeout\(12000\)/u);
+            assert.match(operations, /"XYOps option provider failed"/u);
+          });
+          ''')
+
+          readme = Path("worker/README.md")
+          text = readme.read_text()
+          old = '#632 checkpoints A-C insert `operations-http-entry.ts` after the FreeIPA adapter for run-history/result-file reads, cancel/rerun composition, per-identity notifications, and approval list/decision/cancel/execute HTTP composition; `xyops-run-runtime.ts` holds the shared run synchronization/projection helpers. Rerun and approval execution reuse the canonical catalog-run handler in `worker/index.ts`, and approval execution passes the claimed approval identifier only in memory (never through client request headers), so catalog execution, approval-policy administration and the remaining XYOps/settings/integration behavior stay central until later slices.'
+          new = '#632 checkpoints A-D1 insert `operations-http-entry.ts` after the FreeIPA adapter for run-history/result-file reads, cancel/rerun composition, per-identity notifications, approval list/decision/cancel/execute HTTP composition, and catalog read/history/options HTTP composition. `xyops-run-runtime.ts` holds shared run synchronization/projection helpers, while `xyops-catalog-runtime.ts` owns route-neutral catalog normalization/cache/option helpers shared by the operations adapter and the still-central execution/admin paths. Rerun and approval execution reuse the canonical catalog-run handler in `worker/index.ts`, and approval execution passes the claimed approval identifier only in memory (never through client request headers). Catalog execution, approval-policy administration and the remaining XYOps/settings/integration behavior stay central until D2/later slices.'
+          if text.count(old) != 1:
+              raise SystemExit("worker README checkpoint marker mismatch")
+          readme.write_text(text.replace(old, new, 1))
+
+          composition = Path("docs/architecture/WORKER_COMPOSITION.md")
+          text = composition.read_text()
+          replacements = {
+              '#632 checkpoints A-C let that post-security operations adapter own run-history/result-file reads, cancel/rerun composition, per-identity notifications, and approval list/decision/cancel/execute HTTP composition before unmatched traffic continues to `worker/index.ts`; neither adapter is a second authentication boundary. Approval execution reuses the central catalog runtime and catalog-run handler with the claimed approval identifier passed only in memory.':
+              '#632 checkpoints A-D1 let that post-security operations adapter own run-history/result-file reads, cancel/rerun composition, per-identity notifications, approval list/decision/cancel/execute HTTP composition, and catalog read/history/options composition before unmatched traffic continues to `worker/index.ts`; neither adapter is a second authentication boundary. Route-neutral catalog normalization/cache/option helpers live in `worker/xyops-catalog-runtime.ts`. Approval execution reuses the still-central catalog-run handler with the claimed approval identifier passed only in memory.',
+              'Checkpoints #632A-C move `xyops.runs.list`, `xyops.runs.file`, `xyops.runs.cancel`, `xyops.runs.rerun`, `xyops.notifications.list`, `xyops.notifications.read` and the approval list/approve/reject/cancel/execute routes into `worker/operations-http-entry.ts`. Shared run status/synchronization/projection logic lives in `worker/xyops-run-runtime.ts`; rerun and approval execution call the canonical catalog-run handler, while catalog execution and approval-policy administration remain in `worker/index.ts` for later bounded #632 slices. XYOps remains authoritative for process definitions and execution/scheduler/queue semantics.':
+              'Checkpoints #632A-D1 move `xyops.catalog.read`, `xyops.catalog.history`, `xyops.catalog.options`, `xyops.runs.list`, `xyops.runs.file`, `xyops.runs.cancel`, `xyops.runs.rerun`, `xyops.notifications.list`, `xyops.notifications.read` and the approval list/approve/reject/cancel/execute routes into `worker/operations-http-entry.ts`. Shared run status/synchronization/projection logic lives in `worker/xyops-run-runtime.ts`; route-neutral catalog normalization/cache/option logic lives in `worker/xyops-catalog-runtime.ts`. Rerun and approval execution still call the canonical catalog-run handler, while catalog execution and approval-policy administration remain in `worker/index.ts` for D2/later bounded #632 slices. XYOps remains authoritative for process definitions and execution/scheduler/queue semantics.'
+          }
+          for old, new in replacements.items():
+              if text.count(old) != 1:
+                  raise SystemExit(f"composition marker mismatch: {old[:80]}")
+              text = text.replace(old, new, 1)
+          composition.write_text(text)
+
+          api = Path("docs/reference/API.md")
+          text = api.read_text()
+          old = '`worker/operations-http-entry.ts` is the HTTP owner for run history/result-file reads, cancel/rerun, the two notification routes above, and approval list/approve/reject/cancel/execute HTTP composition. Rerun and approval execution delegate to the canonical catalog-run handler in `worker/index.ts`; the claimed approval identifier is passed only server-side/in-memory, while catalog execution and approval-policy administration remain central for later bounded #632 slices. Shared run synchronization/projection lives in `worker/xyops-run-runtime.ts`; XYOps continues to own upstream execution/scheduler semantics.'
+          new = '`worker/operations-http-entry.ts` is the HTTP owner for catalog read/history/options, run history/result-file reads, cancel/rerun, notifications, and approval list/approve/reject/cancel/execute HTTP composition. Route-neutral catalog normalization/cache/option helpers live in `worker/xyops-catalog-runtime.ts`. Rerun and approval execution still delegate to the canonical catalog-run handler in `worker/index.ts`; the claimed approval identifier is passed only server-side/in-memory, while catalog execution and approval-policy administration remain central for D2/later bounded #632 slices. Shared run synchronization/projection lives in `worker/xyops-run-runtime.ts`; XYOps continues to own upstream execution/scheduler semantics.'
+          if text.count(old) != 1:
+              raise SystemExit("API ownership marker mismatch")
+          api.write_text(text.replace(old, new, 1))
+          PY
+          git diff --check
+          git diff --stat
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint and build
+        run: |
+          npm run lint
+          npm run build
+
+      - name: Focused catalog and ownership tests
+        run: |
+          node --experimental-strip-types --test \
+            tests/xyops/xyops-catalog-api.test.mjs \
+            tests/xyops/xyops-catalog-http-owner.test.mjs \
+            tests/xyops/xyops-operations-http-owner.test.mjs \
+            tests/xyops/xyops-approvals.test.mjs \
+            tests/auth/portal-application-router.test.mjs \
+            tests/auth/portal-route-security-plan.test.mjs
+
+      - name: Publish clean product branch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add worker/index.ts worker/operations-http-entry.ts worker/xyops-catalog-runtime.ts \
+            src/auth/portal-route-contract.ts tests/xyops/xyops-catalog-http-owner.test.mjs \
+            worker/README.md docs/architecture/WORKER_COMPOSITION.md docs/reference/API.md
+          git commit -m "refactor(worker): move catalog reads to operations owner"
+          git push origin HEAD:arch/632-catalog-read-owner

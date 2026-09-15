@@ -384,17 +384,17 @@ const worker = {
     const url = new URL(request.url);
 
     if (request.method === "GET" && url.pathname === "/api/integrations/approvals") {
-    return handleApprovalsList(request, sourceEnv, url);
-  }
-  const approvalActionMatch = url.pathname.match(/^\/api\/integrations\/approvals\/([A-Za-z0-9_-]{1,160})\/(approve|reject|cancel|execute)$/);
-  if (request.method === "POST" && approvalActionMatch) {
-    return handleApprovalAction(
-      request,
-      sourceEnv,
-      approvalActionMatch[1],
-      approvalActionMatch[2] as ApprovalAction,
-    );
-  }
+      return handleApprovalsList(request, sourceEnv, url);
+    }
+    const approvalActionMatch = url.pathname.match(/^\/api\/integrations\/approvals\/([A-Za-z0-9_-]{1,160})\/(approve|reject|cancel|execute)$/);
+    if (request.method === "POST" && approvalActionMatch) {
+      return handleApprovalAction(
+        request,
+        sourceEnv,
+        approvalActionMatch[1],
+        approvalActionMatch[2] as ApprovalAction,
+      );
+    }
     if (request.method === "GET" && url.pathname === "/api/integrations/notifications") {
       return handleNotificationsList(request, sourceEnv, url);
     }

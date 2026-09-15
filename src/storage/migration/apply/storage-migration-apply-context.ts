@@ -28,9 +28,9 @@ import type { StorageMigrationPreflightReport } from "../preflight/storage-migra
 import { inspectStorageQuickCheck, type StorageQuickCheckResult } from "../../integrity/storage-quick-check.ts";
 import type {
   StorageMigrationApplyContext,
+  StorageMigrationApplyExecutor,
   StorageMigrationApplyInput,
 } from "./storage-migration-apply-contract.ts";
-import type { applyControlledMigrationWithOwnedLock } from "./storage-migration-apply-executor.ts";
 
 export class StorageMigrationApplyError extends Error {
   readonly code: string;
@@ -67,7 +67,7 @@ export type ApplyDependencies = {
     registry: readonly ManagedPortalMigration[],
   ) => Promise<StorageMigrationPreflightReport>;
   beginOperation?: typeof beginMigrationOperation;
-  applyMigration?: typeof applyControlledMigrationWithOwnedLock;
+  applyMigration?: StorageMigrationApplyExecutor;
   inspectFinalSchema?: (env: MigrationEnv, registry: readonly ManagedPortalMigration[]) => Promise<boolean>;
   quickCheck?: (env: MigrationEnv) => Promise<StorageQuickCheckResult>;
   completeOperation?: typeof completeMigrationOperation;

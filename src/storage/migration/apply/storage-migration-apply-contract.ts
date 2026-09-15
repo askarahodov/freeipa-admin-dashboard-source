@@ -1,3 +1,5 @@
+import type { PortalMigrationLockOptions } from "../../../../db/portal-migration-lock.ts";
+import type { ManagedPortalMigration } from "../../../../db/portal-migration-registry.ts";
 import type { PublicMigrationOperation } from "../operation/storage-migration-operation.ts";
 
 export const STORAGE_MIGRATION_APPLY_PATH = "/api/admin/storage/migrations/apply";
@@ -25,5 +27,16 @@ export type StorageMigrationApplyContext = {
   correlationId: string;
   actor: { identity: string; role: string; groups: string[] };
 };
+
+export type StorageMigrationApplyExecutor = (
+  db: D1Database,
+  migration: ManagedPortalMigration,
+  owner: string,
+  operationId: string,
+  appliedCount: number,
+  audit: readonly D1PreparedStatement[],
+  registry: readonly ManagedPortalMigration[],
+  options?: PortalMigrationLockOptions & { now?: () => number },
+) => Promise<void>;
 
 export type StorageMigrationApplyResult = PublicMigrationOperation;

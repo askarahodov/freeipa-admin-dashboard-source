@@ -1,4 +1,4 @@
-name: "#678 format fix"
+name: "#678 review fix"
 
 on:
   push:
@@ -9,33 +9,38 @@ permissions:
   contents: write
 
 jobs:
-  fix-format:
+  fix-review:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: arch/632-approval-http-owner
           fetch-depth: 0
-      - name: Fix approval dispatch indentation
+      - name: Update checkpoint C ownership references
         shell: bash
         run: |
           python - <<'PY'
           from pathlib import Path
 
-          path = Path("worker/operations-http-entry.ts")
-          lines = path.read_text().splitlines()
-          start_marker = '    if (request.method === "GET" && url.pathname === "/api/integrations/approvals") {'
-          end_marker = '    if (request.method === "GET" && url.pathname === "/api/integrations/notifications") {'
-          start = lines.index(start_marker)
-          end = lines.index(end_marker, start + 1)
-          for index in range(start + 1, end):
-              if lines[index]:
-                  lines[index] = "  " + lines[index]
-          path.write_text("\n".join(lines) + "\n")
+          architecture = Path("docs/architecture/WORKER_COMPOSITION.md")
+          text = architecture.read_text()
+          old = "12. `operations-http-entry.ts` owns #632A-B run-history/result-file reads, cancel/rerun and notifications after the same security boundary; unmatched traffic falls through to `worker/index.ts`;"
+          new = "12. `operations-http-entry.ts` owns #632A-C run-history/result-file reads, cancel/rerun, notifications, and approval list/decision/cancel/execute HTTP composition after the same security boundary; approval execution reuses the canonical catalog-run handler with its claimed approval identifier passed only in memory, while unmatched traffic falls through to `worker/index.ts`;"
+          if text.count(old) != 1:
+              raise SystemExit(f"architecture ownership marker count: {text.count(old)}")
+          architecture.write_text(text.replace(old, new, 1))
+
+          api = Path("docs/reference/API.md")
+          text = api.read_text()
+          old = "`worker/operations-http-entry.ts` is the HTTP owner for run history/result-file reads, cancel/rerun, and the two notification routes above. Rerun delegates execution to the canonical catalog-run handler in `worker/index.ts`, so catalog execution and approvals remain central for later bounded #632 slices. Shared run synchronization/projection lives in `worker/xyops-run-runtime.ts`; XYOps continues to own upstream execution/scheduler semantics."
+          new = "`worker/operations-http-entry.ts` is the HTTP owner for run history/result-file reads, cancel/rerun, the two notification routes above, and approval list/approve/reject/cancel/execute HTTP composition. Rerun and approval execution delegate to the canonical catalog-run handler in `worker/index.ts`; the claimed approval identifier is passed only server-side/in-memory, while catalog execution and approval-policy administration remain central for later bounded #632 slices. Shared run synchronization/projection lives in `worker/xyops-run-runtime.ts`; XYOps continues to own upstream execution/scheduler semantics."
+          if text.count(old) != 1:
+              raise SystemExit(f"API ownership marker count: {text.count(old)}")
+          api.write_text(text.replace(old, new, 1))
           PY
           git diff --check
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add worker/operations-http-entry.ts
-          git commit -m "style(worker): align approval dispatch block"
+          git add docs/architecture/WORKER_COMPOSITION.md docs/reference/API.md
+          git commit -m "docs(worker): sync checkpoint C approval ownership"
           git push origin HEAD:arch/632-approval-http-owner

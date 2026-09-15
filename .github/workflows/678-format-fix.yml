@@ -21,37 +21,17 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-          path = Path('worker/operations-http-entry.ts')
-          text = path.read_text()
-          old = '''    if (request.method === "GET" && url.pathname === "/api/integrations/approvals") {
-    return handleApprovalsList(request, sourceEnv, url);
-  }
-  const approvalActionMatch = url.pathname.match(/^\\/api\\/integrations\\/approvals\\/([A-Za-z0-9_-]{1,160})\\/(approve|reject|cancel|execute)$/);
-  if (request.method === "POST" && approvalActionMatch) {
-    return handleApprovalAction(
-      request,
-      sourceEnv,
-      approvalActionMatch[1],
-      approvalActionMatch[2] as ApprovalAction,
-    );
-  }
-'''
-          new = '''    if (request.method === "GET" && url.pathname === "/api/integrations/approvals") {
-      return handleApprovalsList(request, sourceEnv, url);
-    }
-    const approvalActionMatch = url.pathname.match(/^\\/api\\/integrations\\/approvals\\/([A-Za-z0-9_-]{1,160})\\/(approve|reject|cancel|execute)$/);
-    if (request.method === "POST" && approvalActionMatch) {
-      return handleApprovalAction(
-        request,
-        sourceEnv,
-        approvalActionMatch[1],
-        approvalActionMatch[2] as ApprovalAction,
-      );
-    }
-'''
-          if text.count(old) != 1:
-              raise SystemExit(f'expected exactly one dispatch block, got {text.count(old)}')
-          path.write_text(text.replace(old, new, 1))
+
+          path = Path("worker/operations-http-entry.ts")
+          lines = path.read_text().splitlines()
+          start_marker = '    if (request.method === "GET" && url.pathname === "/api/integrations/approvals") {'
+          end_marker = '    if (request.method === "GET" && url.pathname === "/api/integrations/notifications") {'
+          start = lines.index(start_marker)
+          end = lines.index(end_marker, start + 1)
+          for index in range(start + 1, end):
+              if lines[index]:
+                  lines[index] = "  " + lines[index]
+          path.write_text("\n".join(lines) + "\n")
           PY
           git diff --check
           git config user.name "github-actions[bot]"

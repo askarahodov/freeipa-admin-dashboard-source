@@ -1,0 +1,61 @@
+name: "#678 format fix"
+
+on:
+  push:
+    branches:
+      - tmp/678-format-fix
+
+permissions:
+  contents: write
+
+jobs:
+  fix-format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: arch/632-approval-http-owner
+          fetch-depth: 0
+      - name: Fix approval dispatch indentation
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('worker/operations-http-entry.ts')
+          text = path.read_text()
+          old = '''    if (request.method === "GET" && url.pathname === "/api/integrations/approvals") {
+    return handleApprovalsList(request, sourceEnv, url);
+  }
+  const approvalActionMatch = url.pathname.match(/^\\/api\\/integrations\\/approvals\\/([A-Za-z0-9_-]{1,160})\\/(approve|reject|cancel|execute)$/);
+  if (request.method === "POST" && approvalActionMatch) {
+    return handleApprovalAction(
+      request,
+      sourceEnv,
+      approvalActionMatch[1],
+      approvalActionMatch[2] as ApprovalAction,
+    );
+  }
+'''
+          new = '''    if (request.method === "GET" && url.pathname === "/api/integrations/approvals") {
+      return handleApprovalsList(request, sourceEnv, url);
+    }
+    const approvalActionMatch = url.pathname.match(/^\\/api\\/integrations\\/approvals\\/([A-Za-z0-9_-]{1,160})\\/(approve|reject|cancel|execute)$/);
+    if (request.method === "POST" && approvalActionMatch) {
+      return handleApprovalAction(
+        request,
+        sourceEnv,
+        approvalActionMatch[1],
+        approvalActionMatch[2] as ApprovalAction,
+      );
+    }
+'''
+          if text.count(old) != 1:
+              raise SystemExit(f'expected exactly one dispatch block, got {text.count(old)}')
+          path.write_text(text.replace(old, new, 1))
+          PY
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add worker/operations-http-entry.ts
+          git commit -m "style(worker): align approval dispatch block"
+          git push origin HEAD:arch/632-approval-http-owner

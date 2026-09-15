@@ -1,0 +1,66 @@
+name: "#632 bootstrap order fix"
+
+on:
+  push:
+    branches:
+      - tmp/632-approval-owner-bootstrap
+    paths:
+      - .github/workflows/632-bootstrap-order-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix-order:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Move build before runtime approval tests
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('.github/workflows/632-approval-owner-bootstrap.yml')
+          text = path.read_text()
+          old = '''      - name: Focused approval and owner tests
+        run: |
+          node --experimental-strip-types --test \\
+            tests/xyops/xyops-approvals.test.mjs \\
+            tests/xyops/xyops-approval-trust-boundary.test.mjs \\
+            tests/xyops/xyops-operations-http-owner.test.mjs \\
+            tests/xyops/xyops-effective-settings.test.mjs \\
+            tests/auth/portal-application-router.test.mjs \\
+            tests/auth/portal-route-security-plan.test.mjs
+
+      - name: Lint and build
+        run: |
+          npm run lint
+          npm run build
+'''
+          new = '''      - name: Lint and build
+        run: |
+          npm run lint
+          npm run build
+
+      - name: Focused approval and owner tests
+        run: |
+          node --experimental-strip-types --test \\
+            tests/xyops/xyops-approvals.test.mjs \\
+            tests/xyops/xyops-approval-trust-boundary.test.mjs \\
+            tests/xyops/xyops-operations-http-owner.test.mjs \\
+            tests/xyops/xyops-effective-settings.test.mjs \\
+            tests/auth/portal-application-router.test.mjs \\
+            tests/auth/portal-route-security-plan.test.mjs
+'''
+          if text.count(old) != 1:
+              raise SystemExit(f'expected one bootstrap step block, got {text.count(old)}')
+          path.write_text(text.replace(old, new, 1))
+          PY
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/workflows/632-approval-owner-bootstrap.yml
+          git commit -m "chore: build before #632 runtime tests"
+          git push origin HEAD:tmp/632-approval-owner-bootstrap

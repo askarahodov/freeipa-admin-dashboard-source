@@ -1,7 +1,17 @@
-import integrationRuntime, { handleCatalogRunRequest } from "./index";
+import integrationRuntime, { handleCatalogRunRequest, loadCatalog, resolveCatalogRuntime } from "./index";
 import { listRunNotifications, markRunNotificationsRead } from "../src/operations/run/run-notifications.ts";
 import { readRunReplay, listRunReplaySummaries } from "../src/operations/run/run-replays.ts";
 import { listRunResults, readRunResultFile } from "../src/operations/run/run-results.ts";
+import { catalogEventAllowed, readCatalogPolicySet } from "../src/operations/catalog/catalog-policies.ts";
+import {
+  approvalRequirement,
+  cancelApproval,
+  claimApprovalExecution,
+  decideApproval,
+  finishApprovalExecution,
+  listApprovals,
+  readApprovalPolicySet,
+} from "../src/operations/approvals/approval-gates.ts";
 import { appendAuditEvent, auditCorrelationFor, createAuditContext, withAuditCorrelation } from "../audit-log";
 import { saveOperationRun } from "./operation-run-runtime.ts";
 import { effectiveXyOpsRuntime, type XyOpsSettingsEnv } from "./integration-settings-runtime.ts";
@@ -11,11 +21,189 @@ import { listOperationRuns, publicRun, syncOperationRuns, xyopsPayloadSucceeded 
 type RuntimeEnv = NonNullable<Parameters<typeof integrationRuntime.fetch>[1]> & XyOpsSettingsEnv;
 type RuntimeContext = Parameters<typeof integrationRuntime.fetch>[2];
 type ScheduledController = Parameters<NonNullable<typeof integrationRuntime.scheduled>>[0];
+type ApprovalAction = "approve" | "reject" | "cancel" | "execute";
 
 const jsonHeaders = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
 
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status, headers: jsonHeaders });
+}
+
+async function handleApprovalsList(request: Request, env: RuntimeEnv, url: URL): Promise<Response> {
+  const denied = requirePortalPermission(request, env, "directory.read");
+  if (denied) return denied;
+  const access = portalAccess(request, env);
+  const limit = Number(url.searchParams.get("limit") ?? 100);
+  try { return json(await listApprovals(env, access, Number.isFinite(limit) ? limit : 100)); }
+  catch (error) { return json({ error: error instanceof Error ? error.message : "Cannot load approvals" }, 503); }
+}
+
+async function handleApprovalAction(
+  request: Request,
+  env: RuntimeEnv,
+  approvalId: string,
+  action: ApprovalAction,
+): Promise<Response> {
+  const denied = requirePortalPermission(
+    request,
+    env,
+    action === "approve" || action === "reject" ? "xyops.approve" : "xyops.run",
+  );
+  if (denied) return denied;
+
+  const access = portalAccess(request, env);
+  const audit = createAuditContext(access);
+  let body: Record<string, unknown> = {};
+  try { body = await request.json() as Record<string, unknown>; } catch {}
+
+  try {
+    if (action === "approve" || action === "reject") {
+      const approval = await decideApproval(env, approvalId, access, action, String(body.comment ?? ""));
+      const correlationId = await auditCorrelationFor(env, { approvalId }).catch(() => null);
+      const linkedAudit = withAuditCorrelation(audit, correlationId);
+      await appendAuditEvent(env, linkedAudit, {
+        action: `approval.${action}`,
+        resourceType: "approval",
+        resourceId: approvalId,
+        eventId: approval.eventId,
+        schemaVersion: approval.schemaVersion,
+        approvalId,
+        runId: approval.runId,
+        outcome: "success",
+        metadata: {
+          decision: action,
+          commentProvided: Boolean(String(body.comment ?? "").trim()),
+          approvals: approval.approvals,
+          rejections: approval.rejections,
+          requiredApprovals: approval.requiredApprovals,
+          status: approval.status,
+        },
+      }).catch(() => {});
+      return json({ approval });
+    }
+
+    if (action === "cancel") {
+      const approval = await cancelApproval(env, approvalId, access);
+      const correlationId = await auditCorrelationFor(env, { approvalId }).catch(() => null);
+      await appendAuditEvent(env, withAuditCorrelation(audit, correlationId), {
+        action: "approval.cancel",
+        resourceType: "approval",
+        resourceId: approvalId,
+        eventId: approval.eventId,
+        schemaVersion: approval.schemaVersion,
+        approvalId,
+        outcome: "success",
+        metadata: { status: approval.status },
+      }).catch(() => {});
+      return json({ approval });
+    }
+
+    const claimed = await claimApprovalExecution(env, approvalId, access);
+    const approvalCorrelation = await auditCorrelationFor(env, { approvalId }).catch(() => null);
+    const executionAudit = withAuditCorrelation(audit, approvalCorrelation);
+    const secretValues = body.secretValues && typeof body.secretValues === "object" && !Array.isArray(body.secretValues)
+      ? body.secretValues as Record<string, unknown>
+      : {};
+    const allowedSecretFields = new Set(claimed.spec.secretFields);
+    if (Object.keys(secretValues).some((key) => !allowedSecretFields.has(key))) {
+      await finishApprovalExecution(env, approvalId, "failed", "", "Переданы неожиданные секретные поля");
+      return json({ error: "Переданы неожиданные секретные поля" }, 400);
+    }
+
+    const values = { ...claimed.spec.values };
+    for (const key of claimed.spec.secretFields) {
+      const secret = typeof secretValues[key] === "string" ? secretValues[key] as string : "";
+      if (!secret) {
+        await finishApprovalExecution(env, approvalId, "failed", "", `Секретное поле ${key} не заполнено`);
+        return json({ error: `Введите секретное поле: ${key}` }, 400);
+      }
+      values[key] = secret;
+    }
+
+    const runtime = await resolveCatalogRuntime(env);
+    const catalog = await loadCatalog(runtime.env, runtime.xyopsUrl);
+    const event = catalog.events.find((item) => item.id === claimed.spec.eventId && item.enabled);
+    if (!event || !event.schemaVersion || event.schemaVersion !== claimed.spec.schemaVersion) {
+      await finishApprovalExecution(env, approvalId, "failed", "", "Схема процесса изменилась");
+      return json({ error: "Схема процесса изменилась. Создайте новую заявку." }, 409);
+    }
+
+    const visibility = await readCatalogPolicySet(env);
+    if (!catalogEventAllowed(visibility.policy, access, event)) {
+      await finishApprovalExecution(env, approvalId, "failed", "", "Процесс больше недоступен инициатору");
+      return json({ error: "Процесс больше недоступен по политике каталога" }, 404);
+    }
+
+    const currentPolicy = await readApprovalPolicySet(env);
+    const currentRequirement = approvalRequirement(currentPolicy.policy, access, event);
+    if (!currentRequirement || claimed.approval.approvals < currentRequirement.requiredApprovals) {
+      await finishApprovalExecution(env, approvalId, "failed", "", "Политика согласования изменилась");
+      return json({ error: "Политика согласования изменилась. Создайте новую заявку." }, 409);
+    }
+
+    const runUrl = new URL(request.url);
+    runUrl.pathname = "/api/integrations/catalog/run";
+    runUrl.search = "";
+    const headers = new Headers(request.headers);
+    headers.set("content-type", "application/json");
+    headers.delete("x-portal-approved-execution");
+    const launchResponse = await handleCatalogRunRequest(new Request(runUrl, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        eventId: claimed.spec.eventId,
+        values,
+        targets: claimed.spec.targets,
+        replayOf: claimed.spec.parentRunId,
+      }),
+    }), env, runUrl, executionAudit, undefined, runtime, approvalId);
+
+    const payload = await launchResponse.json().catch(() => ({})) as Record<string, unknown>;
+    if (launchResponse.ok && typeof payload.runId === "string") {
+      await finishApprovalExecution(env, approvalId, "executed", payload.runId);
+      await appendAuditEvent(env, executionAudit, {
+        action: "approval.execute",
+        resourceType: "approval",
+        resourceId: approvalId,
+        eventId: claimed.spec.eventId,
+        schemaVersion: claimed.spec.schemaVersion,
+        approvalId,
+        runId: payload.runId,
+        jobId: String(payload.jobId ?? ""),
+        outcome: "success",
+        metadata: {
+          status: "executed",
+          secretFieldCount: claimed.spec.secretFields.length,
+          parentRunId: claimed.spec.parentRunId,
+        },
+      }).catch(() => {});
+      return json({ ...payload, approvalId, approvalExecuted: true }, launchResponse.status);
+    }
+
+    const executionOutcome = launchResponse.status >= 500 ? "unknown" : "failure";
+    await finishApprovalExecution(
+      env,
+      approvalId,
+      launchResponse.status >= 500 ? "unknown" : "failed",
+      String(payload.runId ?? ""),
+      String(payload.error ?? "XYOps launch failed"),
+    );
+    await appendAuditEvent(env, executionAudit, {
+      action: "approval.execute",
+      resourceType: "approval",
+      resourceId: approvalId,
+      eventId: claimed.spec.eventId,
+      schemaVersion: claimed.spec.schemaVersion,
+      approvalId,
+      runId: String(payload.runId ?? ""),
+      outcome: executionOutcome,
+      errorCode: "xyops_launch_failed",
+      metadata: { httpStatus: launchResponse.status },
+    }).catch(() => {});
+    return json({ ...payload, approvalId }, launchResponse.status);
+  } catch (error) {
+    return json({ error: error instanceof Error ? error.message : "Approval action failed" }, 409);
+  }
 }
 
 async function handleNotificationsList(request: Request, env: RuntimeEnv, url: URL): Promise<Response> {
@@ -184,15 +372,29 @@ async function handleRunAction(
 
 /**
  * #632 operations owner. Run history/result-file delivery, per-identity run
- * notifications, and checkpoint-B cancel/rerun composition live here after the
- * established security and FreeIPA adapters. Catalog execution and approval
- * orchestration intentionally remain in the central integration runtime.
+ * notifications, cancel/rerun, and checkpoint-C approval HTTP composition live
+ * here after the established security and FreeIPA adapters. Canonical catalog
+ * execution and approval-policy administration remain in the central integration
+ * runtime; approval execution reuses that catalog-run handler with a server-side
+ * approval identifier.
  */
 const worker = {
   async fetch(request: Request, env: RuntimeEnv | undefined, ctx: RuntimeContext): Promise<Response> {
     const sourceEnv = env ?? (process.env as unknown as RuntimeEnv);
     const url = new URL(request.url);
 
+    if (request.method === "GET" && url.pathname === "/api/integrations/approvals") {
+    return handleApprovalsList(request, sourceEnv, url);
+  }
+  const approvalActionMatch = url.pathname.match(/^\/api\/integrations\/approvals\/([A-Za-z0-9_-]{1,160})\/(approve|reject|cancel|execute)$/);
+  if (request.method === "POST" && approvalActionMatch) {
+    return handleApprovalAction(
+      request,
+      sourceEnv,
+      approvalActionMatch[1],
+      approvalActionMatch[2] as ApprovalAction,
+    );
+  }
     if (request.method === "GET" && url.pathname === "/api/integrations/notifications") {
       return handleNotificationsList(request, sourceEnv, url);
     }

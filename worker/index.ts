@@ -5,11 +5,10 @@ import type { AutomationRoute, CatalogEvent, RouteField } from "../src/automatio
 import { fieldConditionMatches, normalizeFieldCondition } from "../src/automation/field-conditions";
 import { saveRunReplay } from "../src/operations/run/run-replays";
 import { catalogEventAllowed, readCatalogPolicySet, saveCatalogPolicySet } from "../src/operations/catalog/catalog-policies";
-import { approvalExecutionMatches, approvalRequirement, cancelApproval, claimApprovalExecution, createApprovalRequest, decideApproval, finishApprovalExecution, listApprovals, readApprovalPolicySet, readExecutingApproval, saveApprovalPolicySet } from "../src/operations/approvals/approval-gates";
+import { approvalExecutionMatches, approvalRequirement, createApprovalRequest, readApprovalPolicySet, readExecutingApproval, saveApprovalPolicySet } from "../src/operations/approvals/approval-gates";
 import { appendAuditEvent, auditCorrelationFor, auditErrorCode, createAuditContext, listAuditEvents, withAuditCorrelation, type AuditContext } from "../audit-log";
 import { applyProcessPresentation, availableProcessPresentationLocales, presentationLocalePreferences, readProcessPresentationSet, resolveProcessPresentationLocale, saveProcessPresentationSet } from "../src/operations/presentation/process-presentation";
 import { handleBackupExportRequest } from "./backup-export-entry";
-import type { PortalPermission } from "../src/auth/portal-permissions";
 import { freeIpaRpc as ipaRpc } from "./freeipa-rpc.ts";
 import { decryptIntegrationSecrets as decryptSecrets, encryptIntegrationSecrets as encryptSecrets } from "./integration-settings-runtime.ts";
 import { portalAccess, requestActor, requirePortalPermission } from "./portal-access-runtime.ts";
@@ -233,6 +232,11 @@ async function effectiveSettings(env: Env): Promise<StoredSettings> {
 async function effectiveEnv(env: Env): Promise<Env> {
   const settings = await effectiveSettings(env);
   return { ...env, DEMO_MODE: settings.config.demoMode ? "true" : "false", IPA_URL: settings.config.ipaUrl, IPA_USERNAME: settings.config.ipaUsername, IPA_PASSWORD: settings.secrets.ipaPassword, XYOPS_URL: settings.config.xyopsUrl, XYOPS_API_KEY: settings.secrets.xyopsApiKey, XYOPS_ROUTES_JSON: settings.config.routes ? JSON.stringify(settings.config.routes) : env.XYOPS_ROUTES_JSON };
+}
+
+export async function resolveCatalogRuntime(env: Env): Promise<{ env: Env; xyopsUrl: string | null }> {
+  const effective = await effectiveEnv(env);
+  return { env: effective, xyopsUrl: cleanBaseUrl(effective.XYOPS_URL) };
 }
 
 function publicSettings(settings: StoredSettings, env: Env, source: "database" | "environment") {
@@ -566,7 +570,7 @@ function demoCatalog(env: Env): CatalogEvent[] {
   return events.map((event) => ({ ...event, schemaVersion: schemaFingerprint(event) }));
 }
 
-async function loadCatalog(env: Env, xyopsUrl: string | null): Promise<{ mode: "demo" | "live" | "unconfigured"; events: CatalogEvent[] }> {
+export async function loadCatalog(env: Env, xyopsUrl: string | null): Promise<{ mode: "demo" | "live" | "unconfigured"; events: CatalogEvent[] }> {
   if (boolValue(env.DEMO_MODE)) return { mode: "demo", events: demoCatalog(env) };
   if (!xyopsUrl || !env.XYOPS_API_KEY) return { mode: "unconfigured", events: [] };
   let response: Response;
@@ -871,102 +875,6 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL, in
     }
     return json({ error: "Method not allowed" }, 405);
   }
-
-  if (request.method === "GET" && url.pathname === "/api/integrations/approvals") {
-    const denied = requirePortalPermission(request, baseEnv, "directory.read");
-    if (denied) return denied;
-    const access = portalAccess(request, baseEnv);
-    const limit = Number(url.searchParams.get("limit") ?? 100);
-    try { return json(await listApprovals(baseEnv, access, Number.isFinite(limit) ? limit : 100)); }
-    catch (error) { return json({ error: error instanceof Error ? error.message : "Cannot load approvals" }, 503); }
-  }
-
-  const approvalActionMatch = url.pathname.match(/^\/api\/integrations\/approvals\/([A-Za-z0-9_-]{1,160})\/(approve|reject|cancel|execute)$/);
-  if (request.method === "POST" && approvalActionMatch) {
-    const approvalId = approvalActionMatch[1];
-    const action = approvalActionMatch[2];
-    const requiredPermission: PortalPermission = action === "approve" || action === "reject" ? "xyops.approve" : "xyops.run";
-    const denied = requirePortalPermission(request, baseEnv, requiredPermission);
-    if (denied) return denied;
-    const access = portalAccess(request, baseEnv);
-    let body: Record<string, unknown> = {};
-    try { body = await request.json() as Record<string, unknown>; } catch {}
-    try {
-      if (action === "approve" || action === "reject") {
-        const approval = await decideApproval(baseEnv, approvalId, access, action, String(body.comment ?? ""));
-        const correlationId = await auditCorrelationFor(baseEnv, { approvalId }).catch(() => null);
-        const linkedAudit = withAuditCorrelation(audit, correlationId);
-        await appendAuditEvent(baseEnv, linkedAudit, { action: `approval.${action}`, resourceType: "approval", resourceId: approvalId, eventId: approval.eventId, schemaVersion: approval.schemaVersion, approvalId, runId: approval.runId, outcome: "success", metadata: { decision: action, commentProvided: Boolean(String(body.comment ?? "").trim()), approvals: approval.approvals, rejections: approval.rejections, requiredApprovals: approval.requiredApprovals, status: approval.status } }).catch(() => {});
-        return json({ approval });
-      }
-      if (action === "cancel") {
-        const approval = await cancelApproval(baseEnv, approvalId, access);
-        const correlationId = await auditCorrelationFor(baseEnv, { approvalId }).catch(() => null);
-        await appendAuditEvent(baseEnv, withAuditCorrelation(audit, correlationId), { action: "approval.cancel", resourceType: "approval", resourceId: approvalId, eventId: approval.eventId, schemaVersion: approval.schemaVersion, approvalId, outcome: "success", metadata: { status: approval.status } }).catch(() => {});
-        return json({ approval });
-      }
-
-      const claimed = await claimApprovalExecution(baseEnv, approvalId, access);
-      const approvalCorrelation = await auditCorrelationFor(baseEnv, { approvalId }).catch(() => null);
-      const executionAudit = withAuditCorrelation(audit, approvalCorrelation);
-      const secretValues = body.secretValues && typeof body.secretValues === "object" && !Array.isArray(body.secretValues) ? body.secretValues as Record<string, unknown> : {};
-      const allowedSecretFields = new Set(claimed.spec.secretFields);
-      if (Object.keys(secretValues).some((key) => !allowedSecretFields.has(key))) {
-        await finishApprovalExecution(baseEnv, approvalId, "failed", "", "Переданы неожиданные секретные поля");
-        return json({ error: "Переданы неожиданные секретные поля" }, 400);
-      }
-      const values = { ...claimed.spec.values };
-      for (const key of claimed.spec.secretFields) {
-        const secret = typeof secretValues[key] === "string" ? secretValues[key] as string : "";
-        if (!secret) {
-          await finishApprovalExecution(baseEnv, approvalId, "failed", "", `Секретное поле ${key} не заполнено`);
-          return json({ error: `Введите секретное поле: ${key}` }, 400);
-        }
-        values[key] = secret;
-      }
-      const catalog = await loadCatalog(env, xyopsUrl);
-      const event = catalog.events.find((item) => item.id === claimed.spec.eventId && item.enabled);
-      if (!event || !event.schemaVersion || event.schemaVersion !== claimed.spec.schemaVersion) {
-        await finishApprovalExecution(baseEnv, approvalId, "failed", "", "Схема процесса изменилась");
-        return json({ error: "Схема процесса изменилась. Создайте новую заявку." }, 409);
-      }
-      const visibility = await readCatalogPolicySet(baseEnv);
-      if (!catalogEventAllowed(visibility.policy, access, event)) {
-        await finishApprovalExecution(baseEnv, approvalId, "failed", "", "Процесс больше недоступен инициатору");
-        return json({ error: "Процесс больше недоступен по политике каталога" }, 404);
-      }
-      const currentPolicy = await readApprovalPolicySet(baseEnv);
-      const currentRequirement = approvalRequirement(currentPolicy.policy, access, event);
-      if (!currentRequirement || claimed.approval.approvals < currentRequirement.requiredApprovals) {
-        await finishApprovalExecution(baseEnv, approvalId, "failed", "", "Политика согласования изменилась");
-        return json({ error: "Политика согласования изменилась. Создайте новую заявку." }, 409);
-      }
-      const runUrl = new URL(request.url);
-      runUrl.pathname = "/api/integrations/catalog/run";
-      runUrl.search = "";
-      const headers = new Headers(request.headers);
-      headers.set("content-type", "application/json");
-      headers.delete("x-portal-approved-execution");
-      const launchResponse = await handleCatalogRunRequest(new Request(runUrl, {
-        method: "POST", headers,
-        body: JSON.stringify({ eventId: claimed.spec.eventId, values, targets: claimed.spec.targets, replayOf: claimed.spec.parentRunId }),
-      }), baseEnv, runUrl, executionAudit, undefined, { env, xyopsUrl }, approvalId);
-      const payload = await launchResponse.json().catch(() => ({})) as Record<string, unknown>;
-      if (launchResponse.ok && typeof payload.runId === "string") {
-        await finishApprovalExecution(baseEnv, approvalId, "executed", payload.runId);
-        await appendAuditEvent(baseEnv, executionAudit, { action: "approval.execute", resourceType: "approval", resourceId: approvalId, eventId: claimed.spec.eventId, schemaVersion: claimed.spec.schemaVersion, approvalId, runId: payload.runId, jobId: String(payload.jobId ?? ""), outcome: "success", metadata: { status: "executed", secretFieldCount: claimed.spec.secretFields.length, parentRunId: claimed.spec.parentRunId } }).catch(() => {});
-        return json({ ...payload, approvalId, approvalExecuted: true }, launchResponse.status);
-      }
-      const executionOutcome = launchResponse.status >= 500 ? "unknown" : "failure";
-      await finishApprovalExecution(baseEnv, approvalId, launchResponse.status >= 500 ? "unknown" : "failed", String(payload.runId ?? ""), String(payload.error ?? "XYOps launch failed"));
-      await appendAuditEvent(baseEnv, executionAudit, { action: "approval.execute", resourceType: "approval", resourceId: approvalId, eventId: claimed.spec.eventId, schemaVersion: claimed.spec.schemaVersion, approvalId, runId: String(payload.runId ?? ""), outcome: executionOutcome, errorCode: "xyops_launch_failed", metadata: { httpStatus: launchResponse.status } }).catch(() => {});
-      return json({ ...payload, approvalId }, launchResponse.status);
-    } catch (error) {
-      return json({ error: error instanceof Error ? error.message : "Approval action failed" }, 409);
-    }
-  }
-
-
 
   if (request.method === "GET" && url.pathname === "/api/integrations/routes") {
     const denied = requirePortalPermission(request, baseEnv, "settings.manage");

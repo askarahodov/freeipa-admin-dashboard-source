@@ -46,9 +46,9 @@ export const portalRouteContracts = [
   { id: "auth.users.password-reset", method: "POST", path: "/api/auth/users/:userId/password", owner: "worker/local-secure-entry.ts", auth: "admin-session", mutation: "mutation", sameOrigin: true },
   { id: "auth.users.sessions-revoke", method: "DELETE", path: "/api/auth/users/:userId/sessions", owner: "worker/local-secure-entry.ts", auth: "admin-session", mutation: "mutation", sameOrigin: true },
 
-  { id: "settings.read", method: "GET", path: "/api/integrations/settings", owner: "worker/settings-lifecycle-entry.ts", auth: "admin-or-service-admin", permission: "settings.manage", mutation: "read", sameOrigin: false },
+  { id: "settings.read", method: "GET", path: "/api/integrations/settings", owner: "worker/settings-http.ts", auth: "admin-or-service-admin", permission: "settings.manage", mutation: "read", sameOrigin: false },
   { id: "settings.update", method: "PUT", path: "/api/integrations/settings", owner: "worker/settings-source-safe-entry.ts", auth: "admin-or-service-admin", permission: "settings.manage", mutation: "mutation", sameOrigin: true },
-  { id: "settings.test", method: "POST", path: "/api/integrations/settings/test", owner: "worker/settings-lifecycle-entry.ts", auth: "admin-or-service-admin", permission: "settings.manage", mutation: "mutation", sameOrigin: true },
+  { id: "settings.test", method: "POST", path: "/api/integrations/settings/test", owner: "worker/settings-http.ts", auth: "admin-or-service-admin", permission: "settings.manage", mutation: "mutation", sameOrigin: true },
   { id: "settings.effective", method: "GET", path: "/api/integrations/settings/effective", owner: "worker/settings-lifecycle-entry.ts", auth: "admin-or-service-admin", permission: "settings.manage", mutation: "read", sameOrigin: false },
   { id: "settings.drafts.create", method: "POST", path: "/api/integrations/settings/drafts", owner: "worker/settings-lifecycle-entry.ts", auth: "admin-or-service-admin", permission: "settings.manage", mutation: "mutation", sameOrigin: true },
   { id: "settings.drafts.read", method: "GET", path: "/api/integrations/settings/drafts/:draftId", owner: "worker/settings-lifecycle-entry.ts", auth: "admin-or-service-admin", permission: "settings.manage", mutation: "read", sameOrigin: false },

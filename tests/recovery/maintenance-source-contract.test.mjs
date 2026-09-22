@@ -73,6 +73,7 @@ test("maintenance repository mutates only its singleton and session revocation a
 test("gate allows only bounded recovery control surfaces during maintenance", () => {
   const gate = source(gatePath);
   const securityComposition = source(securityCompositionPath);
+  const scheduledApplication = source(scheduledApplicationPath);
   for (const path of [
     "/api/maintenance/status",
     "/api/integrations/health",

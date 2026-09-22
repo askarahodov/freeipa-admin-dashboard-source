@@ -414,7 +414,7 @@ function safeContext(ctx: RuntimeContext): RuntimeContext {
   } as RuntimeContext;
 }
 
-function resetEncryptionKey(value?: string): Promise<CryptoKey> {
+async function resetEncryptionKey(value?: string): Promise<CryptoKey> {
   const normalized = value?.trim();
   if (!normalized) throw new Error("CONFIG_ENCRYPTION_KEY is not configured");
   let bytes: Uint8Array;
@@ -427,7 +427,7 @@ function resetEncryptionKey(value?: string): Promise<CryptoKey> {
   return crypto.subtle.importKey("raw", bytes, "AES-GCM", false, ["encrypt", "decrypt"]);
 }
 
-function decryptResetJson(value: string, keyValue?: string): Promise<Record<string, unknown>> {
+async function decryptResetJson(value: string, keyValue?: string): Promise<Record<string, unknown>> {
   if (!value) return {};
   const [version, ivValue, encryptedValue] = value.split(".");
   if (version !== "v1" || !ivValue || !encryptedValue) throw new Error("Unsupported encrypted settings format");
@@ -436,7 +436,7 @@ function decryptResetJson(value: string, keyValue?: string): Promise<Record<stri
   return objectValue(JSON.parse(new TextDecoder().decode(decrypted))) ?? {};
 }
 
-function encryptResetJson(value: Record<string, unknown>, keyValue?: string): Promise<string> {
+async function encryptResetJson(value: Record<string, unknown>, keyValue?: string): Promise<string> {
   if (!Object.keys(value).length) return "";
   const key = await resetEncryptionKey(keyValue);
   const iv = crypto.getRandomValues(new Uint8Array(12));
@@ -444,7 +444,7 @@ function encryptResetJson(value: Record<string, unknown>, keyValue?: string): Pr
   return `v1.${bytesToBase64(iv)}.${bytesToBase64(new Uint8Array(encrypted))}`;
 }
 
-function resetFieldsForDraft(env: RuntimeEnv, draftId: string): Promise<SettingField[]> {
+async function resetFieldsForDraft(env: RuntimeEnv, draftId: string): Promise<SettingField[]> {
   if (!env.DB) return [];
   try {
     const row = await env.DB.prepare("SELECT reset_fields_json FROM portal_settings_draft_resets WHERE draft_id = ?")
@@ -479,7 +479,7 @@ function resolvedResetMaterial(changesValue: string, secretsValue: Record<string
   return { changes, secrets, changed: beforeChanges !== JSON.stringify(changes) || beforeSecrets !== JSON.stringify(secrets) };
 }
 
-function publicDraft(request: Request, env: RuntimeEnv, ctx: RuntimeContext, draftId: string): Promise<Record<string, unknown> | null> {
+async function publicDraft(request: Request, env: RuntimeEnv, ctx: RuntimeContext, draftId: string): Promise<Record<string, unknown> | null> {
   const url = new URL(request.url);
   url.pathname = `/api/integrations/settings/drafts/${encodeURIComponent(draftId)}`;
   url.search = "";
@@ -490,7 +490,7 @@ function publicDraft(request: Request, env: RuntimeEnv, ctx: RuntimeContext, dra
     : null;
 }
 
-function refreshResetFallbacks(request: Request, env: RuntimeEnv, ctx: RuntimeContext, draftId: string, action: "validate" | "apply"): Promise<Response | null> {
+async function refreshResetFallbacks(request: Request, env: RuntimeEnv, ctx: RuntimeContext, draftId: string, action: "validate" | "apply"): Promise<Response | null> {
   if (!env.DB) return null;
   const resets = await resetFieldsForDraft(env, draftId);
   if (!resets.length) return null;
@@ -518,7 +518,7 @@ function refreshResetFallbacks(request: Request, env: RuntimeEnv, ctx: RuntimeCo
   }, 409);
 }
 
-function normalizedRequest(request: Request): Promise<Request> {
+async function normalizedRequest(request: Request): Promise<Request> {
   const url = new URL(request.url);
   const relevant = (request.method === "PUT" && url.pathname === "/api/integrations/settings")
     || (request.method === "POST" && url.pathname === "/api/integrations/settings/drafts");

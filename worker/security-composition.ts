@@ -1,8 +1,5 @@
 import compatibilityRuntime from "./maintenance-control-root-entry.ts";
-import {
-  handleMaintenanceGate,
-  handleMaintenanceScheduledGate,
-} from "./maintenance-mode-gate.ts";
+import { handleMaintenanceGate } from "./maintenance-mode-gate.ts";
 import { handleServiceAdminAuthenticationGate } from "./middleware/service-admin-authentication.ts";
 import { handleStorageMigrationApplyRequest } from "./storage-migration-apply-entry.ts";
 import { handleStorageMigrationApplyGate } from "./middleware/storage-migration-apply.ts";
@@ -29,7 +26,6 @@ type RuntimeEnv = NonNullable<Parameters<typeof compatibilityRuntime.fetch>[1]> 
   ADMIN_TOKEN?: string;
 };
 type RuntimeContext = Parameters<typeof compatibilityRuntime.fetch>[2];
-type ScheduledController = Parameters<NonNullable<typeof compatibilityRuntime.scheduled>>[0];
 
 function compatibilityDependencies() {
   return {
@@ -43,13 +39,6 @@ function maintenanceDependencies() {
   return {
     nextFetch(request: Request, env: RuntimeEnv, ctx: RuntimeContext): Promise<Response> {
       return handleServiceAdminAuthenticationGate(request, env, ctx, compatibilityDependencies());
-    },
-    nextScheduled(
-      controller: ScheduledController,
-      env: RuntimeEnv,
-      ctx: RuntimeContext,
-    ): Promise<void> | void {
-      return compatibilityRuntime.scheduled?.(controller, env, ctx);
     },
   };
 }
@@ -77,11 +66,6 @@ const securityComposition = {
         maintenanceDependencies(),
       ),
     });
-  },
-
-  async scheduled(controller: ScheduledController, env: RuntimeEnv | undefined, ctx: RuntimeContext): Promise<void> {
-    const sourceEnv = env ?? (process.env as unknown as RuntimeEnv);
-    return handleMaintenanceScheduledGate(controller, sourceEnv, ctx, maintenanceDependencies());
   },
 };
 

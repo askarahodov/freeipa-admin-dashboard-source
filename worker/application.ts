@@ -4,10 +4,14 @@ import {
   finalizePortalApplicationResponse,
 } from "./application-router.ts";
 import { handleHealthApplicationRoute } from "./health-http.ts";
+import {
+  handleApplicationScheduled,
+  type ApplicationScheduledController,
+} from "./application-scheduled.ts";
 
 type RuntimeEnv = NonNullable<Parameters<typeof securityComposition.fetch>[1]>;
 type RuntimeContext = Parameters<typeof securityComposition.fetch>[2];
-type ScheduledController = Parameters<NonNullable<typeof securityComposition.scheduled>>[0];
+type ScheduledController = ApplicationScheduledController;
 
 function compatibilityFetch(request: Request, env: RuntimeEnv, ctx: RuntimeContext): Promise<Response> {
   return securityComposition.fetch(request, env, ctx);
@@ -49,8 +53,9 @@ const router = createPortalApplicationRouter<RuntimeEnv, RuntimeContext>({
  * already-returned matching 404/405 envelope after compatibility
  * security/status handling.
  *
- * Scheduled execution is intentionally delegated unchanged; its schema and
- * maintenance gates remain compatibility-owned until the final cleanup phase.
+ * Scheduled execution has one explicit application owner in
+ * `application-scheduled.ts`, which preserves the maintenance scheduled gate
+ * before delegating to the remaining compatibility scheduled runtime.
  */
 const application = {
   async fetch(request: Request, env: RuntimeEnv | undefined, ctx: RuntimeContext): Promise<Response> {
@@ -59,7 +64,7 @@ const application = {
   },
 
   async scheduled(controller: ScheduledController, env: RuntimeEnv | undefined, ctx: RuntimeContext): Promise<void> {
-    return securityComposition.scheduled?.(controller, env, ctx);
+    return handleApplicationScheduled(controller, env, ctx);
   },
 };
 

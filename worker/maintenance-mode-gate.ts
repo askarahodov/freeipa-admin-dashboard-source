@@ -29,17 +29,26 @@ export type MaintenanceGateEnv = {
   [key: string]: unknown;
 };
 
-export type MaintenanceGateDependencies<
+type MaintenanceStateDependency = {
+  loadState?: typeof loadMaintenanceState;
+};
+
+export type MaintenanceFetchGateDependencies<
   Env extends MaintenanceGateEnv,
   Context,
-  Controller,
-> = {
-  loadState?: typeof loadMaintenanceState;
+> = MaintenanceStateDependency & {
   nextFetch: (
     request: Request,
     env: Env,
     ctx: Context,
   ) => Promise<Response>;
+};
+
+export type MaintenanceScheduledGateDependencies<
+  Env extends MaintenanceGateEnv,
+  Context,
+  Controller,
+> = MaintenanceStateDependency & {
   nextScheduled: (
     controller: Controller,
     env: Env,
@@ -70,13 +79,9 @@ function unavailableStatus(): PublicMaintenanceStatus {
   };
 }
 
-async function readMaintenance<
-  Env extends MaintenanceGateEnv,
-  Context,
-  Controller,
->(
-  env: Env,
-  dependencies: MaintenanceGateDependencies<Env, Context, Controller>,
+async function readMaintenance(
+  env: MaintenanceGateEnv,
+  dependencies: MaintenanceStateDependency,
 ): Promise<MaintenanceRead> {
   try {
     if (!env.DB) throw new Error("database unavailable");
@@ -120,12 +125,11 @@ function withMaintenanceHeaders(
 export async function handleMaintenanceGate<
   Env extends MaintenanceGateEnv,
   Context,
-  Controller,
 >(
   request: Request,
   env: Env,
   ctx: Context,
-  dependencies: MaintenanceGateDependencies<Env, Context, Controller>,
+  dependencies: MaintenanceFetchGateDependencies<Env, Context>,
 ): Promise<Response> {
   const pathname = new URL(request.url).pathname;
 
@@ -151,7 +155,7 @@ export async function handleMaintenanceScheduledGate<
   controller: Controller,
   env: Env,
   ctx: Context,
-  dependencies: MaintenanceGateDependencies<Env, Context, Controller>,
+  dependencies: MaintenanceScheduledGateDependencies<Env, Context, Controller>,
 ): Promise<void> {
   if (!env.DB && schemaTestBypassEnabled(env)) {
     await dependencies.nextScheduled(controller, env, ctx);

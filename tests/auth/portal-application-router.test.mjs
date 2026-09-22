@@ -246,9 +246,10 @@ test("stable supplemental and framework responses are never rewritten as routing
 });
 
 test("schema boundary preserves health pass-through while non-health traffic enters security composition", async () => {
-  const [schemaSource, applicationSource, healthSource, securitySource, maintenanceSource] = await Promise.all([
+  const [schemaSource, applicationSource, scheduledApplicationSource, healthSource, securitySource, maintenanceSource] = await Promise.all([
     readFile(new URL("../../worker/schema-migrations-entry.ts", import.meta.url), "utf8"),
     readFile(new URL("../../worker/application.ts", import.meta.url), "utf8"),
+    readFile(new URL("../../worker/application-scheduled.ts", import.meta.url), "utf8"),
     readFile(new URL("../../worker/health-http.ts", import.meta.url), "utf8"),
     readFile(new URL("../../worker/security-composition.ts", import.meta.url), "utf8"),
     readFile(new URL("../../worker/maintenance-mode-gate.ts", import.meta.url), "utf8"),
@@ -271,8 +272,11 @@ test("schema boundary preserves health pass-through while non-health traffic ent
   assert.match(applicationSource, /supplemental: \(\{ request, env, ctx, route \}\) => healthOrCompatibility\(request, env, ctx, route\)/);
   assert.match(applicationSource, /framework: \(\{ request, env, ctx \}\) => compatibilityFetch\(request, env, ctx\)/);
   assert.match(applicationSource, /return router\.fetch\(request, sourceEnv, ctx\)/);
-  assert.match(applicationSource, /return securityComposition\.scheduled\?\.\(controller, env, ctx\)/);
-  assert.match(securitySource, /handleMaintenanceScheduledGate\(controller, sourceEnv, ctx/);
-  assert.match(securitySource, /return compatibilityRuntime\.scheduled\?\.\(controller, env, ctx\)/);
+  assert.match(applicationSource, /from "\.\/application-scheduled\.ts"/);
+  assert.match(applicationSource, /return handleApplicationScheduled\(controller, env, ctx\)/);
+  assert.doesNotMatch(securitySource, /handleMaintenanceScheduledGate/);
+  assert.doesNotMatch(securitySource, /compatibilityRuntime\.scheduled/);
+  assert.match(scheduledApplicationSource, /handleMaintenanceScheduledGate\(controller, sourceEnv, ctx/);
+  assert.match(scheduledApplicationSource, /return compatibilityRuntime\.scheduled\?\.\(nextController, nextEnv, nextContext\)/);
   assert.doesNotMatch(maintenanceSource, /application-router|rootRuntime|service-admin-root-entry/);
 });

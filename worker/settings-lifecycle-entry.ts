@@ -57,6 +57,17 @@ type ActiveRow = {
 };
 
 type AdminContext = { identity: string; permissions: string[] };
+type RevisionRow = {
+  id: string;
+  revision: number;
+  config_json: string;
+  source_draft_id: string | null;
+  created_by: string;
+  reason: string;
+  status: string;
+  health_json: string;
+  created_at: number;
+};
 type ServiceName = "freeipa" | "xyops";
 
 const jsonHeaders = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
@@ -238,6 +249,61 @@ async function adminContext(request: Request, env: RuntimeEnv, ctx: RuntimeConte
   if (!permissions.includes("settings.manage")) return json({ error: "Недостаточно прав для выполнения операции", requiredPermission: "settings.manage" }, 403);
   const identity = String(payload.access?.identity ?? "service-admin@portal.local").slice(0, 160);
   return { identity, permissions };
+}
+
+function publicRevisionConfig(configJson: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(configJson) as Record<string, unknown>;
+    return {
+      demoMode: parsed.demoMode === true,
+      ipaUrl: String(parsed.ipaUrl ?? ""),
+      ipaUsername: String(parsed.ipaUsername ?? ""),
+      xyopsUrl: String(parsed.xyopsUrl ?? ""),
+    };
+  } catch {
+    return { demoMode: false, ipaUrl: "", ipaUsername: "", xyopsUrl: "" };
+  }
+}
+
+function publicRevision(row: RevisionRow) {
+  return {
+    id: row.id,
+    revision: Number(row.revision),
+    config: publicRevisionConfig(row.config_json),
+    sourceDraftId: row.source_draft_id || null,
+    createdBy: row.created_by,
+    reason: row.reason,
+    status: row.status,
+    health: JSON.parse(row.health_json || "[]") as unknown[],
+    createdAt: Number(row.created_at),
+  };
+}
+
+async function handleRevisionRead(request: Request, env: RuntimeEnv, ctx: RuntimeContext, url: URL): Promise<Response> {
+  if (!env.DB) return json({ error: "Persistent database is unavailable" }, 503);
+  const access = await adminContext(request, env, ctx);
+  if (access instanceof Response) return access;
+
+  if (request.method === "GET" && url.pathname === "/api/integrations/settings/revisions") {
+    const limitValue = Number(url.searchParams.get("limit") ?? 20);
+    const limit = Math.max(1, Math.min(Number.isFinite(limitValue) ? limitValue : 20, 100));
+    const result = await env.DB.prepare(`SELECT id, revision, config_json, source_draft_id, created_by, reason, status, health_json, created_at
+      FROM portal_settings_revisions ORDER BY revision DESC LIMIT ?`)
+      .bind(limit)
+      .all<RevisionRow>();
+    return json({ revisions: (result.results ?? []).map(publicRevision) });
+  }
+
+  const match = url.pathname.match(/^\/api\/integrations\/settings\/revisions\/(\d{1,20})$/);
+  if (request.method === "GET" && match) {
+    const row = await env.DB.prepare(`SELECT id, revision, config_json, source_draft_id, created_by, reason, status, health_json, created_at
+      FROM portal_settings_revisions WHERE revision = ?`)
+      .bind(Number(match[1]))
+      .first<RevisionRow>();
+    return row ? json({ revision: publicRevision(row) }) : json({ error: "Settings revision not found" }, 404);
+  }
+
+  return json({ error: "Method not allowed" }, 405);
 }
 
 async function publicActiveSettings(request: Request, env: RuntimeEnv, ctx: RuntimeContext): Promise<PublicSettings> {
@@ -560,6 +626,9 @@ const worker = {
   async fetch(request: Request, env: RuntimeEnv | undefined, ctx: RuntimeContext): Promise<Response> {
     const sourceEnv = env ?? (process.env as unknown as RuntimeEnv);
     const url = new URL(request.url);
+    if (url.pathname === "/api/integrations/settings/revisions" || url.pathname.startsWith("/api/integrations/settings/revisions/")) {
+      return handleRevisionRead(request, sourceEnv, ctx, url);
+    }
     if (isLifecyclePath(url.pathname)) return handleLifecycle(request, sourceEnv, ctx, url);
     return secureRuntime.fetch(request, sourceEnv, ctx);
   },

@@ -72,6 +72,7 @@ export function buildCiFailureFingerprint({
 function baseClassificationResult(snapshot, fingerprint) {
   return {
     contractVersion: AUTONOMOUS_CI_REPAIR_CONTRACT_VERSION,
+    repairRunId: normalizeText(snapshot.repairRunId),
     headSha: normalizeSha(snapshot.expectedHeadSha),
     workflowRunId: Number(snapshot.workflowRun?.id) || null,
     jobId: Number(snapshot.job?.id) || null,
@@ -80,7 +81,14 @@ function baseClassificationResult(snapshot, fingerprint) {
 }
 
 export function classifyAutonomousCiFailure(snapshot) {
-  if (!snapshot || !exactHeadEvidence(snapshot)) {
+  if (!snapshot || !normalizeText(snapshot.repairRunId)) {
+    return {
+      classification: "UNKNOWN",
+      reason: "repair_run_id_missing",
+      ...baseClassificationResult(snapshot ?? {}, null),
+    };
+  }
+  if (!exactHeadEvidence(snapshot)) {
     return {
       classification: "UNKNOWN",
       reason: "workflow_head_not_exact",
@@ -99,15 +107,26 @@ export function classifyAutonomousCiFailure(snapshot) {
     };
   }
 
+  const workflowStatus = normalizedOutcome(snapshot.workflowRun?.status);
+  const jobStatus = normalizedOutcome(snapshot.job?.status);
   const workflowConclusion = normalizedOutcome(snapshot.workflowRun?.conclusion);
   const jobConclusion = normalizedOutcome(snapshot.job?.conclusion);
-  const terminalFailure = ["failure", "cancelled", "timed_out", "action_required"].includes(workflowConclusion)
-    || ["failure", "cancelled", "timed_out", "action_required"].includes(jobConclusion);
+  const failureConclusions = ["failure", "cancelled", "timed_out", "action_required"];
+  const workflowFailed = failureConclusions.includes(workflowConclusion);
+  const jobFailed = failureConclusions.includes(jobConclusion);
 
-  if (!terminalFailure) {
+  if (workflowStatus !== "completed" || jobStatus !== "completed") {
     return {
-      classification: "NONE",
-      reason: "no_terminal_failure",
+      classification: "UNKNOWN",
+      reason: "failure_evidence_not_terminal",
+      ...baseClassificationResult(snapshot, null),
+    };
+  }
+
+  if (!jobFailed) {
+    return {
+      classification: workflowFailed ? "UNKNOWN" : "NONE",
+      reason: workflowFailed ? "selected_job_is_not_failure_target" : "no_terminal_failure",
       ...baseClassificationResult(snapshot, null),
     };
   }
@@ -211,6 +230,7 @@ function auditEntry(classification, action, attemptNumber, reason) {
     jobId: classification.jobId,
     fingerprint: classification.fingerprint,
     classification: classification.classification,
+    repairRunId: classification.repairRunId,
     action,
     attemptNumber,
     reason,
@@ -231,8 +251,7 @@ export function planAutonomousCiRepair(classification, history = []) {
   const priorTransientRetries = matching.filter((entry) => entry?.action === "RETRY_EXACT_HEAD").length;
   const priorCodeRepairs = (history ?? []).filter((entry) => (
     entry?.action === "RETURN_TO_IMPLEMENTATION"
-    && String(entry?.classification ?? "") === String(classification.classification)
-    && String(entry?.fingerprint ?? "") === String(classification.fingerprint ?? "")
+    && String(entry?.repairRunId ?? "") === String(classification.repairRunId ?? "")
   )).length;
 
   if (["UNKNOWN", "AMBIGUOUS", "NONE"].includes(classification.classification)) {

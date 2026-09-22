@@ -265,14 +265,6 @@ async function handleSettingsApi(request: Request, env: Env, url: URL, audit: Au
   if (denied) return denied;
   if (!env.ADMIN_TOKEN) return json({ error: "ADMIN_TOKEN is not configured on the server" }, 503);
   if (!await adminAuthorized(request, env)) return json({ error: "Administrator authorization required" }, 401);
-  if (request.method === "GET" && url.pathname === "/api/integrations/settings") {
-    try {
-      const stored = await readStoredSettings(env);
-      return json(publicSettings(stored ?? envSettings(env), env, stored ? "database" : "environment"));
-    } catch (error) {
-      return json({ error: error instanceof Error ? error.message : "Cannot read settings" }, 500);
-    }
-  }
   if (request.method === "PUT" && url.pathname === "/api/integrations/settings") {
     if (!env.DB) return json({ error: "Persistent database is unavailable" }, 503);
     if (!env.CONFIG_ENCRYPTION_KEY) return json({ error: "CONFIG_ENCRYPTION_KEY is not configured" }, 503);
@@ -286,32 +278,6 @@ async function handleSettingsApi(request: Request, env: Env, url: URL, audit: Au
       return json(publicSettings(next, env, "database"));
     } catch (error) {
       return json({ error: error instanceof Error ? error.message : "Cannot save settings" }, 400);
-    }
-  }
-  if (request.method === "POST" && url.pathname === "/api/integrations/settings/test") {
-    let body: Record<string, unknown>;
-    try { body = await request.json() as Record<string, unknown>; } catch { return json({ error: "Invalid JSON" }, 400); }
-    try {
-      const current = await readStoredSettings(env) ?? envSettings(env);
-      const draft = mergeSettingsInput(current, body);
-      const service = body.service === "freeipa" ? "freeipa" : body.service === "xyops" ? "xyops" : null;
-      if (!service) return json({ error: "service must be freeipa or xyops" }, 400);
-      const started = Date.now();
-      if (service === "freeipa") {
-        if (!draft.config.ipaUrl || !draft.config.ipaUsername || !draft.secrets.ipaPassword) return json({ error: "FreeIPA settings are incomplete" }, 400);
-        await ipaRpc({ ...env, IPA_USERNAME: draft.config.ipaUsername, IPA_PASSWORD: draft.secrets.ipaPassword }, draft.config.ipaUrl, "user_find", [""], { sizelimit: 1 });
-      } else {
-        if (!draft.config.xyopsUrl || !draft.secrets.xyopsApiKey) return json({ error: "XYOps settings are incomplete" }, 400);
-        const response = await fetch(`${draft.config.xyopsUrl}/api/app/get_events/v1`, { method: "GET", headers: { "x-api-key": draft.secrets.xyopsApiKey, accept: "application/json" }, signal: AbortSignal.timeout(15000) });
-        const payload = await response.json().catch(() => null);
-        if (!response.ok || !xyopsPayloadSucceeded(payload)) throw new Error("XYOps rejected the connection test");
-      }
-      const latencyMs = Date.now() - started;
-      await appendAuditEvent(env, audit, { action: "settings.connection_test", resourceType: "integration", resourceId: service, outcome: "success", metadata: { service, latencyMs } }).catch(() => {});
-      return json({ ok: true, service, latencyMs });
-    } catch (error) {
-      await appendAuditEvent(env, audit, { action: "settings.connection_test", resourceType: "integration", resourceId: String(body.service ?? "unknown"), outcome: "failure", errorCode: auditErrorCode(error, "connection_test_failed") }).catch(() => {});
-      return json({ error: error instanceof Error ? error.message : "Connection test failed" }, 502);
     }
   }
   return json({ error: "Not found" }, 404);
@@ -599,7 +565,7 @@ export async function portalCatalog(env: Env, xyopsUrl: string | null): Promise<
 async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL, inheritedAudit?: AuditContext): Promise<Response> {
   if (request.method === "GET" && url.pathname === "/api/integrations/health") return json({ ok: true });
   const audit = inheritedAudit ?? createAuditContext(portalAccess(request, baseEnv));
-  if (url.pathname === "/api/integrations/settings" || url.pathname === "/api/integrations/settings/test") return handleSettingsApi(request, baseEnv, url, audit);
+  if (url.pathname === "/api/integrations/settings") return handleSettingsApi(request, baseEnv, url, audit);
   const env = await effectiveEnv(baseEnv);
   const ipaUrl = cleanBaseUrl(env.IPA_URL);
   const xyopsUrl = cleanBaseUrl(env.XYOPS_URL);

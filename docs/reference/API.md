@@ -53,14 +53,14 @@ HTML access pages (`/login`, `/access`, `/sessions`, `/diagnostics`) have their 
 
 ## Integration status, settings and audit
 
-Integration status/audit and the legacy direct settings update still reach the compatibility integration handler, while #633 checkpoint A moves settings read and connection-test HTTP ownership to `worker/settings-http.ts`, dispatched only after the unchanged `secure-entry.ts` identity normalization.
+Integration status/audit still reach the compatibility integration handler. #633 checkpoints A/B move settings read, direct write and connection-test HTTP ownership to `worker/settings-http.ts`, dispatched only after the unchanged `secure-entry.ts` identity normalization. Source-lock/override/CAS/compensation wrappers remain around the write path and preserve existing persistence semantics.
 
 | Method | Path | Purpose | Boundary / capability |
 | --- | --- | --- | --- |
 | `GET` | `/api/integrations/status` | Effective portal/integration status plus effective role/permission projection. | Local session in production local mode; `directory.read`-oriented status consumer |
 | `GET` | `/api/integrations/audit` | Query bounded portal audit events. | `settings.manage` |
 | `GET` | `/api/integrations/settings` | Read public/redacted active integration settings. | `settings.manage` + administrator authorization; owner `worker/settings-http.ts` |
-| `PUT` | `/api/integrations/settings` | Legacy/direct settings write path. | `settings.manage` + administrator authorization; current lifecycle/draft path should be preferred where applicable |
+| `PUT` | `/api/integrations/settings` | Legacy/direct settings write path. | `settings.manage` + administrator authorization; owner `worker/settings-http.ts`; source/CAS wrappers remain authoritative around persistence |
 | `POST` | `/api/integrations/settings/test` | Test FreeIPA or XYOps draft/current integration settings. | `settings.manage` + administrator authorization; owner `worker/settings-http.ts` |
 | `GET` | `/api/integrations/settings/effective` | Read effective settings plus source metadata. | Admin context; owner `worker/settings-lifecycle-entry.ts` |
 | `POST` | `/api/integrations/settings/drafts` | Create revision-aware settings draft. | Admin context; owner `worker/settings-lifecycle-entry.ts` |

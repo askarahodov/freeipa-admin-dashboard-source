@@ -225,64 +225,6 @@ export async function resolveCatalogRuntime(env: Env): Promise<{ env: Env; xyops
   return { env: effective, xyopsUrl: cleanBaseUrl(effective.XYOPS_URL) };
 }
 
-function publicSettings(settings: StoredSettings, env: Env, source: "database" | "environment") {
-  return {
-    source,
-    persistenceAvailable: Boolean(env.DB),
-    encryptionConfigured: Boolean(env.CONFIG_ENCRYPTION_KEY),
-    updatedAt: settings.updatedAt || null,
-    demoMode: settings.config.demoMode,
-    freeipa: { url: settings.config.ipaUrl, username: settings.config.ipaUsername, passwordConfigured: Boolean(settings.secrets.ipaPassword) },
-    xyops: { url: settings.config.xyopsUrl, apiKeyConfigured: Boolean(settings.secrets.xyopsApiKey) },
-  };
-}
-
-function settingString(value: unknown, name: string, maxLength = 2048): string {
-  if (typeof value !== "string") throw new Error(`${name} must be a string`);
-  const normalized = value.trim();
-  if (normalized.length > maxLength) throw new Error(`${name} is too long`);
-  return normalized;
-}
-
-function mergeSettingsInput(current: StoredSettings, body: Record<string, unknown>): StoredSettings {
-  const ipaUrlInput = body.ipaUrl === undefined ? current.config.ipaUrl : settingString(body.ipaUrl, "ipaUrl");
-  const xyopsUrlInput = body.xyopsUrl === undefined ? current.config.xyopsUrl : settingString(body.xyopsUrl, "xyopsUrl");
-  const ipaUrl = ipaUrlInput ? cleanBaseUrl(ipaUrlInput) : "";
-  const xyopsUrl = xyopsUrlInput ? cleanBaseUrl(xyopsUrlInput) : "";
-  if (ipaUrlInput && !ipaUrl) throw new Error("ipaUrl must be a valid HTTP(S) URL without credentials");
-  if (xyopsUrlInput && !xyopsUrl) throw new Error("xyopsUrl must be a valid HTTP(S) URL without credentials");
-  const ipaPassword = body.clearIpaPassword === true ? "" : typeof body.ipaPassword === "string" && body.ipaPassword ? body.ipaPassword.slice(0, 4096) : current.secrets.ipaPassword;
-  const xyopsApiKey = body.clearXyopsApiKey === true ? "" : typeof body.xyopsApiKey === "string" && body.xyopsApiKey ? body.xyopsApiKey.slice(0, 4096) : current.secrets.xyopsApiKey;
-  return {
-    config: { demoMode: body.demoMode === undefined ? current.config.demoMode : body.demoMode === true, ipaUrl, ipaUsername: body.ipaUsername === undefined ? current.config.ipaUsername : settingString(body.ipaUsername, "ipaUsername", 256), xyopsUrl, routes: current.config.routes },
-    secrets: { ipaPassword, xyopsApiKey },
-    updatedAt: Date.now(),
-  };
-}
-
-async function handleSettingsApi(request: Request, env: Env, url: URL, audit: AuditContext): Promise<Response> {
-  const denied = requirePortalPermission(request, env, "settings.manage");
-  if (denied) return denied;
-  if (!env.ADMIN_TOKEN) return json({ error: "ADMIN_TOKEN is not configured on the server" }, 503);
-  if (!await adminAuthorized(request, env)) return json({ error: "Administrator authorization required" }, 401);
-  if (request.method === "PUT" && url.pathname === "/api/integrations/settings") {
-    if (!env.DB) return json({ error: "Persistent database is unavailable" }, 503);
-    if (!env.CONFIG_ENCRYPTION_KEY) return json({ error: "CONFIG_ENCRYPTION_KEY is not configured" }, 503);
-    let body: Record<string, unknown>;
-    try { body = await request.json() as Record<string, unknown>; } catch { return json({ error: "Invalid JSON" }, 400); }
-    try {
-      const current = await readStoredSettings(env) ?? envSettings(env);
-      const next = mergeSettingsInput(current, body);
-      await saveStoredSettings(env, next);
-      await appendAuditEvent(env, audit, { action: "settings.updated", resourceType: "portal_settings", resourceId: "main", outcome: "success", metadata: { demoMode: next.config.demoMode, freeipaUrlConfigured: Boolean(next.config.ipaUrl), freeipaUsernameConfigured: Boolean(next.config.ipaUsername), freeipaPasswordConfigured: Boolean(next.secrets.ipaPassword), xyopsUrlConfigured: Boolean(next.config.xyopsUrl), xyopsApiKeyConfigured: Boolean(next.secrets.xyopsApiKey) } }).catch(() => {});
-      return json(publicSettings(next, env, "database"));
-    } catch (error) {
-      return json({ error: error instanceof Error ? error.message : "Cannot save settings" }, 400);
-    }
-  }
-  return json({ error: "Not found" }, 404);
-}
-
 export const allowedOperations = new Set(["user_add", "user_mod", "user_password", "user_enable", "user_disable", "user_del", "group_add", "group_del", "group_add_member", "group_remove_member"]);
 
 function sanitizeRoutes(raw: unknown): AutomationRoute[] {
@@ -565,7 +507,6 @@ export async function portalCatalog(env: Env, xyopsUrl: string | null): Promise<
 async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL, inheritedAudit?: AuditContext): Promise<Response> {
   if (request.method === "GET" && url.pathname === "/api/integrations/health") return json({ ok: true });
   const audit = inheritedAudit ?? createAuditContext(portalAccess(request, baseEnv));
-  if (url.pathname === "/api/integrations/settings") return handleSettingsApi(request, baseEnv, url, audit);
   const env = await effectiveEnv(baseEnv);
   const ipaUrl = cleanBaseUrl(env.IPA_URL);
   const xyopsUrl = cleanBaseUrl(env.XYOPS_URL);

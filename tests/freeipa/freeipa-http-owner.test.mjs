@@ -42,8 +42,10 @@ test("backup predispatch is not owned by the FreeIPA adapter", async () => {
   const adapter = await source("worker/freeipa-http-entry.ts");
   const backupRoot = await source("worker/backup-selective-restore-root-entry.ts");
   const secureEntry = await source("worker/secure-entry.ts");
+  const backupHttp = await source("worker/backup-http-entry.ts");
   assert.equal(adapter.includes("handleEncryptedBackupRoute"), false);
   assert.equal(adapter.includes("handleBackupImportPreviewRoute"), false);
+  assert.equal(adapter.includes("handleBackupExportRequest"), false);
   assert.match(backupRoot, /import rootRuntime from ["']\.\/session-management-entry\.ts["']/);
   assert.match(secureEntry, /import runtime from ["']\.\/freeipa-http-entry\.ts["']/);
   assert.match(secureEntry, /return runtime\.fetch\(secured\.request, secured\.env, ctx\)/);

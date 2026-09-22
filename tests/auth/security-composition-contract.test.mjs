@@ -64,6 +64,7 @@ test("local security profiles preserve route-specific origin and authentication 
 test("application enters security composition with storage migration then maintenance as explicit gates", () => {
   const application = read("../../worker/application.ts");
   const securityComposition = read("../../worker/security-composition.ts");
+  const scheduledApplication = read("../../worker/application-scheduled.ts");
   const migrationMiddleware = read("../../worker/middleware/storage-migration-apply.ts");
   const maintenanceGate = read("../../worker/maintenance-mode-gate.ts");
 
@@ -79,12 +80,19 @@ test("application enters security composition with storage migration then mainte
   assert.equal(securityComposition.includes("handleStorageMigrationApplyGate(request, env, ctx"), true);
   assert.equal(securityComposition.includes("handleApply: handleStorageMigrationApplyRequest"), true);
   assert.equal(securityComposition.includes("handleMaintenanceGate("), true);
-  assert.equal(securityComposition.includes("handleMaintenanceScheduledGate("), true);
+  assert.equal(securityComposition.includes("handleMaintenanceScheduledGate("), false);
+  assert.equal(application.includes('from "./application-scheduled.ts"'), true);
+  assert.equal(application.includes("handleApplicationScheduled(controller, env, ctx)"), true);
+  assert.equal(scheduledApplication.includes('from "./maintenance-mode-gate.ts"'), true);
+  assert.equal(scheduledApplication.includes("handleMaintenanceScheduledGate(controller, sourceEnv, ctx"), true);
+  assert.equal(scheduledApplication.includes("compatibilityRuntime.scheduled?.(nextController, nextEnv, nextContext)"), true);
   assert.equal(securityComposition.includes("compatibilityRuntime.fetch(request, env, ctx)"), true);
   assert.equal(migrationMiddleware.includes("if (response) return response"), true);
   assert.equal(migrationMiddleware.includes("dependencies.nextFetch(request, env, ctx)"), true);
   assert.equal(maintenanceGate.includes("dependencies.nextFetch(request, env, ctx)"), true);
   assert.equal(maintenanceGate.includes("dependencies.nextScheduled(controller, env, ctx)"), true);
+  assert.equal(maintenanceGate.includes("MaintenanceFetchGateDependencies"), true);
+  assert.equal(maintenanceGate.includes("MaintenanceScheduledGateDependencies"), true);
 });
 
 test("explicit composition owns outer service-admin adaptation while local security remains at the compatibility position", () => {

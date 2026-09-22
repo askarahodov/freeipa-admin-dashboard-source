@@ -42,6 +42,7 @@ const claimSnapshot = (issue, overrides = {}) => ({
   mainSha: "abcdef0123456789",
   selectorDecision: selected(issue.number),
   issue,
+  issues: [issue],
   branches: [],
   openPullRequests: [],
   collisionStatus: "clean",
@@ -56,14 +57,18 @@ const openPr = (number = 700, headSha = "1234567890abcdef") => ({
   headSha,
 });
 
-const fullEvidence = () => ({
+const fullEvidence = (headSha = "1234567890abcdef") => ({
   focusedValidation: [
-    { command: "node --test tests/architecture/autonomous-execution-contract.test.mjs", status: "success" },
+    {
+      command: "node --test tests/architecture/autonomous-execution-contract.test.mjs",
+      status: "success",
+      headSha,
+    },
   ],
-  finalDiffReview: { completed: true, blockingFindings: 0 },
-  documentationImpact: { decision: "updated", notes: "Execution contract docs updated." },
-  acceptanceReviewCompleted: true,
-  sourceOfTruthReviewCompleted: true,
+  finalDiffReview: { completed: true, blockingFindings: 0, headSha },
+  documentationImpact: { decision: "updated", notes: "Execution contract docs updated.", headSha },
+  acceptanceReview: { completed: true, headSha },
+  sourceOfTruthReview: { completed: true, headSha },
   prEvidence: {
     validationRecorded: true,
     securityOperationalImpactReviewed: true,
@@ -72,6 +77,7 @@ const fullEvidence = () => ({
     sourceOfTruthRecorded: true,
     rollbackRecorded: true,
     claimBaseRecorded: true,
+    headSha,
   },
 });
 
@@ -200,6 +206,35 @@ test("resume still requires fresh clean collision evidence", () => {
   assert.equal(result.reason, "active_ownership_collision");
 });
 
+test("dependencies are revalidated immediately before claim", () => {
+  const issue = managed(683);
+  issue.body = `## Goal\nBounded work.\n\n${formatAutonomousTaskMarker({
+    priority: "P1",
+    dependsOn: [682],
+    humanApprovalRequired: false,
+  })}`;
+
+  const reopenedDependency = managed(682, { label: "ai:ready" });
+  const blocked = planAutonomousExecutionClaim(
+    claimSnapshot(issue, { issues: [issue, reopenedDependency] }),
+    683,
+  );
+  assert.equal(blocked.decision, "BLOCKED");
+  assert.equal(blocked.reason, "dependency_not_done");
+  assert.equal(blocked.dependency, 682);
+
+  const doneDependency = {
+    ...managed(682, { label: "ai:review" }),
+    state: "closed",
+    state_reason: "completed",
+  };
+  const allowed = planAutonomousExecutionClaim(
+    claimSnapshot(issue, { issues: [issue, doneDependency] }),
+    683,
+  );
+  assert.equal(allowed.decision, "CLAIM_NEW");
+});
+
 test("human approval and collision both fail closed before a new claim", () => {
   const approval = planAutonomousExecutionClaim(
     claimSnapshot(managed(683, { humanApprovalRequired: true })),
@@ -241,7 +276,27 @@ test("PR checkpoint blocks REVIEW when focused validation is missing", () => {
   });
 
   assert.equal(result.decision, "BLOCKED");
-  assert.ok(result.reasons.includes("focused_validation_missing_or_red"));
+  assert.ok(result.reasons.includes("focused_validation_missing_red_or_stale"));
+});
+
+test("PR checkpoint rejects validation and review evidence from an older head", () => {
+  const issue = managed(683, { label: "ai:in-progress" });
+  const evidence = fullEvidence("aaaaaaaaaaaaaaaa");
+
+  const result = evaluateAutonomousPrCheckpoint({
+    issue,
+    branch: { name: "agent/task-683", sha: "1234567890abcdef" },
+    pullRequest: openPr(),
+    collisionStatus: "clean",
+    evidence,
+  });
+
+  assert.equal(result.decision, "BLOCKED");
+  assert.ok(result.reasons.includes("focused_validation_missing_red_or_stale"));
+  assert.ok(result.reasons.includes("final_diff_review_incomplete_blocked_or_stale"));
+  assert.ok(result.reasons.includes("acceptance_review_missing_or_stale"));
+  assert.ok(result.reasons.includes("source_of_truth_review_missing_or_stale"));
+  assert.ok(result.reasons.includes("pr_evidence_head_not_exact"));
 });
 
 test("PR checkpoint requires exact PR head SHA", () => {
@@ -274,7 +329,7 @@ test("PR checkpoint blocks REVIEW on unresolved diff or documentation evidence",
   });
 
   assert.equal(result.decision, "BLOCKED");
-  assert.ok(result.reasons.includes("final_diff_review_incomplete_or_blocked"));
+  assert.ok(result.reasons.includes("final_diff_review_incomplete_blocked_or_stale"));
   assert.ok(result.reasons.includes("documentation_no_impact_reason_missing"));
 });
 

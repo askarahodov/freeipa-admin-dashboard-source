@@ -87,7 +87,7 @@ UNMANAGED
 
 Из `READY`, `IN_PROGRESS` или `REVIEW` задача может перейти в `BLOCKED`, если обнаружен реальный blocker. Возврат из `BLOCKED` в `READY` допускается только после исчезновения blocker и повторной валидации metadata/dependencies.
 
-Exact mutation/claim concurrency semantics принадлежат #683; этот contract не считает простой локальный read достаточным для ownership claim.
+Exact mutation/claim concurrency semantics определены в [`AUTONOMOUS_EXECUTION_CONTRACT.md`](AUTONOMOUS_EXECUTION_CONTRACT.md): простой локальный read не является ownership claim; V1 использует детерминированную `agent/task-<issue>` branch как branch-first claim lock с recovery semantics.
 
 ## Priority
 
@@ -134,6 +134,8 @@ Scheduler обязан fail closed:
 - autonomous state/metadata syntax and validation: `scripts/autonomous-task-state.mjs`;
 - lifecycle/risk/next-task ordering: `AGENTS.md` и `docs/ai/AI_AGENT_WORKFLOW.md`;
 - test selection: `docs/TESTING_POLICY.md`;
-- collision evidence: repository PR Collision Guard.
+- collision evidence: repository PR Collision Guard;
+- next-task selection: `scripts/autonomous-task-selector.mjs` + [`AUTONOMOUS_TASK_SELECTOR.md`](AUTONOMOUS_TASK_SELECTOR.md);
+- claim/execution/PR checkpoint: `scripts/autonomous-execution-contract.mjs` + [`AUTONOMOUS_EXECUTION_CONTRACT.md`](AUTONOMOUS_EXECUTION_CONTRACT.md).
 
-Следующий slice #682 должен потреблять этот executable contract вместо повторной реализации label/marker parsing.
+Selector и execution contract должны потреблять этот executable state contract вместо повторной реализации label/marker parsing.

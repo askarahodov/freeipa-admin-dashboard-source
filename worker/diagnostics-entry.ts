@@ -1,4 +1,4 @@
-import localRuntime from "./settings-revisions-entry";
+import localRuntime from "./settings-lifecycle-root-entry";
 import { listLocalUsers, resolveLocalSession, type LocalAuthEnv } from "../src/auth/local-auth";
 import { inspectPortalSchema, publicPortalSchemaStatus, type PortalSchemaStatus } from "../db/portal-migrations.ts";
 import packageMetadata from "../package.json";

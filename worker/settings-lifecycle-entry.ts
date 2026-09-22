@@ -276,9 +276,33 @@ function environmentSettings(env: RuntimeEnv): ActiveSettings {
   };
 }
 
+function assertStoredRoutesReadable(raw: unknown): void {
+  if (!Array.isArray(raw)) return;
+  if (raw.length > 100) throw new Error("routes must be an array with at most 100 items");
+  const keys = new Set<string>();
+  const allowedOperations = new Set([
+    "user_add", "user_mod", "user_password", "user_enable", "user_disable",
+    "user_del", "group_add", "group_del", "group_add_member", "group_remove_member",
+  ]);
+  for (const [index, item] of raw.entries()) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) throw new Error(`routes[${index}] must be an object`);
+    const source = item as Record<string, unknown>;
+    const key = String(source.key ?? "").trim().slice(0, 120);
+    const title = String(source.title ?? "").trim().slice(0, 240);
+    const operation = String(source.operation ?? "");
+    const kind = source.kind === "workflow" ? "workflow" : source.kind === "event" ? "event" : null;
+    const eventId = String(source.eventId ?? "").trim().slice(0, 240);
+    if (!key || keys.has(key) || !title || !eventId || !kind || !allowedOperations.has(operation)) {
+      throw new Error(`routes[${index}] is invalid or duplicated`);
+    }
+    keys.add(key);
+  }
+}
+
 async function activeSettings(env: RuntimeEnv): Promise<{ settings: ActiveSettings; source: "database" | "environment" }> {
   const row = await activeRow(env);
   if (!row) return { settings: environmentSettings(env), source: "environment" };
+  assertStoredRoutesReadable(row.config.routes);
   const secrets = await decryptIntegrationSecrets(row.encryptedSecrets, env.CONFIG_ENCRYPTION_KEY);
   return {
     settings: {

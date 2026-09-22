@@ -16,6 +16,8 @@ The orchestrator reads actual GitHub run/job/step state and sanitized relevant l
 
 Required identity evidence includes:
 
+- bounded autonomous repair-run ID;
+
 - expected PR head SHA;
 - workflow run ID/name/head SHA/status/conclusion;
 - failed job ID/run ID/name/status/conclusion;
@@ -62,14 +64,14 @@ An infrastructure failure remains infrastructure failure until a real retry succ
 
 If evidence simultaneously satisfies multiple classes, classification is `AMBIGUOUS` and the loop stops. If evidence is insufficient, classification is `UNKNOWN` and the loop stops.
 
-The system prefers a useful blocker over guessing the cause.
+The system prefers a useful blocker over guessing the cause. A successful job inside a failed workflow is not itself classified as the failure target; orchestration must select the actual failed/cancelled/timed-out job evidence.
 
 ## Retry and repair limits
 
 - transient/no-code retries: maximum `1` per exact-head failure fingerprint;
-- code/test repair attempts: maximum `3` for the same failure class + fingerprint in the bounded run.
+- code/test repair attempts: maximum `3` total per bounded autonomous repair run, even if the failure text/fingerprint changes between candidate heads.
 
-Repeated identical failure beyond the limit becomes `BLOCKED` with an audit record. There is no unlimited `rerun until green` behavior.
+Repeated identical failure beyond the transient limit becomes `BLOCKED`; code/test repair also has a hard run-wide cap so changing failure text cannot reset the budget. History from a different repair run does not consume the current run's budget. There is no unlimited `rerun until green` behavior.
 
 ## Repair candidate
 
@@ -100,6 +102,7 @@ The actual merge authorization belongs to #685.
 
 Each decision produces compact machine-readable evidence:
 
+- bounded repair-run ID;
 - exact head SHA;
 - workflow run ID;
 - job ID;

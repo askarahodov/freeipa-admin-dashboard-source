@@ -81,14 +81,15 @@ Detailed destructive recovery procedure belongs to [`OFFLINE_FULL_RESTORE.md`](.
 
 ### Actual Worker entry chain
 
-The built Worker entry is currently `worker/schema-migrations-entry.ts`. It owns pre-application infrastructure handling and normal schema readiness, while the bounded storage administration paths are intentionally delegated through before the ordinary schema-ready gate so recovery/inspection can still operate. Downstream traffic enters the explicit `worker/application.ts` composition boundary. `worker/application-router.ts` classifies requests using canonical route metadata, then all classifications enter `worker/security-composition.ts`.
+The build-configured Worker entry is `worker/http-security-root-entry.ts`, which owns the outer HTTP security-header boundary and delegates to `worker/schema-migrations-entry.ts`. The schema boundary owns pre-application schema readiness while bounded storage administration paths are intentionally delegated through before the ordinary schema-ready gate so recovery/inspection can still operate. Downstream traffic enters the explicit `worker/application.ts` composition boundary. `worker/application-router.ts` classifies requests using canonical route metadata, then all classifications enter `worker/security-composition.ts`.
 
 `security-composition.ts` now owns the first three extracted security gates. Controlled storage migration apply/status/reconcile is evaluated by `worker/middleware/storage-migration-apply.ts` and the existing `worker/storage-migration-apply-entry.ts`; any handled migration response short-circuits before maintenance. All remaining HTTP traffic then enters the existing dependency-injected `worker/maintenance-mode-gate.ts`, which preserves its recovery allowlist, public maintenance status, integration-health maintenance header and fail-closed behavior. Maintenance-approved HTTP traffic then enters `worker/middleware/service-admin-authentication.ts`, which preserves the existing local-mode administrative allowlist, constant-time `ADMIN_TOKEN` check and synthetic `service-admin@portal.local` environment adaptation before delegating to `worker/maintenance-control-root-entry.ts`. Scheduled execution is owned explicitly by `worker/application-scheduled.ts`; it enters the unchanged maintenance scheduled gate and then delegates directly to the remaining compatibility runtime, preserving the former service-admin wrapper's scheduled pass-through semantics. Vinext image optimization, administrative app-shell HTML rewriting and generic framework/static/RSC fallback are explicitly encapsulated by `worker/framework-http-entry.ts` / `worker/framework-http.ts`, while this checkpoint still reaches that owner through the compatibility chain.
 
 The current chain is approximately:
 
 ```text
-worker/schema-migrations-entry.ts
+worker/http-security-root-entry.ts
+  -> schema-migrations-entry.ts
   -> application.ts
   -> application-router.ts
        -> canonical match/classification
@@ -259,7 +260,7 @@ Use:
 
 These are current-state constraints, not recommendations:
 
-1. **Explicit application/security boundary plus remaining compatibility Worker chain.** `worker/application.ts`/`application-router.ts` provide one post-schema composition/classification point; `worker/security-composition.ts` owns the extracted HTTP security gates, `worker/application-scheduled.ts` owns scheduled composition, and `worker/framework-http-entry.ts` owns Vinext framework/image/static/RSC behavior. Some local-security/domain compatibility wrappers and integration handlers still remain before the final #56 cutover.
+1. **Explicit application composition plus bounded compatibility exceptions.** The build path is `worker/http-security-root-entry.ts -> schema-migrations-entry.ts -> application.ts`; `worker/security-composition.ts` owns extracted HTTP security gates, `worker/application-scheduled.ts` owns scheduled composition, and `worker/framework-http-entry.ts` owns Vinext framework/image/static/RSC behavior. `worker/application-composition-contract.ts` records the bounded remaining compatibility adapters and their removal conditions so final #56 cleanup and #636 enforcement do not rely on an implicit wrapper inventory.
 2. **Actively changing frontend ownership.** Shared tokens/primitives and the AppShell foundation exist, while screen/presentation extraction has continued beyond the original shell foundation; exact ownership must be checked against current `main` rather than historical UI plans.
 3. **Local SQLite/D1-compatible ownership.** The canonical Node runtime uses a local SQLite-backed D1-compatible persistence boundary and does not establish a horizontally scaled multi-writer database architecture.
 4. **Profile-specific persistence paths.** Current Compose mounts the shared `dashboard-data` volume at `/data` in the dashboard service and `/portal-data` in the recovery profile; both paths refer to the same persistent volume.

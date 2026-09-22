@@ -2,6 +2,7 @@
 import { handleFrameworkRequest } from "./framework-http-entry.ts";
 import type { FrameworkHttpContext, FrameworkHttpEnv } from "./framework-http.ts";
 import type { AutomationRoute, CatalogEvent, RouteField } from "../src/automation/automation-types";
+import { allowedAutomationOperations } from "../src/automation/automation-operations.ts";
 import { normalizeFieldCondition } from "../src/automation/field-conditions";
 import { catalogEventAllowed, readCatalogPolicySet, saveCatalogPolicySet } from "../src/operations/catalog/catalog-policies";
 import { readApprovalPolicySet, saveApprovalPolicySet } from "../src/operations/approvals/approval-gates";
@@ -173,7 +174,7 @@ export async function resolveCatalogRuntime(env: Env): Promise<{ env: Env; xyops
   return { env: effective, xyopsUrl: cleanBaseUrl(effective.XYOPS_URL) };
 }
 
-export const allowedOperations = new Set(["user_add", "user_mod", "user_password", "user_enable", "user_disable", "user_del", "group_add", "group_del", "group_add_member", "group_remove_member"]);
+export const allowedOperations = new Set<string>(allowedAutomationOperations);
 
 function sanitizeRoutes(raw: unknown): AutomationRoute[] {
   if (!Array.isArray(raw) || raw.length > 100) throw new Error("routes must be an array with at most 100 items");

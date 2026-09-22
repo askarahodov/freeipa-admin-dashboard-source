@@ -18,11 +18,12 @@ The orchestration order is intentionally branch-first:
 
 1. refresh current `main`, Issue, branches and open PRs;
 2. for a new READY claim, require an exact selector decision whose evidence `mainSha` matches current `main`;
-3. re-check collision/ownership evidence immediately before claim/resume;
-4. attempt to create `refs/heads/agent/task-<issue>` at that exact `main` SHA;
-5. re-fetch branch + Issue;
-6. record minimal GitHub-visible claim evidence containing Issue, branch and claim-base SHA;
-7. project the managed Issue state from `READY` to `IN_PROGRESS`.
+3. re-fetch the selected Issue plus every declared dependency and require every dependency to still be managed `DONE`;
+4. re-check collision/ownership evidence immediately before claim/resume;
+5. attempt to create `refs/heads/agent/task-<issue>` at that exact `main` SHA;
+6. re-fetch branch + Issue;
+7. record minimal GitHub-visible claim evidence containing Issue, branch and claim-base SHA;
+8. project the managed Issue state from `READY` to `IN_PROGRESS`.
 
 Git ref creation is the duplicate-work lock. GitHub cannot create the same ref twice. A competing or retried coordinator must never invent `agent/task-683-2` or another alternate claim branch.
 
@@ -57,6 +58,7 @@ A new claim is allowed only when:
 - selector decision is `SELECTED` for the same Issue;
 - selector evidence `mainSha` equals the fresh current `main`;
 - Issue still validates as managed `READY`;
+- every currently declared dependency is re-fetched and still validates as managed `DONE`;
 - human approval is not required;
 - fresh collision evidence is `clean`;
 - the deterministic claim branch does not yet exist.
@@ -106,14 +108,16 @@ Opening a PR does not automatically mean the task is ready for REVIEW.
 - open PR targets `main` from that claim branch;
 - PR exact head SHA equals the current claim branch SHA;
 - collision re-check is clean;
-- at least one applicable focused validation command is recorded and successful;
-- final combined diff review is complete with zero blocking findings;
-- documentation impact is explicitly decided;
-- acceptance criteria review is complete;
-- source-of-truth review is complete;
+- at least one applicable focused validation command is recorded, successful **and bound to the exact current branch SHA**;
+- final combined diff review is complete with zero blocking findings and records that exact branch SHA;
+- documentation impact is explicitly decided for that exact branch SHA;
+- acceptance criteria review is complete for that exact branch SHA;
+- source-of-truth review is complete for that exact branch SHA;
 - PR template evidence records validation, security/operational impact, documentation impact, coordination, source-of-truth review, rollback/recovery and claim-base evidence.
 
 If a docs update is not required, a reason is mandatory.
+
+The PR evidence record also carries the exact evaluated head SHA. Any new commit invalidates prior validation/review evidence until the affected checks and reviews are repeated on the new head.
 
 A retried valid REVIEW checkpoint returns `REVIEW_CONFIRMED` rather than applying a second transition.
 

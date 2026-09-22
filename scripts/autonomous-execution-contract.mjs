@@ -92,6 +92,36 @@ function collisionBlock(status) {
   );
 }
 
+function validateDependencies(classified, issues) {
+  const byNumber = new Map();
+  for (const issue of issues ?? []) {
+    const number = issueNumber(issue);
+    if (number !== null) byNumber.set(number, issue);
+  }
+
+  for (const dependency of classified.metadata?.dependsOn ?? []) {
+    const dependencyIssue = byNumber.get(Number(dependency));
+    if (!dependencyIssue) {
+      return { ok: false, reason: "dependency_evidence_missing", dependency: Number(dependency) };
+    }
+
+    const dependencyState = classifyAutonomousTaskIssue(dependencyIssue);
+    if (!dependencyState.managed || !dependencyState.valid) {
+      return { ok: false, reason: "dependency_evidence_invalid", dependency: Number(dependency) };
+    }
+    if (dependencyState.state !== "DONE") {
+      return {
+        ok: false,
+        reason: "dependency_not_done",
+        dependency: Number(dependency),
+        state: dependencyState.state,
+      };
+    }
+  }
+
+  return { ok: true };
+}
+
 function buildClaim({
   issue,
   branch,
@@ -131,7 +161,11 @@ export function planAutonomousExecutionClaim(snapshot, selectedIssueNumber) {
   if (typeof snapshot.mainSha !== "string" || snapshot.mainSha.length < 7) {
     return block("invalid_main_snapshot");
   }
-  if (!Array.isArray(snapshot.branches) || !Array.isArray(snapshot.openPullRequests)) {
+  if (
+    !Array.isArray(snapshot.branches)
+    || !Array.isArray(snapshot.openPullRequests)
+    || !Array.isArray(snapshot.issues)
+  ) {
     return block("incomplete_execution_snapshot");
   }
 
@@ -152,6 +186,14 @@ export function planAutonomousExecutionClaim(snapshot, selectedIssueNumber) {
   }
   if (classified.state === "DONE" || classified.state === "CANCELLED") {
     return block("task_already_terminal", { state: classified.state });
+  }
+
+  const dependencyCheck = validateDependencies(classified, snapshot.issues);
+  if (!dependencyCheck.ok) {
+    return block(dependencyCheck.reason, {
+      dependency: dependencyCheck.dependency,
+      dependencyState: dependencyCheck.state ?? null,
+    });
   }
 
   const branchName = autonomousClaimBranchName(selected);
@@ -291,12 +333,17 @@ export function buildAutonomousExecutionContext({ issue, claim }) {
   });
 }
 
-function validateFocusedValidation(rows) {
+function evidenceHeadMatches(value, expectedSha) {
+  return normalizeSha(value) === normalizeSha(expectedSha);
+}
+
+function validateFocusedValidation(rows, expectedSha) {
   if (!Array.isArray(rows) || rows.length === 0) return false;
   return rows.every((row) => (
     typeof row?.command === "string"
     && row.command.trim().length > 0
     && row?.status === "success"
+    && evidenceHeadMatches(row?.headSha, expectedSha)
   ));
 }
 
@@ -348,14 +395,15 @@ export function evaluateAutonomousPrCheckpoint({
   }
 
   if (collisionStatus !== "clean") reasons.push("collision_recheck_not_clean");
-  if (!validateFocusedValidation(evidence?.focusedValidation)) {
-    reasons.push("focused_validation_missing_or_red");
+  if (!validateFocusedValidation(evidence?.focusedValidation, branchSha)) {
+    reasons.push("focused_validation_missing_red_or_stale");
   }
   if (
     evidence?.finalDiffReview?.completed !== true
     || Number(evidence?.finalDiffReview?.blockingFindings ?? 0) !== 0
+    || !evidenceHeadMatches(evidence?.finalDiffReview?.headSha, branchSha)
   ) {
-    reasons.push("final_diff_review_incomplete_or_blocked");
+    reasons.push("final_diff_review_incomplete_blocked_or_stale");
   }
 
   const docsDecision = evidence?.documentationImpact?.decision;
@@ -368,12 +416,21 @@ export function evaluateAutonomousPrCheckpoint({
   ) {
     reasons.push("documentation_no_impact_reason_missing");
   }
-
-  if (evidence?.acceptanceReviewCompleted !== true) {
-    reasons.push("acceptance_review_missing");
+  if (!evidenceHeadMatches(evidence?.documentationImpact?.headSha, branchSha)) {
+    reasons.push("documentation_impact_stale");
   }
-  if (evidence?.sourceOfTruthReviewCompleted !== true) {
-    reasons.push("source_of_truth_review_missing");
+
+  if (
+    evidence?.acceptanceReview?.completed !== true
+    || !evidenceHeadMatches(evidence?.acceptanceReview?.headSha, branchSha)
+  ) {
+    reasons.push("acceptance_review_missing_or_stale");
+  }
+  if (
+    evidence?.sourceOfTruthReview?.completed !== true
+    || !evidenceHeadMatches(evidence?.sourceOfTruthReview?.headSha, branchSha)
+  ) {
+    reasons.push("source_of_truth_review_missing_or_stale");
   }
 
   const prEvidence = evidence?.prEvidence ?? {};
@@ -387,6 +444,9 @@ export function evaluateAutonomousPrCheckpoint({
     "claimBaseRecorded",
   ]) {
     if (prEvidence[field] !== true) reasons.push(`pr_evidence_missing:${field}`);
+  }
+  if (!evidenceHeadMatches(prEvidence.headSha, branchSha)) {
+    reasons.push("pr_evidence_head_not_exact");
   }
 
   if (reasons.length > 0) return checkpointBlock(reasons);

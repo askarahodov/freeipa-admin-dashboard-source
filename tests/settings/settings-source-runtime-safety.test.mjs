@@ -19,7 +19,7 @@ test("operational integration requests resolve inherited ENV without writing set
   assert.equal(safeSource.includes("virtualPrepared"), true);
   assert.equal(safeSource.includes("isOperationalIntegrationRequest"), true);
   assert.equal(safeSource.includes('pathname !== "/api/integrations/health"'), true);
-  assert.equal(safeSource.includes("const operationalEnv = isOperationalIntegrationRequest(request) ? await dynamicInheritedEnv(sourceEnv) : sourceEnv"), true);
+  assert.equal(safeSource.includes("const operationalEnv = isOperationalIntegrationRequest(prepared) ? await dynamicInheritedEnv(sourceEnv) : sourceEnv"), true);
   assert.equal(safeSource.includes("UPDATE app_settings SET config_json"), false);
 });
 

@@ -78,12 +78,21 @@ export async function effectiveSettings(env: XyOpsAdminRuntimeEnv): Promise<Stor
   try { return await readStoredSettings(env) ?? envSettings(env); } catch { return envSettings(env); }
 }
 
-export async function effectiveEnv(env: XyOpsAdminRuntimeEnv): Promise<XyOpsAdminRuntimeEnv> {
+export async function effectiveEnv<T extends XyOpsAdminRuntimeEnv>(env: T): Promise<T> {
   const settings = await effectiveSettings(env);
-  return { ...env, DEMO_MODE: settings.config.demoMode ? "true" : "false", IPA_URL: settings.config.ipaUrl, IPA_USERNAME: settings.config.ipaUsername, IPA_PASSWORD: settings.secrets.ipaPassword, XYOPS_URL: settings.config.xyopsUrl, XYOPS_API_KEY: settings.secrets.xyopsApiKey, XYOPS_ROUTES_JSON: settings.config.routes ? JSON.stringify(settings.config.routes) : env.XYOPS_ROUTES_JSON };
+  return {
+    ...env,
+    DEMO_MODE: settings.config.demoMode ? "true" : "false",
+    IPA_URL: settings.config.ipaUrl,
+    IPA_USERNAME: settings.config.ipaUsername,
+    IPA_PASSWORD: settings.secrets.ipaPassword,
+    XYOPS_URL: settings.config.xyopsUrl,
+    XYOPS_API_KEY: settings.secrets.xyopsApiKey,
+    XYOPS_ROUTES_JSON: settings.config.routes ? JSON.stringify(settings.config.routes) : env.XYOPS_ROUTES_JSON,
+  } as T;
 }
 
-export async function resolveCatalogRuntime(env: XyOpsAdminRuntimeEnv): Promise<{ env: XyOpsAdminRuntimeEnv; xyopsUrl: string | null }> {
+export async function resolveCatalogRuntime<T extends XyOpsAdminRuntimeEnv>(env: T): Promise<{ env: T; xyopsUrl: string | null }> {
   const effective = await effectiveEnv(env);
   return { env: effective, xyopsUrl: cleanBaseUrl(effective.XYOPS_URL) };
 }

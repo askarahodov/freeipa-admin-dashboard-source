@@ -125,4 +125,4 @@ A retried valid REVIEW checkpoint returns `REVIEW_CONFIRMED` rather than applyin
 
 External permission/API failures, collision, human approval, inconsistent Issue/branch/PR state, missing claim-base/local evidence, stale PR head or red validation must stop the transition. They are not reasons to bypass tests or fabricate REVIEW state.
 
-CI failure classification/repair is owned by [`AUTONOMOUS_CI_REPAIR.md`](AUTONOMOUS_CI_REPAIR.md) and `scripts/autonomous-ci-repair.mjs`. Merge readiness belongs to #685. Post-merge completion and next-task transition belong to #686.
+CI failure classification/repair is owned by [`AUTONOMOUS_CI_REPAIR.md`](AUTONOMOUS_CI_REPAIR.md) and `scripts/autonomous-ci-repair.mjs`. Merge readiness is owned by [`AUTONOMOUS_MERGE_GATE.md`](AUTONOMOUS_MERGE_GATE.md) and `scripts/autonomous-merge-gate.mjs`. Post-merge completion and next-task transition belong to #686.

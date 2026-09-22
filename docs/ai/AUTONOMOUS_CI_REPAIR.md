@@ -96,7 +96,7 @@ It deliberately does not duplicate the repository's CI planner/gate allowlists.
 
 Both checks must be terminal success on the same expected head before the loop returns `READY_FOR_MERGE_EVALUATION`. Red results return to failure analysis; pending results wait; head mismatch blocks.
 
-The actual merge authorization belongs to #685.
+The actual merge authorization is owned by [`AUTONOMOUS_MERGE_GATE.md`](AUTONOMOUS_MERGE_GATE.md) and `scripts/autonomous-merge-gate.mjs`.
 
 ## Audit evidence
 

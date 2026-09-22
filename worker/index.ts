@@ -1,6 +1,6 @@
 /** Cloudflare Worker entry point for the vinext-starter template. */
-import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
-import handler from "vinext/server/app-router-entry";
+import { handleFrameworkRequest } from "./framework-http-entry.ts";
+import type { FrameworkHttpContext, FrameworkHttpEnv } from "./framework-http.ts";
 import type { AutomationRoute, CatalogEvent, RouteField } from "../src/automation/automation-types";
 import { normalizeFieldCondition } from "../src/automation/field-conditions";
 import { catalogEventAllowed, readCatalogPolicySet, saveCatalogPolicySet } from "../src/operations/catalog/catalog-policies";
@@ -12,8 +12,7 @@ import { decryptIntegrationSecrets as decryptSecrets, encryptIntegrationSecrets 
 import { portalAccess, requestActor, requirePortalPermission } from "./portal-access-runtime.ts";
 import { xyopsPayloadSucceeded } from "./xyops-run-runtime.ts";
 
-interface Env {
-  ASSETS: Fetcher;
+interface Env extends FrameworkHttpEnv {
   DB?: D1Database;
   IPA_URL?: string;
   IPA_USERNAME?: string;
@@ -34,28 +33,12 @@ interface Env {
   PORTAL_CATALOG_POLICIES_JSON?: string;
   PORTAL_APPROVAL_POLICIES_JSON?: string;
   PORTAL_PROCESS_METADATA_JSON?: string;
-  IMAGES: {
-    input(stream: ReadableStream): {
-      transform(options: Record<string, unknown>): {
-        output(options: { format: string; quality: number }): Promise<{ response(): Response }>;
-      };
-    };
-  };
 }
 
-interface ExecutionContext {
-  waitUntil(promise: Promise<unknown>): void;
-  passThroughOnException(): void;
-}
+type ExecutionContext = FrameworkHttpContext;
 
 type CatalogChange = { id: string; title: string; kind: "new" | "changed" | "removed" };
 type CatalogSnapshot = { events: CatalogEvent[]; syncedAt: number };
-// Image security config. SVG sources with .svg extension auto-skip the
-// optimization endpoint on the client side (served directly, no proxy).
-// To route SVGs through the optimizer (with security headers), set
-// dangerouslyAllowSVG: true in next.config.js and uncomment below:
-// const imageConfig: ImageConfig = { dangerouslyAllowSVG: true };
-
 const worker = {
   async fetch(request: Request, env: Env | undefined, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
@@ -65,24 +48,7 @@ const worker = {
       return handleIntegrationApi(request, runtimeEnv, url);
     }
 
-    if (url.pathname === "/_vinext/image") {
-      const allowedWidths = [...DEFAULT_DEVICE_SIZES, ...DEFAULT_IMAGE_SIZES];
-      return handleImageOptimization(request, {
-        fetchAsset: (path) => runtimeEnv.ASSETS.fetch(new Request(new URL(path, request.url))),
-        transformImage: async (body, { width, format, quality }) => {
-          const result = await runtimeEnv.IMAGES.input(body).transform(width > 0 ? { width } : {}).output({ format, quality });
-          return result.response();
-        },
-      }, allowedWidths);
-    }
-
-    if (request.method === "GET" && request.headers.get("accept")?.includes("text/html") && /^\/(?:automation(?:\/[^/]+)?|users|groups|operations|approvals|audit|settings)\/?$/.test(url.pathname)) {
-      const appUrl = new URL(request.url);
-      appUrl.pathname = "/";
-      return handler.fetch(new Request(appUrl, request), env, ctx);
-    }
-
-    return handler.fetch(request, env, ctx);
+    return handleFrameworkRequest(request, runtimeEnv, ctx);
   },
 };
 

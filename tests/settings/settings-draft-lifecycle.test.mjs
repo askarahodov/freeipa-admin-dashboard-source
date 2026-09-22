@@ -39,6 +39,11 @@ test("settings lifecycle runs behind revision, local auth, origin, normalizer an
   assert.equal(safeSource.includes('import sourceRuntime from "./settings-source-entry"'), true);
   assert.equal(safeSource.includes('import lifecycleRuntime from "./settings-lifecycle-entry"'), true);
   assert.equal(source.includes('import lifecycleRuntime from "./settings-lifecycle-entry"'), true);
+  assert.equal(lifecycle.includes('url.pathname === "/api/integrations/settings/revisions"'), true);
+  assert.equal(lifecycle.includes('FROM portal_settings_revisions ORDER BY revision DESC LIMIT ?'), true);
+  assert.equal(lifecycle.includes('FROM portal_settings_revisions WHERE revision = ?'), true);
+  assert.equal(revisions.includes("handleRevisionApi"), false);
+  assert.equal(revisions.includes("isRevisionPath"), false);
   assert.equal(authorization.includes('"/api/integrations/settings/effective"'), true);
   assert.equal(authorization.includes('pathname.startsWith("/api/integrations/settings/drafts/")'), true);
   assert.equal(localRouting.includes("sameOriginAdminMutation(request)"), true);

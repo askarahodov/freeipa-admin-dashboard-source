@@ -2,6 +2,7 @@ import runtime from "./freeipa-http-entry.ts";
 import { appendAuditEvent, createAuditContext, type AuditContext } from "../audit-log";
 import { resolvedAuthRequestContext } from "../src/auth/resolved-auth-request-context.ts";
 import type { PortalRequestContext } from "../src/auth/portal-request-context.ts";
+import { handleSettingsHttpRequest } from "./settings-http.ts";
 
 type BaseEnv = NonNullable<Parameters<typeof runtime.fetch>[1]>;
 type RuntimeContext = Parameters<typeof runtime.fetch>[2];
@@ -333,6 +334,8 @@ const worker = {
   async fetch(request: Request, env: SecureEnv | undefined, ctx: RuntimeContext): Promise<Response> {
     const sourceEnv = env ?? (process.env as unknown as SecureEnv);
     const secured = await secureContext(request, sourceEnv);
+    const settingsResponse = await handleSettingsHttpRequest(secured.request, secured.env);
+    if (settingsResponse) return settingsResponse;
     if (new URL(secured.request.url).pathname === "/api/integrations/catalog/sync") {
       return handleCatalogSyncApi(secured.request, secured.env, ctx, secured.requestContext);
     }

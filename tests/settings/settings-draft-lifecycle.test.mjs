@@ -133,7 +133,7 @@ test("source mutations are serialized, cleanup-safe and rollback remains tracked
 test("operational requests dynamically inherit ENV and admin writes emit compensation audit", () => {
   assert.equal(safeSource.includes("isOperationalIntegrationRequest"), true);
   assert.equal(safeSource.includes("dynamicInheritedEnv"), true);
-  assert.equal(safeSource.includes("return lifecycleRuntime.fetch(request, operationalEnv, ctx)"), true);
+  assert.equal(safeSource.includes("return lifecycleRuntime.fetch(request, operationalEnv, sourceCtx)"), true);
   assert.equal(safeSource.includes('settings.updated.compensated_rollback'), true);
   assert.equal(safeSource.includes('routes.updated.compensated_rollback'), true);
   assert.equal(safeSource.includes("auditCompensation"), true);

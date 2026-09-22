@@ -88,7 +88,6 @@ http-security-root-entry.ts
             -> local-secure-entry.ts (local-auth adapter)
                  -> middleware/local-security-routing.ts
             -> settings-input-normalizer-entry.ts
-            -> settings-source-context-entry.ts
             -> settings-source-safe-entry.ts
                  |-> settings-source-entry.ts ---------|
                  |                                     v
@@ -107,7 +106,6 @@ It deliberately does not repeat route patterns, permissions or mutation metadata
 
 - `local-secure-entry.ts`;
 - `settings-input-normalizer-entry.ts`;
-- `settings-source-context-entry.ts`;
 - `settings-source-safe-entry.ts`;
 - `settings-source-entry.ts`;
 - `secure-entry.ts`.
@@ -237,7 +235,7 @@ A route missing from `portalRouteContracts` is **not automatically a bug**. Infr
 
 ### Safe execution-context compatibility
 
-`worker/settings-source-context-entry.ts` supplies a compatibility `waitUntil` implementation when the incoming context does not provide one. This behavior must be classified before wrapper removal; it must not be lost accidentally as “just plumbing”.
+#635 checkpoint C2 moves the fallback `waitUntil`/`passThroughOnException` guarantee directly into `worker/settings-source-safe-entry.ts`, the boundary that consumes it for compensation audit and source delegation. The standalone `settings-source-context-entry.ts` wrapper is removed; execution-context safety remains explicit and tested without a separate compatibility layer.
 
 These adapters explain why deleting remaining wrappers before #631–#635 would be unsafe. The target architecture should replace them with explicit principal/configuration/context dependencies, not merely move the same hidden mutation to different files.
 

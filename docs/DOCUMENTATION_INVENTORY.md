@@ -33,6 +33,7 @@
 | `docs/adr/README.md` | ADR policy + implementation evidence | `verified-active` | Why-level decisions; ADR-0008 remains Proposed until #56 cutover evidence exists |
 | `docs/reference/GLOSSARY.md` | active runtime/domain semantics | `verified-active` | Common terminology |
 | `docs/ai/README.md` | documentation policy + source registry | `verified-active` | Mandatory AI-agent entrypoint |
+| `docs/ai/AUTONOMOUS_TASK_STATE.md` | `scripts/autonomous-task-state.mjs` + architecture contract tests | `verified-active` | Opt-in machine-readable Issue state/metadata contract for autonomous coordination |
 | `.github/pull_request_template.md` | documentation policy | `verified-active` | Documentation/security/source-of-truth checklist |
 
 ## Normalized reference layer

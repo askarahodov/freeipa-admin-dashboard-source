@@ -26,6 +26,8 @@
 
 Обязательная точка входа: [`ai/README.md`](ai/README.md). Issue, implementation plan, старый PR или historical design не являются доказательством текущего поведения. При конфликте приоритет у canonical code/tests, затем documented source of truth и verified-active профильных документов.
 
+Для opt-in автономного scheduler contract используйте [`ai/AUTONOMOUS_TASK_STATE.md`](ai/AUTONOMOUS_TASK_STATE.md); свободный текст Issue сам по себе не делает задачу READY.
+
 ### Оператор
 
 Основной набор:

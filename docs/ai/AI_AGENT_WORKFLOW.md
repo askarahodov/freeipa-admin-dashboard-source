@@ -235,6 +235,8 @@ After a healthy checkpoint, prioritize by:
 
 Do not optimize for easiest issue or largest closed-issue count.
 
+Autonomous task selection is opt-in. Before an AI Coordinator treats an Issue as scheduler input, it must validate the repository-owned contract in [`AUTONOMOUS_TASK_STATE.md`](AUTONOMOUS_TASK_STATE.md) through `scripts/autonomous-task-state.mjs`. Unmanaged, invalid or ambiguous Issues are not selectable, and autonomous state must never be inferred from free-form prose alone.
+
 ## Role responsibilities
 
 ### Coordinator

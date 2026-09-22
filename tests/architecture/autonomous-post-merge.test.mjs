@@ -41,7 +41,8 @@ const validCheckpointSnapshot = (overrides = {}) => ({
     merged: true,
     issue: 10,
     pullRequest: 100,
-    mergeCommitSha: MAIN,
+    mergeCommitSha: "cccccccccccccccc",
+    mergeCommitReachableFromMain: true,
     changePresent: true,
     changeVerifiedOnMainSha: MAIN,
   },
@@ -98,15 +99,21 @@ test("healthy resulting main authorizes REVIEW to DONE transition", () => {
   assert.equal(result.mainSha, MAIN);
 });
 
-test("wrong resulting main or missing merged change fails closed", () => {
+test("unreachable merge commit or missing merged change fails closed", () => {
   const snapshot = validCheckpointSnapshot();
-  snapshot.mergeEvidence.mergeCommitSha = "bbbbbbbbbbbbbbbb";
+  snapshot.mergeEvidence.mergeCommitReachableFromMain = false;
   snapshot.mergeEvidence.changePresent = false;
 
   const result = evaluateAutonomousPostMergeCheckpoint(snapshot);
   assert.equal(result.decision, "BLOCKED");
-  assert.ok(result.reasons.includes("resulting_main_does_not_match_merge"));
+  assert.ok(result.reasons.includes("merge_commit_not_verified_reachable_from_main"));
   assert.ok(result.reasons.includes("merged_change_not_verified_present"));
+});
+
+test("a newer main is valid when the merge commit is reachable and change is reverified", () => {
+  const result = evaluateAutonomousPostMergeCheckpoint(validCheckpointSnapshot());
+  assert.equal(result.decision, "VERIFIED_CHECKPOINT");
+  assert.notEqual(result.evidence.mergeCommitSha, result.mainSha);
 });
 
 test("post-merge acceptance must be satisfied on resulting main", () => {

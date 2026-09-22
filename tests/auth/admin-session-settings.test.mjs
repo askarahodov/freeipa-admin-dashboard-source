@@ -7,6 +7,7 @@ const runtime = fs.readFileSync(new URL("../../worker/local-secure-entry.ts", im
 const localRouting = fs.readFileSync(new URL("../../worker/middleware/local-security-routing.ts", import.meta.url), "utf8");
 const selectiveRoot = fs.readFileSync(new URL("../../worker/backup-selective-restore-root-entry.ts", import.meta.url), "utf8");
 const secureEntry = fs.readFileSync(new URL("../../worker/secure-entry.ts", import.meta.url), "utf8");
+const backupHttp = fs.readFileSync(new URL("../../worker/backup-http-entry.ts", import.meta.url), "utf8");
 const maintenanceControlRoot = fs.readFileSync(new URL("../../worker/maintenance-control-root-entry.ts", import.meta.url), "utf8");
 const serviceAdminGate = fs.readFileSync(new URL("../../worker/middleware/service-admin-authentication.ts", import.meta.url), "utf8");
 const maintenanceGate = fs.readFileSync(new URL("../../worker/maintenance-mode-gate.ts", import.meta.url), "utf8");
@@ -67,7 +68,8 @@ test("local session mutations require same-origin while service token access sta
   assert.equal(securityComposition.includes('import compatibilityRuntime from "./maintenance-control-root-entry.ts"'), true);
   assert.equal(maintenanceControlRoot.includes('import rootRuntime from "./backup-selective-restore-root-entry.ts"'), true);
   assert.equal(selectiveRoot.includes('import rootRuntime from "./session-management-entry.ts"'), true);
-  assert.equal(secureEntry.includes('import runtime from "./freeipa-http-entry.ts"'), true);
+  assert.equal(secureEntry.includes('import runtime from "./backup-http-entry.ts"'), true);
+  assert.equal(backupHttp.includes('import runtime from "./freeipa-http-entry.ts"'), true);
   assert.equal(serviceAdminGate.includes("resolveLocalSession"), false);
   assert.equal(serviceAdminGate.includes("env.DB"), false);
 });

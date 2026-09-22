@@ -20,6 +20,7 @@ import {
 import { appendAuditEvent, auditCorrelationFor, auditErrorCode, createAuditContext, withAuditCorrelation, type AuditContext } from "../audit-log";
 import { operationRun, saveOperationRun } from "./operation-run-runtime.ts";
 import { effectiveXyOpsRuntime, type XyOpsSettingsEnv } from "./integration-settings-runtime.ts";
+import { handleIntegrationStatusRequest } from "./integration-status-http.ts";
 import { portalAccess, requestActor, requirePortalPermission } from "./portal-access-runtime.ts";
 import { applyProcessPresentation, availableProcessPresentationLocales, presentationLocalePreferences, readProcessPresentationSet, resolveProcessPresentationLocale } from "../src/operations/presentation/process-presentation";
 import { extractJobStages, listOperationRuns, publicRun, runStatus, syncOperationRuns, xyopsPayloadSucceeded } from "./xyops-run-runtime.ts";
@@ -678,6 +679,8 @@ const worker = {
     if (request.method === "GET" && url.pathname === "/api/integrations/runs") {
       return handleRunsList(request, sourceEnv, url);
     }
+    const statusResponse = await handleIntegrationStatusRequest(request, sourceEnv);
+    if (statusResponse) return statusResponse;
     return integrationRuntime.fetch(request, sourceEnv, ctx);
   },
 

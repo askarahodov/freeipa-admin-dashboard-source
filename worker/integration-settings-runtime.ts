@@ -1,3 +1,5 @@
+import { automationOperationAllowed } from "../src/automation/automation-operations.ts";
+
 export type IntegrationSettingsSecrets = {
   ipaPassword: string;
   xyopsApiKey: string;
@@ -21,6 +23,8 @@ export type XyOpsSettingsEnv = {
   XYOPS_API_KEY?: string;
   XYOPS_RESULT_FILE_MAX_BYTES?: string;
 };
+
+export type IntegrationSettingsEnv = FreeIpaSettingsEnv & XyOpsSettingsEnv;
 
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = "";
@@ -125,6 +129,85 @@ function fallbackXyOpsEnv<T extends XyOpsSettingsEnv>(env: T): T {
     XYOPS_URL: cleanIntegrationBaseUrl(env.XYOPS_URL) ?? "",
     XYOPS_API_KEY: env.XYOPS_API_KEY ?? "",
   };
+}
+
+function fallbackIntegrationEnv<T extends IntegrationSettingsEnv>(env: T): T {
+  return fallbackXyOpsEnv(fallbackFreeIpaEnv(env));
+}
+
+function persistedRoutesMatchLegacySnapshotContract(raw: unknown): boolean {
+  if (!Array.isArray(raw)) return true;
+  if (raw.length > 100) return false;
+  const keys = new Set<string>();
+  for (const item of raw) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return false;
+    const source = item as Record<string, unknown>;
+    const key = String(source.key ?? "").trim().slice(0, 120);
+    const title = String(source.title ?? "").trim().slice(0, 240);
+    const operation = String(source.operation ?? "");
+    const kind = source.kind === "workflow" ? "workflow" : source.kind === "event" ? "event" : null;
+    const eventId = String(source.eventId ?? "").trim().slice(0, 240);
+    if (!key || keys.has(key) || !title || !eventId || !kind || !automationOperationAllowed(operation)) return false;
+    keys.add(key);
+  }
+  return true;
+}
+
+/**
+ * Resolves the persisted FreeIPA + XYOps status slice from one app_settings read.
+ *
+ * The legacy integration-status handler observed one effective-settings snapshot.
+ * Keep that atomicity here instead of composing the two domain-specific resolvers
+ * and risking mixed values across separate database reads.
+ */
+export async function effectiveIntegrationRuntime<T extends IntegrationSettingsEnv>(
+  env: T,
+): Promise<{ env: T; ipaUrl: string | null; xyopsUrl: string | null }> {
+  const fallback = fallbackIntegrationEnv(env);
+  if (!env.DB) {
+    return {
+      env: fallback,
+      ipaUrl: cleanIntegrationBaseUrl(fallback.IPA_URL),
+      xyopsUrl: cleanIntegrationBaseUrl(fallback.XYOPS_URL),
+    };
+  }
+  try {
+    const row = await env.DB.prepare("SELECT config_json, encrypted_secrets, updated_at FROM app_settings WHERE id = ?")
+      .bind("main")
+      .first<{ config_json: string; encrypted_secrets: string; updated_at: number }>();
+    if (!row) {
+      return {
+        env: fallback,
+        ipaUrl: cleanIntegrationBaseUrl(fallback.IPA_URL),
+        xyopsUrl: cleanIntegrationBaseUrl(fallback.XYOPS_URL),
+      };
+    }
+    const config = JSON.parse(String(row.config_json ?? "{}")) as Record<string, unknown>;
+    if (!persistedRoutesMatchLegacySnapshotContract(config.routes)) {
+      throw new Error("persisted automation routes are invalid");
+    }
+    const secrets = await decryptIntegrationSecrets(String(row.encrypted_secrets ?? ""), env.CONFIG_ENCRYPTION_KEY);
+    const effective = {
+      ...env,
+      DEMO_MODE: config.demoMode === true ? "true" : "false",
+      IPA_URL: String(config.ipaUrl ?? ""),
+      IPA_USERNAME: String(config.ipaUsername ?? ""),
+      IPA_PASSWORD: secrets.ipaPassword,
+      XYOPS_URL: String(config.xyopsUrl ?? ""),
+      XYOPS_API_KEY: secrets.xyopsApiKey,
+    } as T;
+    return {
+      env: effective,
+      ipaUrl: cleanIntegrationBaseUrl(effective.IPA_URL),
+      xyopsUrl: cleanIntegrationBaseUrl(effective.XYOPS_URL),
+    };
+  } catch {
+    return {
+      env: fallback,
+      ipaUrl: cleanIntegrationBaseUrl(fallback.IPA_URL),
+      xyopsUrl: cleanIntegrationBaseUrl(fallback.XYOPS_URL),
+    };
+  }
 }
 
 /**

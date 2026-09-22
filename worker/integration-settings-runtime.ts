@@ -1,3 +1,5 @@
+import { automationOperationAllowed } from "../src/automation/automation-operations.ts";
+
 export type IntegrationSettingsSecrets = {
   ipaPassword: string;
   xyopsApiKey: string;
@@ -107,6 +109,9 @@ export async function effectiveFreeIpaRuntime<T extends FreeIpaSettingsEnv>(env:
       .first<{ config_json: string; encrypted_secrets: string; updated_at: number }>();
     if (!row) return { env: fallback, ipaUrl: cleanIntegrationBaseUrl(fallback.IPA_URL) };
     const config = JSON.parse(String(row.config_json ?? "{}")) as Record<string, unknown>;
+    if (!persistedRoutesMatchLegacySnapshotContract(config.routes)) {
+      throw new Error("persisted automation routes are invalid");
+    }
     const secrets = await decryptIntegrationSecrets(String(row.encrypted_secrets ?? ""), env.CONFIG_ENCRYPTION_KEY);
     const effective = {
       ...env,
@@ -131,6 +136,24 @@ function fallbackXyOpsEnv<T extends XyOpsSettingsEnv>(env: T): T {
 
 function fallbackIntegrationEnv<T extends IntegrationSettingsEnv>(env: T): T {
   return fallbackXyOpsEnv(fallbackFreeIpaEnv(env));
+}
+
+function persistedRoutesMatchLegacySnapshotContract(raw: unknown): boolean {
+  if (!Array.isArray(raw)) return true;
+  if (raw.length > 100) return false;
+  const keys = new Set<string>();
+  for (const item of raw) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return false;
+    const source = item as Record<string, unknown>;
+    const key = String(source.key ?? "").trim().slice(0, 120);
+    const title = String(source.title ?? "").trim().slice(0, 240);
+    const operation = String(source.operation ?? "");
+    const kind = source.kind === "workflow" ? "workflow" : source.kind === "event" ? "event" : null;
+    const eventId = String(source.eventId ?? "").trim().slice(0, 240);
+    if (!key || keys.has(key) || !title || !eventId || !kind || !automationOperationAllowed(operation)) return false;
+    keys.add(key);
+  }
+  return true;
 }
 
 /**

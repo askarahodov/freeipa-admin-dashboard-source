@@ -208,3 +208,6 @@ The route contract is intended to become an input to #56 route/middleware parity
 - [`../SECURITY_MODEL.md`](../SECURITY_MODEL.md)
 - [`../ARCHITECTURE.md`](../architecture/ARCHITECTURE.md)
 - [`../SOURCE_OF_TRUTH.md`](SOURCE_OF_TRUTH.md)
+
+
+#635 C5 ownership note: `/api/integrations/routes`, `/api/integrations/catalog/presentation`, `/api/integrations/catalog/policies` and `/api/integrations/approval/policies` are implemented by `worker/xyops-admin-http.ts`; canonical method/auth/permission/mutation metadata remains in `src/auth/portal-route-contract.ts`.

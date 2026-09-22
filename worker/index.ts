@@ -7,7 +7,6 @@ import { catalogEventAllowed, readCatalogPolicySet, saveCatalogPolicySet } from 
 import { readApprovalPolicySet, saveApprovalPolicySet } from "../src/operations/approvals/approval-gates";
 import { appendAuditEvent, auditCorrelationFor, auditErrorCode, createAuditContext, listAuditEvents, withAuditCorrelation, type AuditContext } from "../audit-log";
 import { applyProcessPresentation, availableProcessPresentationLocales, presentationLocalePreferences, readProcessPresentationSet, resolveProcessPresentationLocale, saveProcessPresentationSet } from "../src/operations/presentation/process-presentation";
-import { handleBackupExportRequest } from "./backup-export-entry";
 import { freeIpaRpc as ipaRpc } from "./freeipa-rpc.ts";
 import { decryptIntegrationSecrets as decryptSecrets, encryptIntegrationSecrets as encryptSecrets } from "./integration-settings-runtime.ts";
 import { portalAccess, requestActor, requirePortalPermission } from "./portal-access-runtime.ts";
@@ -61,12 +60,6 @@ const worker = {
   async fetch(request: Request, env: Env | undefined, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     const runtimeEnv = env ?? (process.env as unknown as Env);
-
-    if (url.pathname === "/api/admin/backups/export") {
-      const denied = requirePortalPermission(request, runtimeEnv, "backup.export");
-      if (denied) return denied;
-      return handleBackupExportRequest(request, runtimeEnv, createAuditContext(portalAccess(request, runtimeEnv)));
-    }
 
     if (url.pathname.startsWith("/api/integrations/")) {
       return handleIntegrationApi(request, runtimeEnv, url);

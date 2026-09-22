@@ -58,6 +58,63 @@ test("effective integration runtime reads one persisted snapshot for both integr
   assert.equal(result.env.XYOPS_API_KEY, "persisted-xyops-secret");
 });
 
+test("invalid persisted route preserves legacy whole-snapshot fallback", async () => {
+  const key = "22".repeat(32);
+  const encrypted = await encryptIntegrationSecrets({
+    ipaPassword: "persisted-secret",
+    xyopsApiKey: "persisted-key",
+  }, key);
+  let reads = 0;
+  const env = {
+    CONFIG_ENCRYPTION_KEY: key,
+    DEMO_MODE: "false",
+    IPA_URL: "https://env-ipa.example",
+    IPA_USERNAME: "env-user",
+    IPA_PASSWORD: "env-password",
+    XYOPS_URL: "https://env-xyops.example",
+    XYOPS_API_KEY: "env-key",
+    DB: {
+      prepare() {
+        reads += 1;
+        return {
+          bind() {
+            return {
+              async first() {
+                return {
+                  config_json: JSON.stringify({
+                    demoMode: true,
+                    ipaUrl: "https://persisted-ipa.example",
+                    ipaUsername: "persisted-user",
+                    xyopsUrl: "https://persisted-xyops.example",
+                    routes: [{
+                      key: "bad-route",
+                      title: "Bad route",
+                      operation: "not_allowed",
+                      kind: "event",
+                      eventId: "event-1",
+                    }],
+                  }),
+                  encrypted_secrets: encrypted,
+                  updated_at: 123,
+                };
+              },
+            };
+          },
+        };
+      },
+    },
+  };
+
+  const result = await effectiveIntegrationRuntime(env);
+  assert.equal(reads, 1);
+  assert.equal(result.env.DEMO_MODE, "false");
+  assert.equal(result.ipaUrl, "https://env-ipa.example");
+  assert.equal(result.xyopsUrl, "https://env-xyops.example");
+  assert.equal(result.env.IPA_USERNAME, "env-user");
+  assert.equal(result.env.IPA_PASSWORD, "env-password");
+  assert.equal(result.env.XYOPS_API_KEY, "env-key");
+});
+
 test("integration status preserves probe and access response semantics", async () => {
   const calls = [];
   const request = new Request("https://portal.example/api/integrations/status", {

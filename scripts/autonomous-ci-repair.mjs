@@ -179,6 +179,7 @@ export function classifyAutonomousCiFailure(snapshot) {
 
   const invalidTest = (
     evidence.testExpectationContradictsContract === true
+    && evidence.validTestAssertion === false
     && normalizeText(evidence.canonicalContractReference).length > 0
   );
   if (invalidTest) candidates.push("INVALID_TEST");

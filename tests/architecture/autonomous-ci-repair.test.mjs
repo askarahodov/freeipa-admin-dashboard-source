@@ -92,6 +92,19 @@ test("classifies an invalid test only with canonical contract evidence", () => {
   assert.equal(result.classification, "INVALID_TEST");
 });
 
+test("contradictory valid-test and invalid-test evidence fails closed", () => {
+  const result = classifyAutonomousCiFailure(failureSnapshot({
+    focusedReproduction: "fails",
+    baseReproduction: "passes",
+    validTestAssertion: true,
+    testExpectationContradictsContract: true,
+    canonicalContractReference: "docs/reference/API.md#changed-contract",
+  }));
+
+  assert.equal(result.classification, "UNKNOWN");
+  assert.equal(result.reason, "insufficient_classification_evidence");
+});
+
 test("classifies strong infrastructure evidence without product assertion as infrastructure", () => {
   const result = classifyAutonomousCiFailure(failureSnapshot({
     infrastructureSignal: "runner_unavailable",

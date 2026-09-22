@@ -42,7 +42,7 @@ Action: `BLOCKED` for coordinator scope decision. V1 does not silently expand th
 
 ### INVALID_TEST
 
-Evidence: the test expectation is proven inconsistent with a canonical current contract/acceptance decision, and that canonical reference is recorded.
+Evidence: the test expectation is proven inconsistent with a canonical current contract/acceptance decision, `validTestAssertion` is explicitly `false`, and that canonical reference is recorded. Contradictory evidence that also marks the assertion valid is insufficient and fails closed.
 
 Action: return to implementation with explicit permission to correct the test, while canonical contract review remains mandatory. This is not generic permission to weaken assertions.
 

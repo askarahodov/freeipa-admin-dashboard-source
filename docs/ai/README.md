@@ -23,6 +23,15 @@
 
 Нельзя начинать с issue и затем предполагать, что описанное в issue уже реализовано.
 
+## Autonomous Development V1
+
+Для opt-in автономного scheduler используются отдельные executable contracts:
+
+- [`AUTONOMOUS_TASK_STATE.md`](AUTONOMOUS_TASK_STATE.md) — managed task states/metadata и fail-closed validation;
+- [`AUTONOMOUS_TASK_SELECTOR.md`](AUTONOMOUS_TASK_SELECTOR.md) — deterministic next executable Issue selection по свежему GitHub snapshot.
+
+Они дополняют, но не заменяют `AGENTS.md`, этот entrypoint, `AI_AGENT_WORKFLOW.md`, `TESTING_POLICY.md` и repository CI/collision gates.
+
 ## Как определить owner изменения
 
 Перед созданием нового файла, сервиса, route или abstraction ответьте:

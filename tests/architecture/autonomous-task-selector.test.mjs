@@ -1,0 +1,203 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import { formatAutonomousTaskMarker } from "../../scripts/autonomous-task-state.mjs";
+import { selectNextAutonomousTask } from "../../scripts/autonomous-task-selector.mjs";
+
+const managed = (number, {
+  state = "open",
+  stateReason,
+  label = "ai:ready",
+  priority = "P1",
+  dependsOn = [],
+  humanApprovalRequired = false,
+} = {}) => ({
+  number,
+  state,
+  state_reason: stateReason,
+  labels: [label],
+  body: formatAutonomousTaskMarker({ priority, dependsOn, humanApprovalRequired }),
+});
+
+const defaultRank = () => ({
+  securityCorrectness: 1,
+  userOperationalImpact: 1,
+  unlockValue: 1,
+  implementationCost: 1,
+});
+
+const snapshot = (issues, collisionEvidence = {}, overrides = {}) => ({
+  githubAvailable: true,
+  mainSha: "0123456789abcdef",
+  issues,
+  openPullRequests: [],
+  collisionEvidence,
+  rankingEvidence: Object.fromEntries(
+    issues
+      .map((issue) => Number(issue.number ?? issue.issue_number))
+      .filter((number) => Number.isInteger(number) && number > 0)
+      .map((number) => [String(number), defaultRank()]),
+  ),
+  ...overrides,
+});
+
+test("selects the only executable READY issue", () => {
+  const result = selectNextAutonomousTask(snapshot(
+    [managed(10)],
+    { "10": "clean" },
+  ));
+  assert.equal(result.decision, "SELECTED");
+  assert.deepEqual(result.selected, {
+    issue: 10,
+    priority: "P1",
+    ranking: defaultRank(),
+  });
+});
+
+test("canonical higher-order ranking wins before project priority", () => {
+  const input = snapshot(
+    [
+      managed(10, { priority: "P0" }),
+      managed(20, { priority: "P2" }),
+    ],
+    { "10": "clean", "20": "clean" },
+  );
+  input.rankingEvidence["10"] = {
+    securityCorrectness: 2,
+    userOperationalImpact: 0,
+    unlockValue: 0,
+    implementationCost: 0,
+  };
+  input.rankingEvidence["20"] = {
+    securityCorrectness: 0,
+    userOperationalImpact: 3,
+    unlockValue: 3,
+    implementationCost: 3,
+  };
+
+  const result = selectNextAutonomousTask(input);
+  assert.equal(result.selected.issue, 20);
+});
+
+test("project priority wins only after security, impact and unlock ranks tie", () => {
+  const result = selectNextAutonomousTask(snapshot(
+    [managed(10, { priority: "P2" }), managed(20, { priority: "P0" })],
+    { "10": "clean", "20": "clean" },
+  ));
+  assert.equal(result.selected.issue, 20);
+});
+
+test("implementation cost is considered after project priority", () => {
+  const input = snapshot(
+    [
+      managed(10, { priority: "P0" }),
+      managed(20, { priority: "P1" }),
+    ],
+    { "10": "clean", "20": "clean" },
+  );
+  input.rankingEvidence["10"].implementationCost = 3;
+  input.rankingEvidence["20"].implementationCost = 0;
+
+  const result = selectNextAutonomousTask(input);
+  assert.equal(result.selected.issue, 10);
+});
+
+test("blocked dependency prevents selection", () => {
+  const result = selectNextAutonomousTask(snapshot(
+    [managed(10, { dependsOn: [9] }), managed(9, { label: "ai:blocked" })],
+    { "10": "clean", "9": "clean" },
+  ));
+  assert.equal(result.decision, "BLOCKED");
+  assert.equal(result.rejected.find((entry) => entry.issue === 10).reason, "dependency_not_done");
+});
+
+test("completed dependency unlocks the candidate", () => {
+  const done = managed(9, { state: "closed", stateReason: "completed", label: "ai:review" });
+  const result = selectNextAutonomousTask(snapshot(
+    [managed(10, { dependsOn: [9] }), done],
+    { "10": "clean", "9": "clean" },
+  ));
+  assert.equal(result.decision, "SELECTED");
+  assert.equal(result.selected.issue, 10);
+});
+
+test("active ownership collision fails closed", () => {
+  const result = selectNextAutonomousTask(snapshot(
+    [managed(10)],
+    { "10": "collision" },
+  ));
+  assert.equal(result.decision, "BLOCKED");
+  assert.equal(result.rejected[0].reason, "active_ownership_collision");
+});
+
+test("missing collision evidence fails closed", () => {
+  const result = selectNextAutonomousTask(snapshot([managed(10)], {}));
+  assert.equal(result.decision, "BLOCKED");
+  assert.equal(result.rejected[0].reason, "collision_evidence_not_clean");
+});
+
+test("missing ranking evidence for READY work fails closed", () => {
+  const result = selectNextAutonomousTask(snapshot(
+    [managed(10)],
+    { "10": "clean" },
+    { rankingEvidence: {} },
+  ));
+  assert.equal(result.decision, "BLOCKED");
+  assert.equal(result.rejected[0].reason, "ranking_evidence_not_valid");
+});
+
+test("human approval boundary is not crossed", () => {
+  const result = selectNextAutonomousTask(snapshot(
+    [managed(10, { humanApprovalRequired: true })],
+    { "10": "clean" },
+  ));
+  assert.equal(result.decision, "BLOCKED");
+  assert.equal(result.rejected[0].reason, "human_approval_required");
+});
+
+test("ambiguous task metadata is rejected rather than guessed", () => {
+  const bad = managed(10);
+  bad.body = '<!-- ai-task:v1 {"priority":"P1"} -->';
+  const result = selectNextAutonomousTask(snapshot([bad], { "10": "clean" }));
+  assert.equal(result.decision, "BLOCKED");
+  assert.equal(result.rejected[0].reason, "invalid_task_state");
+});
+
+test("valid managed non-READY history returns NO_WORK", () => {
+  const result = selectNextAutonomousTask(snapshot(
+    [
+      managed(10, { label: "ai:in-progress" }),
+      managed(11, { label: "ai:review" }),
+      managed(12, { state: "closed", stateReason: "completed", label: "ai:review" }),
+    ],
+    { "10": "clean", "11": "clean", "12": "clean" },
+  ));
+  assert.equal(result.decision, "NO_WORK");
+  assert.equal(result.reason, "no_managed_ready_issue");
+});
+
+test("ordinary unmanaged backlog without READY work returns NO_WORK", () => {
+  const result = selectNextAutonomousTask(snapshot([
+    { number: 10, state: "open", labels: ["bug"], body: "ordinary issue" },
+  ], {}));
+  assert.equal(result.decision, "NO_WORK");
+});
+
+test("GitHub/API failure blocks selection", () => {
+  const result = selectNextAutonomousTask(snapshot([], {}, { githubAvailable: false }));
+  assert.deepEqual(result, {
+    decision: "BLOCKED",
+    reason: "github_state_unavailable",
+    selected: null,
+    rejected: [],
+  });
+});
+
+test("same snapshot produces the same decision", () => {
+  const input = snapshot(
+    [managed(30, { priority: "P1" }), managed(20, { priority: "P1" })],
+    { "20": "clean", "30": "clean" },
+  );
+  assert.deepEqual(selectNextAutonomousTask(input), selectNextAutonomousTask(structuredClone(input)));
+  assert.equal(selectNextAutonomousTask(input).selected.issue, 20);
+});

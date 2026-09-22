@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 const httpSecurityRoot = new URL("../../worker/http-security-root-entry.ts", import.meta.url);
 const entry = new URL("../../worker/schema-migrations-entry.ts", import.meta.url);
 const application = new URL("../../worker/application.ts", import.meta.url);
+const scheduledApplication = new URL("../../worker/application-scheduled.ts", import.meta.url);
 const securityComposition = new URL("../../worker/security-composition.ts", import.meta.url);
 const maintenanceGate = new URL("../../worker/maintenance-mode-gate.ts", import.meta.url);
 const helpers = new URL("../../worker/schema-migrations-boundary.ts", import.meta.url);
@@ -24,6 +25,7 @@ test("Vite uses HTTP security as the outer worker entry while preserving schema 
 test("normal fetch and scheduled dispatch require a ready production schema before application and explicit security gates", async () => {
   const source = fs.readFileSync(entry, "utf8");
   const applicationSource = fs.readFileSync(application, "utf8");
+  const scheduledApplicationSource = fs.readFileSync(scheduledApplication, "utf8");
   const securitySource = fs.readFileSync(securityComposition, "utf8");
   const gateSource = fs.readFileSync(maintenanceGate, "utf8");
   assert.equal(source.includes('import rootRuntime from "./application.ts"'), true);
@@ -44,14 +46,18 @@ test("normal fetch and scheduled dispatch require a ready production schema befo
   assert.equal(source.includes("return rootRuntime.fetch(request, sourceEnv, ctx)"), true);
   assert.equal(source.includes("return rootRuntime.scheduled?.(controller, sourceEnv, ctx)"), true);
   assert.equal(applicationSource.includes("return router.fetch(request, sourceEnv, ctx)"), true);
-  assert.equal(applicationSource.includes("return securityComposition.scheduled?.(controller, env, ctx)"), true);
+  assert.equal(applicationSource.includes('from "./application-scheduled.ts"'), true);
+  assert.equal(applicationSource.includes("return handleApplicationScheduled(controller, env, ctx)"), true);
   assert.equal(securitySource.includes("handleStorageMigrationApplyGate(request, env, ctx"), true);
   assert.equal(securitySource.includes("handleApply: handleStorageMigrationApplyRequest"), true);
   assert.equal(securitySource.includes("handleMaintenanceGate("), true);
-  assert.equal(securitySource.includes("handleMaintenanceScheduledGate(controller, sourceEnv, ctx"), true);
+  assert.equal(securitySource.includes("handleMaintenanceScheduledGate(controller, sourceEnv, ctx"), false);
+  assert.equal(scheduledApplicationSource.includes('from "./maintenance-mode-gate.ts"'), true);
+  assert.equal(scheduledApplicationSource.includes("handleMaintenanceScheduledGate(controller, sourceEnv, ctx"), true);
   assert.equal(securitySource.includes("return compatibilityRuntime.fetch(request, env, ctx)"), true);
   assert.equal(securitySource.includes("handleServiceAdminAuthenticationGate(request, env, ctx, compatibilityDependencies())"), true);
-  assert.equal(securitySource.includes("return compatibilityRuntime.scheduled?.(controller, env, ctx)"), true);
+  assert.equal(securitySource.includes("compatibilityRuntime.scheduled"), false);
+  assert.equal(scheduledApplicationSource.includes("return compatibilityRuntime.scheduled?.(nextController, nextEnv, nextContext)"), true);
   assert.equal(source.includes("NODE_TEST_CONTEXT"), false);
 
   const boundaryHelpers = await import(helpers.href);

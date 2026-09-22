@@ -47,7 +47,9 @@ test("backup predispatch is not owned by the FreeIPA adapter", async () => {
   assert.equal(adapter.includes("handleBackupImportPreviewRoute"), false);
   assert.equal(adapter.includes("handleBackupExportRequest"), false);
   assert.match(backupRoot, /import rootRuntime from ["']\.\/session-management-entry\.ts["']/);
-  assert.match(secureEntry, /import runtime from ["']\.\/freeipa-http-entry\.ts["']/);
+  assert.match(secureEntry, /import runtime from ["']\.\/backup-http-entry\.ts["']/);
+  assert.match(backupHttp, /import runtime from ["']\.\/freeipa-http-entry\.ts["']/);
+  assert.match(backupHttp, /from ["']\.\/backup-http\.ts["']/);
   assert.match(secureEntry, /return runtime\.fetch\(secured\.request, secured\.env, ctx\)/);
   assert.equal(backupRoot.includes("handleEncryptedBackupRoute"), true);
   assert.equal(backupRoot.includes("handleBackupImportPreviewRoute"), true);

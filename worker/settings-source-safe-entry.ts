@@ -396,25 +396,41 @@ function isOperationalIntegrationRequest(request: Request): boolean {
   return pathname.startsWith("/api/integrations/") && pathname !== "/api/integrations/health";
 }
 
+function safeContext(ctx: RuntimeContext): RuntimeContext {
+  if (typeof ctx?.waitUntil === "function") return ctx;
+  return {
+    ...(ctx as object),
+    waitUntil(promise: Promise<unknown>) {
+      void Promise.resolve(promise).catch(() => {});
+    },
+    passThroughOnException() {},
+  } as RuntimeContext;
+}
+
 const worker = {
   async fetch(request: Request, env: RuntimeEnv | undefined, ctx: RuntimeContext): Promise<Response> {
     const sourceEnv = env ?? (process.env as unknown as RuntimeEnv);
+    const sourceCtx = safeContext(ctx);
     if (!requiresSourceRuntime(request)) {
       const operationalEnv = isOperationalIntegrationRequest(request) ? await dynamicInheritedEnv(sourceEnv) : sourceEnv;
-      return lifecycleRuntime.fetch(request, operationalEnv, ctx);
+      return lifecycleRuntime.fetch(request, operationalEnv, sourceCtx);
     }
     const access = await sourceAccess(request, sourceEnv);
     if (!access) return json({ error: "Administrator authorization required" }, 401);
     const url = new URL(request.url);
-    if (request.method === "POST" && url.pathname === "/api/integrations/settings/drafts") return createResetDraft(request, sourceEnv, ctx, access);
-    const response = await sourceRuntime.fetch(request, bestEffortReleaseEnv(sourceEnv), ctx);
+    if (request.method === "POST" && url.pathname === "/api/integrations/settings/drafts") return createResetDraft(request, sourceEnv, sourceCtx, access);
+    const response = await sourceRuntime.fetch(request, bestEffortReleaseEnv(sourceEnv), sourceCtx);
     if (request.method === "PUT" && (url.pathname === "/api/integrations/settings" || url.pathname === "/api/integrations/routes")) {
-      ctx.waitUntil(auditCompensation(request, sourceEnv, response));
+      sourceCtx.waitUntil(auditCompensation(request, sourceEnv, response));
     }
     return response;
   },
   async scheduled(controller: ScheduledController, env: RuntimeEnv | undefined, ctx: RuntimeContext): Promise<void> {
-    return sourceRuntime.scheduled?.(controller, bestEffortReleaseEnv(env ?? (process.env as unknown as RuntimeEnv)), ctx);
+    return sourceRuntime.scheduled?.(
+      controller,
+      bestEffortReleaseEnv(env ?? (process.env as unknown as RuntimeEnv)),
+      safeContext(ctx),
+    );
   },
 };
 

@@ -62,6 +62,7 @@ test("FreeIPA action ownership is canonical in the adapter and absent from the c
   const baseRead = await source("worker/freeipa-base-read.ts");
   const rpc = await source("worker/freeipa-rpc.ts");
   const settingsRuntime = await source("worker/integration-settings-runtime.ts");
+  const xyopsAdminRuntime = await source("worker/xyops-admin-runtime.ts");
   const actionRuntime = await source("worker/freeipa-action-runtime.ts");
   const operationRuntime = await source("worker/operation-run-runtime.ts");
   const accessRuntime = await source("worker/portal-access-runtime.ts");
@@ -73,8 +74,10 @@ test("FreeIPA action ownership is canonical in the adapter and absent from the c
   assert.equal(central.includes("async function ipaRpc"), false);
   assert.equal(central.includes("async function encryptSecrets"), false);
   assert.equal(central.includes("async function decryptSecrets"), false);
-  assert.match(central, /decryptIntegrationSecrets as decryptSecrets/);
-  assert.match(central, /encryptIntegrationSecrets as encryptSecrets/);
+  assert.equal(central.includes("decryptIntegrationSecrets as decryptSecrets"), false);
+  assert.equal(central.includes("encryptIntegrationSecrets as encryptSecrets"), false);
+  assert.match(xyopsAdminRuntime, /decryptIntegrationSecrets as decryptSecrets/);
+  assert.match(xyopsAdminRuntime, /encryptIntegrationSecrets as encryptSecrets/);
 
   assert.match(adapter, /readFreeIpaUsers/);
   assert.match(adapter, /readFreeIpaGroups/);

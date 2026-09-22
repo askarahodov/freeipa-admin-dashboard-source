@@ -107,7 +107,6 @@ worker/http-security-root-entry.ts
   -> local-secure-entry.ts (local-auth adapter)
        -> middleware/local-security-routing.ts (ordinary local session/service-admin/origin routing)
   -> settings-input-normalizer-entry.ts
-  -> settings-source-context-entry.ts
   -> settings-source-safe-entry.ts
   -> settings-source-entry.ts
   -> settings-lifecycle-entry.ts

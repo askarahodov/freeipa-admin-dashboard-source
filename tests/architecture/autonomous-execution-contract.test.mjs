@@ -30,6 +30,13 @@ const selected = (number, mainSha = "abcdef0123456789") => ({
   evidence: { mainSha },
 });
 
+const claimEvidence = (number, baseSha = "abcdef0123456789") => ({
+  contractVersion: 1,
+  issue: number,
+  branch: `agent/task-${number}`,
+  baseSha,
+});
+
 const claimSnapshot = (issue, overrides = {}) => ({
   githubAvailable: true,
   mainSha: "abcdef0123456789",
@@ -39,6 +46,14 @@ const claimSnapshot = (issue, overrides = {}) => ({
   openPullRequests: [],
   collisionStatus: "clean",
   ...overrides,
+});
+
+const openPr = (number = 700, headSha = "1234567890abcdef") => ({
+  number,
+  state: "open",
+  base: "main",
+  head: "agent/task-683",
+  headSha,
 });
 
 const fullEvidence = () => ({
@@ -56,6 +71,7 @@ const fullEvidence = () => ({
     coordinationRecorded: true,
     sourceOfTruthRecorded: true,
     rollbackRecorded: true,
+    claimBaseRecorded: true,
   },
 });
 
@@ -71,15 +87,17 @@ test("fresh READY issue produces atomic branch-first claim plan", () => {
   assert.equal(result.decision, "CLAIM_NEW");
   assert.equal(result.claim.branch, "agent/task-683");
   assert.equal(result.claim.branchSha, "abcdef0123456789");
+  assert.equal(result.claim.claimBaseSha, "abcdef0123456789");
   assert.equal(result.claim.requiredStateTransition, "IN_PROGRESS");
   assert.deepEqual(result.claim.mutationOrder, [
     "create_exact_branch_ref",
     "refetch_issue_and_branch",
+    "record_claim_evidence",
     "transition_issue_to_in_progress",
   ]);
 });
 
-test("stale selector decision cannot claim fresh main", () => {
+test("stale selector decision cannot claim a READY issue on fresh main", () => {
   const issue = managed(683);
   const result = planAutonomousExecutionClaim(
     claimSnapshot(issue, {
@@ -93,7 +111,21 @@ test("stale selector decision cannot claim fresh main", () => {
   assert.equal(result.reason, "stale_or_mismatched_selector_decision");
 });
 
-test("existing deterministic branch prevents duplicate claim and enables recovery", () => {
+test("unchanged deterministic branch recovers an interrupted READY claim", () => {
+  const issue = managed(683);
+  const result = planAutonomousExecutionClaim(
+    claimSnapshot(issue, {
+      branches: [{ name: "agent/task-683", sha: "abcdef0123456789" }],
+    }),
+    683,
+  );
+
+  assert.equal(result.decision, "RECOVER_CLAIM");
+  assert.equal(result.claim.requiredStateTransition, "IN_PROGRESS");
+  assert.equal(result.claim.claimEvidence.baseSha, "abcdef0123456789");
+});
+
+test("diverged deterministic branch does not silently recover a READY claim", () => {
   const issue = managed(683);
   const result = planAutonomousExecutionClaim(
     claimSnapshot(issue, {
@@ -102,41 +134,70 @@ test("existing deterministic branch prevents duplicate claim and enables recover
     683,
   );
 
-  assert.equal(result.decision, "RECOVER_CLAIM");
-  assert.equal(result.claim.branch, "agent/task-683");
-  assert.equal(result.claim.requiredStateTransition, "IN_PROGRESS");
+  assert.equal(result.decision, "BLOCKED");
+  assert.equal(result.reason, "ready_claim_branch_diverged");
 });
 
-test("IN_PROGRESS issue with existing claim branch resumes implementation", () => {
+test("IN_PROGRESS retry resumes without requiring the old selector decision", () => {
   const issue = managed(683, { label: "ai:in-progress" });
   const result = planAutonomousExecutionClaim(
     claimSnapshot(issue, {
+      selectorDecision: null,
       branches: [{ name: "agent/task-683", sha: "1234567890abcdef" }],
+      claimEvidence: claimEvidence(683),
     }),
     683,
   );
 
   assert.equal(result.decision, "RESUME_IMPLEMENTATION");
-  assert.equal(result.claim.requiredStateTransition, null);
+  assert.equal(result.claim.claimBaseSha, "abcdef0123456789");
+});
+
+test("IN_PROGRESS retry requires persisted claim-base evidence", () => {
+  const issue = managed(683, { label: "ai:in-progress" });
+  const result = planAutonomousExecutionClaim(
+    claimSnapshot(issue, {
+      selectorDecision: null,
+      branches: [{ name: "agent/task-683", sha: "1234567890abcdef" }],
+      claimEvidence: null,
+    }),
+    683,
+  );
+
+  assert.equal(result.decision, "BLOCKED");
+  assert.equal(result.reason, "claim_base_evidence_missing_or_invalid");
 });
 
 test("existing open PR makes an IN_PROGRESS retry resume the PR checkpoint", () => {
   const issue = managed(683, { label: "ai:in-progress" });
   const result = planAutonomousExecutionClaim(
     claimSnapshot(issue, {
+      selectorDecision: null,
       branches: [{ name: "agent/task-683", sha: "1234567890abcdef" }],
-      openPullRequests: [{
-        number: 700,
-        state: "open",
-        base: "main",
-        head: "agent/task-683",
-      }],
+      openPullRequests: [openPr()],
+      claimEvidence: claimEvidence(683),
     }),
     683,
   );
 
   assert.equal(result.decision, "RESUME_PR_CHECKPOINT");
   assert.equal(result.claim.pullRequest, 700);
+});
+
+test("resume still requires fresh clean collision evidence", () => {
+  const issue = managed(683, { label: "ai:in-progress" });
+  const result = planAutonomousExecutionClaim(
+    claimSnapshot(issue, {
+      selectorDecision: null,
+      branches: [{ name: "agent/task-683", sha: "1234567890abcdef" }],
+      claimEvidence: claimEvidence(683),
+      collisionStatus: "collision",
+    }),
+    683,
+  );
+
+  assert.equal(result.decision, "BLOCKED");
+  assert.equal(result.reason, "active_ownership_collision");
 });
 
 test("human approval and collision both fail closed before a new claim", () => {
@@ -153,13 +214,13 @@ test("human approval and collision both fail closed before a new claim", () => {
   assert.equal(collision.reason, "active_ownership_collision");
 });
 
-test("execution context carries issue, exact base, branch and policy owners", () => {
+test("execution context carries Issue, persisted claim base, branch and policy owners", () => {
   const issue = managed(683);
   const claim = planAutonomousExecutionClaim(claimSnapshot(issue), 683).claim;
   const context = buildAutonomousExecutionContext({ issue, claim });
 
   assert.equal(context.issue.number, 683);
-  assert.equal(context.base.selectedSha, "abcdef0123456789");
+  assert.equal(context.base.claimSha, "abcdef0123456789");
   assert.equal(context.branch, "agent/task-683");
   assert.equal(context.requirements.directMainWritesAllowed, false);
   assert.ok(context.policyPaths.includes("docs/TESTING_POLICY.md"));
@@ -174,13 +235,28 @@ test("PR checkpoint blocks REVIEW when focused validation is missing", () => {
   const result = evaluateAutonomousPrCheckpoint({
     issue,
     branch: { name: "agent/task-683", sha: "1234567890abcdef" },
-    pullRequest: { number: 700, state: "open", base: "main", head: "agent/task-683" },
+    pullRequest: openPr(),
     collisionStatus: "clean",
     evidence,
   });
 
   assert.equal(result.decision, "BLOCKED");
   assert.ok(result.reasons.includes("focused_validation_missing_or_red"));
+});
+
+test("PR checkpoint requires exact PR head SHA", () => {
+  const issue = managed(683, { label: "ai:in-progress" });
+
+  const result = evaluateAutonomousPrCheckpoint({
+    issue,
+    branch: { name: "agent/task-683", sha: "1234567890abcdef" },
+    pullRequest: openPr(700, "ffffffffffffffff"),
+    collisionStatus: "clean",
+    evidence: fullEvidence(),
+  });
+
+  assert.equal(result.decision, "BLOCKED");
+  assert.ok(result.reasons.includes("pull_request_head_not_exact"));
 });
 
 test("PR checkpoint blocks REVIEW on unresolved diff or documentation evidence", () => {
@@ -192,7 +268,7 @@ test("PR checkpoint blocks REVIEW on unresolved diff or documentation evidence",
   const result = evaluateAutonomousPrCheckpoint({
     issue,
     branch: { name: "agent/task-683", sha: "1234567890abcdef" },
-    pullRequest: { number: 700, state: "open", base: "main", head: "agent/task-683" },
+    pullRequest: openPr(),
     collisionStatus: "clean",
     evidence,
   });
@@ -208,7 +284,7 @@ test("complete PR checkpoint permits only IN_PROGRESS -> REVIEW transition", () 
   const result = evaluateAutonomousPrCheckpoint({
     issue,
     branch: { name: "agent/task-683", sha: "1234567890abcdef" },
-    pullRequest: { number: 700, state: "open", base: "main", head: "agent/task-683" },
+    pullRequest: openPr(),
     collisionStatus: "clean",
     evidence: fullEvidence(),
   });
@@ -216,6 +292,7 @@ test("complete PR checkpoint permits only IN_PROGRESS -> REVIEW transition", () 
   assert.equal(result.decision, "READY_FOR_REVIEW");
   assert.deepEqual(result.transition, { from: "IN_PROGRESS", to: "REVIEW" });
   assert.equal(result.pullRequest, 700);
+  assert.equal(result.headSha, "1234567890abcdef");
 });
 
 test("retrying an already valid REVIEW checkpoint is idempotent", () => {
@@ -224,7 +301,7 @@ test("retrying an already valid REVIEW checkpoint is idempotent", () => {
   const result = evaluateAutonomousPrCheckpoint({
     issue,
     branch: { name: "agent/task-683", sha: "1234567890abcdef" },
-    pullRequest: { number: 700, state: "open", base: "main", head: "agent/task-683" },
+    pullRequest: openPr(),
     collisionStatus: "clean",
     evidence: fullEvidence(),
   });

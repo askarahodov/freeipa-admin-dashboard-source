@@ -6,7 +6,7 @@ import test from "node:test";
 import { shouldRunAuthE2E } from "../../scripts/auth-e2e-scope.mjs";
 
 const lifecycleUrl = new URL("../../worker/settings-lifecycle-entry.ts", import.meta.url);
-const revisionsUrl = new URL("../../worker/settings-revisions-entry.ts", import.meta.url);
+const lifecycleRootUrl = new URL("../../worker/settings-lifecycle-root-entry.ts", import.meta.url);
 const sourceUrl = new URL("../../worker/settings-source-entry.ts", import.meta.url);
 const safeSourceUrl = new URL("../../worker/settings-source-safe-entry.ts", import.meta.url);
 const sourceContextUrl = new URL("../../worker/settings-source-context-entry.ts", import.meta.url);
@@ -14,7 +14,7 @@ const normalizerEntryUrl = new URL("../../worker/settings-input-normalizer-entry
 const normalizerUrl = new URL("../../worker/settings-input-normalizer.ts", import.meta.url);
 const portalSchemaUrl = new URL("../../db/portal-schema.ts", import.meta.url);
 const lifecycle = fs.readFileSync(lifecycleUrl, "utf8");
-const revisions = fs.readFileSync(revisionsUrl, "utf8");
+const lifecycleRoot = fs.readFileSync(lifecycleRootUrl, "utf8");
 const source = fs.readFileSync(sourceUrl, "utf8");
 const safeSource = fs.readFileSync(safeSourceUrl, "utf8");
 const sourceContext = fs.readFileSync(sourceContextUrl, "utf8");
@@ -30,9 +30,9 @@ const resetStyles = fs.readFileSync(new URL("../../app/settings-source-resets.cs
 const portalSchema = fs.readFileSync(portalSchemaUrl, "utf8");
 const { normalizeSettingsRequestBody } = await import(normalizerUrl.href);
 
-test("settings lifecycle runs behind revision, local auth, origin, normalizer and source authorization", () => {
-  assert.equal(diagnostics.includes('import localRuntime from "./settings-revisions-entry"'), true);
-  assert.equal(revisions.includes('import localRuntime from "./local-secure-entry"'), true);
+test("settings lifecycle runs behind explicit lifecycle root, local auth, origin, normalizer and source authorization", () => {
+  assert.equal(diagnostics.includes('import localRuntime from "./settings-lifecycle-root-entry"'), true);
+  assert.equal(lifecycleRoot.includes('import localRuntime from "./local-secure-entry"'), true);
   assert.equal(localBoundary.includes('import secureRuntime from "./settings-input-normalizer-entry"'), true);
   assert.equal(normalizerEntry.includes('import runtime, { authorizeSettingsMutation } from "./settings-source-context-entry"'), true);
   assert.equal(sourceContext.includes('import runtime, { authorizeSettingsMutation } from "./settings-source-safe-entry"'), true);
@@ -42,8 +42,8 @@ test("settings lifecycle runs behind revision, local auth, origin, normalizer an
   assert.equal(lifecycle.includes('url.pathname === "/api/integrations/settings/revisions"'), true);
   assert.equal(lifecycle.includes('FROM portal_settings_revisions ORDER BY revision DESC LIMIT ?'), true);
   assert.equal(lifecycle.includes('FROM portal_settings_revisions WHERE revision = ?'), true);
-  assert.equal(revisions.includes("handleRevisionApi"), false);
-  assert.equal(revisions.includes("isRevisionPath"), false);
+  assert.equal(lifecycleRoot.includes("handleRevisionApi"), false);
+  assert.equal(lifecycleRoot.includes("isRevisionPath"), false);
   assert.equal(authorization.includes('"/api/integrations/settings/effective"'), true);
   assert.equal(authorization.includes('pathname.startsWith("/api/integrations/settings/drafts/")'), true);
   assert.equal(localRouting.includes("sameOriginAdminMutation(request)"), true);
@@ -113,7 +113,7 @@ test("D1 overrides can return to dynamic ENV or default through the lifecycle", 
   assert.equal(source.includes('for (const field of resets) result.delete(field)'), true);
   assert.equal(source.includes('attachOverridesToAppliedRevision'), true);
   assert.equal(source.includes('trySynchronizeInheritedSettings'), true);
-  assert.equal(revisions.includes('settings.override.reset_applied'), true);
+  assert.equal(lifecycleRoot.includes('settings.override.reset_applied'), true);
   assert.equal(safeSource.includes('function createResetDraft('), true);
   assert.equal(safeSource.includes('settings_field_not_overridden'), true);
   assert.equal(safeSource.includes('settings.override.reset_requested'), true);
@@ -122,7 +122,7 @@ test("D1 overrides can return to dynamic ENV or default through the lifecycle", 
 test("source mutations are serialized, cleanup-safe and rollback remains tracked", () => {
   assert.equal(portalSchema.includes("CREATE TABLE IF NOT EXISTS portal_settings_source_lock"), true);
   assert.equal(source.includes("sourceMetadataConflict: !attached"), true);
-  assert.equal(revisions.includes('payload.sourceMetadataConflict === true'), true);
+  assert.equal(lifecycleRoot.includes('payload.sourceMetadataConflict === true'), true);
   assert.equal(safeSource.includes("withSourceLock"), true);
   assert.equal(safeSource.includes('releaseSourceLock(env, owner).catch(() => {})'), true);
   assert.equal(safeSource.includes("bestEffortReleaseEnv"), true);
@@ -144,8 +144,8 @@ test("source metadata attachment requires the exact active revision and apply sn
   assert.equal(source.includes('UPDATE app_settings SET config_json = ? WHERE id = ? AND updated_at = ?'), true);
   assert.equal(source.includes('UPDATE portal_settings_apply_commits SET config_json = ? WHERE id = ? AND revision = ?'), true);
   assert.equal(source.includes('resultChanges(results[0]) === 1 && resultChanges(results[1]) === 1'), true);
-  assert.equal(revisions.includes("consumeApplyCommit"), true);
-  assert.equal(revisions.includes("rollbackSnapshotCas"), true);
+  assert.equal(lifecycleRoot.includes("consumeApplyCommit"), true);
+  assert.equal(lifecycleRoot.includes("rollbackSnapshotCas"), true);
 });
 
 test("reset metadata is retained until terminal or conflict handling", () => {
@@ -185,13 +185,13 @@ test("effective settings report per-field source, conflicts and reset metadata w
 
 test("revision history finalizes reset audit and response after health checks", () => {
   assert.equal(portalSchema.includes("CREATE TABLE IF NOT EXISTS portal_settings_revisions"), true);
-  assert.equal(revisions.includes("resetFieldsFromPayload"), true);
-  assert.equal(revisions.includes('settings.override.reset_applied'), true);
-  assert.equal(revisions.includes('settings.override.reset_rolled_back'), true);
-  assert.equal(revisions.includes('resetFields, health'), true);
-  assert.equal(revisions.includes('reason: "automatic_rollback"'), true);
-  assert.equal(revisions.includes('code: "settings_post_apply_health_failed"'), true);
-  assert.equal(revisions.includes('code: "settings_rollback_conflict"'), true);
+  assert.equal(lifecycleRoot.includes("resetFieldsFromPayload"), true);
+  assert.equal(lifecycleRoot.includes('settings.override.reset_applied'), true);
+  assert.equal(lifecycleRoot.includes('settings.override.reset_rolled_back'), true);
+  assert.equal(lifecycleRoot.includes('resetFields, health'), true);
+  assert.equal(lifecycleRoot.includes('reason: "automatic_rollback"'), true);
+  assert.equal(lifecycleRoot.includes('code: "settings_post_apply_health_failed"'), true);
+  assert.equal(lifecycleRoot.includes('code: "settings_rollback_conflict"'), true);
 });
 
 test("visual wizard refreshes invalidated draft state and stages resets instead of direct writes", () => {
@@ -214,7 +214,7 @@ test("rollback and source reset changes trigger Auth E2E", () => {
     "worker/settings-source-entry.ts",
     "worker/settings-source-safe-entry.ts",
     "worker/settings-source-context-entry.ts",
-    "worker/settings-revisions-entry.ts",
+    "worker/settings-lifecycle-root-entry.ts",
     "worker/settings-input-normalizer-entry.ts",
     "worker/settings-input-normalizer.ts",
     "tests/settings/settings-source-runtime-safety.test.mjs",
@@ -224,7 +224,7 @@ test("rollback and source reset changes trigger Auth E2E", () => {
 });
 
 test("settings lifecycle TypeScript parses under the repository Node baseline", () => {
-  for (const url of [lifecycleUrl, sourceUrl, safeSourceUrl, sourceContextUrl, revisionsUrl, normalizerEntryUrl, normalizerUrl]) {
+  for (const url of [lifecycleUrl, lifecycleRootUrl, sourceUrl, safeSourceUrl, sourceContextUrl, normalizerEntryUrl, normalizerUrl]) {
     const result = spawnSync(process.execPath, ["--experimental-strip-types", "--check", fileURLToPath(url)], { encoding: "utf8" });
     assert.equal(result.status, 0, result.stderr || result.stdout);
   }

@@ -24,7 +24,7 @@ export const portalApplicationComposition = Object.freeze({
 export const portalCompatibilityAdapters = Object.freeze([
   Object.freeze({
     path: "worker/local-secure-entry.ts",
-    responsibility: "owns /api/auth HTTP handling while invoking the historical-position local security routing middleware",
+    responsibility: "owns local authentication HTTP handling while invoking the historical-position local security routing middleware",
     reason: "auth route ownership and local session/service-admin/origin composition still share one adapter boundary",
     removalCondition: "register local-auth handlers and local-security middleware independently with exact 401/403/origin parity and no trusted-header regression",
   }),

@@ -68,8 +68,8 @@ Integration status/audit still reach the compatibility integration handler. #633
 | `POST` | `/api/integrations/settings/drafts/:draftId/validate` | Validate a draft and configured integration transitions. | Admin context |
 | `POST` | `/api/integrations/settings/drafts/:draftId/apply` | Apply a validated draft through revision/CAS lifecycle. | Admin context |
 | `POST` | `/api/integrations/settings/drafts/:draftId/cancel` | Cancel mutable draft and clear staged secrets. | Admin context |
-| `GET` | `/api/integrations/settings/revisions` | List bounded settings revision history. | Admin context; owner `worker/settings-revisions-entry.ts` |
-| `GET` | `/api/integrations/settings/revisions/:revision` | Read one public/redacted settings revision. | Admin context |
+| `GET` | `/api/integrations/settings/revisions` | List bounded settings revision history. | Admin context; owner `worker/settings-lifecycle-entry.ts` |
+| `GET` | `/api/integrations/settings/revisions/:revision` | Read one public/redacted settings revision. | Admin context; owner `worker/settings-lifecycle-entry.ts` |
 
 Secrets are never returned by these references. See [`CONFIGURATION.md`](CONFIGURATION.md).
 

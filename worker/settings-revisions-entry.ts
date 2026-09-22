@@ -25,18 +25,6 @@ type ApplyCommitRow = {
   created_at: number;
 };
 
-type RevisionRow = {
-  id: string;
-  revision: number;
-  config_json: string;
-  source_draft_id: string | null;
-  created_by: string;
-  reason: string;
-  status: string;
-  health_json: string;
-  created_at: number;
-};
-
 type ServiceName = "freeipa" | "xyops";
 type SettingField = "demoMode" | "ipaUrl" | "ipaUsername" | "ipaPassword" | "xyopsUrl" | "xyopsApiKey";
 type HealthResult = { service: string; ok: boolean; latencyMs?: number; error?: string };
@@ -45,11 +33,6 @@ const settingFields: SettingField[] = ["demoMode", "ipaUrl", "ipaUsername", "ipa
 const jsonHeaders = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status, headers: jsonHeaders });
-}
-
-function isRevisionPath(pathname: string): boolean {
-  return pathname === "/api/integrations/settings/revisions"
-    || pathname.startsWith("/api/integrations/settings/revisions/");
 }
 
 function localMode(env: RuntimeEnv): boolean {
@@ -161,61 +144,6 @@ async function recordRevision(
       Date.now(),
     )
     .run();
-}
-
-function publicConfig(configJson: string): Record<string, unknown> {
-  try {
-    const parsed = JSON.parse(configJson) as Record<string, unknown>;
-    return {
-      demoMode: parsed.demoMode === true,
-      ipaUrl: String(parsed.ipaUrl ?? ""),
-      ipaUsername: String(parsed.ipaUsername ?? ""),
-      xyopsUrl: String(parsed.xyopsUrl ?? ""),
-    };
-  } catch {
-    return { demoMode: false, ipaUrl: "", ipaUsername: "", xyopsUrl: "" };
-  }
-}
-
-function publicRevision(row: RevisionRow) {
-  return {
-    id: row.id,
-    revision: Number(row.revision),
-    config: publicConfig(row.config_json),
-    sourceDraftId: row.source_draft_id || null,
-    createdBy: row.created_by,
-    reason: row.reason,
-    status: row.status,
-    health: JSON.parse(row.health_json || "[]") as unknown[],
-    createdAt: Number(row.created_at),
-  };
-}
-
-async function handleRevisionApi(request: Request, env: RuntimeEnv, ctx: RuntimeContext, url: URL): Promise<Response> {
-  if (!env.DB) return json({ error: "Persistent database is unavailable" }, 503);
-  const identity = await adminIdentity(request, env, ctx);
-  if (!identity) return json({ error: "Administrator authorization required" }, 401);
-
-  if (request.method === "GET" && url.pathname === "/api/integrations/settings/revisions") {
-    const limitValue = Number(url.searchParams.get("limit") ?? 20);
-    const limit = Math.max(1, Math.min(Number.isFinite(limitValue) ? limitValue : 20, 100));
-    const result = await env.DB.prepare(`SELECT id, revision, config_json, source_draft_id, created_by, reason, status, health_json, created_at
-      FROM portal_settings_revisions ORDER BY revision DESC LIMIT ?`)
-      .bind(limit)
-      .all<RevisionRow>();
-    return json({ revisions: (result.results ?? []).map(publicRevision) });
-  }
-
-  const match = url.pathname.match(/^\/api\/integrations\/settings\/revisions\/(\d{1,20})$/);
-  if (request.method === "GET" && match) {
-    const row = await env.DB.prepare(`SELECT id, revision, config_json, source_draft_id, created_by, reason, status, health_json, created_at
-      FROM portal_settings_revisions WHERE revision = ?`)
-      .bind(Number(match[1]))
-      .first<RevisionRow>();
-    return row ? json({ revision: publicRevision(row) }) : json({ error: "Settings revision not found" }, 404);
-  }
-
-  return json({ error: "Method not allowed" }, 405);
 }
 
 async function responsePayload(response: Response): Promise<Record<string, unknown>> {
@@ -433,8 +361,6 @@ const worker = {
   async fetch(request: Request, env: RuntimeEnv | undefined, ctx: RuntimeContext): Promise<Response> {
     const sourceEnv = env ?? (process.env as unknown as RuntimeEnv);
     const url = new URL(request.url);
-    if (isRevisionPath(url.pathname)) return handleRevisionApi(request, sourceEnv, ctx, url);
-
     const applyMatch = url.pathname.match(/^\/api\/integrations\/settings\/drafts\/([A-Za-z0-9-]{1,80})\/apply$/);
     if (request.method === "POST" && applyMatch) return applyWithRollback(request, sourceEnv, ctx, applyMatch[1]);
 

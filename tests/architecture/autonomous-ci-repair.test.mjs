@@ -15,6 +15,7 @@ const HEAD = "aaaaaaaaaaaaaaaa";
 const BASE = "bbbbbbbbbbbbbbbb";
 
 const failureSnapshot = (evidence = {}, overrides = {}) => ({
+  repairRunId: "task-684-run-1",
   expectedHeadSha: HEAD,
   workflowRun: {
     id: 100,
@@ -134,6 +135,20 @@ test("conflicting evidence fails closed as ambiguous", () => {
   assert.ok(result.candidates.includes("REGRESSION"));
 });
 
+test("successful job inside a failed workflow is not treated as the failure target", () => {
+  const result = classifyAutonomousCiFailure(failureSnapshot({}, {
+    job: {
+      id: 200,
+      runId: 100,
+      name: "build",
+      status: "completed",
+      conclusion: "success",
+    },
+  }));
+  assert.equal(result.classification, "UNKNOWN");
+  assert.equal(result.reason, "selected_job_is_not_failure_target");
+});
+
 test("stale workflow head is never classified as a current repair target", () => {
   const result = classifyAutonomousCiFailure(failureSnapshot({}, {
     workflowRun: {
@@ -205,18 +220,33 @@ test("transient failure gets only one exact-head retry", () => {
   assert.equal(second.reason, "transient_retry_limit_exhausted");
 });
 
-test("repeated code-repair attempts eventually block", () => {
+test("bounded run blocks after the total code-repair budget even if fingerprints change", () => {
   const classification = classifyAutonomousCiFailure(failureSnapshot());
   const history = Array.from({ length: MAX_CODE_REPAIR_ATTEMPTS }, (_, index) => ({
+    repairRunId: classification.repairRunId,
     headSha: index === 0 ? HEAD : `ccccccccccccccc${index}`,
-    fingerprint: classification.fingerprint,
-    classification: "REGRESSION",
+    fingerprint: `different-fingerprint-${index}`,
+    classification: index % 2 === 0 ? "REGRESSION" : "INVALID_TEST",
     action: "RETURN_TO_IMPLEMENTATION",
   }));
 
   const result = planAutonomousCiRepair(classification, history);
   assert.equal(result.decision, "BLOCKED");
   assert.equal(result.reason, "code_repair_attempt_limit_exhausted");
+});
+
+test("repair history from another autonomous run does not consume this run budget", () => {
+  const classification = classifyAutonomousCiFailure(failureSnapshot());
+  const history = Array.from({ length: MAX_CODE_REPAIR_ATTEMPTS }, (_, index) => ({
+    repairRunId: "another-run",
+    headSha: HEAD,
+    fingerprint: classification.fingerprint,
+    classification: "REGRESSION",
+    action: "RETURN_TO_IMPLEMENTATION",
+  }));
+
+  const result = planAutonomousCiRepair(classification, history);
+  assert.equal(result.decision, "REPAIR");
 });
 
 test("repair candidate must have a new head and exact-head focused evidence", () => {

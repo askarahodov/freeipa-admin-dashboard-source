@@ -25,7 +25,7 @@ const [
 ]);
 
 test("storage route is dispatched only after the existing local-session boundary", () => {
-  assert.match(localSecureSource, /import secureRuntime from ["']\.\/settings-input-normalizer-entry(?:\.ts)?["']/);
+  assert.match(localSecureSource, /import secureRuntime from ["']\.\/settings-source-safe-entry(?:\.ts)?["']/);
   assert.match(localSecureSource, /import \{ handleStorageStatusRequest \} from ["']\.\/storage-status-entry\.ts["']/);
   assert.match(localSecureSource, /handleLocalSecurityRouting\(request, sourceEnv, ctx/);
   assert.match(localRoutingSource, /const session = await dependencies\.resolveSession\(env, request\)/);
@@ -64,7 +64,7 @@ test("existing service-admin, settings and health contracts remain unchanged", (
   assert.match(securityCompositionSource, /import compatibilityRuntime from ["']\.\/maintenance-control-root-entry(?:\.ts)?["']/);
   assert.match(securityCompositionSource, /middleware\/service-admin-authentication\.ts/);
   assert.match(serviceAdminGateSource, /serviceAdminTokenAuthorized\(request, env\.ADMIN_TOKEN\)/);
-  assert.match(localSecureSource, /import secureRuntime from ["']\.\/settings-input-normalizer-entry(?:\.ts)?["']/);
+  assert.match(localSecureSource, /import secureRuntime from ["']\.\/settings-source-safe-entry(?:\.ts)?["']/);
   assert.match(dockerfileSource, /\/health\/live/);
   assert.equal(dockerfileSource.includes("/api/admin/storage/status"), false);
   assert.equal(dockerfileSource.includes("/metrics/health"), false);

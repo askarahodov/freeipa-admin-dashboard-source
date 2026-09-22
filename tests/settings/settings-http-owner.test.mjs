@@ -4,23 +4,24 @@ import { fileURLToPath } from "node:url";
 import fs from "node:fs";
 import test from "node:test";
 
-const lifecycleUrl = new URL("../../worker/settings-lifecycle-entry.ts", import.meta.url);
+const ownerUrl = new URL("../../worker/settings-http.ts", import.meta.url);
+const secureUrl = new URL("../../worker/secure-entry.ts", import.meta.url);
 const centralUrl = new URL("../../worker/index.ts", import.meta.url);
-const lifecycle = fs.readFileSync(lifecycleUrl, "utf8");
+const owner = fs.readFileSync(ownerUrl, "utf8");
+const secure = fs.readFileSync(secureUrl, "utf8");
 const central = fs.readFileSync(centralUrl, "utf8");
 const routes = fs.readFileSync(new URL("../../src/auth/portal-route-contract.ts", import.meta.url), "utf8");
 
-test("#633 checkpoint A moves settings read and connection-test HTTP ownership out of the central Worker", () => {
-  assert.equal(lifecycle.includes("async function handleOwnedSettingsRequest"), true);
-  assert.equal(lifecycle.includes('request.method === "GET" && url.pathname === "/api/integrations/settings"'), true);
-  assert.equal(lifecycle.includes('request.method === "POST" && url.pathname === "/api/integrations/settings/test"'), true);
-  assert.equal(lifecycle.includes('requirePortalPermission(request, env, "settings.manage")'), true);
-  assert.equal(lifecycle.includes("serviceAdminTokenAuthorized(request, env.ADMIN_TOKEN)"), true);
-  assert.equal(lifecycle.includes("decryptIntegrationSecrets"), true);
-  assert.equal(lifecycle.includes("assertStoredRoutesReadable(row.config.routes)"), true);
-  assert.equal(lifecycle.includes("freeIpaRpc("), true);
-  assert.equal(lifecycle.includes("xyopsPayloadSucceeded(payload)"), true);
-  assert.equal(lifecycle.includes('action: "settings.connection_test"'), true);
+test("#633 checkpoint A gives settings read/test one explicit post-security HTTP owner", () => {
+  assert.equal(owner.includes("export async function handleSettingsHttpRequest"), true);
+  assert.equal(owner.includes('request.method === "GET" && url.pathname === "/api/integrations/settings"'), true);
+  assert.equal(owner.includes('url.pathname === "/api/integrations/settings/test"'), true);
+  assert.equal(owner.includes('requirePortalPermission(request, env, "settings.manage")'), true);
+  assert.equal(owner.includes("serviceAdminTokenAuthorized(request, env.ADMIN_TOKEN)"), true);
+  assert.equal(owner.includes("assertStoredRoutesReadable(config.routes)"), true);
+  assert.equal(owner.includes("freeIpaRpc("), true);
+  assert.equal(owner.includes("xyopsPayloadSucceeded(payload)"), true);
+  assert.equal(owner.includes('action: "settings.connection_test"'), true);
 
   assert.equal(
     central.includes('request.method === "GET" && url.pathname === "/api/integrations/settings"'),
@@ -39,34 +40,23 @@ test("#633 checkpoint A moves settings read and connection-test HTTP ownership o
   );
 });
 
-test("canonical route metadata points both extracted routes at the lifecycle owner", () => {
-  assert.match(
-    routes,
-    /id: "settings\.read".*owner: "worker\/settings-lifecycle-entry\.ts"/,
-  );
-  assert.match(
-    routes,
-    /id: "settings\.test".*owner: "worker\/settings-lifecycle-entry\.ts"/,
-  );
+test("secure identity normalization runs before extracted settings dispatch", () => {
+  const contextIndex = secure.indexOf("const secured = await secureContext(request, sourceEnv)");
+  const ownerIndex = secure.indexOf("await handleSettingsHttpRequest(secured.request, secured.env)");
+  const downstreamIndex = secure.indexOf("return runtime.fetch(secured.request, secured.env, ctx)");
+  assert.ok(contextIndex >= 0, "secure context normalization must remain present");
+  assert.ok(ownerIndex > contextIndex, "settings owner must run only after secure context normalization");
+  assert.ok(downstreamIndex > ownerIndex, "non-owned requests must continue to downstream runtime");
 });
 
-test("lifecycle-owned internal effective/read and validation calls cannot fall back to central read/test handlers", () => {
-  assert.match(
-    lifecycle,
-    /delegatedRequest\.method === "GET" && pathname === "\/api\/integrations\/settings"/,
-  );
-  assert.match(
-    lifecycle,
-    /pathname === "\/api\/integrations\/settings\/test"/,
-  );
-  assert.match(
-    lifecycle,
-    /return handleOwnedSettingsRequest\(delegatedRequest, env\)/,
-  );
+test("canonical route metadata points both extracted routes at the settings HTTP owner", () => {
+  assert.match(routes, /id: "settings\.read".*owner: "worker\/settings-http\.ts"/);
+  assert.match(routes, /id: "settings\.test".*owner: "worker\/settings-http\.ts"/);
+  assert.match(routes, /id: "settings\.update".*owner: "worker\/settings-source-safe-entry\.ts"/);
 });
 
-test("settings owner and central Worker parse under the repository Node TypeScript baseline", () => {
-  for (const url of [lifecycleUrl, centralUrl]) {
+test("settings owner, secure boundary and central Worker parse under the repository Node TypeScript baseline", () => {
+  for (const url of [ownerUrl, secureUrl, centralUrl]) {
     const result = spawnSync(process.execPath, ["--experimental-strip-types", "--check", fileURLToPath(url)], { encoding: "utf8" });
     assert.equal(result.status, 0, result.stderr || result.stdout);
   }

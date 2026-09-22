@@ -5,6 +5,7 @@ import type { CatalogEvent } from "../src/automation/automation-types";
 import { listAuditEvents } from "../audit-log";
 import { requirePortalPermission } from "./portal-access-runtime.ts";
 import { automationRoutes, normalizeXyFields } from "./xyops-admin-runtime.ts";
+import { xyopsPayloadSucceeded } from "./xyops-run-runtime.ts";
 export { allowedOperations, automationRoutes, resolveCatalogRuntime } from "./xyops-admin-runtime.ts";
 
 interface Env extends FrameworkHttpEnv {

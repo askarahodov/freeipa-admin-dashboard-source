@@ -35,12 +35,6 @@ export const portalCompatibilityAdapters = Object.freeze([
     removalCondition: "move normalization/reset fallback preparation into canonical settings inputs with malformed/secret/reset parity tests",
   }),
   Object.freeze({
-    path: "worker/settings-source-context-entry.ts",
-    responsibility: "constrains execution-context behavior around the settings source path",
-    reason: "legacy settings source composition still depends on a context-sanitizing wrapper",
-    removalCondition: "remove only after the canonical settings source path no longer depends on wrapper-specific execution-context adaptation",
-  }),
-  Object.freeze({
     path: "worker/settings-source-safe-entry.ts",
     responsibility: "preserves source authorization, inherited-environment handling, lock/release and compensation sequencing",
     reason: "security and compensation semantics still span the HTTP wrapper boundary",

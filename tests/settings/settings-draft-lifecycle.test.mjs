@@ -9,14 +9,12 @@ const lifecycleUrl = new URL("../../worker/settings-lifecycle-entry.ts", import.
 const lifecycleRootUrl = new URL("../../worker/settings-lifecycle-root-entry.ts", import.meta.url);
 const sourceUrl = new URL("../../worker/settings-source-entry.ts", import.meta.url);
 const safeSourceUrl = new URL("../../worker/settings-source-safe-entry.ts", import.meta.url);
-const normalizerEntryUrl = new URL("../../worker/settings-input-normalizer-entry.ts", import.meta.url);
 const normalizerUrl = new URL("../../worker/settings-input-normalizer.ts", import.meta.url);
 const portalSchemaUrl = new URL("../../db/portal-schema.ts", import.meta.url);
 const lifecycle = fs.readFileSync(lifecycleUrl, "utf8");
 const lifecycleRoot = fs.readFileSync(lifecycleRootUrl, "utf8");
 const source = fs.readFileSync(sourceUrl, "utf8");
 const safeSource = fs.readFileSync(safeSourceUrl, "utf8");
-const normalizerEntry = fs.readFileSync(normalizerEntryUrl, "utf8");
 const diagnostics = fs.readFileSync(new URL("../../worker/diagnostics-entry.ts", import.meta.url), "utf8");
 const localBoundary = fs.readFileSync(new URL("../../worker/local-secure-entry.ts", import.meta.url), "utf8");
 const localRouting = fs.readFileSync(new URL("../../worker/middleware/local-security-routing.ts", import.meta.url), "utf8");
@@ -28,11 +26,13 @@ const resetStyles = fs.readFileSync(new URL("../../app/settings-source-resets.cs
 const portalSchema = fs.readFileSync(portalSchemaUrl, "utf8");
 const { normalizeSettingsRequestBody } = await import(normalizerUrl.href);
 
-test("settings lifecycle runs behind explicit lifecycle root, local auth, origin, normalizer and source authorization", () => {
+test("settings lifecycle runs behind explicit lifecycle root, local auth, origin, input preparation and source authorization", () => {
   assert.equal(diagnostics.includes('import localRuntime from "./settings-lifecycle-root-entry"'), true);
   assert.equal(lifecycleRoot.includes('import localRuntime from "./local-secure-entry"'), true);
-  assert.equal(localBoundary.includes('import secureRuntime from "./settings-input-normalizer-entry"'), true);
-  assert.equal(normalizerEntry.includes('import runtime, { authorizeSettingsMutation } from "./settings-source-safe-entry"'), true);
+  assert.equal(localBoundary.includes('import secureRuntime from "./settings-source-safe-entry"'), true);
+  assert.equal(safeSource.includes('from "./settings-input-normalizer"'), true);
+  assert.equal(safeSource.includes("const prepared = await normalizedRequest(request)"), true);
+  assert.equal(safeSource.includes("refreshResetFallbacks(prepared, sourceEnv, sourceCtx"), true);
   assert.equal(fs.existsSync(new URL("../../worker/settings-source-context-entry.ts", import.meta.url)), false);
   assert.equal(safeSource.includes('import sourceRuntime from "./settings-source-entry"'), true);
   assert.equal(safeSource.includes('import lifecycleRuntime from "./settings-lifecycle-entry"'), true);
@@ -133,7 +133,7 @@ test("source mutations are serialized, cleanup-safe and rollback remains tracked
 test("operational requests dynamically inherit ENV and admin writes emit compensation audit", () => {
   assert.equal(safeSource.includes("isOperationalIntegrationRequest"), true);
   assert.equal(safeSource.includes("dynamicInheritedEnv"), true);
-  assert.equal(safeSource.includes("return lifecycleRuntime.fetch(request, operationalEnv, sourceCtx)"), true);
+  assert.equal(safeSource.includes("return lifecycleRuntime.fetch(prepared, operationalEnv, sourceCtx)"), true);
   assert.equal(safeSource.includes('settings.updated.compensated_rollback'), true);
   assert.equal(safeSource.includes('routes.updated.compensated_rollback'), true);
   assert.equal(safeSource.includes("auditCompensation"), true);
@@ -160,7 +160,7 @@ test("reset to an unconfigured default intentionally disables its integration", 
   assert.equal(source.includes('function promoteIntentionalDisableValidation('), true);
   assert.equal(source.includes('skippedServices: Array.from(disabled)'), true);
   assert.equal(source.includes('configuredEnv(value) ? String(value) : ""'), true);
-  assert.equal(normalizerEntry.includes('configuredEnv(value)'), true);
+  assert.equal(safeSource.includes('configuredEnv(value)'), true);
 });
 
 test("direct settings and route writes preserve source metadata", () => {
@@ -214,7 +214,6 @@ test("rollback and source reset changes trigger Auth E2E", () => {
     "worker/settings-source-entry.ts",
     "worker/settings-source-safe-entry.ts",
     "worker/settings-lifecycle-root-entry.ts",
-    "worker/settings-input-normalizer-entry.ts",
     "worker/settings-input-normalizer.ts",
     "tests/settings/settings-source-runtime-safety.test.mjs",
     "app/SettingsLifecycleWizard.tsx",
@@ -223,7 +222,7 @@ test("rollback and source reset changes trigger Auth E2E", () => {
 });
 
 test("settings lifecycle TypeScript parses under the repository Node baseline", () => {
-  for (const url of [lifecycleUrl, lifecycleRootUrl, sourceUrl, safeSourceUrl, normalizerEntryUrl, normalizerUrl]) {
+  for (const url of [lifecycleUrl, lifecycleRootUrl, sourceUrl, safeSourceUrl, normalizerUrl]) {
     const result = spawnSync(process.execPath, ["--experimental-strip-types", "--check", fileURLToPath(url)], { encoding: "utf8" });
     assert.equal(result.status, 0, result.stderr || result.stdout);
   }

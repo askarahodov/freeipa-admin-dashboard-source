@@ -27,7 +27,7 @@ const [
 ]);
 
 test("integrity route is dispatched only after local session and same-origin mutation boundaries", () => {
-  assert.match(localSecureSource, /import secureRuntime from ["']\.\/settings-input-normalizer-entry(?:\.ts)?["']/);
+  assert.match(localSecureSource, /import secureRuntime from ["']\.\/settings-source-safe-entry(?:\.ts)?["']/);
   assert.match(localSecureSource, /import \{ handleStorageIntegrityRequest \} from ["']\.\/storage-integrity-entry\.ts["']/);
   assert.match(localSecureSource, /handleLocalSecurityRouting\(request, sourceEnv, ctx/);
   assert.match(localRoutingSource, /const session = await dependencies\.resolveSession\(env, request\)/);
@@ -69,7 +69,7 @@ test("existing service-admin settings health and storage-status contracts remain
   assert.match(securityCompositionSource, /import compatibilityRuntime from ["']\.\/maintenance-control-root-entry(?:\.ts)?["']/);
   assert.match(securityCompositionSource, /middleware\/service-admin-authentication\.ts/);
   assert.match(serviceAdminGateSource, /serviceAdminTokenAuthorized\(request, env\.ADMIN_TOKEN\)/);
-  assert.match(localSecureSource, /import secureRuntime from ["']\.\/settings-input-normalizer-entry(?:\.ts)?["']/);
+  assert.match(localSecureSource, /import secureRuntime from ["']\.\/settings-source-safe-entry(?:\.ts)?["']/);
   assert.match(localRoutingSource, /dependencies\.handleStorageStatus\(delegatedRequest, delegated\)/);
   assert.match(localRoutingSource, /dependencies\.handleStorageStatus\(request, env\)/);
   assert.match(dockerfileSource, /\/health\/live/);

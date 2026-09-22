@@ -70,4 +70,4 @@ No force/bypass path is part of this contract.
 - repair loop: `AUTONOMOUS_CI_REPAIR.md`;
 - test selection and stable aggregate CI semantics: `docs/TESTING_POLICY.md` and repository workflows;
 - repository enforcement: #391 / actual GitHub branch protection or ruleset;
-- post-merge completion and next-task transition: #686.
+- post-merge completion and next-task transition: [`AUTONOMOUS_POST_MERGE.md`](AUTONOMOUS_POST_MERGE.md) and `scripts/autonomous-post-merge.mjs`.

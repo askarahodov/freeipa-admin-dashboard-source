@@ -17,6 +17,7 @@ test("#633 checkpoint A moves settings read and connection-test HTTP ownership o
   assert.equal(lifecycle.includes('requirePortalPermission(request, env, "settings.manage")'), true);
   assert.equal(lifecycle.includes("serviceAdminTokenAuthorized(request, env.ADMIN_TOKEN)"), true);
   assert.equal(lifecycle.includes("decryptIntegrationSecrets"), true);
+  assert.equal(lifecycle.includes("assertStoredRoutesReadable(row.config.routes)"), true);
   assert.equal(lifecycle.includes("freeIpaRpc("), true);
   assert.equal(lifecycle.includes("xyopsPayloadSucceeded(payload)"), true);
   assert.equal(lifecycle.includes('action: "settings.connection_test"'), true);

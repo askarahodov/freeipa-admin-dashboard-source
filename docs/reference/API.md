@@ -129,7 +129,7 @@ For execution ownership and why the portal is not a second scheduler, see `XYOPS
 
 | Method | Path | Purpose | Boundary / permission | Owner |
 | --- | --- | --- | --- | --- |
-| route-owned | `/api/admin/backups/export` | Sanitized backup export. | `backup.export` | `worker/backup-export-entry.ts` via `worker/index.ts` |
+| route-owned | `/api/admin/backups/export` | Sanitized backup export. | `backup.export` | `worker/backup-http-entry.ts` → `worker/backup-export-entry.ts` |
 | route-owned | `/api/admin/backups/import/preview` | Read-only sanitized backup import preview. | canonical `backup.restore.preview`; admin | `worker/backup-import-preview-root-entry.ts` |
 | route-owned | `/api/admin/backups/export/encrypted` | Full encrypted backup export. | `backup.export.encrypted`; admin | `worker/backup-encrypted-root-entry.ts` |
 | route-owned | `/api/admin/backups/import/encrypted/preview` | Encrypted backup preview. | canonical `backup.restore.preview`; admin | `worker/backup-encrypted-root-entry.ts` |

@@ -4,7 +4,6 @@ import test from "node:test";
 
 const boundary = fs.readFileSync(new URL("../../worker/settings-input-normalizer-entry.ts", import.meta.url), "utf8");
 const safeSource = fs.readFileSync(new URL("../../worker/settings-source-safe-entry.ts", import.meta.url), "utf8");
-const sourceContext = fs.readFileSync(new URL("../../worker/settings-source-context-entry.ts", import.meta.url), "utf8");
 const localBoundary = fs.readFileSync(new URL("../../worker/local-secure-entry.ts", import.meta.url), "utf8");
 const localRouting = fs.readFileSync(new URL("../../worker/middleware/local-security-routing.ts", import.meta.url), "utf8");
 
@@ -20,10 +19,12 @@ test("reset mutations run after local session and same-origin authorization", ()
 });
 
 test("source execution context cannot hide a committed operation", () => {
-  assert.equal(boundary.includes('from "./settings-source-context-entry"'), true);
-  assert.equal(sourceContext.includes('from "./settings-source-safe-entry"'), true);
-  assert.equal(sourceContext.includes('typeof ctx?.waitUntil === "function"'), true);
-  assert.equal(sourceContext.includes('void Promise.resolve(promise).catch(() => {})'), true);
+  assert.equal(boundary.includes('from "./settings-source-safe-entry"'), true);
+  assert.equal(fs.existsSync(new URL("../../worker/settings-source-context-entry.ts", import.meta.url)), false);
+  assert.equal(safeSource.includes('typeof ctx?.waitUntil === "function"'), true);
+  assert.equal(safeSource.includes('void Promise.resolve(promise).catch(() => {})'), true);
+  assert.equal(safeSource.includes("const sourceCtx = safeContext(ctx)"), true);
+  assert.equal(safeSource.includes("sourceCtx.waitUntil(auditCompensation"), true);
   assert.equal(safeSource.includes('releaseSourceLock(env, owner).catch(() => {})'), true);
 });
 

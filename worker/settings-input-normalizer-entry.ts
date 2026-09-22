@@ -1,4 +1,4 @@
-import runtime, { authorizeSettingsMutation } from "./settings-source-context-entry";
+import runtime, { authorizeSettingsMutation } from "./settings-source-safe-entry";
 import { normalizeSettingsRequestBody } from "./settings-input-normalizer";
 
 type RuntimeEnv = NonNullable<Parameters<typeof runtime.fetch>[1]> & {

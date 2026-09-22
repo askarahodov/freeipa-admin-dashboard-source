@@ -232,6 +232,7 @@ export function planAutonomousCiRepair(classification, history = []) {
   const priorCodeRepairs = (history ?? []).filter((entry) => (
     entry?.action === "RETURN_TO_IMPLEMENTATION"
     && String(entry?.classification ?? "") === String(classification.classification)
+    && String(entry?.fingerprint ?? "") === String(classification.fingerprint ?? "")
   )).length;
 
   if (["UNKNOWN", "AMBIGUOUS", "NONE"].includes(classification.classification)) {

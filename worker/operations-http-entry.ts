@@ -1,6 +1,7 @@
 import type { RouteField } from "../src/automation/automation-types";
 import { fieldConditionMatches } from "../src/automation/field-conditions";
-import integrationRuntime, { allowedOperations, automationRoutes, loadCatalog, portalCatalog, resolveCatalogRuntime } from "./index";
+import integrationRuntime, { loadCatalog, portalCatalog } from "./index";
+import { allowedOperations, automationRoutes, resolveCatalogRuntime } from "./xyops-admin-runtime.ts";
 import { listRunNotifications, markRunNotificationsRead } from "../src/operations/run/run-notifications.ts";
 import { readRunReplay, listRunReplaySummaries, saveRunReplay } from "../src/operations/run/run-replays.ts";
 import { listRunResults, readRunResultFile } from "../src/operations/run/run-results.ts";
@@ -21,6 +22,7 @@ import { appendAuditEvent, auditCorrelationFor, auditErrorCode, createAuditConte
 import { operationRun, saveOperationRun } from "./operation-run-runtime.ts";
 import { effectiveXyOpsRuntime, type XyOpsSettingsEnv } from "./integration-settings-runtime.ts";
 import { handleIntegrationStatusRequest } from "./integration-status-http.ts";
+import { handleXyOpsAdminRequest } from "./xyops-admin-http.ts";
 import { portalAccess, requestActor, requirePortalPermission } from "./portal-access-runtime.ts";
 import { applyProcessPresentation, availableProcessPresentationLocales, presentationLocalePreferences, readProcessPresentationSet, resolveProcessPresentationLocale } from "../src/operations/presentation/process-presentation";
 import { extractJobStages, listOperationRuns, publicRun, runStatus, syncOperationRuns, xyopsPayloadSucceeded } from "./xyops-run-runtime.ts";
@@ -625,9 +627,8 @@ async function handleRunAction(
 /**
  * #632 operations owner. User-facing catalog reads/execution, legacy action
  * compatibility, run history/result-file delivery, per-identity notifications,
- * cancel/rerun, and approval HTTP composition live here after the established
- * security and FreeIPA adapters. Approval-policy administration remains in the
- * central integration runtime; approval execution reuses this catalog-run handler
+ * cancel/rerun, approval HTTP composition and XYOps administration live here
+ * after the established security and FreeIPA adapters. Approval execution reuses this catalog-run handler
  * with a server-side approval identifier.
  */
 const worker = {
@@ -679,6 +680,8 @@ const worker = {
     if (request.method === "GET" && url.pathname === "/api/integrations/runs") {
       return handleRunsList(request, sourceEnv, url);
     }
+    const adminResponse = await handleXyOpsAdminRequest(request, sourceEnv);
+    if (adminResponse) return adminResponse;
     const statusResponse = await handleIntegrationStatusRequest(request, sourceEnv);
     if (statusResponse) return statusResponse;
     return integrationRuntime.fetch(request, sourceEnv, ctx);

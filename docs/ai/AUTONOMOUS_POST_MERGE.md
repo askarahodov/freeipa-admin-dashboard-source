@@ -71,4 +71,4 @@ The current checkpoint remains unhealthy and the action is a bounded hotfix/reve
 - CI repair before merge: `AUTONOMOUS_CI_REPAIR.md`;
 - merge authorization: `AUTONOMOUS_MERGE_GATE.md`;
 - post-merge verification/continuation: this document;
-- audit/dry-run/operator controls: #687.
+- audit/dry-run/operator controls: [`AUTONOMOUS_RUN_CONTROL.md`](AUTONOMOUS_RUN_CONTROL.md) and `scripts/autonomous-run-control.mjs`.

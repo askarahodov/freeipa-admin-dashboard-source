@@ -29,12 +29,6 @@ export const portalCompatibilityAdapters = Object.freeze([
     removalCondition: "register local-auth handlers and local-security middleware independently with exact 401/403/origin parity and no trusted-header regression",
   }),
   Object.freeze({
-    path: "worker/settings-input-normalizer-entry.ts",
-    responsibility: "normalizes settings mutation input and refreshes reset fallbacks before lifecycle handlers",
-    reason: "normalization still wraps HTTP requests rather than a canonical settings command/input boundary",
-    removalCondition: "move normalization/reset fallback preparation into canonical settings inputs with malformed/secret/reset parity tests",
-  }),
-  Object.freeze({
     path: "worker/settings-source-safe-entry.ts",
     responsibility: "preserves source authorization, inherited-environment handling, lock/release and compensation sequencing",
     reason: "security and compensation semantics still span the HTTP wrapper boundary",

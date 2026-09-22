@@ -7,9 +7,8 @@ import { catalogEventAllowed, readCatalogPolicySet, saveCatalogPolicySet } from 
 import { readApprovalPolicySet, saveApprovalPolicySet } from "../src/operations/approvals/approval-gates";
 import { appendAuditEvent, auditCorrelationFor, auditErrorCode, createAuditContext, listAuditEvents, withAuditCorrelation, type AuditContext } from "../audit-log";
 import { applyProcessPresentation, availableProcessPresentationLocales, presentationLocalePreferences, readProcessPresentationSet, resolveProcessPresentationLocale, saveProcessPresentationSet } from "../src/operations/presentation/process-presentation";
-import { freeIpaRpc as ipaRpc } from "./freeipa-rpc.ts";
 import { decryptIntegrationSecrets as decryptSecrets, encryptIntegrationSecrets as encryptSecrets } from "./integration-settings-runtime.ts";
-import { portalAccess, requestActor, requirePortalPermission } from "./portal-access-runtime.ts";
+import { portalAccess, requirePortalPermission } from "./portal-access-runtime.ts";
 import { xyopsPayloadSucceeded } from "./xyops-run-runtime.ts";
 
 interface Env extends FrameworkHttpEnv {
@@ -102,16 +101,6 @@ function cleanBaseUrl(value?: string): string | null {
     return parsed.href.replace(/\/$/, "");
   } catch {
     return null;
-  }
-}
-
-async function reachable(url: string | null): Promise<boolean> {
-  if (!url) return false;
-  try {
-    const response = await fetch(url, { method: "GET", signal: AbortSignal.timeout(5000), redirect: "manual" });
-    return response.status < 500;
-  } catch {
-    return false;
   }
 }
 
@@ -483,20 +472,6 @@ async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL, in
         correlationId: url.searchParams.get("correlationId") ?? undefined, dateFrom: numberParam("dateFrom"), dateTo: numberParam("dateTo"),
       }));
     } catch (error) { return json({ error: error instanceof Error ? error.message : "Cannot load audit log" }, 503); }
-  }
-
-  if (request.method === "GET" && url.pathname === "/api/integrations/status") {
-    const demoMode = boolValue(env.DEMO_MODE);
-    const ipaConfigured = Boolean(ipaUrl && env.IPA_USERNAME && env.IPA_PASSWORD);
-    const xyopsConfigured = Boolean(xyopsUrl && env.XYOPS_API_KEY);
-    const [ipaProbe, xyopsReachable] = await Promise.all([
-      !demoMode && ipaConfigured && ipaUrl
-        ? ipaRpc(env, ipaUrl, "user_find", [""], { sizelimit: 1 }).then(() => ({ reachable: true, error: null })).catch((error) => ({ reachable: false, error: error instanceof Error ? error.message : "FreeIPA connection failed" }))
-        : Promise.resolve({ reachable: false, error: null }),
-      !demoMode && xyopsConfigured ? reachable(xyopsUrl) : false,
-    ]);
-    const access = portalAccess(request, baseEnv);
-    return json({ mode: demoMode ? "demo" : ipaConfigured || xyopsConfigured ? "live" : "unconfigured", viewer: requestActor(request), access: { identity: access.identity, role: access.role, permissions: access.permissions }, persistence: { available: Boolean(baseEnv.DB), configured: Boolean(baseEnv.CONFIG_ENCRYPTION_KEY) }, freeipa: { configured: ipaConfigured, reachable: ipaProbe.reachable, error: ipaProbe.error }, xyops: { configured: xyopsConfigured, reachable: xyopsReachable } });
   }
 
   if (url.pathname === "/api/integrations/catalog/presentation") {

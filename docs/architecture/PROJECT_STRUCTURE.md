@@ -14,7 +14,7 @@ For system behavior and trust/data flows, read [`ARCHITECTURE.md`](ARCHITECTURE.
 | `app/styles/` | Shared design tokens and global visual foundation | semantic token/global style files | UI foundation tests + build | feature business logic or duplicate local token systems |
 | `app/ui/` | Reusable domain-agnostic UI primitives | `app/ui/index.ts` and component owners | UI foundation/component tests | data fetching, RBAC decisions, route ownership |
 | `app/shell/` | Reusable product shell and stable global navigation foundation | `app/shell/AppShell.tsx`, navigation owner | AppShell tests + build | a second navigation model or server-side authorization |
-| `worker/` | Built Worker request chain, API handlers, runtime/security gates | `worker/schema-migrations-entry.ts` through current wrapper chain | server/domain/route contracts | browser-only state or independent auth/router stacks |
+| `worker/` | Built Worker request chain, API handlers, runtime/security gates | build entry `worker/http-security-root-entry.ts` -> schema boundary -> `worker/application.ts`; composition metadata in `worker/application-composition-contract.ts` | server/domain/route contracts + architecture composition contract | browser-only state or independent auth/router stacks |
 | `runtime/` | Canonical Node production orchestration, Worker hosting, SQLite adapter/driver, scheduler and shutdown | `runtime/production-runtime.mjs` and runtime helpers | production-runtime/persistence contracts | route-specific business logic or UI presentation |
 | `db/` | Canonical portal schema and migration lifecycle | `db/portal-schema.ts`, migration registry/runtime | schema/migration/storage tests | UI logic or duplicate schema ownership |
 | `src/auth/` | Authentication, session, permission and stable route/error contracts migrated from root | domain files under `src/auth/` | auth/RBAC/security contracts | browser-only enforcement |
@@ -44,7 +44,7 @@ Before changing a screen, inspect the current `app/` tree and its tests. Reuse a
 
 Production startup begins at `scripts/start-production.mjs`, not `scripts/start-worker.mjs` and not Wrangler development mode. It constructs the canonical runtime around `runtime/production-runtime.mjs`, the private FreeIPA Gateway, the built Worker artifact, SQLite-backed persistence, the Node Worker host, scheduler and shutdown lifecycle.
 
-`worker/schema-migrations-entry.ts` is the current built Worker application entry chain hosted by that Node runtime. Issue #56 tracks simplification of the Worker wrapper/router composition; it does not change the current production process entrypoint by itself.
+`worker/http-security-root-entry.ts` is the build-configured Worker entry hosted by that Node runtime. It wraps `worker/schema-migrations-entry.ts`, which owns schema readiness before `worker/application.ts`. `worker/application-composition-contract.ts` records these composition owners plus the bounded compatibility exceptions; it is not a route registry. Issue #56 tracks simplification of the remaining compatibility chain without changing the Node production process owner.
 
 ### Database and persistent storage
 
@@ -191,7 +191,7 @@ Before modifying shared runtime owners, `worker/`, canonical schema/migrations, 
 
 This document describes present reality, including remaining gaps:
 
-- the Worker wrapper chain is still broad and #56 tracks explicit composition work;
+- the Worker has one explicit build/application composition contract, while a bounded set of compatibility adapters remains listed with removal conditions in `worker/application-composition-contract.ts`; #56 tracks their parity-gated thinning/removal;
 - frontend ownership continues to evolve as product screens adopt shared shell/UI primitives;
 - API/permission/reference ownership is distributed across canonical code/tests/docs rather than generated from one registry;
 - production uses the canonical Node runtime rooted at `scripts/start-production.mjs` / `runtime/production-runtime.mjs`;

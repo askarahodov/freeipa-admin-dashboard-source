@@ -10,7 +10,9 @@
 
 ## Application composition
 
-`schema-migrations-entry.ts` remains the built Worker entry and owns ordinary schema readiness plus the explicit pre-schema pass-through required by infrastructure health routes. It no longer dispatches those health handlers itself. Schema-gated traffic and pre-schema health pass-through both delegate to `application.ts`, the explicit application composition boundary introduced by #628.
+`http-security-root-entry.ts` is the build-configured Worker entry and owns the outer response-security header boundary. It delegates to `schema-migrations-entry.ts`, which owns ordinary schema readiness plus the explicit pre-schema pass-through required by infrastructure health routes. It no longer dispatches those health handlers itself. Schema-gated traffic and pre-schema health pass-through both delegate to `application.ts`, the explicit application composition boundary introduced by #628.
+
+`application-composition-contract.ts` is the runtime-import-free metadata owner for the top-level build/schema/application/scheduled/framework composition and the bounded remaining compatibility exceptions. It is intentionally not a route or permission registry.
 
 `application.ts` classifies requests through `application-router.ts`, which reuses the canonical matcher from `src/auth/portal-route-router.ts`; it does not define a second route registry. The router exposes four explicit dispatch registrations: `stable`, `negative`, `supplemental` and `framework`. The #630 pilot registers `health-http.ts` from the stable, negative and supplemental registrations. `health-http.ts` is now the single HTTP adapter for stable liveness/readiness/legacy health, dependency health, the sanitized health diagnostics document/assets and health metrics. Its pure pre-schema predicate consumes the same application classification, so the schema exception and actual dispatch cannot drift into independent route lists.
 

@@ -22,7 +22,8 @@ process / transport hosting
     -> built Worker artifact
 
 HTTP application composition
-  worker/schema-migrations-entry.ts
+  worker/http-security-root-entry.ts
+    -> worker/schema-migrations-entry.ts
     -> worker/application.ts
     -> worker/application-router.ts
        |-> health classifications -> worker/health-http.ts
@@ -38,7 +39,7 @@ HTTP application composition
 
 ### Top-level boundary
 
-`worker/schema-migrations-entry.ts` is the current built Worker entry. It no longer dispatches health handlers itself. Before ordinary schema readiness it recognizes public/infrastructure health classifications through `isPreSchemaHealthApplicationRequest(request)` and delegates them to `worker/application.ts`. That predicate consumes the same `PortalApplicationRoute` classification as application dispatch, so pre-schema availability does not maintain a second URL registry.
+`worker/http-security-root-entry.ts` is the build-configured Worker entry and owns only the outer HTTP response-security header boundary before delegating to `worker/schema-migrations-entry.ts`. The schema entry no longer dispatches health handlers itself. Before ordinary schema readiness it recognizes public/infrastructure health classifications through `isPreSchemaHealthApplicationRequest(request)` and delegates them to `worker/application.ts`. That predicate consumes the same `PortalApplicationRoute` classification as application dispatch, so pre-schema availability does not maintain a second URL registry.
 
 The schema boundary still owns:
 
@@ -52,7 +53,7 @@ The schema boundary still owns:
 
 `worker/health-http.ts` is the application-facing HTTP owner for the public/infrastructure health surface. It delegates to the existing bounded handlers in preserved order: stable liveness/readiness/legacy health, dependency health, sanitized diagnostics UI/assets, then health metrics. A health-specific known-path method mismatch is handled by the existing health/diagnostics contract so its current `405`, code and `Allow` header remain authoritative. The generic negative finalizer is used only when the health owner did not handle the classification.
 
-`security-composition.ts` owns the explicitly extracted non-health security gates. `worker/middleware/storage-migration-apply.ts` invokes the existing controlled migration apply/status/reconcile handler before maintenance. A handled migration response short-circuits unchanged. Every other non-health HTTP request then enters `worker/maintenance-mode-gate.ts`; the gate preserves the original `Request`, environment and execution context for delegated traffic, enforces its recovery allowlist and fail-closed behavior, and delegates allowed traffic into `worker/middleware/service-admin-authentication.ts`. The service-admin gate preserves the local-mode restriction, canonical administrative allowlist, constant-time `ADMIN_TOKEN` authorization and the exact synthetic static admin environment used by the former wrapper, then delegates into `maintenance-control-root-entry.ts`. Scheduled execution bypasses the HTTP-only migration and service-admin gates but enters `handleMaintenanceScheduledGate` before the remaining compatibility runtime.
+`security-composition.ts` owns the explicitly extracted non-health security gates. `worker/middleware/storage-migration-apply.ts` invokes the existing controlled migration apply/status/reconcile handler before maintenance. A handled migration response short-circuits unchanged. Every other non-health HTTP request then enters `worker/maintenance-mode-gate.ts`; the gate preserves the original `Request`, environment and execution context for delegated traffic, enforces its recovery allowlist and fail-closed behavior, and delegates allowed traffic into `worker/middleware/service-admin-authentication.ts`. The service-admin gate preserves the local-mode restriction, canonical administrative allowlist, constant-time `ADMIN_TOKEN` authorization and the exact synthetic static admin environment used by the former wrapper, then delegates into `maintenance-control-root-entry.ts`. Scheduled execution is owned by `worker/application-scheduled.ts`; it bypasses the HTTP-only migration and service-admin gates but enters the same `handleMaintenanceScheduledGate` before the remaining compatibility runtime.
 
 Local-session routing, authorization, stable non-health handler selection and most audit/error behavior remain compatibility-owned. For non-health negative classifications, the application owns the final outward JSON envelope **after** security/compatibility execution: a known method mismatch is normalized only when downstream already returned `405`, and an unknown `/api/**` route is normalized only when downstream already returned `404`. Other statuses are returned unchanged.
 
@@ -61,7 +62,8 @@ Local-session routing, authorization, stable non-health handler selection and mo
 For a request that reaches application composition, the verified graph is:
 
 ```text
-schema-migrations-entry.ts
+http-security-root-entry.ts
+  -> schema-migrations-entry.ts
   -> application.ts
   -> application-router.ts
        -> canonical match/classification
@@ -96,6 +98,23 @@ schema-migrations-entry.ts
 The graph is not strictly linear. `settings-source-safe-entry.ts` chooses either the source-aware path or the lifecycle path depending on the request and may construct an effective integration environment before delegation. `secure-entry.ts` normalizes the accepted workspace/proxy/static identity context before delegating to `backup-http-entry.ts`. That adapter owns the sanitized backup export after canonical identity normalization and falls through to `freeipa-http-entry.ts`. That adapter owns the complete FreeIPA HTTP surface and falls through unmatched requests to `operations-http-entry.ts`. #632 checkpoints A-C let that post-security operations adapter own run-history/result-file reads, cancel/rerun composition, per-identity notifications, and approval list/decision/cancel/execute HTTP composition before unmatched traffic continues to `worker/index.ts`; neither adapter is a second authentication boundary. Approval execution reuses the central catalog runtime and catalog-run handler with the claimed approval identifier passed only in memory.
 
 `worker/index.ts` remains a base HTTP owner for the remaining integration/operations mutations and catalog/approval/admin surfaces. #635 checkpoint B1 removes Vinext implementation ownership from that file: `framework-http-entry.ts` now owns image optimization plus the Vinext app-router integration, while `framework-http.ts` owns the route-to-root HTML compatibility decision and generic static/RSC fallback policy. For B1, `worker/index.ts` still delegates unmatched traffic to that explicit framework owner, so wrapper/security ordering is unchanged.
+
+## Machine-readable composition and compatibility exceptions
+
+`worker/application-composition-contract.ts` is the pure metadata owner for the top-level Worker composition. It records the build entry, schema/application/security boundaries, scheduled owner, framework owner/current dispatch mode, central compatibility tail, and the **bounded** remaining compatibility adapters.
+
+It deliberately does not repeat route patterns, permissions or mutation metadata. The remaining compatibility exception list is limited to adapters that still mix request wrapping/adaptation with behavior that cannot yet be bypassed safely:
+
+- `local-secure-entry.ts`;
+- `settings-input-normalizer-entry.ts`;
+- `settings-source-context-entry.ts`;
+- `settings-source-safe-entry.ts`;
+- `settings-source-entry.ts`;
+- `secure-entry.ts`.
+
+Each exception has a concrete reason and removal condition. Explicit domain adapters such as health, maintenance control, backup/recovery, settings lifecycle, backup HTTP, FreeIPA and operations owners are not compatibility exceptions merely because their filenames end in `-entry.ts`.
+
+`worker/index.ts` is tracked separately as the central compatibility tail until its remaining administrative integration handlers are extracted and framework dispatch can move directly to the explicit framework owner without bypassing non-API/local identity contracts.
 
 ## Canonical stable route coverage
 

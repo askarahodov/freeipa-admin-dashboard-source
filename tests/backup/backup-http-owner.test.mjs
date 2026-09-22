@@ -7,7 +7,7 @@ import test from "node:test";
 import {
   handleBackupHttpRequest,
   SANITIZED_BACKUP_EXPORT_PATH,
-} from "../../worker/backup-http-entry.ts";
+} from "../../worker/backup-http.ts";
 
 const assignments = JSON.stringify({
   "viewer@example.test": "viewer",
@@ -83,24 +83,27 @@ test("sanitized backup owner preserves method handling and unrelated-route passt
 
 test("#634A gives sanitized export one post-security HTTP owner", () => {
   const ownerUrl = new URL("../../worker/backup-http-entry.ts", import.meta.url);
+  const handlerUrl = new URL("../../worker/backup-http.ts", import.meta.url);
   const secureUrl = new URL("../../worker/secure-entry.ts", import.meta.url);
   const centralUrl = new URL("../../worker/index.ts", import.meta.url);
   const routesUrl = new URL("../../src/auth/portal-route-contract.ts", import.meta.url);
 
   const owner = fs.readFileSync(ownerUrl, "utf8");
+  const handler = fs.readFileSync(handlerUrl, "utf8");
   const secure = fs.readFileSync(secureUrl, "utf8");
   const central = fs.readFileSync(centralUrl, "utf8");
   const routes = fs.readFileSync(routesUrl, "utf8");
 
   assert.equal(secure.includes('import runtime from "./backup-http-entry.ts"'), true);
   assert.equal(owner.includes('import runtime from "./freeipa-http-entry.ts"'), true);
-  assert.equal(owner.includes('requirePortalPermission(request, env, "backup.export")'), true);
-  assert.equal(owner.includes("createAuditContext"), true);
+  assert.equal(owner.includes('from "./backup-http.ts"'), true);
+  assert.equal(handler.includes('requirePortalPermission(request, env, "backup.export")'), true);
+  assert.equal(handler.includes("createAuditContext"), true);
   assert.equal(central.includes('url.pathname === "/api/admin/backups/export"'), false);
   assert.equal(central.includes('handleBackupExportRequest'), false);
   assert.match(routes, /id: "backup\.export\.sanitized".*owner: "worker\/backup-http-entry\.ts"/);
 
-  for (const url of [ownerUrl, secureUrl, centralUrl]) {
+  for (const url of [ownerUrl, handlerUrl, secureUrl, centralUrl]) {
     const result = spawnSync(process.execPath, ["--experimental-strip-types", "--check", fileURLToPath(url)], { encoding: "utf8" });
     assert.equal(result.status, 0, result.stderr || result.stdout);
   }

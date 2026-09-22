@@ -33,7 +33,7 @@ test("settings lifecycle runs behind explicit lifecycle root, local auth, origin
   assert.equal(lifecycleRoot.includes('import localRuntime from "./local-secure-entry"'), true);
   assert.equal(localBoundary.includes('import secureRuntime from "./settings-input-normalizer-entry"'), true);
   assert.equal(normalizerEntry.includes('import runtime, { authorizeSettingsMutation } from "./settings-source-safe-entry"'), true);
-  assert.equal(sourceContext.includes('import runtime, { authorizeSettingsMutation } from "./settings-source-safe-entry"'), true);
+  assert.equal(fs.existsSync(new URL("../../worker/settings-source-context-entry.ts", import.meta.url)), false);
   assert.equal(safeSource.includes('import sourceRuntime from "./settings-source-entry"'), true);
   assert.equal(safeSource.includes('import lifecycleRuntime from "./settings-lifecycle-entry"'), true);
   assert.equal(source.includes('import lifecycleRuntime from "./settings-lifecycle-entry"'), true);

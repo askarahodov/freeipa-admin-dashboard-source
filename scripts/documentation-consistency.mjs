@@ -3,7 +3,7 @@ import path from 'node:path';
 
 const root = process.cwd();
 const failures = [];
-const skipDirs = new Set(['.git', 'node_modules', 'dist', '.next', 'docs/superpowers']);
+const skipDirs = new Set(['.git', 'node_modules', 'dist', '.next', 'docs/superpowers', '.kilo', '.sites-runtime']);
 
 function fail(file, message) {
   failures.push(`${file}: ${message}`);

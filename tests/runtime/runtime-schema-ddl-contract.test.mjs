@@ -11,6 +11,8 @@ const ignoredDirectories = new Set([
   "dist",
   "node_modules",
   "tests",
+  ".kilo",
+  ".sites-runtime",
 ]);
 const ddlOwners = new Set([
   "db/portal-login-rate-limit-schema.ts",

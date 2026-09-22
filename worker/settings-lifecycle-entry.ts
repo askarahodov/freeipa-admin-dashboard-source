@@ -1,10 +1,4 @@
 import secureRuntime from "./secure-entry";
-import { appendAuditEvent, auditErrorCode, createAuditContext } from "../audit-log";
-import { serviceAdminTokenAuthorized } from "../src/auth/admin-session-authorization.ts";
-import { decryptIntegrationSecrets } from "./integration-settings-runtime.ts";
-import { freeIpaRpc } from "./freeipa-rpc.ts";
-import { portalAccess, requirePortalPermission } from "./portal-access-runtime.ts";
-import { xyopsPayloadSucceeded } from "./xyops-run-runtime.ts";
 
 type RuntimeEnv = NonNullable<Parameters<typeof secureRuntime.fetch>[1]> & {
   DB?: D1Database;
@@ -22,23 +16,10 @@ type ScheduledController = Parameters<NonNullable<typeof secureRuntime.scheduled
 
 type PublicSettings = {
   source?: "database" | "environment";
-  persistenceAvailable?: boolean;
-  encryptionConfigured?: boolean;
   updatedAt?: number | null;
   demoMode?: boolean;
   freeipa?: { url?: string; username?: string; passwordConfigured?: boolean };
   xyops?: { url?: string; apiKeyConfigured?: boolean };
-};
-
-type ActiveSettings = {
-  config: {
-    demoMode: boolean;
-    ipaUrl: string;
-    ipaUsername: string;
-    xyopsUrl: string;
-  };
-  secrets: StoredSecrets;
-  updatedAt: number;
 };
 
 type DraftChanges = {
@@ -237,210 +218,6 @@ async function activeRow(env: RuntimeEnv): Promise<ActiveRow | null> {
   };
 }
 
-function boolValue(value: unknown): boolean {
-  if (typeof value === "boolean") return value;
-  return ["true", "1", "yes", "on"].includes(String(value ?? "").trim().toLowerCase());
-}
-
-function cleanBaseUrl(value: unknown): string {
-  if (typeof value !== "string" || !value) return "";
-  try {
-    const parsed = new URL(value);
-    if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password) return "";
-    return parsed.href.replace(/\/$/, "");
-  } catch {
-    return "";
-  }
-}
-
-function settingString(value: unknown, name: string, maxLength = 2048): string {
-  if (typeof value !== "string") throw new Error(`${name} must be a string`);
-  const normalized = value.trim();
-  if (normalized.length > maxLength) throw new Error(`${name} is too long`);
-  return normalized;
-}
-
-function environmentSettings(env: RuntimeEnv): ActiveSettings {
-  return {
-    config: {
-      demoMode: boolValue(env.DEMO_MODE),
-      ipaUrl: cleanBaseUrl(env.IPA_URL),
-      ipaUsername: env.IPA_USERNAME ?? "",
-      xyopsUrl: cleanBaseUrl(env.XYOPS_URL),
-    },
-    secrets: {
-      ipaPassword: env.IPA_PASSWORD ?? "",
-      xyopsApiKey: env.XYOPS_API_KEY ?? "",
-    },
-    updatedAt: 0,
-  };
-}
-
-function assertStoredRoutesReadable(raw: unknown): void {
-  if (!Array.isArray(raw)) return;
-  if (raw.length > 100) throw new Error("routes must be an array with at most 100 items");
-  const keys = new Set<string>();
-  const allowedOperations = new Set([
-    "user_add", "user_mod", "user_password", "user_enable", "user_disable",
-    "user_del", "group_add", "group_del", "group_add_member", "group_remove_member",
-  ]);
-  for (const [index, item] of raw.entries()) {
-    if (!item || typeof item !== "object" || Array.isArray(item)) throw new Error(`routes[${index}] must be an object`);
-    const source = item as Record<string, unknown>;
-    const key = String(source.key ?? "").trim().slice(0, 120);
-    const title = String(source.title ?? "").trim().slice(0, 240);
-    const operation = String(source.operation ?? "");
-    const kind = source.kind === "workflow" ? "workflow" : source.kind === "event" ? "event" : null;
-    const eventId = String(source.eventId ?? "").trim().slice(0, 240);
-    if (!key || keys.has(key) || !title || !eventId || !kind || !allowedOperations.has(operation)) {
-      throw new Error(`routes[${index}] is invalid or duplicated`);
-    }
-    keys.add(key);
-  }
-}
-
-async function activeSettings(env: RuntimeEnv): Promise<{ settings: ActiveSettings; source: "database" | "environment" }> {
-  const row = await activeRow(env);
-  if (!row) return { settings: environmentSettings(env), source: "environment" };
-  assertStoredRoutesReadable(row.config.routes);
-  const secrets = await decryptIntegrationSecrets(row.encryptedSecrets, env.CONFIG_ENCRYPTION_KEY);
-  return {
-    settings: {
-      config: {
-        demoMode: row.config.demoMode === true,
-        ipaUrl: String(row.config.ipaUrl ?? ""),
-        ipaUsername: String(row.config.ipaUsername ?? ""),
-        xyopsUrl: String(row.config.xyopsUrl ?? ""),
-      },
-      secrets,
-      updatedAt: row.revision,
-    },
-    source: "database",
-  };
-}
-
-function publicSettings(settings: ActiveSettings, env: RuntimeEnv, source: "database" | "environment"): PublicSettings {
-  return {
-    source,
-    persistenceAvailable: Boolean(env.DB),
-    encryptionConfigured: Boolean(env.CONFIG_ENCRYPTION_KEY),
-    updatedAt: settings.updatedAt || null,
-    demoMode: settings.config.demoMode,
-    freeipa: {
-      url: settings.config.ipaUrl,
-      username: settings.config.ipaUsername,
-      passwordConfigured: Boolean(settings.secrets.ipaPassword),
-    },
-    xyops: {
-      url: settings.config.xyopsUrl,
-      apiKeyConfigured: Boolean(settings.secrets.xyopsApiKey),
-    },
-  };
-}
-
-function mergeConnectionTestInput(current: ActiveSettings, body: Record<string, unknown>): ActiveSettings {
-  const ipaUrlInput = body.ipaUrl === undefined ? current.config.ipaUrl : settingString(body.ipaUrl, "ipaUrl");
-  const xyopsUrlInput = body.xyopsUrl === undefined ? current.config.xyopsUrl : settingString(body.xyopsUrl, "xyopsUrl");
-  const ipaUrl = ipaUrlInput ? cleanBaseUrl(ipaUrlInput) : "";
-  const xyopsUrl = xyopsUrlInput ? cleanBaseUrl(xyopsUrlInput) : "";
-  if (ipaUrlInput && !ipaUrl) throw new Error("ipaUrl must be a valid HTTP(S) URL without credentials");
-  if (xyopsUrlInput && !xyopsUrl) throw new Error("xyopsUrl must be a valid HTTP(S) URL without credentials");
-  const ipaPassword = body.clearIpaPassword === true
-    ? ""
-    : typeof body.ipaPassword === "string" && body.ipaPassword
-      ? body.ipaPassword.slice(0, 4096)
-      : current.secrets.ipaPassword;
-  const xyopsApiKey = body.clearXyopsApiKey === true
-    ? ""
-    : typeof body.xyopsApiKey === "string" && body.xyopsApiKey
-      ? body.xyopsApiKey.slice(0, 4096)
-      : current.secrets.xyopsApiKey;
-  return {
-    config: {
-      demoMode: body.demoMode === undefined ? current.config.demoMode : body.demoMode === true,
-      ipaUrl,
-      ipaUsername: body.ipaUsername === undefined
-        ? current.config.ipaUsername
-        : settingString(body.ipaUsername, "ipaUsername", 256),
-      xyopsUrl,
-    },
-    secrets: { ipaPassword, xyopsApiKey },
-    updatedAt: Date.now(),
-  };
-}
-
-async function handleOwnedSettingsRequest(request: Request, env: RuntimeEnv): Promise<Response> {
-  const url = new URL(request.url);
-  const denied = requirePortalPermission(request, env, "settings.manage");
-  if (denied) return denied;
-  if (!env.ADMIN_TOKEN) return json({ error: "ADMIN_TOKEN is not configured on the server" }, 503);
-  if (!await serviceAdminTokenAuthorized(request, env.ADMIN_TOKEN)) return json({ error: "Administrator authorization required" }, 401);
-
-  if (request.method === "GET" && url.pathname === "/api/integrations/settings") {
-    try {
-      const { settings, source } = await activeSettings(env);
-      return json(publicSettings(settings, env, source));
-    } catch (error) {
-      return json({ error: error instanceof Error ? error.message : "Cannot read settings" }, 500);
-    }
-  }
-
-  if (request.method === "POST" && url.pathname === "/api/integrations/settings/test") {
-    let body: Record<string, unknown>;
-    try { body = await request.json() as Record<string, unknown>; }
-    catch { return json({ error: "Invalid JSON" }, 400); }
-    const audit = createAuditContext(portalAccess(request, env));
-    try {
-      const { settings: current } = await activeSettings(env);
-      const draft = mergeConnectionTestInput(current, body);
-      const service = body.service === "freeipa" ? "freeipa" : body.service === "xyops" ? "xyops" : null;
-      if (!service) return json({ error: "service must be freeipa or xyops" }, 400);
-      const started = Date.now();
-      if (service === "freeipa") {
-        if (!draft.config.ipaUrl || !draft.config.ipaUsername || !draft.secrets.ipaPassword) {
-          return json({ error: "FreeIPA settings are incomplete" }, 400);
-        }
-        await freeIpaRpc(
-          { ...env, IPA_USERNAME: draft.config.ipaUsername, IPA_PASSWORD: draft.secrets.ipaPassword },
-          draft.config.ipaUrl,
-          "user_find",
-          [""],
-          { sizelimit: 1 },
-        );
-      } else {
-        if (!draft.config.xyopsUrl || !draft.secrets.xyopsApiKey) return json({ error: "XYOps settings are incomplete" }, 400);
-        const response = await fetch(`${draft.config.xyopsUrl}/api/app/get_events/v1`, {
-          method: "GET",
-          headers: { "x-api-key": draft.secrets.xyopsApiKey, accept: "application/json" },
-          signal: AbortSignal.timeout(15000),
-        });
-        const payload = await response.json().catch(() => null);
-        if (!response.ok || !xyopsPayloadSucceeded(payload)) throw new Error("XYOps rejected the connection test");
-      }
-      const latencyMs = Date.now() - started;
-      await appendAuditEvent(env, audit, {
-        action: "settings.connection_test",
-        resourceType: "integration",
-        resourceId: service,
-        outcome: "success",
-        metadata: { service, latencyMs },
-      }).catch(() => {});
-      return json({ ok: true, service, latencyMs });
-    } catch (error) {
-      await appendAuditEvent(env, audit, {
-        action: "settings.connection_test",
-        resourceType: "integration",
-        resourceId: String(body.service ?? "unknown"),
-        outcome: "failure",
-        errorCode: auditErrorCode(error, "connection_test_failed"),
-      }).catch(() => {});
-      return json({ error: error instanceof Error ? error.message : "Connection test failed" }, 502);
-    }
-  }
-
-  return json({ error: "Not found" }, 404);
-}
-
 async function delegate(request: Request, env: RuntimeEnv, ctx: RuntimeContext, pathname: string, init?: RequestInit): Promise<Response> {
   const url = new URL(request.url);
   url.pathname = pathname;
@@ -448,11 +225,7 @@ async function delegate(request: Request, env: RuntimeEnv, ctx: RuntimeContext, 
   const headers = new Headers(request.headers);
   headers.delete("content-length");
   if (init?.body !== undefined) headers.set("content-type", "application/json");
-  const delegatedRequest = new Request(url, { ...init, headers });
-  if ((delegatedRequest.method === "GET" && pathname === "/api/integrations/settings") || pathname === "/api/integrations/settings/test") {
-    return handleOwnedSettingsRequest(delegatedRequest, env);
-  }
-  return secureRuntime.fetch(delegatedRequest, env, ctx);
+  return secureRuntime.fetch(new Request(url, { ...init, headers }), env, ctx);
 }
 
 async function adminContext(request: Request, env: RuntimeEnv, ctx: RuntimeContext): Promise<AdminContext | Response> {
@@ -787,9 +560,6 @@ const worker = {
   async fetch(request: Request, env: RuntimeEnv | undefined, ctx: RuntimeContext): Promise<Response> {
     const sourceEnv = env ?? (process.env as unknown as RuntimeEnv);
     const url = new URL(request.url);
-    if ((request.method === "GET" && url.pathname === "/api/integrations/settings") || url.pathname === "/api/integrations/settings/test") {
-      return handleOwnedSettingsRequest(request, sourceEnv);
-    }
     if (isLifecyclePath(url.pathname)) return handleLifecycle(request, sourceEnv, ctx, url);
     return secureRuntime.fetch(request, sourceEnv, ctx);
   },

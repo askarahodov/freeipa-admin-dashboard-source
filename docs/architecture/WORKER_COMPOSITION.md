@@ -375,3 +375,7 @@ Primary current evidence for this inventory:
 - backup/recovery/storage/maintenance test families.
 
 This inventory is intentionally updated as a current-state architecture artifact until #56 retires the wrapper-chain model.
+
+## #635 C5 — XYOps administration cluster
+
+The eight final canonical stable routes formerly owned by `worker/index.ts` now resolve to `worker/xyops-admin-http.ts`: automation routes, process presentation, catalog visibility policies and approval policies (read/update). Shared route normalization/effective-settings persistence lives in `worker/xyops-admin-runtime.ts`. Dispatch occurs inside the existing `operations-http-entry.ts` boundary before the compatibility fallback, so upstream local-session/service-admin/same-origin ordering is unchanged. `worker/index.ts` remains a compatibility tail but is no longer a canonical stable route owner.

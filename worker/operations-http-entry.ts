@@ -95,11 +95,11 @@ type CatalogRunReplayGuard = {
 
 async function handleCatalogRunRequest(
   request: Request,
-  baseEnv: Env,
+  baseEnv: RuntimeEnv,
   url: URL,
   inheritedAudit?: AuditContext,
   replayGuard?: CatalogRunReplayGuard,
-  resolvedRuntime?: { env: Env; xyopsUrl: string | null },
+  resolvedRuntime?: { env: RuntimeEnv; xyopsUrl: string | null },
   approvedExecutionId?: string,
 ): Promise<Response> {
   const audit = inheritedAudit ?? createAuditContext(portalAccess(request, baseEnv));

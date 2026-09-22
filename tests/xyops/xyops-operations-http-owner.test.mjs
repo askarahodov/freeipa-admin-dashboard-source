@@ -55,8 +55,8 @@ test("#632 checkpoint D gives catalog, runs, notifications, and approvals one po
   assert.equal(central.includes("async function listOperationRuns"), false);
   assert.equal(central.includes("async function syncOperationRuns"), false);
   assert.match(central, /from ["']\.\/xyops-run-runtime\.ts["']/);
-  assert.match(central, /import \{[^}]*extractJobStages[^}]*\} from ["']\.\/xyops-run-runtime\.ts["']/s);
-  assert.match(central, /stages: extractJobStages\(result\)/u);
+  assert.match(operationsOwner, /import \{[^}]*extractJobStages[^}]*\} from ["']\.\/xyops-run-runtime\.ts["']/s);
+  assert.match(operationsOwner, /stages: extractJobStages\(result\)/u);
 
   assert.match(operationsOwner, /async function handleCatalogRunRequest/);
   assert.equal(central.includes("handleCatalogRunRequest"), false);

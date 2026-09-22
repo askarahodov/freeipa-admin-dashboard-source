@@ -11,14 +11,16 @@ After a merge, orchestration must refresh GitHub and verify the resulting `main`
 A task can transition from `REVIEW` to `DONE` only when:
 
 - the linked PR is confirmed merged;
-- the observed merge commit SHA equals current `main`;
-- the expected merged change is explicitly verified present on that same `main`;
+- the merge commit SHA is known and explicitly verified reachable from current `main`;
+- the expected merged change is explicitly verified present on that current `main`;
 - the managed Issue is still valid `REVIEW`;
 - `CI / Required CI` is terminal success on resulting `main`;
 - Scoped E2E is terminal success on resulting `main`;
 - acceptance criteria are re-checked and satisfied on resulting `main`.
 
 Pending checks return `WAIT`.
+
+An unrelated later merge may advance `main` before verification; that is allowed only when the target merge commit is proven reachable and the expected change is reverified on the newer current `main`.
 
 A failed post-merge check returns `REGRESSION_BLOCKED` with next action `BOUNDED_HOTFIX_OR_REVERT`. The Issue remains open; ordinary next-task selection is forbidden.
 

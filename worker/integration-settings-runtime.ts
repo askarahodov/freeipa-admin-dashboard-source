@@ -109,9 +109,6 @@ export async function effectiveFreeIpaRuntime<T extends FreeIpaSettingsEnv>(env:
       .first<{ config_json: string; encrypted_secrets: string; updated_at: number }>();
     if (!row) return { env: fallback, ipaUrl: cleanIntegrationBaseUrl(fallback.IPA_URL) };
     const config = JSON.parse(String(row.config_json ?? "{}")) as Record<string, unknown>;
-    if (!persistedRoutesMatchLegacySnapshotContract(config.routes)) {
-      throw new Error("persisted automation routes are invalid");
-    }
     const secrets = await decryptIntegrationSecrets(String(row.encrypted_secrets ?? ""), env.CONFIG_ENCRYPTION_KEY);
     const effective = {
       ...env,
@@ -186,6 +183,9 @@ export async function effectiveIntegrationRuntime<T extends IntegrationSettingsE
       };
     }
     const config = JSON.parse(String(row.config_json ?? "{}")) as Record<string, unknown>;
+    if (!persistedRoutesMatchLegacySnapshotContract(config.routes)) {
+      throw new Error("persisted automation routes are invalid");
+    }
     const secrets = await decryptIntegrationSecrets(String(row.encrypted_secrets ?? ""), env.CONFIG_ENCRYPTION_KEY);
     const effective = {
       ...env,

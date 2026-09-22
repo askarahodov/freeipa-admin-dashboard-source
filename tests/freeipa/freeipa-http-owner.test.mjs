@@ -53,6 +53,7 @@ test("backup predispatch is not owned by the FreeIPA adapter", async () => {
 
 test("FreeIPA action ownership is canonical in the adapter and absent from the central Worker", async () => {
   const central = await source("worker/index.ts");
+  const operationsOwner = await source("worker/operations-http-entry.ts");
   const adapter = await source("worker/freeipa-http-entry.ts");
   const baseRead = await source("worker/freeipa-base-read.ts");
   const rpc = await source("worker/freeipa-rpc.ts");
@@ -84,7 +85,8 @@ test("FreeIPA action ownership is canonical in the adapter and absent from the c
   assert.equal(central.includes("function portalAccess"), false, "central Worker must reuse shared portal access runtime");
   assert.equal(central.includes("function operationRun"), false, "central Worker must reuse shared operation runtime");
   assert.match(central, /from ["']\.\/portal-access-runtime\.ts["']/);
-  assert.match(central, /from ["']\.\/operation-run-runtime\.ts["']/);
+  assert.equal(central.includes('from "./operation-run-runtime.ts"'), false, "central Worker must not retain a dead operations persistence dependency");
+  assert.match(operationsOwner, /from ["']\.\/operation-run-runtime\.ts["']/);
   assert.match(adapter, /freeIpaDirectCall/);
   assert.match(adapter, /operationRun/);
   assert.match(adapter, /saveOperationRun/);

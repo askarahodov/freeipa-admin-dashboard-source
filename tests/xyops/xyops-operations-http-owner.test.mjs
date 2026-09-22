@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const source = (relativePath) => readFile(path.join(repoRoot, relativePath), "utf8");
 
-test("#632 checkpoint C gives runs, notifications, and approval HTTP composition one post-security operations owner", async () => {
+test("#632 checkpoint D gives catalog, runs, notifications, and approvals one post-security operations owner", async () => {
   const [freeIpaOwner, operationsOwner, central, runRuntime] = await Promise.all([
     source("worker/freeipa-http-entry.ts"),
     source("worker/operations-http-entry.ts"),
@@ -18,10 +18,15 @@ test("#632 checkpoint C gives runs, notifications, and approval HTTP composition
   assert.match(freeIpaOwner, /import integrationRuntime from ["']\.\/operations-http-entry\.ts["']/);
   assert.match(
     operationsOwner,
-    /import integrationRuntime, \{ handleCatalogRunRequest, loadCatalog, resolveCatalogRuntime \} from ["']\.\/index["']/,
+    /import integrationRuntime, \{ allowedOperations, automationRoutes, loadCatalog, portalCatalog, resolveCatalogRuntime \} from ["']\.\/index["']/,
   );
 
   for (const route of [
+    "/api/integrations/catalog",
+    "/api/integrations/catalog/history",
+    "/api/integrations/catalog/options",
+    "/api/integrations/catalog/run",
+    "/api/integrations/actions",
     "/api/integrations/runs",
     "/api/integrations/notifications",
     "/api/integrations/notifications/read",
@@ -50,10 +55,16 @@ test("#632 checkpoint C gives runs, notifications, and approval HTTP composition
   assert.equal(central.includes("async function listOperationRuns"), false);
   assert.equal(central.includes("async function syncOperationRuns"), false);
   assert.match(central, /from ["']\.\/xyops-run-runtime\.ts["']/);
-  assert.match(central, /import \{[^}]*extractJobStages[^}]*\} from ["']\.\/xyops-run-runtime\.ts["']/s);
-  assert.match(central, /stages: extractJobStages\(result\)/u);
+  assert.match(operationsOwner, /import \{[^}]*extractJobStages[^}]*\} from ["']\.\/xyops-run-runtime\.ts["']/s);
+  assert.match(operationsOwner, /stages: extractJobStages\(result\)/u);
 
-  assert.match(operationsOwner, /handleCatalogRunRequest/);
+  assert.match(operationsOwner, /async function handleCatalogRunRequest/);
+  assert.equal(central.includes("handleCatalogRunRequest"), false);
+  assert.equal(central.includes('url.pathname === "/api/integrations/catalog"'), false);
+  assert.equal(central.includes('url.pathname === "/api/integrations/catalog/history"'), false);
+  assert.equal(central.includes('url.pathname === "/api/integrations/catalog/options"'), false);
+  assert.equal(central.includes('url.pathname === "/api/integrations/catalog/run"'), false);
+  assert.equal(central.includes('url.pathname === "/api/integrations/actions"'), false);
   assert.match(operationsOwner, /expectedSchemaVersion: replay\.summary\.schemaVersion/);
   assert.match(operationsOwner, /dangerousConfirmed: actionBody\.confirm === true/);
   assert.match(operationsOwner, /claimApprovalExecution/);
@@ -63,9 +74,11 @@ test("#632 checkpoint C gives runs, notifications, and approval HTTP composition
   assert.match(operationsOwner, /loadCatalog\(runtime\.env, runtime\.xyopsUrl\)/u);
   assert.match(operationsOwner, /currentRequirement\.requiredApprovals/u);
   assert.match(operationsOwner, /handleCatalogRunRequest\([\s\S]*runtime, approvalId\)/u);
-  assert.match(central, /export async function handleCatalogRunRequest/);
   assert.match(central, /export async function loadCatalog/);
+  assert.match(central, /export async function portalCatalog/);
   assert.match(central, /export async function resolveCatalogRuntime/);
+  assert.match(central, /export function automationRoutes/);
+  assert.match(central, /export const allowedOperations/);
 
   assert.match(runRuntime, /export function runStatus/);
   assert.match(runRuntime, /export async function listOperationRuns/);
@@ -75,11 +88,15 @@ test("#632 checkpoint C gives runs, notifications, and approval HTTP composition
   assert.match(runRuntime, /xyops\.run\.status_changed/);
 });
 
-test("canonical route metadata moves approval HTTP ownership without moving catalog execution or approval-policy administration", async () => {
+test("canonical route metadata moves user catalog ownership while keeping approval-policy administration central", async () => {
   const contracts = await source("src/auth/portal-route-contract.ts");
   const line = (id) => contracts.split("\n").find((candidate) => candidate.includes(`id: "${id}"`)) ?? "";
 
   for (const id of [
+    "xyops.catalog.read",
+    "xyops.catalog.history",
+    "xyops.catalog.options",
+    "xyops.catalog.run",
     "xyops.runs.list",
     "xyops.runs.file",
     "xyops.runs.cancel",
@@ -96,11 +113,10 @@ test("canonical route metadata moves approval HTTP ownership without moving cata
   }
 
   for (const id of [
-    "xyops.catalog.run",
     "xyops.approval-policies.read",
     "xyops.approval-policies.update",
   ]) {
-    assert.match(line(id), /owner: "worker\/index\.ts"/u, `${id} moved outside checkpoint C`);
+    assert.match(line(id), /owner: "worker\/index\.ts"/u, `${id} moved outside checkpoint D`);
   }
 });
 

@@ -123,7 +123,7 @@ For execution ownership and why the portal is not a second scheduler, see `XYOPS
 | `GET` | `/api/integrations/notifications` | List current user's run notifications. | `directory.read` |
 | `POST` | `/api/integrations/notifications/read` | Mark selected/all run notifications as read. | `directory.read` |
 
-`worker/operations-http-entry.ts` is the HTTP owner for run history/result-file reads, cancel/rerun, the two notification routes above, and approval list/approve/reject/cancel/execute HTTP composition. Rerun and approval execution delegate to the canonical catalog-run handler in `worker/index.ts`; the claimed approval identifier is passed only server-side/in-memory, while catalog execution and approval-policy administration remain central for later bounded #632 slices. Shared run synchronization/projection lives in `worker/xyops-run-runtime.ts`; XYOps continues to own upstream execution/scheduler semantics.
+`worker/operations-http-entry.ts` is the HTTP owner for the user-facing catalog routes above, the legacy `POST /api/integrations/actions` compatibility dispatch, run history/result-file reads, cancel/rerun, the two notification routes, and approval list/approve/reject/cancel/execute HTTP composition. Rerun and approval execution reuse the same operations-owned catalog-run handler; the claimed approval identifier is passed only server-side/in-memory. Approval-policy administration remains in `worker/index.ts`, and shared catalog normalization/cache helpers are reused rather than forked. Shared run synchronization/projection lives in `worker/xyops-run-runtime.ts`; XYOps continues to own upstream execution/scheduler semantics.
 
 ## Backup and restore API
 

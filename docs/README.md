@@ -26,7 +26,7 @@
 
 Обязательная точка входа: [`ai/README.md`](ai/README.md). Issue, implementation plan, старый PR или historical design не являются доказательством текущего поведения. При конфликте приоритет у canonical code/tests, затем documented source of truth и verified-active профильных документов.
 
-Для opt-in автономного scheduler используйте [`ai/AUTONOMOUS_TASK_STATE.md`](ai/AUTONOMOUS_TASK_STATE.md), [`ai/AUTONOMOUS_TASK_SELECTOR.md`](ai/AUTONOMOUS_TASK_SELECTOR.md), [`ai/AUTONOMOUS_EXECUTION_CONTRACT.md`](ai/AUTONOMOUS_EXECUTION_CONTRACT.md), [`ai/AUTONOMOUS_CI_REPAIR.md`](ai/AUTONOMOUS_CI_REPAIR.md), [`ai/AUTONOMOUS_MERGE_GATE.md`](ai/AUTONOMOUS_MERGE_GATE.md) и [`ai/AUTONOMOUS_POST_MERGE.md`](ai/AUTONOMOUS_POST_MERGE.md); свободный текст Issue сам по себе не делает задачу READY, не создаёт ownership claim и не разрешает бесконтрольный CI retry.
+Для opt-in автономного scheduler используйте [`ai/AUTONOMOUS_TASK_STATE.md`](ai/AUTONOMOUS_TASK_STATE.md), [`ai/AUTONOMOUS_TASK_SELECTOR.md`](ai/AUTONOMOUS_TASK_SELECTOR.md), [`ai/AUTONOMOUS_EXECUTION_CONTRACT.md`](ai/AUTONOMOUS_EXECUTION_CONTRACT.md), [`ai/AUTONOMOUS_CI_REPAIR.md`](ai/AUTONOMOUS_CI_REPAIR.md), [`ai/AUTONOMOUS_MERGE_GATE.md`](ai/AUTONOMOUS_MERGE_GATE.md), [`ai/AUTONOMOUS_POST_MERGE.md`](ai/AUTONOMOUS_POST_MERGE.md) и [`ai/AUTONOMOUS_RUN_CONTROL.md`](ai/AUTONOMOUS_RUN_CONTROL.md); свободный текст Issue сам по себе не делает задачу READY, не создаёт ownership claim и не разрешает бесконтрольный CI retry.
 
 ### Оператор
 

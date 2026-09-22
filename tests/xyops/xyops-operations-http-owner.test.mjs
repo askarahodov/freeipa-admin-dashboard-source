@@ -18,8 +18,13 @@ test("#632 checkpoint D gives catalog, runs, notifications, and approvals one po
   assert.match(freeIpaOwner, /import integrationRuntime from ["']\.\/operations-http-entry\.ts["']/);
   assert.match(
     operationsOwner,
-    /import integrationRuntime, \{ allowedOperations, automationRoutes, loadCatalog, portalCatalog, resolveCatalogRuntime \} from ["']\.\/index["']/,
+    /import integrationRuntime, \{ loadCatalog, portalCatalog \} from ["']\.\/index["']/,
   );
+  assert.match(
+    operationsOwner,
+    /import \{ allowedOperations, automationRoutes, resolveCatalogRuntime \} from ["']\.\/xyops-admin-runtime\.ts["']/,
+  );
+  assert.match(operationsOwner, /import \{ handleXyOpsAdminRequest \} from ["']\.\/xyops-admin-http\.ts["']/);
 
   for (const route of [
     "/api/integrations/catalog",
@@ -76,9 +81,9 @@ test("#632 checkpoint D gives catalog, runs, notifications, and approvals one po
   assert.match(operationsOwner, /handleCatalogRunRequest\([\s\S]*runtime, approvalId\)/u);
   assert.match(central, /export async function loadCatalog/);
   assert.match(central, /export async function portalCatalog/);
-  assert.match(central, /export async function resolveCatalogRuntime/);
-  assert.match(central, /export function automationRoutes/);
-  assert.match(central, /export const allowedOperations/);
+  assert.match(central, /export \{ allowedOperations, automationRoutes, resolveCatalogRuntime \} from ["']\.\/xyops-admin-runtime\.ts["']/);
+  assert.equal(central.includes("async function resolveCatalogRuntime"), false);
+  assert.equal(central.includes("function automationRoutes"), false);
 
   assert.match(runRuntime, /export function runStatus/);
   assert.match(runRuntime, /export async function listOperationRuns/);
@@ -88,7 +93,7 @@ test("#632 checkpoint D gives catalog, runs, notifications, and approvals one po
   assert.match(runRuntime, /xyops\.run\.status_changed/);
 });
 
-test("canonical route metadata moves user catalog ownership while keeping approval-policy administration central", async () => {
+test("canonical route metadata keeps user operations ownership and moves administration to the explicit admin owner", async () => {
   const contracts = await source("src/auth/portal-route-contract.ts");
   const line = (id) => contracts.split("\n").find((candidate) => candidate.includes(`id: "${id}"`)) ?? "";
 
@@ -113,10 +118,16 @@ test("canonical route metadata moves user catalog ownership while keeping approv
   }
 
   for (const id of [
+    "xyops.routes.read",
+    "xyops.routes.update",
+    "xyops.presentation.read",
+    "xyops.presentation.update",
+    "xyops.catalog-policies.read",
+    "xyops.catalog-policies.update",
     "xyops.approval-policies.read",
     "xyops.approval-policies.update",
   ]) {
-    assert.match(line(id), /owner: "worker\/index\.ts"/u, `${id} moved outside checkpoint D`);
+    assert.match(line(id), /owner: "worker\/xyops-admin-http\.ts"/u, `stale admin owner for ${id}`);
   }
 });
 

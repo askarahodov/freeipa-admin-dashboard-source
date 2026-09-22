@@ -56,7 +56,7 @@ test("remaining compatibility adapters are explicit, unique and actionable", () 
 test("composition contract stays metadata-only and does not become a second route/security registry", () => {
   const source = read("worker/application-composition-contract.ts");
   assert.equal(/^import\s/m.test(source), false);
-  assert.equal(source.includes("/api/"), true, "adapter responsibility may name the existing auth surface");
+  assert.equal(source.includes("/api/"), false);
   assert.equal(source.includes("permission:"), false);
   assert.equal(source.includes("mutation:"), false);
   assert.equal(source.includes("auth:"), false);

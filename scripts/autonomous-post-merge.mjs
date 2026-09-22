@@ -73,8 +73,10 @@ export function evaluateAutonomousPostMergeCheckpoint(snapshot) {
 
   const merge = snapshot?.mergeEvidence ?? {};
   if (merge.merged !== true) reasons.push("merge_not_confirmed");
-  if (normalizeSha(merge.mergeCommitSha) !== currentMainSha) {
-    reasons.push("resulting_main_does_not_match_merge");
+  const mergeCommitSha = normalizeSha(merge.mergeCommitSha);
+  if (mergeCommitSha.length < 7) reasons.push("merge_commit_sha_missing");
+  if (merge.mergeCommitReachableFromMain !== true) {
+    reasons.push("merge_commit_not_verified_reachable_from_main");
   }
   if (Number(merge.issue) !== number) reasons.push("merge_issue_mismatch");
   if (!Number.isInteger(Number(merge.pullRequest)) || Number(merge.pullRequest) <= 0) {
@@ -164,7 +166,7 @@ export function evaluateAutonomousPostMergeCheckpoint(snapshot) {
     evidence: Object.freeze({
       contractVersion: AUTONOMOUS_POST_MERGE_CONTRACT_VERSION,
       mainSha: currentMainSha,
-      mergeCommitSha: normalizeSha(merge.mergeCommitSha),
+      mergeCommitSha,
       pullRequest: Number(merge.pullRequest),
     }),
   };

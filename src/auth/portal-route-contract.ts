@@ -93,7 +93,7 @@ export const portalRouteContracts = [
   { id: "xyops.catalog-sync.read", method: "GET", path: "/api/integrations/catalog/sync", owner: "worker/secure-entry.ts", auth: "admin-or-service-admin", requiredRole: "admin", mutation: "read", sameOrigin: false },
   { id: "xyops.catalog-sync.run", method: "POST", path: "/api/integrations/catalog/sync", owner: "worker/secure-entry.ts", auth: "admin-or-service-admin", requiredRole: "admin", mutation: "mutation", sameOrigin: true },
 
-  { id: "backup.export.sanitized", method: "POST", path: "/api/admin/backups/export", owner: "worker/backup-export-entry.ts", auth: "local-session", permission: "backup.export", mutation: "mutation", sameOrigin: false },
+  { id: "backup.export.sanitized", method: "POST", path: "/api/admin/backups/export", owner: "worker/backup-http-entry.ts", auth: "local-session", permission: "backup.export", mutation: "mutation", sameOrigin: false },
   { id: "backup.export.encrypted", method: "POST", path: "/api/admin/backups/export/encrypted", owner: "worker/backup-encrypted-root-entry.ts", auth: "admin-or-service-admin", permission: "backup.export.encrypted", mutation: "mutation", sameOrigin: true },
   { id: "backup.preview.sanitized", method: "POST", path: "/api/admin/backups/import/preview", owner: "worker/backup-import-preview-root-entry.ts", auth: "admin-or-service-admin", permission: "backup.restore.preview", mutation: "mutation", sameOrigin: true },
   { id: "backup.preview.encrypted", method: "POST", path: "/api/admin/backups/import/encrypted/preview", owner: "worker/backup-encrypted-root-entry.ts", auth: "admin-or-service-admin", permission: "backup.restore.preview", mutation: "mutation", sameOrigin: true },

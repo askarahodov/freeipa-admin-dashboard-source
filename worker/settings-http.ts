@@ -1,6 +1,6 @@
 import { appendAuditEvent, auditErrorCode, createAuditContext } from "../audit-log";
 import { serviceAdminTokenAuthorized } from "../src/auth/admin-session-authorization.ts";
-import { decryptIntegrationSecrets } from "./integration-settings-runtime.ts";
+import { decryptIntegrationSecrets, encryptIntegrationSecrets } from "./integration-settings-runtime.ts";
 import { freeIpaRpc, type FreeIpaRpcEnv } from "./freeipa-rpc.ts";
 import { portalAccess, requirePortalPermission, type PortalAccessEnv } from "./portal-access-runtime.ts";
 import { xyopsPayloadSucceeded } from "./xyops-run-runtime.ts";
@@ -26,6 +26,7 @@ type ActiveSettings = {
     ipaUrl: string;
     ipaUsername: string;
     xyopsUrl: string;
+    routes?: unknown[];
   };
   secrets: StoredSecrets;
   updatedAt: number;
@@ -73,6 +74,7 @@ function environmentSettings(env: SettingsHttpEnv): ActiveSettings {
       ipaUrl: cleanBaseUrl(env.IPA_URL),
       ipaUsername: env.IPA_USERNAME ?? "",
       xyopsUrl: cleanBaseUrl(env.XYOPS_URL),
+      routes: undefined,
     },
     secrets: {
       ipaPassword: env.IPA_PASSWORD ?? "",
@@ -122,6 +124,7 @@ async function activeSettings(env: SettingsHttpEnv): Promise<{ settings: ActiveS
         ipaUrl: String(config.ipaUrl ?? ""),
         ipaUsername: String(config.ipaUsername ?? ""),
         xyopsUrl: String(config.xyopsUrl ?? ""),
+        routes: Array.isArray(config.routes) ? config.routes : undefined,
       },
       secrets,
       updatedAt: Number(row.updated_at ?? 0),
@@ -174,6 +177,7 @@ function mergeConnectionTestInput(current: ActiveSettings, body: Record<string, 
         ? current.config.ipaUsername
         : settingString(body.ipaUsername, "ipaUsername", 256),
       xyopsUrl,
+      routes: current.config.routes,
     },
     secrets: { ipaPassword, xyopsApiKey },
     updatedAt: Date.now(),
@@ -190,6 +194,50 @@ async function authorize(request: Request, env: SettingsHttpEnv): Promise<Respon
   return null;
 }
 
+async function saveSettings(env: SettingsHttpEnv, settings: ActiveSettings): Promise<void> {
+  if (!env.DB) throw new Error("Persistent database is unavailable");
+  const encryptedSecrets = await encryptIntegrationSecrets(settings.secrets, env.CONFIG_ENCRYPTION_KEY);
+  await env.DB.prepare(
+    "INSERT INTO app_settings (id, config_json, encrypted_secrets, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET config_json = excluded.config_json, encrypted_secrets = excluded.encrypted_secrets, updated_at = excluded.updated_at",
+  ).bind("main", JSON.stringify(settings.config), encryptedSecrets, settings.updatedAt).run();
+}
+
+async function updateSettings(request: Request, env: SettingsHttpEnv): Promise<Response> {
+  if (!env.DB) return json({ error: "Persistent database is unavailable" }, 503);
+  if (!env.CONFIG_ENCRYPTION_KEY) return json({ error: "CONFIG_ENCRYPTION_KEY is not configured" }, 503);
+
+  let body: Record<string, unknown>;
+  try {
+    body = await request.json() as Record<string, unknown>;
+  } catch {
+    return json({ error: "Invalid JSON" }, 400);
+  }
+
+  const audit = createAuditContext(portalAccess(request, env));
+  try {
+    const { settings: current } = await activeSettings(env);
+    const next = mergeConnectionTestInput(current, body);
+    await saveSettings(env, next);
+    await appendAuditEvent(env, audit, {
+      action: "settings.updated",
+      resourceType: "portal_settings",
+      resourceId: "main",
+      outcome: "success",
+      metadata: {
+        demoMode: next.config.demoMode,
+        freeipaUrlConfigured: Boolean(next.config.ipaUrl),
+        freeipaUsernameConfigured: Boolean(next.config.ipaUsername),
+        freeipaPasswordConfigured: Boolean(next.secrets.ipaPassword),
+        xyopsUrlConfigured: Boolean(next.config.xyopsUrl),
+        xyopsApiKeyConfigured: Boolean(next.secrets.xyopsApiKey),
+      },
+    }).catch(() => {});
+    return json(publicSettings(next, env, "database"));
+  } catch (error) {
+    return json({ error: error instanceof Error ? error.message : "Cannot save settings" }, 400);
+  }
+}
+
 /**
  * Owns the extracted settings read/connection-test HTTP surface after the
  * established identity normalization in secure-entry.ts.
@@ -200,8 +248,9 @@ async function authorize(request: Request, env: SettingsHttpEnv): Promise<Respon
 export async function handleSettingsHttpRequest(request: Request, env: SettingsHttpEnv): Promise<Response | null> {
   const url = new URL(request.url);
   const settingsRead = request.method === "GET" && url.pathname === "/api/integrations/settings";
+  const settingsUpdate = request.method === "PUT" && url.pathname === "/api/integrations/settings";
   const settingsTestPath = url.pathname === "/api/integrations/settings/test";
-  if (!settingsRead && !settingsTestPath) return null;
+  if (!settingsRead && !settingsUpdate && !settingsTestPath) return null;
 
   const denied = await authorize(request, env);
   if (denied) return denied;
@@ -214,6 +263,8 @@ export async function handleSettingsHttpRequest(request: Request, env: SettingsH
       return json({ error: error instanceof Error ? error.message : "Cannot read settings" }, 500);
     }
   }
+
+  if (settingsUpdate) return updateSettings(request, env);
 
   if (request.method !== "POST") return json({ error: "Not found" }, 404);
 

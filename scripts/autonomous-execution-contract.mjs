@@ -65,6 +65,61 @@ function selectorMatchesFreshMain(selectorDecision, issueNo, mainSha) {
   );
 }
 
+function validateClaimEvidence(raw, issueNo, branchName) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const baseSha = normalizeSha(raw.baseSha);
+  if (
+    Number(raw.issue) !== issueNo
+    || normalizeRef(raw.branch) !== branchName
+    || baseSha.length < 7
+  ) {
+    return null;
+  }
+  return Object.freeze({
+    contractVersion: AUTONOMOUS_EXECUTION_CONTRACT_VERSION,
+    issue: issueNo,
+    branch: branchName,
+    baseSha,
+  });
+}
+
+function collisionBlock(status) {
+  return block(
+    status === "collision"
+      ? "active_ownership_collision"
+      : "collision_evidence_not_clean",
+    { collision: status ?? "missing" },
+  );
+}
+
+function buildClaim({
+  issue,
+  branch,
+  branchSha,
+  claimBaseSha,
+  pullRequest = null,
+  requiredStateTransition = null,
+  mutationOrder,
+}) {
+  const claim = {
+    issue,
+    branch,
+    branchSha: normalizeSha(branchSha),
+    claimBaseSha: normalizeSha(claimBaseSha),
+    baseRef: "main",
+    pullRequest,
+    requiredStateTransition,
+  };
+  if (mutationOrder) claim.mutationOrder = Object.freeze(mutationOrder);
+  claim.claimEvidence = Object.freeze({
+    contractVersion: AUTONOMOUS_EXECUTION_CONTRACT_VERSION,
+    issue,
+    branch,
+    baseSha: claim.claimBaseSha,
+  });
+  return claim;
+}
+
 export function planAutonomousExecutionClaim(snapshot, selectedIssueNumber) {
   const selected = Number(selectedIssueNumber);
   if (!Number.isInteger(selected) || selected <= 0) {
@@ -79,9 +134,6 @@ export function planAutonomousExecutionClaim(snapshot, selectedIssueNumber) {
   if (!Array.isArray(snapshot.branches) || !Array.isArray(snapshot.openPullRequests)) {
     return block("incomplete_execution_snapshot");
   }
-  if (!selectorMatchesFreshMain(snapshot.selectorDecision, selected, snapshot.mainSha)) {
-    return block("stale_or_mismatched_selector_decision");
-  }
 
   const issue = snapshot.issue;
   if (issueNumber(issue) !== selected) {
@@ -95,11 +147,6 @@ export function planAutonomousExecutionClaim(snapshot, selectedIssueNumber) {
   if (classified.metadata?.humanApprovalRequired === true) {
     return block("human_approval_required");
   }
-
-  const branchName = autonomousClaimBranchName(selected);
-  const existingBranch = findClaimBranch(snapshot.branches, branchName);
-  const existingPr = findClaimPullRequest(snapshot.openPullRequests, branchName);
-
   if (classified.state === "BLOCKED") {
     return block("task_state_blocked");
   }
@@ -107,92 +154,104 @@ export function planAutonomousExecutionClaim(snapshot, selectedIssueNumber) {
     return block("task_already_terminal", { state: classified.state });
   }
 
-  if (existingBranch) {
-    if (classified.state === "READY") {
+  const branchName = autonomousClaimBranchName(selected);
+  const existingBranch = findClaimBranch(snapshot.branches, branchName);
+  const existingPr = findClaimPullRequest(snapshot.openPullRequests, branchName);
+
+  if (classified.state === "READY") {
+    if (!selectorMatchesFreshMain(snapshot.selectorDecision, selected, snapshot.mainSha)) {
+      return block("stale_or_mismatched_selector_decision");
+    }
+    if (snapshot.collisionStatus !== "clean") return collisionBlock(snapshot.collisionStatus);
+
+    if (existingBranch) {
+      if (normalizeSha(existingBranch.sha) !== normalizeSha(snapshot.mainSha)) {
+        return block("ready_claim_branch_diverged", {
+          branch: branchName,
+          branchSha: normalizeSha(existingBranch.sha),
+          mainSha: normalizeSha(snapshot.mainSha),
+        });
+      }
       return {
         decision: "RECOVER_CLAIM",
         reason: "deterministic_claim_branch_already_exists",
-        claim: {
+        claim: buildClaim({
           issue: selected,
           branch: branchName,
-          branchSha: normalizeSha(existingBranch.sha),
-          baseRef: "main",
-          selectedMainSha: normalizeSha(snapshot.mainSha),
+          branchSha: existingBranch.sha,
+          claimBaseSha: snapshot.mainSha,
           pullRequest: existingPr ? Number(existingPr.number) : null,
           requiredStateTransition: "IN_PROGRESS",
-        },
+          mutationOrder: [
+            "refetch_issue_and_branch",
+            "record_claim_evidence",
+            "transition_issue_to_in_progress",
+          ],
+        }),
       };
     }
 
-    if (classified.state === "IN_PROGRESS") {
-      return {
-        decision: existingPr ? "RESUME_PR_CHECKPOINT" : "RESUME_IMPLEMENTATION",
-        reason: existingPr ? "existing_claim_and_open_pr" : "existing_claim_branch",
-        claim: {
-          issue: selected,
-          branch: branchName,
-          branchSha: normalizeSha(existingBranch.sha),
-          baseRef: "main",
-          selectedMainSha: normalizeSha(snapshot.mainSha),
-          pullRequest: existingPr ? Number(existingPr.number) : null,
-          requiredStateTransition: null,
-        },
-      };
+    return {
+      decision: "CLAIM_NEW",
+      reason: "ready_issue_with_fresh_selector_and_clean_collision",
+      claim: buildClaim({
+        issue: selected,
+        branch: branchName,
+        branchSha: snapshot.mainSha,
+        claimBaseSha: snapshot.mainSha,
+        requiredStateTransition: "IN_PROGRESS",
+        mutationOrder: [
+          "create_exact_branch_ref",
+          "refetch_issue_and_branch",
+          "record_claim_evidence",
+          "transition_issue_to_in_progress",
+        ],
+      }),
+    };
+  }
+
+  if (!existingBranch) {
+    return block("execution_state_missing_claim_branch", { state: classified.state });
+  }
+  if (snapshot.collisionStatus !== "clean") return collisionBlock(snapshot.collisionStatus);
+
+  const claimEvidence = validateClaimEvidence(snapshot.claimEvidence, selected, branchName);
+  if (!claimEvidence) {
+    return block("claim_base_evidence_missing_or_invalid", { state: classified.state });
+  }
+
+  if (classified.state === "IN_PROGRESS") {
+    return {
+      decision: existingPr ? "RESUME_PR_CHECKPOINT" : "RESUME_IMPLEMENTATION",
+      reason: existingPr ? "existing_claim_and_open_pr" : "existing_claim_branch",
+      claim: buildClaim({
+        issue: selected,
+        branch: branchName,
+        branchSha: existingBranch.sha,
+        claimBaseSha: claimEvidence.baseSha,
+        pullRequest: existingPr ? Number(existingPr.number) : null,
+      }),
+    };
+  }
+
+  if (classified.state === "REVIEW") {
+    if (!existingPr) {
+      return block("review_state_missing_claim_pr", { branch: branchName });
     }
-
-    if (classified.state === "REVIEW" && existingPr) {
-      return {
-        decision: "RESUME_REVIEW",
-        reason: "review_state_with_existing_claim_pr",
-        claim: {
-          issue: selected,
-          branch: branchName,
-          branchSha: normalizeSha(existingBranch.sha),
-          baseRef: "main",
-          selectedMainSha: normalizeSha(snapshot.mainSha),
-          pullRequest: Number(existingPr.number),
-          requiredStateTransition: null,
-        },
-      };
-    }
-
-    return block("inconsistent_claim_state", {
-      state: classified.state,
-      branch: branchName,
-      pullRequest: existingPr ? Number(existingPr.number) : null,
-    });
+    return {
+      decision: "RESUME_REVIEW",
+      reason: "review_state_with_existing_claim_pr",
+      claim: buildClaim({
+        issue: selected,
+        branch: branchName,
+        branchSha: existingBranch.sha,
+        claimBaseSha: claimEvidence.baseSha,
+        pullRequest: Number(existingPr.number),
+      }),
+    };
   }
 
-  if (classified.state !== "READY") {
-    return block("task_not_ready_for_new_claim", { state: classified.state });
-  }
-  if (snapshot.collisionStatus !== "clean") {
-    return block(
-      snapshot.collisionStatus === "collision"
-        ? "active_ownership_collision"
-        : "collision_evidence_not_clean",
-      { collision: snapshot.collisionStatus ?? "missing" },
-    );
-  }
-
-  return {
-    decision: "CLAIM_NEW",
-    reason: "ready_issue_with_fresh_selector_and_clean_collision",
-    claim: {
-      issue: selected,
-      branch: branchName,
-      branchSha: normalizeSha(snapshot.mainSha),
-      baseRef: "main",
-      selectedMainSha: normalizeSha(snapshot.mainSha),
-      pullRequest: null,
-      requiredStateTransition: "IN_PROGRESS",
-      mutationOrder: Object.freeze([
-        "create_exact_branch_ref",
-        "refetch_issue_and_branch",
-        "transition_issue_to_in_progress",
-      ]),
-    },
-  };
+  return block("task_not_in_supported_execution_state", { state: classified.state });
 }
 
 export function buildAutonomousExecutionContext({ issue, claim }) {
@@ -204,6 +263,9 @@ export function buildAutonomousExecutionContext({ issue, claim }) {
   if (normalizeRef(claim?.branch) !== expectedBranch) {
     throw new TypeError("claim branch does not match the canonical issue branch");
   }
+  if (normalizeSha(claim?.claimBaseSha).length < 7) {
+    throw new TypeError("claim base SHA is required");
+  }
 
   return Object.freeze({
     contractVersion: AUTONOMOUS_EXECUTION_CONTRACT_VERSION,
@@ -214,7 +276,7 @@ export function buildAutonomousExecutionContext({ issue, claim }) {
     }),
     base: Object.freeze({
       ref: "main",
-      selectedSha: normalizeSha(claim?.selectedMainSha),
+      claimSha: normalizeSha(claim.claimBaseSha),
     }),
     branch: expectedBranch,
     policyPaths: AUTONOMOUS_EXECUTION_POLICY_PATHS,
@@ -267,9 +329,11 @@ export function evaluateAutonomousPrCheckpoint({
 
   const expectedBranch = autonomousClaimBranchName(number);
   const reasons = [];
+  const branchSha = normalizeSha(branch?.sha);
+  const prHeadSha = normalizeSha(pullRequest?.headSha);
 
   if (normalizeRef(branch?.name) !== expectedBranch) reasons.push("claim_branch_mismatch");
-  if (!normalizeSha(branch?.sha)) reasons.push("missing_claim_branch_sha");
+  if (!branchSha) reasons.push("missing_claim_branch_sha");
 
   if (
     normalizePrState(pullRequest?.state) !== "open"
@@ -278,6 +342,9 @@ export function evaluateAutonomousPrCheckpoint({
     || !Number.isInteger(Number(pullRequest?.number))
   ) {
     reasons.push("invalid_or_missing_pull_request");
+  }
+  if (!prHeadSha || (branchSha && prHeadSha !== branchSha)) {
+    reasons.push("pull_request_head_not_exact");
   }
 
   if (collisionStatus !== "clean") reasons.push("collision_recheck_not_clean");
@@ -317,6 +384,7 @@ export function evaluateAutonomousPrCheckpoint({
     "coordinationRecorded",
     "sourceOfTruthRecorded",
     "rollbackRecorded",
+    "claimBaseRecorded",
   ]) {
     if (prEvidence[field] !== true) reasons.push(`pr_evidence_missing:${field}`);
   }
@@ -329,6 +397,7 @@ export function evaluateAutonomousPrCheckpoint({
       reason: "pr_checkpoint_already_satisfied",
       transition: null,
       pullRequest: Number(pullRequest.number),
+      headSha: prHeadSha,
       branch: expectedBranch,
     };
   }
@@ -341,6 +410,7 @@ export function evaluateAutonomousPrCheckpoint({
       to: "REVIEW",
     }),
     pullRequest: Number(pullRequest.number),
+    headSha: prHeadSha,
     branch: expectedBranch,
   };
 }

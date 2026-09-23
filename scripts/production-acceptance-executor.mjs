@@ -55,6 +55,7 @@ const runFreeIpaRead = process.argv.includes("--run-freeipa-read");
 const runFreeIpaMutations = process.argv.includes("--run-freeipa-mutations");
 const runXyOpsRead = process.argv.includes("--run-xyops-read");
 const runXyOpsLifecycle = process.argv.includes("--run-xyops-lifecycle");
+const runBackupRestore = process.argv.includes("--run-backup-restore-smoke");
 
 try {
   const acceptanceTarget = normalizeProductionAcceptanceTarget(rawBaseUrl);
@@ -90,6 +91,7 @@ try {
     includeFreeIpaMutations: runFreeIpaMutations,
     includeXyOpsRead: runXyOpsRead,
     includeXyOpsLifecycle: runXyOpsLifecycle,
+    includeBackupRestore: runBackupRestore,
   });
   const scenarioEnvironment = scenarioDefinitions.length
     ? productionAcceptanceScenarioEnvironment({

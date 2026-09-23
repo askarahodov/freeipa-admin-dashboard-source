@@ -621,9 +621,10 @@ The stage performs:
 4. authenticate using the dedicated acceptance administrator;
 5. persist a non-secret `demoMode` marker through the canonical settings draft/validate/apply lifecycle;
 6. stop only the source dashboard container while preserving the acceptance volume;
-7. start the exact target image digest from the acceptance manifest with `--no-build`;
+7. start the exact target image digest from the acceptance manifest with `--no-deps --no-build --force-recreate`;
 8. require target readiness with `currentVersion === latestVersion` and no schema regression below the source version;
-9. authenticate again and require the exact settings marker revision/value to survive the upgrade.
+9. re-run the strict final target baseline: healthy liveness/readiness/dependencies and inactive maintenance;
+10. authenticate again and require the exact settings marker revision/value to survive the upgrade.
 
 The outer production-acceptance executor remains responsible for unconditional final `down --volumes --remove-orphans` cleanup. Source/target image references, source release identifiers, settings payloads, cookies and credentials are not copied into release evidence; the report stores only the bounded `previous_supported_upgrade` stage pass/fail/remediation code.
 

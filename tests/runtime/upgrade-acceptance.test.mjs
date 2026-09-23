@@ -94,6 +94,25 @@ test("upgrade source policy accepts only a distinct immutable image from the tar
     }),
     /acceptance_upgrade_source_not_previous/u,
   );
+  assert.throws(
+    () => validateUpgradeSourcePolicy({
+      ...configuredPolicy(),
+      extra: true,
+    }, {
+      targetImageReference: targetImage,
+      targetCommitSha: targetCommit,
+    }),
+    /acceptance_upgrade_policy_invalid/u,
+  );
+  assert.throws(
+    () => validateUpgradeSourcePolicy(configuredPolicy({
+      portalSchemaVersion: "4",
+    }), {
+      targetImageReference: targetImage,
+      targetCommitSha: targetCommit,
+    }),
+    /acceptance_upgrade_policy_invalid/u,
+  );
 });
 
 test("upgrade commands are bound to the digest-derived project and never build images", () => {

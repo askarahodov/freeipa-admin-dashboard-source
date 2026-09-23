@@ -157,6 +157,25 @@ async function reconcileCleanup({ requesterRequest, activeRuns, pendingApprovals
 
   for (const approvalId of [...pendingApprovals]) {
     try {
+      const listed = boundedPayload(
+        await requesterRequest("/api/integrations/approvals?limit=100", { method: "GET" }),
+        200,
+        "acceptance_xyops_cleanup_failed",
+      );
+      const approval = Array.isArray(listed.approvals)
+        ? listed.approvals.find((item) => item?.id === approvalId)
+        : null;
+
+      if (approval?.status === "executed" && typeof approval.runId === "string" && approval.runId) {
+        activeRuns.add(approval.runId);
+        pendingApprovals.delete(approvalId);
+        continue;
+      }
+      if (["cancelled", "rejected", "failed", "expired"].includes(String(approval?.status ?? ""))) {
+        pendingApprovals.delete(approvalId);
+        continue;
+      }
+
       const response = await requesterRequest(
         `/api/integrations/approvals/${encodeURIComponent(approvalId)}/cancel`,
         { method: "POST", body: {} },

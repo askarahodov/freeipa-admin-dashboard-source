@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import test from "node:test";
 
 import {
@@ -36,6 +37,11 @@ test("acceptance manifest derives an isolated compose project and read-only base
   assert.equal(manifest.source.commitSha, commit);
   assert.equal(manifest.compose.projectName, acceptanceProjectName(digest));
   assert.equal(manifest.compose.expectedDataVolume, `${manifest.compose.projectName}_dashboard-data`);
+  assert.equal(manifest.compose.serviceEnvFile, ".env.acceptance");
+  assert.deepEqual(manifest.compose.environment, {
+    PORTAL_IMAGE: image,
+    PORTAL_SERVICE_ENV_FILE: ".env.acceptance",
+  });
   assert.equal(manifest.compose.args.includes("--no-build"), true);
   assert.equal(manifest.compose.args.at(-1), "dashboard");
   assert.deepEqual(
@@ -48,6 +54,11 @@ test("acceptance manifest derives an isolated compose project and read-only base
     ],
   );
   assert.equal(assertProductionAcceptanceReportSafe(manifest), true);
+});
+
+test("compose service env file is overrideable without changing the local default", () => {
+  const compose = fs.readFileSync(new URL("../../compose.yaml", import.meta.url), "utf8");
+  assert.match(compose, /env_file:\s*\n\s*- \$\{PORTAL_SERVICE_ENV_FILE:-\.env\}/u);
 });
 
 test("report safety scan blocks secret-shaped keys, credential markers, secret values and URLs", () => {

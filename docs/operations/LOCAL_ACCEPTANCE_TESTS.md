@@ -273,7 +273,10 @@ The command only creates `artifacts/production-acceptance/plan.json`; it does **
 - `--no-build` execution semantics so a release run cannot silently rebuild a different image;
 - the default read-only baseline: liveness, readiness, dependency health and sanitized maintenance status.
 
-`compose.yaml` accepts `PORTAL_IMAGE` for this purpose while preserving `freeipa-admin-dashboard:local` as the local-development default.
+The generated plan records both `PORTAL_IMAGE` and `PORTAL_SERVICE_ENV_FILE=.env.acceptance`.
+Before any later execution step, create `.env.acceptance` from the normal environment template and replace all credentials with dedicated staging/test values. Do not reuse a production `.env`.
+
+`compose.yaml` accepts `PORTAL_IMAGE` and `PORTAL_SERVICE_ENV_FILE` overrides while preserving `freeipa-admin-dashboard:local` and `.env` as the local-development defaults. This distinction is required because Compose `--env-file` controls variable interpolation but does not by itself replace a service-level `env_file`; the acceptance executor must apply the environment recorded in the manifest.
 
 The production-acceptance report contract is fail-closed: sensitive field names, cookie/authorization markers, caller-provided secret values and raw HTTP(S) URLs make the redaction gate fail. Later #61 checkpoints may execute the plan and attach JSON/HTML release evidence, but must pass this safety gate before persisting artifacts.
 

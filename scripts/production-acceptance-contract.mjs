@@ -51,6 +51,11 @@ export function createProductionAcceptanceManifest({ imageReference, commitSha }
       service: "dashboard",
       expectedDataVolume: `${projectName}_dashboard-data`,
       imageEnvironmentVariable: "PORTAL_IMAGE",
+      serviceEnvFile: ".env.acceptance",
+      environment: Object.freeze({
+        PORTAL_IMAGE: image.reference,
+        PORTAL_SERVICE_ENV_FILE: ".env.acceptance",
+      }),
       args: Object.freeze([
         "docker",
         "compose",

@@ -24,7 +24,7 @@ function commandRunner(command, args, { environment = {} } = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       env: { ...process.env, ...environment },
-      stdio: "inherit",
+      stdio: ["ignore", "ignore", "ignore"],
     });
     child.once("error", () => reject(new Error("acceptance_compose_command_failed")));
     child.once("exit", (code, signal) => {

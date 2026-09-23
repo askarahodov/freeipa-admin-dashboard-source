@@ -2,12 +2,12 @@ services:
   dashboard:
     build:
       context: .
-    image: freeipa-admin-dashboard:local
+    image: ${PORTAL_IMAGE:-freeipa-admin-dashboard:local}
     restart: unless-stopped
     ports:
       - "${DASHBOARD_BIND_ADDRESS:-127.0.0.1}:${DASHBOARD_PORT:-3001}:3001"
     env_file:
-      - .env
+      - ${PORTAL_SERVICE_ENV_FILE:-.env}
     environment:
       NODE_ENV: production
       PORT: 3001

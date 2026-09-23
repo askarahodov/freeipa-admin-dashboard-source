@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
@@ -7,28 +8,23 @@ import { fileURLToPath } from "node:url";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const source = (relativePath) => readFile(path.join(repoRoot, relativePath), "utf8");
 
-test("#632 checkpoint D gives catalog, runs, notifications, and approvals one post-security operations owner", async () => {
-  const [freeIpaOwner, operationsOwner, central, runRuntime] = await Promise.all([
+test("#632/#635 give operations and framework fallback explicit owners without a central Worker tail", async () => {
+  const [freeIpaOwner, operationsOwner, runRuntime, catalogRuntime] = await Promise.all([
     source("worker/freeipa-http-entry.ts"),
     source("worker/operations-http-entry.ts"),
-    source("worker/index.ts"),
     source("worker/xyops-run-runtime.ts"),
+    source("worker/xyops-catalog-runtime.ts"),
   ]);
+  const centralPath = path.join(repoRoot, "worker/index.ts");
 
+  assert.equal(fs.existsSync(centralPath), false, "retired central Worker tail must stay absent");
   assert.match(freeIpaOwner, /import integrationRuntime from ["']\.\/operations-http-entry\.ts["']/);
-  assert.match(
-    operationsOwner,
-    /import \{ handleFrameworkRequest \} from ["']\.\/framework-http-entry\.ts["']/,
-  );
-  assert.match(
-    operationsOwner,
-    /import \{ loadCatalog, portalCatalog \} from ["']\.\/xyops-catalog-runtime\.ts["']/,
-  );
-  assert.match(
-    operationsOwner,
-    /import \{ allowedOperations, automationRoutes, resolveCatalogRuntime \} from ["']\.\/xyops-admin-runtime\.ts["']/,
-  );
+  assert.match(operationsOwner, /import \{ handleFrameworkRequest \} from ["']\.\/framework-http-entry\.ts["']/);
+  assert.match(operationsOwner, /import \{ loadCatalog, portalCatalog \} from ["']\.\/xyops-catalog-runtime\.ts["']/);
+  assert.match(operationsOwner, /import \{ allowedOperations, automationRoutes, resolveCatalogRuntime \} from ["']\.\/xyops-admin-runtime\.ts["']/);
   assert.match(operationsOwner, /import \{ handleXyOpsAdminRequest \} from ["']\.\/xyops-admin-http\.ts["']/);
+  assert.match(operationsOwner, /return handleFrameworkRequest\(request, sourceEnv, ctx\)/);
+  assert.doesNotMatch(operationsOwner, /from ["']\.\/index(?:\.ts)?["']/);
 
   for (const route of [
     "/api/integrations/catalog",
@@ -45,36 +41,7 @@ test("#632 checkpoint D gives catalog, runs, notifications, and approvals one po
   assert.match(operationsOwner, /runs\\\/\(\[A-Za-z0-9_-\]\{1,160\}\)\\\/\(cancel\|rerun\)/);
   assert.match(operationsOwner, /runs\\\/\(\[A-Za-z0-9_-\]\{1,160\}\)\\\/files/);
   assert.match(operationsOwner, /approvals\\\/\(\[A-Za-z0-9_-\]\{1,160\}\)\\\/\(approve\|reject\|cancel\|execute\)/);
-
-  assert.equal(fs.existsSync(centralPath) && fs.readFileSync(centralPath, "utf8").includes('url.pathname === "/api/integrations/notifications"'), false);
-  assert.equal(fs.existsSync(centralPath) && fs.readFileSync(centralPath, "utf8").includes('url.pathname === "/api/integrations/notifications/read"'), false);
-  assert.equal(fs.existsSync(centralPath) && fs.readFileSync(centralPath, "utf8").includes('url.pathname === "/api/integrations/runs"'), false);
-  assert.equal(fs.existsSync(centralPath) && fs.readFileSync(centralPath, "utf8").includes('url.pathname === "/api/integrations/approvals"'), false);
-  assert.equal(fs.existsSync(centralPath) && fs.readFileSync(centralPath, "utf8").includes("const approvalActionMatch"), false);
-  assert.equal(fs.existsSync(centralPath) && fs.readFileSync(centralPath, "utf8").includes("claimApprovalExecution"), false);
-  assert.equal(fs.existsSync(centralPath) && fs.readFileSync(centralPath, "utf8").includes("decideApproval"), false);
-  assert.equal(fs.existsSync(centralPath) && fs.readFileSync(centralPath, "utf8").includes("cancelApproval"), false);
-  assert.equal(fs.existsSync(centralPath) && fs.readFileSync(centralPath, "utf8").includes("finishApprovalExecution"), false);
-  assert.equal(fs.existsSync(centralPath) && fs.readFileSync(centralPath, "utf8").includes("listApprovals"), false);
-
-  assert.equal(fs.existsSync(centralPath) && fs.readFileSync(centralPath, "utf8").includes("readRunResultFile"), false);
-  assert.equal(fs.existsSync(centralPath) && fs.readFileSync(centralPath, "utf8").includes("const runActionMatch"), false);
-  assert.equal(fs.existsSync(centralPath) && fs.readFileSync(centralPath, "utf8").includes("readRunReplay"), false);
-  assert.equal(fs.existsSync(centralPath) && fs.readFileSync(centralPath, "utf8").includes("function runStatus"), false);
-  assert.equal(fs.existsSync(centralPath) && fs.readFileSync(centralPath, "utf8").includes("async function listOperationRuns"), false);
-  assert.equal(fs.existsSync(centralPath) && fs.readFileSync(centralPath, "utf8").includes("async function syncOperationRuns"), false);
-  assert.equal(fs.existsSync(centralPath), false);
-  assert.doesNotMatch("", /from ["']\.\/xyops-run-runtime\.ts["']/, "central framework tail must not retain catalog/run runtime dependencies");
-  assert.match(operationsOwner, /import \{[^}]*extractJobStages[^}]*\} from ["']\.\/xyops-run-runtime\.ts["']/s);
-  assert.match(operationsOwner, /stages: extractJobStages\(result\)/u);
-
   assert.match(operationsOwner, /async function handleCatalogRunRequest/);
-  assert.equal(fs.existsSync(centralPath) && fs.readFileSync(centralPath, "utf8").includes("handleCatalogRunRequest"), false);
-  assert.equal(fs.existsSync(centralPath) && fs.readFileSync(centralPath, "utf8").includes('url.pathname === "/api/integrations/catalog"'), false);
-  assert.equal(fs.existsSync(centralPath) && fs.readFileSync(centralPath, "utf8").includes('url.pathname === "/api/integrations/catalog/history"'), false);
-  assert.equal(fs.existsSync(centralPath) && fs.readFileSync(centralPath, "utf8").includes('url.pathname === "/api/integrations/catalog/options"'), false);
-  assert.equal(fs.existsSync(centralPath) && fs.readFileSync(centralPath, "utf8").includes('url.pathname === "/api/integrations/catalog/run"'), false);
-  assert.equal(fs.existsSync(centralPath) && fs.readFileSync(centralPath, "utf8").includes('url.pathname === "/api/integrations/actions"'), false);
   assert.match(operationsOwner, /expectedSchemaVersion: replay\.summary\.schemaVersion/);
   assert.match(operationsOwner, /dangerousConfirmed: actionBody\.confirm === true/);
   assert.match(operationsOwner, /claimApprovalExecution/);
@@ -84,22 +51,14 @@ test("#632 checkpoint D gives catalog, runs, notifications, and approvals one po
   assert.match(operationsOwner, /loadCatalog\(runtime\.env, runtime\.xyopsUrl\)/u);
   assert.match(operationsOwner, /currentRequirement\.requiredApprovals/u);
   assert.match(operationsOwner, /handleCatalogRunRequest\([\s\S]*runtime, approvalId\)/u);
-  const catalogRuntime = await source("worker/xyops-catalog-runtime.ts");
-  assert.equal(fs.existsSync(centralPath), false);
-  assert.doesNotMatch("", /export async function loadCatalog/);
-  assert.equal(fs.existsSync(centralPath), false);
-  assert.doesNotMatch("", /export async function portalCatalog/);
-  assert.equal(fs.existsSync(centralPath), false);
-  assert.doesNotMatch("", /xyops_catalog_snapshot|xyops_catalog_history|get_events\/v1/);
+  assert.match(operationsOwner, /import \{[^}]*extractJobStages[^}]*\} from ["']\.\/xyops-run-runtime\.ts["']/s);
+  assert.match(operationsOwner, /stages: extractJobStages\(result\)/u);
+
   assert.match(catalogRuntime, /export async function loadCatalog/);
   assert.match(catalogRuntime, /export async function portalCatalog/);
   assert.match(catalogRuntime, /xyops_catalog_snapshot/);
   assert.match(catalogRuntime, /xyops_catalog_history/);
   assert.match(catalogRuntime, /get_events\/v1/);
-  assert.equal(fs.existsSync(centralPath), false);
-  assert.match(operationsOwner, /export \{ allowedOperations, automationRoutes, resolveCatalogRuntime \} from ["']\.\/xyops-admin-runtime\.ts["']/);
-  assert.equal(fs.existsSync(centralPath) && fs.readFileSync(centralPath, "utf8").includes("async function resolveCatalogRuntime"), false);
-  assert.equal(fs.existsSync(centralPath) && fs.readFileSync(centralPath, "utf8").includes("function automationRoutes"), false);
 
   assert.match(runRuntime, /export function runStatus/);
   assert.match(runRuntime, /export async function listOperationRuns/);

@@ -14,7 +14,7 @@ const repositoryRoot = fileURLToPath(new URL("../../", import.meta.url));
 
 test("rejects reverse src -> worker/runtime adapter dependencies with actionable edges", () => {
   const issues = inspectArchitectureFitness(new Map([
-    ["src/domain/service.ts", 'import { x } from "../../worker/secure-entry.ts";\nimport "../runtime/helper.mjs";'],
+    ["src/domain/service.ts", 'import { x } from "../../worker/secure-entry.ts";\nimport "../../runtime/helper.mjs";'],
     ["worker/secure-entry.ts", "export const x = 1;"],
     ["runtime/helper.mjs", "export {};"],
   ]));
@@ -24,7 +24,7 @@ test("rejects reverse src -> worker/runtime adapter dependencies with actionable
     "reverse-adapter-dependency",
   ]);
   assert.match(formatArchitectureFitnessIssues(issues), /src\/domain\/service\.ts -> worker\/secure-entry\.ts/u);
-  assert.match(formatArchitectureFitnessIssues(issues), /src\/runtime\/helper\.mjs/u);
+  assert.match(formatArchitectureFitnessIssues(issues), /runtime\/helper\.mjs/u);
 });
 
 test("rejects resurrection or imports of the retired central Worker tail", () => {

@@ -14,7 +14,8 @@ Runner `scripts/p0-operational-acceptance.mjs` дополняет ручной �
 - ручная разблокировка администратором;
 - успешный вход после разблокировки;
 - опциональный перезапуск контейнера Dashboard;
-- сохранение пользователя, его ID, роли и пароля после перезапуска;
+- опциональный digest-pinned recreate контейнера Dashboard без rebuild;
+- сохранение пользователя, его ID, роли и пароля после restart/recreate;
 - автоматическое удаление временного пользователя;
 - redaction паролей и session cookie в JSON/HTML-отчётах.
 
@@ -45,10 +46,10 @@ set -a
 source .env.local-auth-acceptance
 set +a
 
-PORTAL_TEST_RESTART_DASHBOARD=false npm run test:p0:acceptance
+PORTAL_TEST_RESTART_DASHBOARD=false PORTAL_TEST_RECREATE_DASHBOARD=false npm run test:p0:acceptance
 ```
 
-В этом режиме проверяются вход, cookie, блокировка и разблокировка. Проверка персистентности будет отмечена как `skipped`.
+В этом режиме проверяются вход, cookie, блокировка и разблокировка. Обе проверки персистентности — restart и recreate — будут отмечены как `skipped`.
 
 ## Полный P0-прогон с перезапуском
 
@@ -79,6 +80,28 @@ docker compose --env-file .env -f compose.yaml restart dashboard
 ```
 
 После восстановления `/api/integrations/health` runner повторно войдёт администратором и проверит сохранённого тестового пользователя.
+
+## Recreate exact release image
+
+Recreate оставлен отдельным opt-in режимом. Он предназначен только для disposable release-acceptance проекта и требует immutable image digest:
+
+```env
+PORTAL_TEST_RECREATE_DASHBOARD=true
+PORTAL_TEST_ACCEPTANCE_IMAGE=harbor.example.invalid/portal/admin-dashboard@sha256:<64-hex-digest>
+PORTAL_TEST_COMPOSE_ENV_FILE=.env.acceptance
+```
+
+При включённой persistence-проверке `PORTAL_TEST_BASE_URL` должен быть loopback HTTP target. Для recreate runner выводит Compose project из digest тем же правилом `portal-accept-<digest-prefix>`, передаёт `PORTAL_IMAGE` и `PORTAL_SERVICE_ENV_FILE` как authoritative environment и выполняет эквивалент:
+
+```bash
+docker compose \
+  --project-name portal-accept-<digest-prefix> \
+  --env-file .env.acceptance \
+  -f compose.yaml \
+  up -d --no-deps --no-build --force-recreate dashboard
+```
+
+Named volume не удаляется. После health recovery runner снова проверяет ID, username, role и login временного пользователя. Mutable tag или отсутствие `PORTAL_TEST_ACCEPTANCE_IMAGE` при включённом recreate приводит к fail-closed до пользовательских мутаций.
 
 ## Артефакты
 

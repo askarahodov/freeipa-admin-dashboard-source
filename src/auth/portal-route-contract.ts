@@ -66,6 +66,7 @@ export const portalRouteContracts = [
   { id: "freeipa.bulk", method: "POST", path: "/api/integrations/freeipa/bulk", owner: "worker/freeipa-http-entry.ts", auth: "local-session", permission: "freeipa.write", mutation: "mutation", sameOrigin: false },
 
   { id: "integration.status", method: "GET", path: "/api/integrations/status", owner: "worker/integration-status-http.ts", auth: "local-session", mutation: "read", sameOrigin: false },
+  { id: "integration.audit", method: "GET", path: "/api/integrations/audit", owner: "worker/integration-audit-http.ts", auth: "admin-or-service-admin", permission: "settings.manage", mutation: "read", sameOrigin: false },
   { id: "xyops.catalog.read", method: "GET", path: "/api/integrations/catalog", owner: "worker/operations-http-entry.ts", auth: "local-session", mutation: "read", sameOrigin: false },
   { id: "xyops.catalog.history", method: "GET", path: "/api/integrations/catalog/history", owner: "worker/operations-http-entry.ts", auth: "local-session", mutation: "read", sameOrigin: false },
   { id: "xyops.catalog.options", method: "GET", path: "/api/integrations/catalog/options", owner: "worker/operations-http-entry.ts", auth: "local-session", mutation: "read", sameOrigin: false },

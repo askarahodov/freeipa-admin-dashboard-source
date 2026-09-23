@@ -6,6 +6,7 @@ import {
   productionAcceptanceReleaseStagePolicies,
   validateProductionAcceptanceWaiverRegistry,
 } from "../../scripts/production-acceptance-release-policy.mjs";
+import { productionAcceptanceScenarioDefinitions } from "../../scripts/production-acceptance-scenarios.mjs";
 
 const core = [
   { id: "compose_start", outcome: "passed", code: "compose_started" },
@@ -28,6 +29,21 @@ function waiver(stageId, overrides = {}) {
     ...overrides,
   };
 }
+
+test("every executable scenario stage is registered in release policy", () => {
+  const policyIds = new Set(productionAcceptanceReleaseStagePolicies.map((item) => item.id));
+  const definitions = productionAcceptanceScenarioDefinitions({
+    includeLocalAuthP0: true,
+    includeSettings: true,
+    includeFreeIpaMutations: true,
+    includeXyOpsLifecycle: true,
+    includeBackupRestore: true,
+    includeUpgrade: true,
+  });
+  for (const definition of definitions) {
+    assert.equal(policyIds.has(definition.id), true, `missing release policy for ${definition.id}`);
+  }
+});
 
 test("release policy has unique explicit stage ownership", () => {
   const ids = productionAcceptanceReleaseStagePolicies.map((item) => item.id);

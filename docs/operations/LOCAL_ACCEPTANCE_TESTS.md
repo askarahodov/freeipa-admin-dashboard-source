@@ -252,3 +252,29 @@ Acceptance считается пройденным, когда:
 - тестовый XYOps процесс проходит полный жизненный цикл;
 - аудит содержит действия с correlation ID;
 - в логах, браузере и отчётах нет секретов.
+
+
+## 11. Production/staging acceptance manifest
+
+Release-level acceptance from #61 starts with an immutable image reference instead of a mutable tag. Generate the non-destructive execution plan with:
+
+```bash
+npm run acceptance:plan -- \
+  --image harbor.example.invalid/portal/admin-dashboard@sha256:<64-hex-digest> \
+  --commit <40-hex-git-sha>
+```
+
+The command only creates `artifacts/production-acceptance/plan.json`; it does **not** start containers and does not mutate portal data. The plan fixes:
+
+- the exact image digest;
+- the exact source commit;
+- an isolated Compose project name derived from the digest;
+- the Compose-owned isolated `dashboard-data` volume name;
+- `--no-build` execution semantics so a release run cannot silently rebuild a different image;
+- the default read-only baseline: liveness, readiness, dependency health and sanitized maintenance status.
+
+`compose.yaml` accepts `PORTAL_IMAGE` for this purpose while preserving `freeipa-admin-dashboard:local` as the local-development default.
+
+The production-acceptance report contract is fail-closed: sensitive field names, cookie/authorization markers, caller-provided secret values and raw HTTP(S) URLs make the redaction gate fail. Later #61 checkpoints may execute the plan and attach JSON/HTML release evidence, but must pass this safety gate before persisting artifacts.
+
+Mutating P0/local integration runners remain separate and keep their existing explicit confirmation requirements.

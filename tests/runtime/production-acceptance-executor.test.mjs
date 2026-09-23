@@ -1,0 +1,151 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import { createProductionAcceptanceManifest } from "../../scripts/production-acceptance-contract.mjs";
+import {
+  acceptanceCleanupCommand,
+  evaluateAcceptanceCheck,
+  executeProductionAcceptance,
+  renderProductionAcceptanceHtml,
+  validateProductionAcceptanceManifest,
+} from "../../scripts/production-acceptance-executor-core.mjs";
+
+const digest = `sha256:${"c".repeat(64)}`;
+const image = `registry.example.test/admin-dashboard@${digest}`;
+const commit = "d".repeat(40);
+
+function manifest() {
+  return JSON.parse(JSON.stringify(createProductionAcceptanceManifest({ imageReference: image, commitSha: commit })));
+}
+
+function healthyResponse(check) {
+  return { status: 200, json: { ...check.requiredJson } };
+}
+
+test("executor accepts only the exact versioned read-only manifest contract", () => {
+  const plan = manifest();
+  assert.equal(validateProductionAcceptanceManifest(plan).image.digest, digest);
+
+  const mutated = manifest();
+  mutated.destructive = true;
+  assert.throws(() => validateProductionAcceptanceManifest(mutated), /acceptance_manifest_mode_invalid/u);
+
+  const changed = manifest();
+  changed.baseline[0].requiredJson.state = "degraded";
+  assert.throws(() => validateProductionAcceptanceManifest(changed), /acceptance_manifest_mismatch/u);
+});
+
+test("baseline evaluator requires both expected status and required JSON predicates", () => {
+  const check = manifest().baseline[0];
+  assert.equal(evaluateAcceptanceCheck(check, healthyResponse(check)).outcome, "passed");
+  assert.deepEqual(evaluateAcceptanceCheck(check, { status: 503, json: check.requiredJson }), {
+    id: check.id,
+    outcome: "failed",
+    code: "status_mismatch",
+    status: 503,
+  });
+  assert.deepEqual(evaluateAcceptanceCheck(check, { status: 200, json: { ...check.requiredJson, ok: false } }), {
+    id: check.id,
+    outcome: "failed",
+    code: "predicate_mismatch",
+    status: 200,
+  });
+});
+
+test("executor starts exact compose plan, checks baseline and always tears down isolated project", async () => {
+  const plan = manifest();
+  const commands = [];
+  const report = await executeProductionAcceptance({
+    manifest: plan,
+    runCommand: async (command, environment) => {
+      commands.push({ command: [...command], environment: { ...environment } });
+    },
+    probe: async (check) => healthyResponse(check),
+    now: (() => {
+      const values = [new Date("2026-09-23T08:00:00.000Z"), new Date("2026-09-23T08:00:01.000Z")];
+      return () => values.shift() ?? new Date("2026-09-23T08:00:01.000Z");
+    })(),
+  });
+
+  assert.equal(report.outcome, "passed");
+  assert.equal(report.failureCode, null);
+  assert.equal(report.checks.length, 4);
+  assert.equal(report.checks.every((check) => check.outcome === "passed"), true);
+  assert.deepEqual(commands[0].command, plan.compose.args);
+  assert.deepEqual(commands[1].command, acceptanceCleanupCommand(plan));
+  assert.deepEqual(commands[0].environment, plan.compose.environment);
+  assert.deepEqual(report.cleanup, { outcome: "passed", code: "cleanup_complete" });
+});
+
+test("executor retries unhealthy startup and reports bounded timeout without leaking probe details", async () => {
+  const plan = manifest();
+  const commands = [];
+  let clock = 0;
+  const report = await executeProductionAcceptance({
+    manifest: plan,
+    runCommand: async (command) => commands.push([...command]),
+    probe: async (check) => ({ status: 503, json: { ...check.requiredJson, state: "degraded", detail: "private" } }),
+    now: () => new Date(1_000 + clock),
+    sleep: async () => { clock += 50; },
+    startupTimeoutMs: 100,
+    probeIntervalMs: 50,
+  });
+
+  assert.equal(report.outcome, "failed");
+  assert.equal(report.failureCode, "acceptance_baseline_timeout");
+  assert.equal(report.checks.every((check) => check.outcome === "failed"), true);
+  assert.equal(JSON.stringify(report).includes("private"), false);
+  assert.deepEqual(commands.at(-1), acceptanceCleanupCommand(plan));
+});
+
+test("executor sanitizes command failures and still attempts cleanup", async () => {
+  const plan = manifest();
+  let calls = 0;
+  const report = await executeProductionAcceptance({
+    manifest: plan,
+    runCommand: async () => {
+      calls += 1;
+      if (calls === 1) throw new Error("registry password=do-not-report");
+    },
+    probe: async () => {
+      throw new Error("should not run");
+    },
+  });
+
+  assert.equal(calls, 2);
+  assert.equal(report.outcome, "failed");
+  assert.equal(report.failureCode, "acceptance_compose_start_failed");
+  assert.equal(JSON.stringify(report).includes("do-not-report"), false);
+  assert.deepEqual(report.cleanup, { outcome: "passed", code: "cleanup_complete" });
+});
+
+test("cleanup failure is release-blocking even after a healthy baseline", async () => {
+  const plan = manifest();
+  let calls = 0;
+  const report = await executeProductionAcceptance({
+    manifest: plan,
+    runCommand: async () => {
+      calls += 1;
+      if (calls === 2) throw new Error("docker cleanup stderr");
+    },
+    probe: async (check) => healthyResponse(check),
+  });
+
+  assert.equal(report.outcome, "failed");
+  assert.equal(report.failureCode, "acceptance_cleanup_failed");
+  assert.deepEqual(report.cleanup, { outcome: "failed", code: "cleanup_failed" });
+});
+
+test("HTML evidence renders only the already-sanitized bounded report", async () => {
+  const plan = manifest();
+  const report = await executeProductionAcceptance({
+    manifest: plan,
+    runCommand: async () => {},
+    probe: async (check) => healthyResponse(check),
+  });
+  const html = renderProductionAcceptanceHtml(report);
+  assert.match(html, /Production acceptance: passed/u);
+  assert.match(html, new RegExp(commit, "u"));
+  assert.equal(html.includes("http://"), false);
+  assert.equal(html.includes("registry.example.test"), false);
+});

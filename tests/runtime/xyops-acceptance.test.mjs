@@ -81,6 +81,7 @@ function fakeXyOps({
         approval.status = "executed";
         runSequence += 1;
         const runId = `run_${runSequence}`;
+        approval.runId = runId;
         runs.set(runId, {
           id: runId,
           status: "queued",
@@ -94,6 +95,16 @@ function fakeXyOps({
           status: "queued",
         });
       }
+    }
+
+    if (pathname === "/api/integrations/approvals?limit=100" && method === "GET") {
+      return response(200, {
+        approvals: Array.from(approvals.entries()).map(([id, approval]) => ({
+          id,
+          status: approval.status,
+          runId: approval.runId ?? "",
+        })),
+      });
     }
 
     const cancelMatch = pathname.match(/^\/api\/integrations\/runs\/([^/]+)\/cancel$/u);
@@ -225,6 +236,40 @@ test("XYOps lifecycle reconciles an active second run after a terminal failure",
 
   assert.equal(fake.runs.get("run_1").status, "cancelled");
   assert.equal(fake.runs.get("run_2").status, "failed");
+});
+
+test("XYOps lifecycle recovers an executed run after the execute response is lost", async () => {
+  const fake = fakeXyOps();
+  let lost = false;
+  const requester = async (pathname, options) => {
+    if (!lost && pathname.endsWith("/execute")) {
+      await fake.requesterRequest(pathname, options);
+      lost = true;
+      throw new Error("lost execute response");
+    }
+    return fake.requesterRequest(pathname, options);
+  };
+
+  await assert.rejects(
+    () => executeXyOpsLifecycleAcceptance({
+      requesterRequest: requester,
+      approverRequest: fake.approverRequest,
+      eventId: "portal-acceptance-event",
+      confirmedEventId: "portal-acceptance-event",
+      now: () => 1_000,
+      sleep: async () => {},
+      timeoutMs: 10_000,
+      pollIntervalMs: 0,
+    }),
+    /lost execute response/u,
+  );
+
+  assert.equal(fake.approvals.get("approval_1").status, "executed");
+  assert.equal(fake.runs.get("run_1").status, "cancelled");
+  assert.equal(
+    fake.calls.some((call) => call.pathname === "/api/integrations/approvals?limit=100"),
+    true,
+  );
 });
 
 test("XYOps cleanup failure overrides the primary lifecycle failure", async () => {

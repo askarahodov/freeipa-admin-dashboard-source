@@ -53,13 +53,11 @@ test("integration audit keeps bounded no-persistence response and unrelated fall
   assert.equal(unrelated, null);
 });
 
-test("central compatibility tail no longer dispatches integration HTTP routes", () => {
-  const central = fs.readFileSync(new URL("../../worker/index.ts", import.meta.url), "utf8");
+test("retired central tail stays absent and audit remains explicitly dispatched", () => {
+  const centralUrl = new URL("../../worker/index.ts", import.meta.url);
+  assert.equal(fs.existsSync(centralUrl), false, "retired central Worker tail must stay absent");
   const operations = fs.readFileSync(new URL("../../worker/operations-http-entry.ts", import.meta.url), "utf8");
 
-  assert.equal(central.includes("/api/integrations/audit"), false);
-  assert.equal(central.includes('pathname.startsWith("/api/integrations/")'), false);
-  assert.equal(central.includes("handleIntegrationApi"), false);
   assert.equal(operations.includes('from "./integration-audit-http.ts"'), true);
   assert.equal(operations.includes("handleIntegrationAuditRequest(request, sourceEnv)"), true);
 });

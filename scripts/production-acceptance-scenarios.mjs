@@ -22,12 +22,18 @@ export function validateProductionAcceptanceXyOpsConfiguration({
   enabled = false,
   requesterUsername,
   requesterPassword,
+  approverUsername,
   eventId,
   confirmedEventId,
 } = {}) {
   if (!enabled) return Object.freeze({ enabled: false });
-  if (!String(requesterUsername ?? "").trim() || !String(requesterPassword ?? "")) {
+  const normalizedRequester = String(requesterUsername ?? "").trim();
+  const normalizedApprover = String(approverUsername ?? "").trim();
+  if (!normalizedRequester || !String(requesterPassword ?? "")) {
     throw new Error("acceptance_xyops_requester_credentials_required");
+  }
+  if (!normalizedApprover || normalizedRequester.toLowerCase() === normalizedApprover.toLowerCase()) {
+    throw new Error("acceptance_xyops_independent_approver_required");
   }
   const normalizedEventId = String(eventId ?? "").trim();
   if (!/^[A-Za-z0-9_.:-]{1,160}$/u.test(normalizedEventId)) {
@@ -164,6 +170,10 @@ export function productionAcceptanceScenarioDefinitions({
         "XYOPS_URL",
         "XYOPS_API_KEY",
         "PORTAL_PROXY_SHARED_SECRET",
+        "PORTAL_ACCEPTANCE_XYOPS_REQUESTER_USERNAME",
+        "PORTAL_ACCEPTANCE_XYOPS_REQUESTER_PASSWORD",
+        "PORTAL_ACCEPTANCE_XYOPS_EVENT_ID",
+        "PORTAL_ACCEPTANCE_XYOPS_CONFIRM_EVENT_ID",
       ]),
       passedCode: "xyops_read_passed",
       failedCode: "acceptance_xyops_read_failed",

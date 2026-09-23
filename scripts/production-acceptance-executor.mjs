@@ -67,7 +67,7 @@ try {
   validateProductionAcceptanceManifest(manifest);
 
   const mutationRequested = runLocalAuthP0 || runSettings || runFreeIpaMutations;
-  const mutationConfirmation = validateProductionAcceptanceMutationConfirmation({
+  validateProductionAcceptanceMutationConfirmation({
     enabled: mutationRequested,
     confirmation: argument("--confirm-destructive") ?? process.env.PORTAL_ACCEPTANCE_CONFIRM_DESTRUCTIVE,
     confirmedProject: argument("--confirm-project") ?? process.env.PORTAL_ACCEPTANCE_CONFIRM_PROJECT,

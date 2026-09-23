@@ -397,3 +397,44 @@ The child runners receive the normalized loopback target and `PORTAL_TEST_CONFIR
 Production release evidence stores only bounded scenario stage results such as `local_auth_rbac_passed` or `acceptance_p0_operational_failed`; child stdout/stderr, cookies, passwords and raw responses are not copied into the production report. If either scenario fails, later mutation scenarios stop and the isolated Compose cleanup still executes from the executor's `finally` path.
 
 This mode is still not permission to run against production. The production acceptance target is loopback-only and the Compose project is digest-derived and isolated. External FreeIPA/XYOps mutation scenarios are handled by later checkpoints.
+
+
+## 14. Opt-in settings persistence and rollback acceptance
+
+Settings release acceptance is a separate opt-in mutation stage. It uses the same isolated immutable Compose project and the same double-confirmation boundary as section 13.
+
+Run it alone:
+
+```bash
+node scripts/production-acceptance-executor.mjs \
+  --plan artifacts/production-acceptance/plan.json \
+  --base-url http://127.0.0.1:3001 \
+  --run-settings \
+  --confirm-destructive YES \
+  --confirm-project portal-accept-0123456789ab
+```
+
+The caller must also provide the same dedicated local acceptance administrator credentials:
+
+```bash
+export PORTAL_ACCEPTANCE_ADMIN_USERNAME=<dedicated-test-admin>
+export PORTAL_ACCEPTANCE_ADMIN_PASSWORD=<dedicated-test-password>
+```
+
+`--run-settings` does not enable `--run-local-auth-p0` implicitly. Both flags may be supplied when one acceptance run should execute all internal portal-state mutation stages.
+
+The settings stage deliberately mutates only the non-secret `demoMode` field through the canonical revisioned settings lifecycle:
+
+1. read `/api/integrations/settings/effective` and capture the current revision, value and source;
+2. create a draft that toggles `demoMode`;
+3. validate it with an explicit empty service list so this checkpoint does not probe or mutate FreeIPA/XYOps;
+4. apply the draft;
+5. read effective settings again and require a newer revision, the changed value and database persistence;
+6. in `finally`, create and apply a rollback draft;
+7. require both the original value and the original source (`database`, `environment` or `default`) to be restored.
+
+If the initial value came from ENV/default, rollback uses the existing `resetFields` lifecycle instead of writing a synthetic database override. If the initial value was already a database override, rollback writes back the original boolean while preserving database ownership.
+
+A failed persistence read still triggers rollback. Any rollback mismatch or rollback API failure is release-blocking. Production release evidence receives only the bounded `settings_persistence_rollback` stage with safe success/failure/remediation codes; settings payloads, session cookies and credentials are not copied into the release report.
+
+The settings runner is loopback-only and requires `PORTAL_TEST_CONFIRM=YES` from the production orchestrator. It does not own Compose restart/recreate; final isolated-project and volume cleanup remains owned by the production acceptance executor.

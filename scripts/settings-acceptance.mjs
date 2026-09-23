@@ -1,5 +1,8 @@
 #!/usr/bin/env node
-import { executeSettingsPersistenceRollback } from "./settings-acceptance-core.mjs";
+import {
+  executeSettingsPersistenceRollback,
+  settingsAcceptanceRequestHeaders,
+} from "./settings-acceptance-core.mjs";
 import { normalizeProductionAcceptanceTarget } from "./production-acceptance-executor-core.mjs";
 
 const confirmation = String(process.env.PORTAL_TEST_CONFIRM ?? "").trim();
@@ -25,12 +28,15 @@ try {
   process.exit(2);
 }
 
+const targetOrigin = new URL(target.baseUrl).origin;
 let cookie = "";
 
 async function request(pathname, { method = "GET", body } = {}) {
-  const headers = { accept: "application/json" };
-  if (cookie) headers.cookie = cookie;
-  if (body !== undefined) headers["content-type"] = "application/json";
+  const headers = settingsAcceptanceRequestHeaders({
+    origin: targetOrigin,
+    cookie,
+    json: body !== undefined,
+  });
 
   const response = await fetch(new URL(pathname, target.baseUrl), {
     method,
@@ -46,7 +52,7 @@ async function request(pathname, { method = "GET", body } = {}) {
 try {
   const login = await fetch(new URL("/api/auth/login", target.baseUrl), {
     method: "POST",
-    headers: { accept: "application/json", "content-type": "application/json" },
+    headers: settingsAcceptanceRequestHeaders({ origin: targetOrigin, json: true }),
     body: JSON.stringify({ username: adminUsername, password: adminPassword }),
     redirect: "error",
     signal: AbortSignal.timeout(15_000),

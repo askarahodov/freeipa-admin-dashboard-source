@@ -348,6 +348,12 @@ test("XYOps lifecycle selection always runs safe read first and strips upstream 
   assert.equal(calls.every((item) => item.environment.XYOPS_URL === undefined), true);
   assert.equal(calls.every((item) => item.environment.XYOPS_API_KEY === undefined), true);
   assert.equal(calls.every((item) => item.environment.ADMIN_TOKEN === undefined), true);
+  assert.equal(calls[0].environment.PORTAL_ACCEPTANCE_XYOPS_REQUESTER_USERNAME, undefined);
+  assert.equal(calls[0].environment.PORTAL_ACCEPTANCE_XYOPS_REQUESTER_PASSWORD, undefined);
+  assert.equal(calls[0].environment.PORTAL_ACCEPTANCE_XYOPS_EVENT_ID, undefined);
+  assert.equal(calls[1].environment.PORTAL_ACCEPTANCE_XYOPS_REQUESTER_USERNAME, "accept-operator");
+  assert.equal(calls[1].environment.PORTAL_ACCEPTANCE_XYOPS_REQUESTER_PASSWORD, "operator-password");
+  assert.equal(calls[1].environment.PORTAL_ACCEPTANCE_XYOPS_EVENT_ID, "portal-acceptance-event");
   assert.deepEqual(stages.map((stage) => [stage.id, stage.outcome]), [
     ["xyops_read", "passed"],
     ["xyops_approval_cancel_result", "passed"],

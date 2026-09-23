@@ -6,6 +6,8 @@ import {
   acceptanceCleanupCommand,
   evaluateAcceptanceCheck,
   executeProductionAcceptance,
+  normalizeProductionAcceptanceTarget,
+  productionAcceptanceCommandEnvironment,
   renderProductionAcceptanceHtml,
   validateProductionAcceptanceManifest,
 } from "../../scripts/production-acceptance-executor-core.mjs";
@@ -33,6 +35,79 @@ test("executor accepts only the exact versioned read-only manifest contract", ()
   const changed = manifest();
   changed.baseline[0].requiredJson.state = "degraded";
   assert.throws(() => validateProductionAcceptanceManifest(changed), /acceptance_manifest_mismatch/u);
+});
+
+test("acceptance execution target is forced to the local loopback publication boundary", () => {
+  assert.deepEqual(normalizeProductionAcceptanceTarget("http://127.0.0.1:3001"), {
+    baseUrl: "http://127.0.0.1:3001",
+    port: "3001",
+    composeEnvironment: {
+      DASHBOARD_BIND_ADDRESS: "127.0.0.1",
+      DASHBOARD_PORT: "3001",
+    },
+  });
+  assert.deepEqual(normalizeProductionAcceptanceTarget("http://localhost:3100"), {
+    baseUrl: "http://127.0.0.1:3100",
+    port: "3100",
+    composeEnvironment: {
+      DASHBOARD_BIND_ADDRESS: "127.0.0.1",
+      DASHBOARD_PORT: "3100",
+    },
+  });
+  assert.deepEqual(normalizeProductionAcceptanceTarget("http://[::1]"), {
+    baseUrl: "http://127.0.0.1:3001",
+    port: "3001",
+    composeEnvironment: {
+      DASHBOARD_BIND_ADDRESS: "127.0.0.1",
+      DASHBOARD_PORT: "3001",
+    },
+  });
+
+  assert.throws(
+    () => normalizeProductionAcceptanceTarget("https://127.0.0.1:3001"),
+    /acceptance_base_url_protocol_invalid/u,
+  );
+  assert.throws(
+    () => normalizeProductionAcceptanceTarget("http://production.example.test:3001"),
+    /acceptance_base_url_loopback_required/u,
+  );
+  assert.throws(
+    () => normalizeProductionAcceptanceTarget("http://admin:secret@127.0.0.1:3001"),
+    /acceptance_base_url_credentials_forbidden/u,
+  );
+  assert.throws(
+    () => normalizeProductionAcceptanceTarget("http://127.0.0.1:3001/health/ready"),
+    /acceptance_base_url_path_invalid/u,
+  );
+  assert.throws(
+    () => normalizeProductionAcceptanceTarget("http://127.0.0.1:3001/?target=other"),
+    /acceptance_base_url_query_forbidden/u,
+  );
+  assert.throws(
+    () => normalizeProductionAcceptanceTarget("http://127.0.0.1:3001/#fragment"),
+    /acceptance_base_url_fragment_forbidden/u,
+  );
+});
+
+test("acceptance command environment overrides ambient exposure with the normalized loopback target", () => {
+  const target = normalizeProductionAcceptanceTarget("http://localhost:3100");
+  const environment = productionAcceptanceCommandEnvironment(
+    {
+      DASHBOARD_BIND_ADDRESS: "0.0.0.0",
+      DASHBOARD_PORT: "9999",
+      KEEP_AMBIENT: "yes",
+    },
+    {
+      PORTAL_IMAGE: "registry.example.test/image@sha256:test",
+      DASHBOARD_BIND_ADDRESS: "192.0.2.10",
+    },
+    target,
+  );
+
+  assert.equal(environment.KEEP_AMBIENT, "yes");
+  assert.equal(environment.PORTAL_IMAGE, "registry.example.test/image@sha256:test");
+  assert.equal(environment.DASHBOARD_BIND_ADDRESS, "127.0.0.1");
+  assert.equal(environment.DASHBOARD_PORT, "3100");
 });
 
 test("baseline evaluator requires both expected status and required JSON predicates", () => {

@@ -609,7 +609,7 @@ node scripts/production-acceptance-executor.mjs \
   --confirm-project portal-accept-0123456789ab
 ```
 
-A different repository-controlled policy path may be selected with `--upgrade-policy`, but the same strict immutable-image/source validation applies. The dedicated acceptance administrator credentials are required as for other portal mutation scenarios.
+`release/previous-supported.json` is the only accepted source-policy path; the executor does not expose an arbitrary policy-file override. The dedicated acceptance administrator credentials are required as for other portal mutation scenarios.
 
 Upgrade mode is deliberately exclusive: do not combine `--run-upgrade` with local-auth/P0, settings, FreeIPA, XYOps or backup/restore scenario flags. Upgrade resets only the exact digest-derived disposable acceptance project/volume before seeding source state; combining it with other scenarios would invalidate their state ordering.
 

@@ -5,6 +5,11 @@ import path from "node:path";
 import { promisify } from "node:util";
 
 import {
+  DEFAULT_PRODUCTION_ACCEPTANCE_RETENTION_SECONDS,
+  normalizeProductionAcceptanceRetentionSeconds,
+  writeProductionAcceptanceArtifacts,
+} from "./production-acceptance-artifacts.mjs";
+import {
   executeProductionAcceptance,
   normalizeProductionAcceptanceTarget,
   productionAcceptanceCommandEnvironment,
@@ -35,10 +40,15 @@ function environmentSecretValues() {
 
 const planPath = path.resolve(argument("--plan") ?? "artifacts/production-acceptance/plan.json");
 const outputDirectory = path.resolve(argument("--output-dir") ?? "artifacts/production-acceptance/latest");
+const historyDirectory = path.resolve(argument("--history-dir") ?? "artifacts/production-acceptance/runs");
 const rawBaseUrl = argument("--base-url") ?? process.env.PORTAL_ACCEPTANCE_BASE_URL ?? "http://127.0.0.1:3001";
 
 try {
   const acceptanceTarget = normalizeProductionAcceptanceTarget(rawBaseUrl);
+  const retentionSeconds = normalizeProductionAcceptanceRetentionSeconds(
+    argument("--retention-seconds"),
+    DEFAULT_PRODUCTION_ACCEPTANCE_RETENTION_SECONDS,
+  );
   const startupTimeoutMs = positiveNumber(argument("--startup-timeout-ms"), 60_000);
   const probeIntervalMs = positiveNumber(argument("--probe-interval-ms"), 1_000);
   const manifest = JSON.parse(await fs.readFile(planPath, "utf8"));
@@ -82,13 +92,18 @@ try {
   });
   const html = renderProductionAcceptanceHtml(report);
 
-  await fs.mkdir(outputDirectory, { recursive: true });
-  await fs.writeFile(path.join(outputDirectory, "report.json"), `${JSON.stringify(report, null, 2)}\n`);
-  await fs.writeFile(path.join(outputDirectory, "report.html"), html);
+  const artifacts = await writeProductionAcceptanceArtifacts({
+    report,
+    html,
+    outputDirectory,
+    historyDirectory,
+    retentionSeconds,
+  });
 
   console.log(`ACCEPTANCE_OUTCOME=${report.outcome}`);
   console.log(`ACCEPTANCE_REPORT=${path.relative(process.cwd(), path.join(outputDirectory, "report.json"))}`);
   console.log(`ACCEPTANCE_HTML=${path.relative(process.cwd(), path.join(outputDirectory, "report.html"))}`);
+  console.log(`ACCEPTANCE_RUN=${artifacts.runId}`);
   if (report.outcome !== "passed") process.exitCode = 1;
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);

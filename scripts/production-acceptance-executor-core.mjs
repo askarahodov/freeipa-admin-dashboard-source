@@ -56,6 +56,26 @@ export function productionAcceptanceCommandEnvironment(
   });
 }
 
+export const PRODUCTION_ACCEPTANCE_REPORT_SCHEMA_VERSION = 1;
+
+const REMEDIATION_BY_FAILURE_CODE = Object.freeze({
+  acceptance_compose_start_failed: "inspect_local_compose_start",
+  acceptance_baseline_timeout: "inspect_local_health_and_dependencies",
+  acceptance_baseline_execution_failed: "inspect_acceptance_runtime",
+  acceptance_schema_metadata_missing: "inspect_local_schema_readiness",
+  acceptance_schema_version_mismatch: "inspect_local_schema_migrations",
+  acceptance_cleanup_failed: "remove_isolated_acceptance_project",
+});
+
+export function productionAcceptanceRemediationCode(failureCode) {
+  if (!failureCode) return "none";
+  return REMEDIATION_BY_FAILURE_CODE[failureCode] ?? "inspect_acceptance_executor";
+}
+
+function acceptanceStage(id, outcome, code, remediationCode = "none") {
+  return Object.freeze({ id, outcome, code, remediationCode });
+}
+
 function errorCode(error, fallback) {
   const message = error instanceof Error ? error.message : String(error ?? "");
   return /^acceptance_[a-z0-9_]+$/u.test(message) ? message : fallback;
@@ -103,6 +123,21 @@ export function evaluateAcceptanceCheck(check, response) {
   });
 }
 
+function readinessSchemaMetadata(response) {
+  const metadata = response?.json?.metadata;
+  const currentVersion = Number(metadata?.schemaVersion);
+  const latestVersion = Number(metadata?.latestSchemaVersion);
+  if (
+    !Number.isInteger(currentVersion)
+    || currentVersion < 0
+    || !Number.isInteger(latestVersion)
+    || latestVersion < 0
+  ) {
+    return null;
+  }
+  return Object.freeze({ currentVersion, latestVersion });
+}
+
 export function acceptanceCleanupCommand(manifest) {
   return Object.freeze([
     "docker",
@@ -146,21 +181,30 @@ export async function executeProductionAcceptance({
   let failureCode = "acceptance_execution_failed";
   let checks = validated.baseline.map((check) => ({
     id: check.id,
-    outcome: "failed",
+    outcome: "skipped",
     code: "not_executed",
     status: 0,
   }));
+  let composeStartStage = acceptanceStage("compose_start", "pending", "not_started");
+  let baselineStage = acceptanceStage("baseline", "pending", "not_started");
   let cleanup = Object.freeze({ outcome: "pending", code: "cleanup_pending" });
+  let cleanupStage = acceptanceStage("cleanup", "pending", "not_started");
+  let portalSchema = null;
 
   try {
     await runCommand(validated.compose.args, validated.compose.environment);
+    composeStartStage = acceptanceStage("compose_start", "passed", "compose_started");
 
     for (;;) {
       const currentChecks = [];
       for (const check of validated.baseline) {
         try {
           const response = await probe(check);
-          currentChecks.push(evaluateAcceptanceCheck(check, response));
+          const evaluated = evaluateAcceptanceCheck(check, response);
+          currentChecks.push(evaluated);
+          if (check.id === "readiness" && evaluated.outcome === "passed") {
+            portalSchema = readinessSchemaMetadata(response);
+          }
         } catch {
           currentChecks.push(Object.freeze({
             id: check.id,
@@ -172,24 +216,82 @@ export async function executeProductionAcceptance({
       }
       checks = currentChecks;
       if (checks.every((check) => check.outcome === "passed")) {
+        if (!portalSchema) {
+          outcome = "failed";
+          failureCode = "acceptance_schema_metadata_missing";
+          baselineStage = acceptanceStage(
+            "baseline",
+            "failed",
+            failureCode,
+            productionAcceptanceRemediationCode(failureCode),
+          );
+          break;
+        }
+        if (portalSchema.currentVersion !== portalSchema.latestVersion) {
+          outcome = "failed";
+          failureCode = "acceptance_schema_version_mismatch";
+          baselineStage = acceptanceStage(
+            "baseline",
+            "failed",
+            failureCode,
+            productionAcceptanceRemediationCode(failureCode),
+          );
+          break;
+        }
         outcome = "passed";
         failureCode = null;
+        baselineStage = acceptanceStage("baseline", "passed", "baseline_healthy");
         break;
       }
       if (now().getTime() >= deadline) {
         failureCode = "acceptance_baseline_timeout";
+        baselineStage = acceptanceStage(
+          "baseline",
+          "failed",
+          failureCode,
+          productionAcceptanceRemediationCode(failureCode),
+        );
         break;
       }
       await sleep(probeIntervalMs);
     }
   } catch (error) {
-    failureCode = errorCode(error, "acceptance_compose_start_failed");
+    if (composeStartStage.outcome === "pending") {
+      failureCode = errorCode(error, "acceptance_compose_start_failed");
+      composeStartStage = acceptanceStage(
+        "compose_start",
+        "failed",
+        failureCode,
+        productionAcceptanceRemediationCode(failureCode),
+      );
+      baselineStage = acceptanceStage(
+        "baseline",
+        "skipped",
+        "blocked_by_compose_start",
+        "inspect_local_compose_start",
+      );
+    } else {
+      failureCode = errorCode(error, "acceptance_baseline_execution_failed");
+      baselineStage = acceptanceStage(
+        "baseline",
+        "failed",
+        failureCode,
+        productionAcceptanceRemediationCode(failureCode),
+      );
+    }
   } finally {
     try {
       await runCommand(acceptanceCleanupCommand(validated), validated.compose.environment);
       cleanup = Object.freeze({ outcome: "passed", code: "cleanup_complete" });
+      cleanupStage = acceptanceStage("cleanup", "passed", "cleanup_complete");
     } catch {
       cleanup = Object.freeze({ outcome: "failed", code: "cleanup_failed" });
+      cleanupStage = acceptanceStage(
+        "cleanup",
+        "failed",
+        "acceptance_cleanup_failed",
+        productionAcceptanceRemediationCode("acceptance_cleanup_failed"),
+      );
       outcome = "failed";
       if (!failureCode) failureCode = "acceptance_cleanup_failed";
     }
@@ -197,9 +299,12 @@ export async function executeProductionAcceptance({
 
   const finished = now();
   const report = {
-    schemaVersion: 1,
+    schemaVersion: PRODUCTION_ACCEPTANCE_REPORT_SCHEMA_VERSION,
+    manifestSchemaVersion: validated.schemaVersion,
+    portalSchema,
     outcome,
     failureCode,
+    remediationCode: productionAcceptanceRemediationCode(failureCode),
     source: { commitSha: validated.source.commitSha },
     image: { digest: validated.image.digest },
     compose: { projectName: validated.compose.projectName },
@@ -208,6 +313,7 @@ export async function executeProductionAcceptance({
       finishedAt: finished.toISOString(),
       durationMs: Math.max(0, finished.getTime() - started.getTime()),
     },
+    stages: [composeStartStage, baselineStage, cleanupStage],
     checks,
     cleanup,
   };
@@ -227,6 +333,9 @@ function escapeHtml(value) {
 
 export function renderProductionAcceptanceHtml(report) {
   assertProductionAcceptanceReportSafe(report);
+  const stageRows = report.stages
+    .map((stage) => `<tr><td>${escapeHtml(stage.id)}</td><td>${escapeHtml(stage.outcome)}</td><td>${escapeHtml(stage.code)}</td><td>${escapeHtml(stage.remediationCode)}</td></tr>`)
+    .join("");
   const rows = report.checks
     .map((check) => `<tr><td>${escapeHtml(check.id)}</td><td>${escapeHtml(check.outcome)}</td><td>${escapeHtml(check.code)}</td><td>${escapeHtml(check.status)}</td></tr>`)
     .join("");
@@ -236,13 +345,22 @@ export function renderProductionAcceptanceHtml(report) {
 <body>
 <h1>Production acceptance: ${escapeHtml(report.outcome)}</h1>
 <dl>
+<dt>Report schema version</dt><dd>${escapeHtml(report.schemaVersion)}</dd>
+<dt>Manifest schema version</dt><dd>${escapeHtml(report.manifestSchemaVersion)}</dd>
+<dt>Portal schema version</dt><dd>${escapeHtml(report.portalSchema?.currentVersion ?? "unavailable")} / ${escapeHtml(report.portalSchema?.latestVersion ?? "unavailable")}</dd>
 <dt>Commit</dt><dd>${escapeHtml(report.source.commitSha)}</dd>
 <dt>Image digest</dt><dd>${escapeHtml(report.image.digest)}</dd>
 <dt>Compose project</dt><dd>${escapeHtml(report.compose.projectName)}</dd>
 <dt>Started</dt><dd>${escapeHtml(report.timing.startedAt)}</dd>
 <dt>Finished</dt><dd>${escapeHtml(report.timing.finishedAt)}</dd>
+<dt>Failure code</dt><dd>${escapeHtml(report.failureCode ?? "none")}</dd>
+<dt>Remediation code</dt><dd>${escapeHtml(report.remediationCode)}</dd>
 <dt>Cleanup</dt><dd>${escapeHtml(report.cleanup.outcome)} (${escapeHtml(report.cleanup.code)})</dd>
 </dl>
+<table>
+<thead><tr><th>Stage</th><th>Outcome</th><th>Code</th><th>Remediation</th></tr></thead>
+<tbody>${stageRows}</tbody>
+</table>
 <table>
 <thead><tr><th>Check</th><th>Outcome</th><th>Code</th><th>Status</th></tr></thead>
 <tbody>${rows}</tbody>

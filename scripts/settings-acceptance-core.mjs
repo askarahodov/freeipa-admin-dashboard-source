@@ -3,7 +3,7 @@ function responseCode(status, expected, code) {
 }
 
 function effectiveSnapshot(payload) {
-  const revision = Number(payload?.revision ?? 0);
+  const revision = Number(payload?.revision);
   const demoMode = payload?.settings?.demoMode;
   const source = payload?.fields?.demoMode?.source;
   if (!Number.isFinite(revision) || revision < 0 || typeof demoMode !== "boolean") {

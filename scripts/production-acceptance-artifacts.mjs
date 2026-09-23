@@ -1,6 +1,8 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import { assertProductionAcceptanceReportSafe } from "./production-acceptance-contract.mjs";
+
 export const DEFAULT_PRODUCTION_ACCEPTANCE_RETENTION_SECONDS = 604_800;
 const MAX_RETENTION_SECONDS = 31_536_000;
 const RUN_ID_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z$/u;
@@ -53,6 +55,7 @@ export async function writeProductionAcceptanceArtifacts({
 }) {
   if (!report || typeof report !== "object") throw new Error("acceptance_report_invalid");
   if (typeof html !== "string") throw new Error("acceptance_report_html_invalid");
+  assertProductionAcceptanceReportSafe({ report, html });
 
   const runId = productionAcceptanceRunId(report.timing?.startedAt);
   const runDirectory = path.join(historyDirectory, runId);

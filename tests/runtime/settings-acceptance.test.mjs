@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { executeSettingsPersistenceRollback } from "../../scripts/settings-acceptance-core.mjs";
+import {
+  executeSettingsPersistenceRollback,
+  settingsAcceptanceRequestHeaders,
+} from "../../scripts/settings-acceptance-core.mjs";
 
 function fakeLifecycle({
   initialSource = "environment",
@@ -175,4 +178,22 @@ test("uncertain apply response still restores settings before surfacing the prim
     source: "environment",
     appliedCount: 2,
   });
+});
+
+
+test("settings acceptance sends the normalized same-origin header with admin mutations", () => {
+  assert.deepEqual(settingsAcceptanceRequestHeaders({
+    origin: "http://127.0.0.1:3100/path",
+    cookie: "portal_session=abc",
+    json: true,
+  }), {
+    accept: "application/json",
+    origin: "http://127.0.0.1:3100",
+    cookie: "portal_session=abc",
+    "content-type": "application/json",
+  });
+  assert.throws(
+    () => settingsAcceptanceRequestHeaders({ origin: "not-a-url" }),
+    /acceptance_settings_origin_invalid/u,
+  );
 });

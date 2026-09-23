@@ -317,5 +317,7 @@ node scripts/production-acceptance-executor.mjs \
   --probe-interval-ms 1500
 ```
 
-`--base-url` is runtime-only input and is deliberately omitted from persisted evidence. The executor is still **read-only baseline only**: it does not run FreeIPA/XYOps mutations, destructive P0 scenarios, restore/upgrade checks or release-exception logic.
+`--base-url` is runtime-only input and is deliberately omitted from persisted evidence. It is **not** a remote-staging URL: this executor always starts its own isolated local Compose project, so only loopback HTTP targets are accepted. `127.0.0.1`, `localhost` and IPv6 loopback input normalize to the local IPv4 publication; credentials, HTTPS, query/hash values and non-root paths are rejected before Docker starts. The runner also overrides any ambient `DASHBOARD_BIND_ADDRESS` / `DASHBOARD_PORT` values so the disposable dashboard is published only on `127.0.0.1` and on the same port used by the acceptance probes.
+
+The executor is still **read-only baseline only**: it does not run FreeIPA/XYOps mutations, destructive P0 scenarios, restore/upgrade checks or release-exception logic.
 

@@ -146,9 +146,13 @@ export async function executeUpgradeAcceptance({
   serviceEnvFile = ".env.acceptance",
   runCommand,
   waitReady,
+  verifyTargetBaseline,
   createAuthenticatedRequest,
 } = {}) {
-  if (typeof runCommand !== "function" || typeof waitReady !== "function" || typeof createAuthenticatedRequest !== "function") {
+  if (typeof runCommand !== "function"
+      || typeof waitReady !== "function"
+      || typeof verifyTargetBaseline !== "function"
+      || typeof createAuthenticatedRequest !== "function") {
     throw new Error("acceptance_upgrade_dependency_invalid");
   }
   const source = validateUpgradeSourcePolicy(policy, { targetImageReference, targetCommitSha });
@@ -183,6 +187,7 @@ export async function executeUpgradeAcceptance({
       || targetReady.currentVersion !== targetReady.latestVersion) {
     throw new Error("acceptance_upgrade_target_schema_mismatch");
   }
+  await verifyTargetBaseline();
 
   const targetRequest = await createAuthenticatedRequest();
   const after = await effectiveSettings(targetRequest);
@@ -194,6 +199,7 @@ export async function executeUpgradeAcceptance({
     outcome: "passed",
     sourceSchema: "verified",
     targetSchema: "verified",
+    targetHealth: "verified",
     login: "verified",
     persistence: "verified",
   });

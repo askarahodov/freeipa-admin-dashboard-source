@@ -106,7 +106,7 @@ test("upgrade commands are bound to the digest-derived project and never build i
     "--project-name", projectName,
     "--env-file", ".env.acceptance",
     "-f", "compose.yaml",
-    "up", "-d", "--no-build", "dashboard",
+    "up", "-d", "--no-deps", "--no-build", "--force-recreate", "dashboard",
   ]);
   assert.deepEqual(upgradeComposeCommand({
     projectName,
@@ -193,9 +193,9 @@ test("upgrade acceptance seeds source state then verifies target schema login an
   });
   assert.deepEqual(commands.map((item) => item.command.slice(-3)), [
     ["down", "--volumes", "--remove-orphans"],
-    ["-d", "--no-build", "dashboard"],
+    ["--no-build", "--force-recreate", "dashboard"],
     ["compose.yaml", "stop", "dashboard"],
-    ["-d", "--no-build", "dashboard"],
+    ["--no-build", "--force-recreate", "dashboard"],
   ]);
   assert.deepEqual(commands.map((item) => item.environment.PORTAL_IMAGE), [
     targetImage,

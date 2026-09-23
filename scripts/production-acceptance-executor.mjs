@@ -52,8 +52,6 @@ const runLocalAuthP0 = process.argv.includes("--run-local-auth-p0");
 const runSettings = process.argv.includes("--run-settings");
 const runFreeIpaRead = process.argv.includes("--run-freeipa-read");
 const runFreeIpaMutations = process.argv.includes("--run-freeipa-mutations");
-const runFreeIpaRead = process.argv.includes("--run-freeipa-read");
-const runFreeIpaMutations = process.argv.includes("--run-freeipa-mutations");
 
 try {
   const acceptanceTarget = normalizeProductionAcceptanceTarget(rawBaseUrl);

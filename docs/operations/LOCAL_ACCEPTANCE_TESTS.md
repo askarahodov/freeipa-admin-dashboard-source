@@ -354,5 +354,46 @@ node scripts/production-acceptance-executor.mjs \
 
 `--base-url` is runtime-only input and is deliberately omitted from persisted evidence. It is **not** a remote-staging URL: this executor always starts its own isolated local Compose project, so only loopback HTTP targets are accepted. `127.0.0.1`, `localhost` and IPv6 loopback input normalize to the local IPv4 publication; credentials, HTTPS, query/hash values and non-root paths are rejected before Docker starts. The runner also overrides any ambient `DASHBOARD_BIND_ADDRESS` / `DASHBOARD_PORT` values so the disposable dashboard is published only on `127.0.0.1` and on the same port used by the acceptance probes.
 
-The executor is still **read-only baseline only**: it does not run FreeIPA/XYOps mutations, destructive P0 scenarios, restore/upgrade checks or release-exception logic.
+Without `--run-local-auth-p0`, the executor remains **read-only baseline only**. Local auth/RBAC/P0 mutations are an explicit opt-in checkpoint described below. FreeIPA/XYOps mutations, restore/upgrade checks and release-exception logic remain out of scope.
 
+
+
+## 13. Opt-in local-auth/RBAC/P0 release scenarios
+
+The production acceptance executor can reuse the canonical local-auth and P0 runners while keeping the same immutable isolated Compose project alive. This mode mutates only the disposable portal user database and is disabled by default.
+
+Provide dedicated acceptance administrator credentials in the caller environment:
+
+```bash
+export PORTAL_ACCEPTANCE_ADMIN_USERNAME=<dedicated-test-admin>
+export PORTAL_ACCEPTANCE_ADMIN_PASSWORD=<dedicated-test-password>
+```
+
+Then require **two independent confirmations**:
+
+1. explicit destructive confirmation `YES`;
+2. the exact digest-derived Compose project name printed by the plan, for example `portal-accept-0123456789ab`.
+
+```bash
+node scripts/production-acceptance-executor.mjs \
+  --plan artifacts/production-acceptance/plan.json \
+  --base-url http://127.0.0.1:3001 \
+  --run-local-auth-p0 \
+  --confirm-destructive YES \
+  --confirm-project portal-accept-0123456789ab
+```
+
+Both confirmations and the dedicated admin credentials are validated **before Compose starts**. A missing/wrong confirmation fails closed.
+
+The executor does not duplicate auth/RBAC/P0 behavior. It invokes the existing canonical owners in order:
+
+```text
+scripts/local-auth-acceptance.mjs
+scripts/p0-operational-acceptance.mjs
+```
+
+The child runners receive the normalized loopback target and `PORTAL_TEST_CONFIRM=YES`. Their restart/recreate flags are forcibly disabled in this orchestration mode because persistence/recreate is owned by Checkpoint C; the production executor remains the only owner of the isolated Compose lifecycle and final volume cleanup.
+
+Production release evidence stores only bounded scenario stage results such as `local_auth_rbac_passed` or `acceptance_p0_operational_failed`; child stdout/stderr, cookies, passwords and raw responses are not copied into the production report. If either scenario fails, later mutation scenarios stop and the isolated Compose cleanup still executes from the executor's `finally` path.
+
+This mode is still not permission to run against production. The production acceptance target is loopback-only and the Compose project is digest-derived and isolated. External FreeIPA/XYOps mutation scenarios are handled by later checkpoints.

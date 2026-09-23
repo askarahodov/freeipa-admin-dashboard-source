@@ -394,3 +394,14 @@ XYOps catalog runtime ownership lives in `worker/xyops-catalog-runtime.ts`: snap
 ## #635 checkpoint C8
 
 The central compatibility tail `worker/index.ts` is removed. `operations-http-entry.ts` delegates unmatched framework/static/RSC/image traffic directly to the explicit `worker/framework-http-entry.ts` owner. The old tail had no scheduled implementation, so the downstream scheduled fallback is preserved explicitly as a no-op. Remaining mixed compatibility adapters are limited to the machine-readable exceptions in `worker/application-composition-contract.ts`.
+
+
+## #636 checkpoint A — architecture fitness foundation
+
+`scripts/architecture-fitness.mjs` is the fast deterministic guard for cross-boundary regressions introduced after the #635 composition cutover. It currently enforces only invariants that have stable canonical evidence:
+
+- `src/**` must not import production `worker/**` or `runtime/**` adapters;
+- the retired central tail `worker/index.ts` must not reappear or be imported;
+- compatibility adapters declared by `worker/application-composition-contract.ts` must be unique, present in the tracked source snapshot and include actionable responsibility, reason and removal condition.
+
+The guard deliberately does **not** replace the root placement policy, canonical route/permission metadata, security-composition tests or application-router parity checks. Negative fixtures in `tests/architecture/architecture-fitness.test.mjs` prove each enforced failure mode, while harmless moves inside one `src/**` owner boundary remain valid.

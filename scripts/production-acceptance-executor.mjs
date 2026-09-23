@@ -59,9 +59,7 @@ const runXyOpsRead = process.argv.includes("--run-xyops-read");
 const runXyOpsLifecycle = process.argv.includes("--run-xyops-lifecycle");
 const runBackupRestore = process.argv.includes("--run-backup-restore-smoke");
 const runUpgrade = process.argv.includes("--run-upgrade");
-const upgradePolicyPath = path.resolve(
-  argument("--upgrade-policy") ?? "release/previous-supported.json",
-);
+const upgradePolicyPath = path.resolve("release/previous-supported.json");
 
 try {
   const acceptanceTarget = normalizeProductionAcceptanceTarget(rawBaseUrl);

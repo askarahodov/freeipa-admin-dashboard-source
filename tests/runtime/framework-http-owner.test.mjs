@@ -98,17 +98,13 @@ test("framework owner passes ordinary static and RSC requests through unchanged"
   assert.equal(received, request);
 });
 
-test("#635 B1 removes Vinext framework implementation from central Worker", () => {
-  const index = fs.readFileSync(new URL("../../worker/index.ts", import.meta.url), "utf8");
+test("#635 final cutover removes the central Worker tail and keeps explicit framework ownership", () => {
   const entry = fs.readFileSync(new URL("../../worker/framework-http-entry.ts", import.meta.url), "utf8");
+  const operations = fs.readFileSync(new URL("../../worker/operations-http-entry.ts", import.meta.url), "utf8");
 
-  assert.equal(index.includes('from "vinext/server/image-optimization"'), false);
-  assert.equal(index.includes('from "vinext/server/app-router-entry"'), false);
-  assert.equal(index.includes('url.pathname === "/_vinext/image"'), false);
-  assert.equal(index.includes('appUrl.pathname = "/"'), false);
-  assert.equal(index.includes('from "./framework-http-entry.ts"'), true);
-  assert.equal(index.includes("handleFrameworkRequest(request, runtimeEnv, ctx)"), true);
-
+  assert.equal(fs.existsSync(new URL("../../worker/index.ts", import.meta.url)), false);
+  assert.equal(operations.includes('from "./framework-http-entry.ts"'), true);
+  assert.equal(operations.includes("handleFrameworkRequest(request, sourceEnv, ctx)"), true);
   assert.equal(entry.includes('from "vinext/server/image-optimization"'), true);
   assert.equal(entry.includes('from "vinext/server/app-router-entry"'), true);
   assert.equal(entry.includes("handleFrameworkHttpRequest(request, env, ctx"), true);

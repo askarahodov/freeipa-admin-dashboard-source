@@ -3,6 +3,7 @@ import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
+import { fileURLToPath } from "node:url";
 
 import {
   DEFAULT_PRODUCTION_ACCEPTANCE_RETENTION_SECONDS,
@@ -59,7 +60,9 @@ const runXyOpsRead = process.argv.includes("--run-xyops-read");
 const runXyOpsLifecycle = process.argv.includes("--run-xyops-lifecycle");
 const runBackupRestore = process.argv.includes("--run-backup-restore-smoke");
 const runUpgrade = process.argv.includes("--run-upgrade");
-const upgradePolicyPath = path.resolve("release/previous-supported.json");
+const upgradePolicyPath = fileURLToPath(
+  new URL("../release/previous-supported.json", import.meta.url),
+);
 
 try {
   const acceptanceTarget = normalizeProductionAcceptanceTarget(rawBaseUrl);
@@ -129,7 +132,6 @@ try {
         ...(runUpgrade ? {
           PORTAL_ACCEPTANCE_TARGET_IMAGE: manifest.image.reference,
           PORTAL_ACCEPTANCE_TARGET_COMMIT: manifest.source.commitSha,
-          PORTAL_ACCEPTANCE_UPGRADE_POLICY: upgradePolicyPath,
         } : {}),
       })
     : null;

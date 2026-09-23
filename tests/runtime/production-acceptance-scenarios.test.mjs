@@ -217,6 +217,10 @@ test("FreeIPA mutation selection always runs safe read first and scopes child mo
   assert.equal(calls.every((item) => item.environment.IPA_PASSWORD === undefined), true);
   assert.equal(calls.every((item) => item.environment.XYOPS_API_KEY === undefined), true);
   assert.equal(calls.every((item) => item.environment.ADMIN_TOKEN === undefined), true);
+  assert.equal(calls[0].environment.PORTAL_ACCEPTANCE_XYOPS_REQUESTER_PASSWORD, undefined);
+  assert.equal(calls[0].environment.PORTAL_ACCEPTANCE_XYOPS_EVENT_ID, undefined);
+  assert.equal(calls[1].environment.PORTAL_ACCEPTANCE_XYOPS_REQUESTER_PASSWORD, "operator-password");
+  assert.equal(calls[1].environment.PORTAL_ACCEPTANCE_XYOPS_EVENT_ID, "portal-acceptance-event");
   assert.deepEqual(stages.map((stage) => [stage.id, stage.outcome]), [
     ["freeipa_read", "passed"],
     ["freeipa_crud_membership", "passed"],
@@ -280,15 +284,28 @@ test("XYOps lifecycle configuration fails closed before Docker execution", () =>
       enabled: true,
       requesterUsername: "accept-operator",
       requesterPassword: "test-password",
+      approverUsername: "accept-admin",
       eventId: "portal-acceptance-event",
       confirmedEventId: "different-event",
     }),
     /acceptance_xyops_event_confirmation_required/u,
   );
+  assert.throws(
+    () => validateProductionAcceptanceXyOpsConfiguration({
+      enabled: true,
+      requesterUsername: "accept-admin",
+      requesterPassword: "test-password",
+      approverUsername: "accept-admin",
+      eventId: "portal-acceptance-event",
+      confirmedEventId: "portal-acceptance-event",
+    }),
+    /acceptance_xyops_independent_approver_required/u,
+  );
   assert.deepEqual(validateProductionAcceptanceXyOpsConfiguration({
     enabled: true,
     requesterUsername: "accept-operator",
     requesterPassword: "test-password",
+    approverUsername: "accept-admin",
     eventId: "portal-acceptance-event",
     confirmedEventId: "portal-acceptance-event",
   }), { enabled: true, eventId: "portal-acceptance-event" });

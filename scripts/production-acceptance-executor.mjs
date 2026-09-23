@@ -180,6 +180,9 @@ export async function runProductionAcceptance(manifest, options = {}) {
           checks.push(await executeProbe(check, { baseUrl, requestJson, now }));
         }
       }
+      if (readiness.code === "startup_timeout") {
+        failureCodes.push("acceptance_baseline_timeout");
+      }
       if (checks.some((check) => check.outcome !== "passed")) {
         failureCodes.push("acceptance_baseline_failed");
       }
@@ -248,6 +251,7 @@ export function renderProductionAcceptanceHtml(report) {
     `<p>Image digest: <code>${escapeHtml(report.image.digest)}</code></p>`,
     `<p>Compose project: <code>${escapeHtml(report.compose.projectName)}</code></p>`,
     `<p>Start: ${escapeHtml(report.compose.start)}; cleanup: ${escapeHtml(report.compose.cleanup)}</p>`,
+    `<p>Failure codes: ${escapeHtml(report.failureCodes.length > 0 ? report.failureCodes.join(", ") : "none")}</p>`,
     "<table><thead><tr><th>Check</th><th>Outcome</th><th>Status</th><th>Code</th><th>Attempts</th></tr></thead>",
     `<tbody>${rows}</tbody></table>`,
     "</body></html>",

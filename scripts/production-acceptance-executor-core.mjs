@@ -10,26 +10,29 @@ const DEFAULT_STARTUP_TIMEOUT_MS = 60_000;
 const DEFAULT_PROBE_INTERVAL_MS = 1_000;
 const ACCEPTANCE_LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
 
+const ACCEPTANCE_LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
+
 export function normalizeProductionAcceptanceTarget(value) {
-  let url;
+  let parsed;
   try {
-    url = new URL(String(value ?? ""));
+    parsed = new URL(String(value ?? "").trim());
   } catch {
     throw new Error("acceptance_base_url_invalid");
   }
 
-  if (url.protocol !== "http:") throw new Error("acceptance_base_url_invalid");
-  if (!ACCEPTANCE_LOOPBACK_HOSTS.has(url.hostname.toLowerCase())) {
-    throw new Error("acceptance_base_url_not_loopback");
-  }
-  if (url.username || url.password || url.search || url.hash || url.pathname !== "/") {
-    throw new Error("acceptance_base_url_invalid");
+  if (parsed.protocol !== "http:") throw new Error("acceptance_base_url_protocol_invalid");
+  if (parsed.username || parsed.password) throw new Error("acceptance_base_url_credentials_forbidden");
+  if (parsed.search) throw new Error("acceptance_base_url_query_forbidden");
+  if (parsed.hash) throw new Error("acceptance_base_url_fragment_forbidden");
+  if (parsed.pathname !== "/") throw new Error("acceptance_base_url_path_invalid");
+  if (!ACCEPTANCE_LOOPBACK_HOSTS.has(parsed.hostname.toLowerCase())) {
+    throw new Error("acceptance_base_url_loopback_required");
   }
 
-  const port = url.port || "3001";
+  const port = parsed.port || "3001";
   const numericPort = Number(port);
   if (!Number.isInteger(numericPort) || numericPort < 1 || numericPort > 65535) {
-    throw new Error("acceptance_base_url_invalid");
+    throw new Error("acceptance_base_url_port_invalid");
   }
 
   return Object.freeze({
@@ -42,7 +45,11 @@ export function normalizeProductionAcceptanceTarget(value) {
   });
 }
 
-export function productionAcceptanceCommandEnvironment(ambientEnvironment, manifestEnvironment, target) {
+export function productionAcceptanceCommandEnvironment(
+  ambientEnvironment,
+  manifestEnvironment,
+  target,
+) {
   if (!target?.composeEnvironment) throw new Error("acceptance_base_url_invalid");
   return Object.freeze({
     ...(ambientEnvironment ?? {}),

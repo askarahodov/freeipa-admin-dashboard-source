@@ -23,7 +23,15 @@ function manifest() {
 }
 
 function healthyResponse(check) {
-  return { status: 200, json: { ...check.requiredJson } };
+  return {
+    status: 200,
+    json: {
+      ...check.requiredJson,
+      ...(check.id === "readiness"
+        ? { metadata: { schemaVersion: 12, latestSchemaVersion: 12 } }
+        : {}),
+    },
+  };
 }
 
 test("executor accepts only the exact versioned read-only manifest contract", () => {
@@ -157,6 +165,8 @@ test("executor starts exact compose plan, checks baseline and always tears down 
   });
 
   assert.equal(report.schemaVersion, PRODUCTION_ACCEPTANCE_REPORT_SCHEMA_VERSION);
+  assert.equal(report.manifestSchemaVersion, plan.schemaVersion);
+  assert.deepEqual(report.portalSchema, { currentVersion: 12, latestVersion: 12 });
   assert.equal(report.outcome, "passed");
   assert.equal(report.failureCode, null);
   assert.equal(report.remediationCode, "none");
@@ -171,6 +181,37 @@ test("executor starts exact compose plan, checks baseline and always tears down 
   assert.deepEqual(commands[1].command, acceptanceCleanupCommand(plan));
   assert.deepEqual(commands[0].environment, plan.compose.environment);
   assert.deepEqual(report.cleanup, { outcome: "passed", code: "cleanup_complete" });
+});
+
+test("healthy baseline fails closed when readiness schema metadata is missing or mismatched", async () => {
+  const plan = manifest();
+
+  const missing = await executeProductionAcceptance({
+    manifest: plan,
+    runCommand: async () => {},
+    probe: async (check) => ({ status: 200, json: { ...check.requiredJson } }),
+  });
+  assert.equal(missing.outcome, "failed");
+  assert.equal(missing.failureCode, "acceptance_schema_metadata_missing");
+  assert.equal(missing.remediationCode, "inspect_local_schema_readiness");
+
+  const mismatched = await executeProductionAcceptance({
+    manifest: plan,
+    runCommand: async () => {},
+    probe: async (check) => ({
+      status: 200,
+      json: {
+        ...check.requiredJson,
+        ...(check.id === "readiness"
+          ? { metadata: { schemaVersion: 11, latestSchemaVersion: 12 } }
+          : {}),
+      },
+    }),
+  });
+  assert.equal(mismatched.outcome, "failed");
+  assert.equal(mismatched.failureCode, "acceptance_schema_version_mismatch");
+  assert.equal(mismatched.remediationCode, "inspect_local_schema_migrations");
+  assert.deepEqual(mismatched.portalSchema, { currentVersion: 11, latestVersion: 12 });
 });
 
 test("executor retries unhealthy startup and reports bounded timeout without leaking probe details", async () => {
@@ -261,7 +302,10 @@ test("HTML evidence renders only the already-sanitized bounded report", async ()
   });
   const html = renderProductionAcceptanceHtml(report);
   assert.match(html, /Production acceptance: passed/u);
-  assert.match(html, /Schema version/u);
+  assert.match(html, /Report schema version/u);
+  assert.match(html, /Manifest schema version/u);
+  assert.match(html, /Portal schema version/u);
+  assert.match(html, /12 \/ 12/u);
   assert.match(html, /Remediation code/u);
   assert.match(html, /baseline_healthy/u);
   assert.match(html, new RegExp(commit, "u"));

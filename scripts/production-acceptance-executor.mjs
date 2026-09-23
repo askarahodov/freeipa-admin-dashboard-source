@@ -3,6 +3,7 @@ import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
+import { fileURLToPath } from "node:url";
 
 import {
   DEFAULT_PRODUCTION_ACCEPTANCE_RETENTION_SECONDS,
@@ -21,8 +22,10 @@ import {
   productionAcceptanceScenarioEnvironment,
   runProductionAcceptanceScenarios,
   validateProductionAcceptanceMutationConfirmation,
+  validateProductionAcceptanceUpgradeSelection,
   validateProductionAcceptanceXyOpsConfiguration,
 } from "./production-acceptance-scenarios.mjs";
+import { validateUpgradeSourcePolicy } from "./upgrade-acceptance-core.mjs";
 
 const execFileAsync = promisify(execFile);
 
@@ -56,6 +59,10 @@ const runFreeIpaMutations = process.argv.includes("--run-freeipa-mutations");
 const runXyOpsRead = process.argv.includes("--run-xyops-read");
 const runXyOpsLifecycle = process.argv.includes("--run-xyops-lifecycle");
 const runBackupRestore = process.argv.includes("--run-backup-restore-smoke");
+const runUpgrade = process.argv.includes("--run-upgrade");
+const upgradePolicyPath = fileURLToPath(
+  new URL("../release/previous-supported.json", import.meta.url),
+);
 
 try {
   const acceptanceTarget = normalizeProductionAcceptanceTarget(rawBaseUrl);
@@ -68,7 +75,26 @@ try {
   const manifest = JSON.parse(await fs.readFile(planPath, "utf8"));
   validateProductionAcceptanceManifest(manifest);
 
-  const mutationRequested = runLocalAuthP0 || runSettings || runFreeIpaMutations || runXyOpsLifecycle;
+  const otherScenarioRequested = runLocalAuthP0
+    || runSettings
+    || runFreeIpaRead
+    || runFreeIpaMutations
+    || runXyOpsRead
+    || runXyOpsLifecycle
+    || runBackupRestore;
+  validateProductionAcceptanceUpgradeSelection({
+    enabled: runUpgrade,
+    conflicting: runUpgrade && otherScenarioRequested,
+  });
+  if (runUpgrade) {
+    const upgradePolicy = JSON.parse(await fs.readFile(upgradePolicyPath, "utf8"));
+    validateUpgradeSourcePolicy(upgradePolicy, {
+      targetImageReference: manifest.image.reference,
+      targetCommitSha: manifest.source.commitSha,
+    });
+  }
+
+  const mutationRequested = runLocalAuthP0 || runSettings || runFreeIpaMutations || runXyOpsLifecycle || runUpgrade;
   validateProductionAcceptanceMutationConfirmation({
     enabled: mutationRequested,
     confirmation: argument("--confirm-destructive") ?? process.env.PORTAL_ACCEPTANCE_CONFIRM_DESTRUCTIVE,
@@ -92,14 +118,21 @@ try {
     includeXyOpsRead: runXyOpsRead,
     includeXyOpsLifecycle: runXyOpsLifecycle,
     includeBackupRestore: runBackupRestore,
+    includeUpgrade: runUpgrade,
   });
   const scenarioEnvironment = scenarioDefinitions.length
-    ? productionAcceptanceScenarioEnvironment({
-        ambientEnvironment: process.env,
-        baseUrl: acceptanceTarget.baseUrl,
-        adminUsername: process.env.PORTAL_ACCEPTANCE_ADMIN_USERNAME,
-        adminPassword: process.env.PORTAL_ACCEPTANCE_ADMIN_PASSWORD,
-        projectName: manifest.compose.projectName,
+    ? Object.freeze({
+        ...productionAcceptanceScenarioEnvironment({
+          ambientEnvironment: process.env,
+          baseUrl: acceptanceTarget.baseUrl,
+          adminUsername: process.env.PORTAL_ACCEPTANCE_ADMIN_USERNAME,
+          adminPassword: process.env.PORTAL_ACCEPTANCE_ADMIN_PASSWORD,
+          projectName: manifest.compose.projectName,
+        }),
+        ...(runUpgrade ? {
+          PORTAL_ACCEPTANCE_TARGET_IMAGE: manifest.image.reference,
+          PORTAL_ACCEPTANCE_TARGET_COMMIT: manifest.source.commitSha,
+        } : {}),
       })
     : null;
 

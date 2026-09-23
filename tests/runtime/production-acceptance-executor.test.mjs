@@ -151,6 +151,10 @@ test("release evidence uses bounded remediation codes", () => {
     "inspect_backup_restore_acceptance",
   );
   assert.equal(
+    productionAcceptanceRemediationCode("acceptance_previous_supported_upgrade_failed"),
+    "inspect_upgrade_acceptance",
+  );
+  assert.equal(
     productionAcceptanceRemediationCode("acceptance_unknown_failure"),
     "inspect_acceptance_executor",
   );

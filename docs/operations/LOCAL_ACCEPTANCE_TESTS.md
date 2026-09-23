@@ -565,3 +565,78 @@ The stage snapshots the authenticated administrator identity plus effective sett
 The backup password is generated inside the child process and is never persisted. The runner never invokes selective restore prepare/commit. Backup payloads, password, approval token, user data, restored contents, cookies and upstream credentials are not copied into release evidence. The production report stores only the bounded `backup_restore_smoke` stage with safe pass/fail/remediation codes.
 
 The restore approval token remains bound to the encrypted backup manifest and to the current state of mutable selected domains. Current `audit` content is intentionally excluded from the stale-state digest because audit is append-only and the export/preview/test-restore operations themselves append audit events; the audit exporter is still read and schema-validated, and the backup-side `audit` manifest entry remains token-bound. This does not enable selective audit restore, which remains unsupported.
+
+
+## 18. Previous-supported-version upgrade acceptance
+
+Checkpoint I adds an opt-in upgrade smoke for the same digest-derived disposable Compose project and volume used by production acceptance.
+
+The source release is not supplied on the command line. It is owned by the version-controlled policy:
+
+```text
+release/previous-supported.json
+```
+
+The policy format is versioned. A configured source must contain:
+
+- a bounded release/source identifier;
+- the exact 40-hex source commit;
+- an immutable image reference in `repository@sha256:<64-hex-digest>` form;
+- the expected portal schema version exposed by that source image.
+
+The source image repository must exactly match the target image repository from the generated production-acceptance plan. Mutable tags, a source digest equal to the target digest, a source commit equal to the target commit, malformed schema versions and cross-repository source images fail closed before Docker execution.
+
+The declared source commit is also bound to the immutable image itself. Runtime images intended to participate in upgrade acceptance must be built with:
+
+```bash
+docker build --target runtime \
+  --build-arg PORTAL_SOURCE_COMMIT=<40-hex-git-sha> \
+  ...
+```
+
+The runtime image stores that SHA in the standard OCI label `org.opencontainers.image.revision`. The upgrade runner first pulls the exact immutable source digest, inspects that local digest, and requires the OCI revision to equal policy `commitSha` **before the source container is started**. A missing, malformed or mismatched revision fails closed; a well-formed but unrelated SHA in the policy cannot certify or execute the image.
+
+The repository currently contains an explicit unconfigured policy:
+
+```json
+{
+  "schemaVersion": 1,
+  "state": "unconfigured",
+  "previousSupported": null
+}
+```
+
+This is intentional. The repository currently has no GitHub Release/tag and CI does not publish a production image to a registry, so there is no honest immutable previous-supported image digest to record. Do not replace the unconfigured state with a guessed digest, a mutable tag, a local Docker image ID or an arbitrary old commit. Populate the policy only when the previous supported production image has actually been published and its source commit/schema are known.
+
+After the policy is configured, run upgrade acceptance as an exclusive scenario:
+
+```bash
+node scripts/production-acceptance-executor.mjs \
+  --plan artifacts/production-acceptance/plan.json \
+  --base-url http://127.0.0.1:3001 \
+  --run-upgrade \
+  --confirm-destructive YES \
+  --confirm-project portal-accept-0123456789ab
+```
+
+`release/previous-supported.json` is the only accepted source-policy path; the executor does not expose an arbitrary policy-file override. The dedicated acceptance administrator credentials are required as for other portal mutation scenarios.
+
+Upgrade mode is deliberately exclusive: do not combine `--run-upgrade` with local-auth/P0, settings, FreeIPA, XYOps or backup/restore scenario flags. Upgrade resets only the exact digest-derived disposable acceptance project/volume before seeding source state; combining it with other scenarios would invalidate their state ordering.
+
+The stage performs:
+
+1. remove only the isolated acceptance project containers and volume;
+2. pull the configured immutable previous-supported digest and verify its OCI source revision against the policy commit;
+3. start that verified source image with `--no-deps --no-build --force-recreate` on the exact acceptance project;
+4. require healthy source readiness with the policy-declared current/latest schema version;
+5. authenticate using the dedicated acceptance administrator;
+6. persist a non-secret `demoMode` marker through the canonical settings draft/validate/apply lifecycle;
+7. stop only the source dashboard container while preserving the acceptance volume;
+8. start the exact target image digest from the acceptance manifest with `--no-deps --no-build --force-recreate`;
+9. require target readiness with `currentVersion === latestVersion` and no schema regression below the source version;
+10. re-run the strict final target baseline: healthy liveness/readiness/dependencies and inactive maintenance;
+11. authenticate again and require the exact settings marker revision/value to survive the upgrade.
+
+The outer production-acceptance executor remains responsible for unconditional final `down --volumes --remove-orphans` cleanup. Source/target image references, source release identifiers, settings payloads, cookies and credentials are not copied into release evidence; the report stores only the bounded `previous_supported_upgrade` stage pass/fail/remediation code.
+
+Until `release/previous-supported.json` is configured from a real immutable published production image, `--run-upgrade` must fail with `acceptance_upgrade_source_unconfigured` before Docker starts. This is a release-readiness blocker, not a skippable successful upgrade.

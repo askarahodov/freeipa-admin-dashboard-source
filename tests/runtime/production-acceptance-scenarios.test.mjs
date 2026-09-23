@@ -6,6 +6,7 @@ import {
   productionAcceptanceScenarioEnvironment,
   runProductionAcceptanceScenarios,
   validateProductionAcceptanceMutationConfirmation,
+  validateProductionAcceptanceUpgradeSelection,
   validateProductionAcceptanceXyOpsConfiguration,
 } from "../../scripts/production-acceptance-scenarios.mjs";
 
@@ -404,6 +405,64 @@ test("backup restore smoke is opt-in and strips server/upstream secrets", async 
     id: "backup_restore_smoke",
     outcome: "passed",
     code: "backup_restore_smoke_passed",
+    remediationCode: "none",
+  }]);
+});
+
+
+test("upgrade selection is exclusive and fails before lifecycle work when combined", () => {
+  assert.deepEqual(validateProductionAcceptanceUpgradeSelection(), { enabled: false });
+  assert.deepEqual(validateProductionAcceptanceUpgradeSelection({
+    enabled: true,
+    conflicting: false,
+  }), { enabled: true });
+  assert.throws(
+    () => validateProductionAcceptanceUpgradeSelection({
+      enabled: true,
+      conflicting: true,
+    }),
+    /acceptance_upgrade_must_be_exclusive/u,
+  );
+});
+
+test("upgrade scenario is opt-in and strips server/upstream credentials", async () => {
+  const definitions = productionAcceptanceScenarioDefinitions({
+    includeLocalAuthP0: false,
+    includeUpgrade: true,
+  });
+  assert.deepEqual(definitions.map((item) => item.id), ["previous_supported_upgrade"]);
+
+  const calls = [];
+  const stages = await runProductionAcceptanceScenarios({
+    definitions,
+    environment: {
+      PORTAL_TEST_ADMIN_USERNAME: "accept-admin",
+      PORTAL_TEST_ADMIN_PASSWORD: "admin-password",
+      PORTAL_ACCEPTANCE_PROJECT_NAME: "portal-accept-0123456789ab",
+      PORTAL_ACCEPTANCE_TARGET_IMAGE: "registry.example.test/portal@sha256:" + "a".repeat(64),
+      PORTAL_ACCEPTANCE_TARGET_COMMIT: "b".repeat(40),
+      PORTAL_ACCEPTANCE_UPGRADE_POLICY: "/repo/release/previous-supported.json",
+      ADMIN_TOKEN: "must-not-reach-child",
+      CONFIG_ENCRYPTION_KEY: "must-not-reach-child",
+      IPA_PASSWORD: "must-not-reach-child",
+      XYOPS_API_KEY: "must-not-reach-child",
+      PORTAL_PROXY_SHARED_SECRET: "must-not-reach-child",
+    },
+    runScript: async (script, environment) => calls.push({ script, environment }),
+  });
+
+  assert.equal(calls[0].script, "scripts/upgrade-acceptance.mjs");
+  assert.equal(calls[0].environment.PORTAL_ACCEPTANCE_TARGET_COMMIT, "b".repeat(40));
+  assert.equal(calls[0].environment.ADMIN_TOKEN, undefined);
+  assert.equal(calls[0].environment.CONFIG_ENCRYPTION_KEY, undefined);
+  assert.equal(calls[0].environment.IPA_PASSWORD, undefined);
+  assert.equal(calls[0].environment.XYOPS_API_KEY, undefined);
+  assert.equal(calls[0].environment.PORTAL_PROXY_SHARED_SECRET, undefined);
+  assert.equal(calls[0].environment.PORTAL_ACCEPTANCE_UPGRADE_POLICY, undefined);
+  assert.deepEqual(stages, [{
+    id: "previous_supported_upgrade",
+    outcome: "passed",
+    code: "previous_supported_upgrade_passed",
     remediationCode: "none",
   }]);
 });

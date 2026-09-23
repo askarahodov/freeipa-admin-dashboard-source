@@ -2,6 +2,7 @@
 import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import { promisify } from "node:util";
+import { fileURLToPath } from "node:url";
 
 import {
   executeUpgradeAcceptance,
@@ -18,12 +19,12 @@ const adminPassword = String(process.env.PORTAL_TEST_ADMIN_PASSWORD ?? "");
 const projectName = String(process.env.PORTAL_ACCEPTANCE_PROJECT_NAME ?? "").trim();
 const targetImage = String(process.env.PORTAL_ACCEPTANCE_TARGET_IMAGE ?? "").trim();
 const targetCommit = String(process.env.PORTAL_ACCEPTANCE_TARGET_COMMIT ?? "").trim();
-const policyPath = String(process.env.PORTAL_ACCEPTANCE_UPGRADE_POLICY ?? "release/previous-supported.json").trim();
+const policyPath = fileURLToPath(new URL("../release/previous-supported.json", import.meta.url));
 const rawBaseUrl = String(process.env.PORTAL_TEST_BASE_URL ?? "http://127.0.0.1:3001").trim();
 
 if (confirm !== "YES") throw new Error("acceptance_upgrade_confirmation_required");
 if (!adminUsername || !adminPassword) throw new Error("acceptance_upgrade_admin_credentials_required");
-if (!projectName || !targetImage || !targetCommit || !policyPath) {
+if (!projectName || !targetImage || !targetCommit) {
   throw new Error("acceptance_upgrade_configuration_required");
 }
 
@@ -40,6 +41,23 @@ async function runCommand(command, environment = {}) {
     }, target),
     maxBuffer: 1024 * 1024,
   });
+}
+
+async function readSourceImageRevision(imageReference) {
+  try {
+    const { stdout } = await execFileAsync("docker", [
+      "image",
+      "inspect",
+      imageReference,
+      "--format",
+      '{{ index .Config.Labels "org.opencontainers.image.revision" }}',
+    ], {
+      maxBuffer: 64 * 1024,
+    });
+    return String(stdout ?? "").trim();
+  } catch {
+    throw new Error("acceptance_upgrade_source_provenance_unavailable");
+  }
 }
 
 async function waitReady(expectedVersion) {
@@ -133,6 +151,7 @@ try {
     projectName,
     runCommand,
     waitReady,
+    readSourceImageRevision,
     verifyTargetBaseline,
     createAuthenticatedRequest,
   });

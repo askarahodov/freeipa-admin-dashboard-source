@@ -412,3 +412,10 @@ The guard deliberately does **not** replace the root placement policy, canonical
 The same architecture fitness guard additionally treats the canonical `src/**` import graph as an acyclic domain/application graph and reports the complete offending cycle when one is introduced. It also prevents `runtime/**` process-hosting modules from importing the canonical Worker/application route owners (`application-router.ts` and the route contract/router/security-plan modules). Runtime may host the built Worker and scheduler; it must not become a second HTTP/domain router.
 
 These checks remain structural rather than filename-layout scoring: acyclic moves within `src/**` are accepted, and ordinary runtime-to-runtime hosting dependencies are allowed.
+
+
+## #636 checkpoint C — route owner and sensitive-path parity
+
+Architecture fitness consumes the existing canonical `portalRouteContracts` as input and verifies that every declared route owner resolves to a tracked source file. It does not define route paths, permissions, auth boundaries or mutation classes itself; those remain owned by `src/auth/portal-route-contract.ts` and its existing contract tests.
+
+The application-router parity suite also asserts that unknown sensitive `/api/admin/**` and `/api/integrations/**` paths are classified as `unknown-api` and routed through the negative path rather than silently becoming framework/static traffic.

@@ -145,6 +145,29 @@ export function inspectArchitectureFitness(files, options = {}) {
     ));
   }
 
+  const routeContracts = Array.from(options.routeContracts ?? []);
+  for (const route of routeContracts) {
+    const routeId = String(route?.id ?? "").trim() || "<missing-route-id>";
+    const ownerPath = normalizePath(route?.owner);
+    if (!ownerPath) {
+      issues.push(issue(
+        "invalid-route-owner",
+        "src/auth/portal-route-contract.ts",
+        null,
+        `Canonical route '${routeId}' must name one explicit tracked source owner.`,
+      ));
+      continue;
+    }
+    if (!knownPaths.has(ownerPath)) {
+      issues.push(issue(
+        "missing-route-owner",
+        "src/auth/portal-route-contract.ts",
+        ownerPath,
+        `Canonical route '${routeId}' points to missing owner '${ownerPath}'. Update the canonical route owner to the real handler/adapter or restore the tracked owner before merge.`,
+      ));
+    }
+  }
+
   const adapters = Array.from(options.compatibilityAdapters ?? []);
   const adapterPaths = new Set();
   for (const adapter of adapters) {

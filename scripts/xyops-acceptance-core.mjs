@@ -224,7 +224,7 @@ export async function executeXyOpsLifecycleAcceptance({
     throw new Error("acceptance_xyops_polling_invalid");
   }
 
-  await readStatus(requesterRequest);
+  await readStatus(approverRequest);
   const { events } = await readCatalog(requesterRequest);
   dedicatedLifecycleEvent(events, normalized);
 

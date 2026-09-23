@@ -13,6 +13,10 @@ export function validateUpgradeSourcePolicy(value, { targetImageReference, targe
   if (!plainObject(value) || value.schemaVersion !== UPGRADE_POLICY_SCHEMA_VERSION) {
     throw new Error("acceptance_upgrade_policy_invalid");
   }
+  const topLevelKeys = new Set(["schemaVersion", "state", "previousSupported"]);
+  if (Object.keys(value).some((key) => !topLevelKeys.has(key))) {
+    throw new Error("acceptance_upgrade_policy_invalid");
+  }
   if (value.state === "unconfigured") {
     if (value.previousSupported !== null) throw new Error("acceptance_upgrade_policy_invalid");
     throw new Error("acceptance_upgrade_source_unconfigured");
@@ -30,7 +34,7 @@ export function validateUpgradeSourcePolicy(value, { targetImageReference, targe
   if (!/^[A-Za-z0-9_.-]{1,80}$/u.test(id)) throw new Error("acceptance_upgrade_policy_invalid");
   const commitSha = normalizeCommitSha(source.commitSha);
   const image = parseImmutableImageReference(source.image);
-  const portalSchemaVersion = Number(source.portalSchemaVersion);
+  const portalSchemaVersion = source.portalSchemaVersion;
   if (!Number.isInteger(portalSchemaVersion) || portalSchemaVersion < 1) {
     throw new Error("acceptance_upgrade_policy_invalid");
   }

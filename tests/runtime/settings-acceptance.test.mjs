@@ -3,7 +3,12 @@ import test from "node:test";
 
 import { executeSettingsPersistenceRollback } from "../../scripts/settings-acceptance-core.mjs";
 
-function fakeLifecycle({ initialSource = "environment", failAfterApply = false, rollbackMismatch = false } = {}) {
+function fakeLifecycle({
+  initialSource = "environment",
+  failAfterApply = false,
+  failApplyResponseAfterMutation = false,
+  rollbackMismatch = false,
+} = {}) {
   let revision = 10;
   let demoMode = false;
   let source = initialSource;
@@ -55,6 +60,9 @@ function fakeLifecycle({ initialSource = "environment", failAfterApply = false, 
       }
       revision += 1;
       appliedCount += 1;
+      if (failApplyResponseAfterMutation && appliedCount === 1) {
+        throw new Error("connection lost after apply");
+      }
       return { status: 200, json: { ok: true, settings: { demoMode } } };
     }
 
@@ -147,4 +155,24 @@ test("invalid effective settings fail before any mutation", async () => {
     /acceptance_settings_effective_invalid/u,
   );
   assert.equal(mutations, 0);
+});
+
+
+test("uncertain apply response still restores settings before surfacing the primary error", async () => {
+  const fake = fakeLifecycle({
+    initialSource: "environment",
+    failApplyResponseAfterMutation: true,
+  });
+
+  await assert.rejects(
+    () => executeSettingsPersistenceRollback({ request: fake.request }),
+    /connection lost after apply/u,
+  );
+
+  assert.deepEqual(fake.state(), {
+    revision: 12,
+    demoMode: false,
+    source: "environment",
+    appliedCount: 2,
+  });
 });

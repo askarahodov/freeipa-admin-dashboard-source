@@ -252,7 +252,7 @@ async function verifyCreatedUserPersistence(actionLabel) {
 async function cleanup() {
   if (!createdUser) return;
   try {
-    if (!adminCookie) adminCookie = (await login(adminUsername, adminPassword)).cookie;
+    adminCookie = (await login(adminUsername, adminPassword)).cookie;
     await request(`/api/auth/users/${encodeURIComponent(createdUser.id)}`, {
       method: "DELETE",
       cookie: adminCookie,

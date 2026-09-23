@@ -1,3 +1,8 @@
+import {
+  acceptanceProjectName,
+  parseImmutableImageReference,
+} from "./production-acceptance-contract.mjs";
+
 const SERVICE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.-]*$/u;
 
 function required(value, code) {
@@ -11,6 +16,7 @@ export function buildP0DashboardPersistenceCommand({
   composeFile,
   composeEnvFile,
   composeService,
+  imageReference,
 }) {
   const normalizedAction = String(action ?? "").trim();
   if (!["restart", "recreate"].includes(normalizedAction)) {
@@ -22,7 +28,14 @@ export function buildP0DashboardPersistenceCommand({
   const service = required(composeService, "p0_persistence_compose_service_required");
   if (!SERVICE_PATTERN.test(service)) throw new Error("p0_persistence_compose_service_invalid");
 
-  const common = ["compose", "--env-file", envFile, "-f", file];
+  let image = null;
+  if (imageReference) image = parseImmutableImageReference(imageReference);
+  if (normalizedAction === "recreate" && !image) {
+    throw new Error("p0_persistence_image_required");
+  }
+
+  const projectArgs = image ? ["--project-name", acceptanceProjectName(image.digest)] : [];
+  const common = ["compose", ...projectArgs, "--env-file", envFile, "-f", file];
   const args = normalizedAction === "restart"
     ? [...common, "restart", service]
     : [...common, "up", "-d", "--no-deps", "--no-build", "--force-recreate", service];
@@ -30,5 +43,11 @@ export function buildP0DashboardPersistenceCommand({
   return Object.freeze({
     command: "docker",
     args: Object.freeze(args),
+    environment: Object.freeze(image
+      ? {
+          PORTAL_IMAGE: image.reference,
+          PORTAL_SERVICE_ENV_FILE: envFile,
+        }
+      : {}),
   });
 }

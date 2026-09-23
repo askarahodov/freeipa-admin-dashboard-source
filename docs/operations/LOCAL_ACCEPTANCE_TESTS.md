@@ -231,7 +231,17 @@ set +a
 npm run test:p0:acceptance
 ```
 
-При `PORTAL_TEST_RESTART_DASHBOARD=true` runner создаёт временного viewer, проверяет lock/unlock и login, перезапускает только Dashboard service, затем повторно проверяет пользователя, роль и login. При `PORTAL_TEST_RECREATE_DASHBOARD=true` после этого выполняется `docker compose up -d --no-deps --no-build --force-recreate dashboard` и та же persisted-state проверка повторяется. Временный пользователь удаляется в cleanup. Не запускайте этот P0 runner против production.
+При `PORTAL_TEST_RESTART_DASHBOARD=true` runner создаёт временного viewer, проверяет lock/unlock и login, перезапускает только Dashboard service, затем повторно проверяет пользователя, роль и login.
+
+Recreate — отдельная более строгая release-acceptance проверка. Перед её включением используйте dedicated `.env.acceptance`, укажите exact digest image и включите флаг:
+
+```env
+PORTAL_TEST_RECREATE_DASHBOARD=true
+PORTAL_TEST_ACCEPTANCE_IMAGE=harbor.example.invalid/portal/admin-dashboard@sha256:<64-hex-digest>
+PORTAL_TEST_COMPOSE_ENV_FILE=.env.acceptance
+```
+
+Для recreate runner сам выводит тот же `portal-accept-<digest-prefix>` Compose project, передаёт `PORTAL_IMAGE` и `PORTAL_SERVICE_ENV_FILE` как authoritative overrides и выполняет `docker compose ... up -d --no-deps --no-build --force-recreate dashboard`. Поэтому проверка не может незаметно пересобрать или подменить immutable release image и не пересоздаёт зависимости/volume. После recreate снова проверяются временный пользователь, роль и login. Временный пользователь удаляется в cleanup. Не запускайте этот P0 runner против production.
 
 ## 9. Результаты
 
@@ -282,7 +292,8 @@ The command only creates `artifacts/production-acceptance/plan.json`; it does **
 - an isolated Compose project name derived from the digest;
 - the Compose-owned isolated `dashboard-data` volume name;
 - `--no-build` execution semantics so a release run cannot silently rebuild a different image;
-- the default read-only baseline: healthy liveness/readiness, healthy dependencies and explicitly inactive maintenance. A `503`, degraded dependency payload or active/failed maintenance state is a release-blocking baseline failure, not an accepted degraded pass.
+- the default read-only baseline: healthy liveness/readiness, healthy dependencies and explicitly inactive maintenance. A `503`, degraded dependency payload or active/failed maintenance state is a release-blocking baseline failure, not an accepted degraded pass;
+- readiness must expose integer `metadata.schemaVersion` and `metadata.latestSchemaVersion`, and both values must match. Missing or behind schema metadata is release-blocking evidence rather than an implicit pass.
 
 The generated plan records both `PORTAL_IMAGE` and `PORTAL_SERVICE_ENV_FILE=.env.acceptance`.
 Before any later execution step, create `.env.acceptance` from the normal environment template and replace all credentials with dedicated staging/test values. Do not reuse a production `.env`.

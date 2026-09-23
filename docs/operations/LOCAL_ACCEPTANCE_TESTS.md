@@ -259,7 +259,7 @@ Acceptance считается пройденным, когда:
 Release-level acceptance from #61 starts with an immutable image reference instead of a mutable tag. Generate the non-destructive execution plan with:
 
 ```bash
-npm run acceptance:plan -- \
+node scripts/production-acceptance-plan.mjs \
   --image harbor.example.invalid/portal/admin-dashboard@sha256:<64-hex-digest> \
   --commit <40-hex-git-sha>
 ```

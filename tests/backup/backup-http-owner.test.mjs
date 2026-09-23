@@ -91,7 +91,7 @@ test("#634A gives sanitized export one post-security HTTP owner", () => {
   const owner = fs.readFileSync(ownerUrl, "utf8");
   const handler = fs.readFileSync(handlerUrl, "utf8");
   const secure = fs.readFileSync(secureUrl, "utf8");
-  const central = fs.readFileSync(centralUrl, "utf8");
+  assert.equal(fs.existsSync(centralUrl), false, "retired central Worker tail must stay absent");
   const routes = fs.readFileSync(routesUrl, "utf8");
 
   assert.equal(secure.includes('import runtime from "./backup-http-entry.ts"'), true);
@@ -99,11 +99,9 @@ test("#634A gives sanitized export one post-security HTTP owner", () => {
   assert.equal(owner.includes('from "./backup-http.ts"'), true);
   assert.equal(handler.includes('requirePortalPermission(request, env, "backup.export")'), true);
   assert.equal(handler.includes("createAuditContext"), true);
-  assert.equal(central.includes('url.pathname === "/api/admin/backups/export"'), false);
-  assert.equal(central.includes('handleBackupExportRequest'), false);
   assert.match(routes, /id: "backup\.export\.sanitized".*owner: "worker\/backup-http-entry\.ts"/);
 
-  for (const url of [ownerUrl, handlerUrl, secureUrl, centralUrl]) {
+  for (const url of [ownerUrl, handlerUrl, secureUrl]) {
     const result = spawnSync(process.execPath, ["--experimental-strip-types", "--check", fileURLToPath(url)], { encoding: "utf8" });
     assert.equal(result.status, 0, result.stderr || result.stdout);
   }

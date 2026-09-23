@@ -8,7 +8,11 @@ import {
   readTrackedSourceFiles,
   validateArchitectureFitness,
 } from "../../scripts/architecture-fitness.mjs";
-import { portalCompatibilityAdapters } from "../../worker/application-composition-contract.ts";
+import {
+  portalApplicationComposition,
+  portalCompatibilityAdapters,
+  portalInternalEntryAdapters,
+} from "../../worker/application-composition-contract.ts";
 import { portalRouteContracts } from "../../src/auth/portal-route-contract.ts";
 
 const repositoryRoot = fileURLToPath(new URL("../../", import.meta.url));
@@ -96,6 +100,33 @@ test("compatibility exceptions must be unique existing and actionable", () => {
   assert.ok(issues.some((entry) => entry.code === "missing-compatibility-exception-target"));
 });
 
+test("rejects an unregistered feature-specific Worker entry wrapper", () => {
+  const files = new Map([
+    ["worker/application.ts", "export {};"],
+    ["worker/new-feature-entry.ts", "export default {};"],
+  ]);
+  const issues = inspectArchitectureFitness(files, {
+    applicationComposition: { httpApplication: "worker/application.ts" },
+    internalEntryAdapters: [],
+    enforceEntryRegistration: true,
+  });
+  assert.deepEqual(issues.map((entry) => entry.code), ["unregistered-entry-wrapper"]);
+  assert.match(formatArchitectureFitnessIssues(issues), /worker\/new-feature-entry\.ts/u);
+  assert.match(formatArchitectureFitnessIssues(issues), /application-composition-contract\.ts/u);
+});
+
+test("explicit internal entry registration allows a legitimate adapter rename or move", () => {
+  const files = new Map([
+    ["worker/application.ts", "export {};"],
+    ["worker/domain-renamed-entry.ts", "export default {};"],
+  ]);
+  assert.deepEqual(inspectArchitectureFitness(files, {
+    applicationComposition: { httpApplication: "worker/application.ts" },
+    internalEntryAdapters: ["worker/domain-renamed-entry.ts"],
+    enforceEntryRegistration: true,
+  }), []);
+});
+
 test("harmless moves inside src do not fail dependency direction", () => {
   const files = new Map([
     ["src/domain/new-place.ts", 'import { value } from "../shared/value.ts";'],
@@ -141,7 +172,10 @@ test("current tracked architecture satisfies the fitness foundation", () => {
   assert.ok(files.has("worker/application.ts"));
   assert.equal(files.has("worker/index.ts"), false);
   assert.doesNotThrow(() => validateArchitectureFitness(files, {
+    applicationComposition: portalApplicationComposition,
     compatibilityAdapters: portalCompatibilityAdapters,
+    internalEntryAdapters: portalInternalEntryAdapters,
     routeContracts: portalRouteContracts,
+    enforceEntryRegistration: true,
   }));
 });

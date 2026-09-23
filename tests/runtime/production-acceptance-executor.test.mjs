@@ -150,6 +150,7 @@ test("read-only executor starts exact compose plan, waits for readiness, runs ba
   assert.match(html, /Outcome: <strong>passed<\/strong>/u);
   assert.equal(html.includes("https://"), false);
   assert.equal(html.includes("must-not-be-copied"), false);
+  assert.match(html, /Failure codes: none/u);
 });
 
 test("baseline failure is fail-closed and cleanup still runs", async () => {
@@ -207,6 +208,7 @@ test("startup timeout records bounded evidence and still tears down", async () =
   });
 
   assert.equal(report.outcome, "failed");
+  assert.deepEqual(report.failureCodes, ["acceptance_baseline_timeout", "acceptance_baseline_failed"]);
   assert.equal(report.checks.find((item) => item.id === "readiness")?.code, "startup_timeout");
   assert.equal(report.compose.cleanup, "passed");
   assert.equal(commands.at(-1).includes("down"), true);

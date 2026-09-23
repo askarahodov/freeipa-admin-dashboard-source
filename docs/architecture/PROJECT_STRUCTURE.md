@@ -211,3 +211,7 @@ These are constraints to preserve or improve deliberately, not permission to cre
 - [`../ai/README.md`](../ai/README.md) — mandatory AI-agent entrypoint.
 
 If this file and the current repository disagree, current code/tests and canonical owners win; update this document in the same scope as the confirmed structural change.
+
+### #635 final composition note
+
+`worker/index.ts` no longer exists. Framework/static/RSC/image fallback is owned by `worker/framework-http-entry.ts`, reached directly from `worker/operations-http-entry.ts`; top-level production composition remains rooted at `worker/http-security-root-entry.ts` and `worker/application.ts`.

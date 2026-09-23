@@ -7,7 +7,7 @@ const read = (path) => fs.readFileSync(new URL(path, import.meta.url), "utf8");
 const adminHttp = read("../../worker/xyops-admin-http.ts");
 const adminRuntime = read("../../worker/xyops-admin-runtime.ts");
 const operations = read("../../worker/operations-http-entry.ts");
-const central = read("../../worker/index.ts");
+const centralUrl = new URL("../../worker/index.ts", import.meta.url);
 const routeContract = read("../../src/auth/portal-route-contract.ts");
 
 const ownedPaths = [
@@ -17,15 +17,15 @@ const ownedPaths = [
   "/api/integrations/approval/policies",
 ];
 
-test("#635 C5 gives XYOps administration one explicit HTTP owner before central fallback", () => {
+test("#635 C5/C8 gives XYOps administration one explicit owner before framework fallback", () => {
   assert.equal(operations.includes('from "./xyops-admin-http.ts"'), true);
   const adminDispatch = operations.indexOf("handleXyOpsAdminRequest(request, sourceEnv)");
-  const centralFallback = operations.indexOf("integrationRuntime.fetch(request, sourceEnv, ctx)");
-  assert.ok(adminDispatch >= 0 && centralFallback > adminDispatch);
+  const frameworkFallback = operations.indexOf("handleFrameworkRequest(request, sourceEnv, ctx)");
+  assert.ok(adminDispatch >= 0 && frameworkFallback > adminDispatch);
+  assert.equal(fs.existsSync(centralUrl), false, "retired central Worker tail must stay absent");
 
   for (const path of ownedPaths) {
     assert.equal(adminHttp.includes(path), true, path);
-    assert.equal(central.includes(path), false, `central tail must not dispatch ${path}`);
   }
 });
 

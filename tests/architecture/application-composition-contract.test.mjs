@@ -16,7 +16,8 @@ test("application composition contract matches the production build entry and ex
   assert.equal(portalApplicationComposition.httpApplication, "worker/application.ts");
   assert.equal(portalApplicationComposition.scheduledOwner, "worker/application-scheduled.ts");
   assert.equal(portalApplicationComposition.frameworkOwner, "worker/framework-http-entry.ts");
-  assert.equal(portalApplicationComposition.frameworkDispatchMode, "compatibility-tail");
+  assert.equal(portalApplicationComposition.frameworkDispatchMode, "explicit-owner");
+  assert.equal(portalApplicationComposition.centralCompatibilityTail, null);
 
   const vite = read("vite.config.ts");
   assert.match(vite, /main:\s*"\.\/worker\/http-security-root-entry\.ts"/);
@@ -31,9 +32,12 @@ test("application composition contract matches the production build entry and ex
   assert.match(application, /from "\.\/security-composition\.ts"/);
   assert.match(application, /from "\.\/application-scheduled\.ts"/);
 
-  const central = read(portalCentralCompatibilityTail.path);
-  assert.match(central, /from "\.\/framework-http-entry\.ts"/);
-  assert.match(central, /handleFrameworkRequest\(request, runtimeEnv, ctx\)/);
+  assert.equal(portalCentralCompatibilityTail, null);
+  assert.equal(fs.existsSync(new URL("worker/index.ts", root)), false);
+
+  const operations = read("worker/operations-http-entry.ts");
+  assert.match(operations, /from "\.\/framework-http-entry\.ts"/);
+  assert.match(operations, /handleFrameworkRequest\(request, sourceEnv, ctx\)/);
 });
 
 test("remaining compatibility adapters are explicit, unique and actionable", () => {
@@ -48,9 +52,7 @@ test("remaining compatibility adapters are explicit, unique and actionable", () 
     assert.doesNotThrow(() => read(adapter.path), adapter.path);
   }
 
-  assert.ok(portalCentralCompatibilityTail.reason.length > 20);
-  assert.ok(portalCentralCompatibilityTail.removalCondition.length > 20);
-  assert.doesNotThrow(() => read(portalCentralCompatibilityTail.path));
+  assert.equal(portalCentralCompatibilityTail, null);
 });
 
 test("composition contract stays metadata-only and does not become a second route/security registry", () => {

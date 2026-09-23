@@ -29,7 +29,7 @@ HTTP application composition
        |-> health classifications -> worker/health-http.ts
        `-> non-health classifications -> worker/security-composition.ts
             -> explicit security gates + compatibility wrapper/handler graph
-            -> worker/index.ts
+            -> framework-http-entry.ts
             -> Vinext application/static fallback
 ```
 
@@ -90,16 +90,16 @@ http-security-root-entry.ts
             -> settings-source-safe-entry.ts
                  |-> settings-source-entry.ts ---------|
                  |                                     v
-                 `-> settings-lifecycle-entry.ts -> secure-entry.ts -> backup-http-entry.ts -> freeipa-http-entry.ts -> operations-http-entry.ts -> worker/index.ts
+                 `-> settings-lifecycle-entry.ts -> secure-entry.ts -> backup-http-entry.ts -> freeipa-http-entry.ts -> operations-http-entry.ts -> framework-http-entry.ts
 ```
 
-The graph is not strictly linear. `settings-source-safe-entry.ts` chooses either the source-aware path or the lifecycle path depending on the request and may construct an effective integration environment before delegation. `secure-entry.ts` normalizes the accepted workspace/proxy/static identity context before delegating to `backup-http-entry.ts`. That adapter owns the sanitized backup export after canonical identity normalization and falls through to `freeipa-http-entry.ts`. That adapter owns the complete FreeIPA HTTP surface and falls through unmatched requests to `operations-http-entry.ts`. #632 checkpoints A-C let that post-security operations adapter own run-history/result-file reads, cancel/rerun composition, per-identity notifications, and approval list/decision/cancel/execute HTTP composition before unmatched traffic continues to `worker/index.ts`; neither adapter is a second authentication boundary. Approval execution reuses the central catalog runtime and catalog-run handler with the claimed approval identifier passed only in memory.
+The graph is not strictly linear. `settings-source-safe-entry.ts` chooses either the source-aware path or the lifecycle path depending on the request and may construct an effective integration environment before delegation. `secure-entry.ts` normalizes the accepted workspace/proxy/static identity context before delegating to `backup-http-entry.ts`. That adapter owns the sanitized backup export after canonical identity normalization and falls through to `freeipa-http-entry.ts`. That adapter owns the complete FreeIPA HTTP surface and falls through unmatched requests to `operations-http-entry.ts`. The post-security operations adapter owns catalog/run/notification/approval composition and the extracted XYOps administration/status/audit surfaces before unmatched traffic continues directly to `framework-http-entry.ts`; neither adapter is a second authentication boundary. Approval execution reuses the operations-owned catalog runtime and catalog-run handler with the claimed approval identifier passed only in memory.
 
-`worker/index.ts` remains a base HTTP owner for the remaining integration/operations mutations and catalog/approval/admin surfaces. #635 checkpoint B1 removes Vinext implementation ownership from that file: `framework-http-entry.ts` now owns image optimization plus the Vinext app-router integration, while `framework-http.ts` owns the route-to-root HTML compatibility decision and generic static/RSC fallback policy. For B1, `worker/index.ts` still delegates unmatched traffic to that explicit framework owner, so wrapper/security ordering is unchanged.
+`worker/index.ts` is retired. `framework-http-entry.ts` owns image optimization plus the Vinext app-router integration, while `framework-http.ts` owns the route-to-root HTML compatibility decision and generic static/RSC fallback policy. `operations-http-entry.ts` now delegates unmatched traffic directly to that explicit framework owner, preserving the established upstream wrapper/security ordering.
 
 ## Machine-readable composition and compatibility exceptions
 
-`worker/application-composition-contract.ts` is the pure metadata owner for the top-level Worker composition. It records the build entry, schema/application/security boundaries, scheduled owner, framework owner/current dispatch mode, central compatibility tail, and the **bounded** remaining compatibility adapters.
+`worker/application-composition-contract.ts` is the pure metadata owner for the top-level Worker composition. It records the build entry, schema/application/security boundaries, scheduled owner, framework owner/current dispatch mode, the absence of a central compatibility tail, and the **bounded** remaining compatibility adapters.
 
 It deliberately does not repeat route patterns, permissions or mutation metadata. The remaining compatibility exception list is limited to adapters that still mix request wrapping/adaptation with behavior that cannot yet be bypassed safely:
 
@@ -110,7 +110,7 @@ It deliberately does not repeat route patterns, permissions or mutation metadata
 
 Each exception has a concrete reason and removal condition. Explicit domain adapters such as health, maintenance control, backup/recovery, settings lifecycle, backup HTTP, FreeIPA and operations owners are not compatibility exceptions merely because their filenames end in `-entry.ts`.
 
-`worker/index.ts` is tracked separately as the central compatibility tail until its remaining administrative integration handlers are extracted and framework dispatch can move directly to the explicit framework owner without bypassing non-API/local identity contracts.
+There is no central compatibility tail. Remaining compatibility adapters are enumerated individually in `worker/application-composition-contract.ts` with responsibility, reason and removal condition.
 
 ## Canonical stable route coverage
 
@@ -148,13 +148,13 @@ Actual `/api/auth/**` HTTP owner: `worker/local-secure-entry.ts`, using canonica
 
 `integration.status`, `xyops.catalog.read`, `xyops.catalog.history`, `xyops.catalog.options`, `xyops.catalog.run`, `xyops.runs.list`, `xyops.runs.file`, `xyops.runs.cancel`, `xyops.runs.rerun`, `xyops.approvals.list`, `xyops.approvals.approve`, `xyops.approvals.reject`, `xyops.approvals.cancel`, `xyops.approvals.execute`, `xyops.notifications.list`, `xyops.notifications.read`
 
-Checkpoints #632A-D move `xyops.catalog.read`, `xyops.catalog.history`, `xyops.catalog.options`, `xyops.catalog.run`, `xyops.runs.list`, `xyops.runs.file`, `xyops.runs.cancel`, `xyops.runs.rerun`, `xyops.notifications.list`, `xyops.notifications.read` and the approval list/approve/reject/cancel/execute routes into `worker/operations-http-entry.ts`. The legacy `POST /api/integrations/actions` compatibility dispatch follows the same owner so it cannot bypass the extracted catalog-run path. Shared run status/synchronization/projection logic lives in `worker/xyops-run-runtime.ts`; rerun and approval execution call the same operations-owned catalog-run handler. Catalog normalization/cache helpers remain reusable exports from `worker/index.ts`, while approval-policy administration remains central. XYOps remains authoritative for process definitions and execution/scheduler/queue semantics.
+Checkpoints #632A-D move `xyops.catalog.read`, `xyops.catalog.history`, `xyops.catalog.options`, `xyops.catalog.run`, `xyops.runs.list`, `xyops.runs.file`, `xyops.runs.cancel`, `xyops.runs.rerun`, `xyops.notifications.list`, `xyops.notifications.read` and the approval list/approve/reject/cancel/execute routes into `worker/operations-http-entry.ts`. The legacy `POST /api/integrations/actions` compatibility dispatch follows the same owner so it cannot bypass the extracted catalog-run path. Shared run status/synchronization/projection logic lives in `worker/xyops-run-runtime.ts`; rerun and approval execution call the same operations-owned catalog-run handler. Catalog normalization/cache helpers live in `worker/xyops-catalog-runtime.ts`, while approval-policy administration is owned by `worker/xyops-admin-http.ts`. XYOps remains authoritative for process definitions and execution/scheduler/queue semantics.
 
 ### XYOps administration and catalog synchronization
 
 `xyops.routes.read`, `xyops.routes.update`, `xyops.presentation.read`, `xyops.presentation.update`, `xyops.catalog-policies.read`, `xyops.catalog-policies.update`, `xyops.approval-policies.read`, `xyops.approval-policies.update`, `xyops.catalog-sync.read`, `xyops.catalog-sync.run`
 
-`integration-status-http.ts` owns the read-only effective integration status projection after the existing post-security operations adapter and uses one atomic persisted-settings snapshot for FreeIPA/XYOps probes. Administrative route/policy handlers are otherwise primarily in `worker/index.ts`. Catalog synchronization is a notable exception: `worker/secure-entry.ts` currently owns its GET/POST API, persistence/locking, audit and scheduled execution.
+`integration-status-http.ts` owns the read-only effective integration status projection after the existing post-security operations adapter and uses one atomic persisted-settings snapshot for FreeIPA/XYOps probes. Administrative route/policy handlers are owned by `worker/xyops-admin-http.ts`. Catalog synchronization remains a separate boundary: `worker/secure-entry.ts` currently owns its GET/POST API, persistence/locking, audit and scheduled execution.
 
 ### Backup and selective restore
 
@@ -182,7 +182,7 @@ The availability/security decision boundary is `worker/maintenance-mode-gate.ts`
 | Local auth/users | local-auth/session/permission helpers under `src/auth/**` | `local-secure-entry.ts` owns login/logout/admin-user HTTP behavior; `local-security-routing.ts` owns ordinary local-session/origin/service-admin fallback | `portal_users`, `portal_sessions`; no FreeIPA identity ownership | auth/RBAC/same-origin/request-context tests; audit for user administration and rate-limit denials |
 | Settings | canonical permissions + route contract | #633A/B/C1/C2: `settings-http.ts` owns active-settings read/direct-write/connection-test after `secure-entry.ts`; `settings-lifecycle-entry.ts` owns effective/draft lifecycle plus sanitized revision list/read; `settings-lifecycle-root-entry.ts` owns only apply rollback/post-apply health/lifecycle audit orchestration; source wrappers retain source-lock/override/CAS/compensation semantics | `app_settings`, settings drafts/revisions/apply/reset/source-lock state; encrypted integration secrets | settings lifecycle/source/revision tests; settings audit/compensation events |
 | FreeIPA | canonical route permissions (`directory.read`, `freeipa.write`, conditional delete) | established identity/security path remains authoritative; after `secure-entry.ts` normalization, `freeipa-http-entry.ts` owns all FreeIPA reads/query/export/member/bulk/action HTTP dispatch | `src/freeipa/**` + route-neutral Worker helpers + private server-side FreeIPA Gateway; FreeIPA owns directory data | `tests/freeipa/**`, `freeipa-http-owner`, permission/route contracts, operation/audit tests for mutations |
-| XYOps/run/approval | canonical route metadata plus portal permissions | `operations-http-entry.ts` owns user catalog reads/execution, legacy action compatibility, run reads/result-file proxy/cancel/rerun/notifications and approval HTTP composition; approval-policy administration stays in `worker/index.ts` | portal operation/catalog/approval tables; server-side XYOps client; XYOps owns execution semantics | `tests/operations/**`, `tests/xyops/**`, route-owner contracts, audit events from current handlers |
+| XYOps/run/approval | canonical route metadata plus portal permissions | `operations-http-entry.ts` owns user catalog reads/execution, legacy action compatibility, run reads/result-file proxy/cancel/rerun/notifications and approval HTTP composition; approval-policy administration is owned by `worker/xyops-admin-http.ts` | portal operation/catalog/approval tables; server-side XYOps client; XYOps owns execution semantics | `tests/operations/**`, `tests/xyops/**`, route-owner contracts, audit events from current handlers |
 | Catalog sync | admin/service-admin route metadata | `secure-entry.ts` combines resolved identity context, HTTP handler and scheduler | `xyops_catalog_sync_lock`, `xyops_catalog_sync_runs`; live catalog fetch through current Worker/XYOps path | `tests/operations/catalog-scheduled-sync.test.mjs`, route/security-plan tests; `catalog.sync` audit |
 | Backup/restore | canonical backup permissions and required admin role where declared | `backup-http-entry.ts` owns sanitized export after normalized identity; dedicated backup root/dispatch adapters retain encrypted/preview/selective restore and local/service-admin delegation | canonical `src/backup/**`/`src/recovery/**`; DB/recovery metadata owned by canonical schema/domain modules | `tests/backup/**`, recovery/authorization/negative tests; guarded audit events |
 | Storage | admin/service-admin route metadata | controlled migration apply/status/reconcile enters explicit `security-composition.ts` middleware and then the unchanged storage handler; other storage surfaces remain dedicated compatibility adapters | `src/storage/**`, `db/**` schema/migration owner, migration journals/locks | storage/migration/integrity contract and recovery tests |
@@ -209,7 +209,7 @@ The stable route registry is intentionally not a universal inventory of every st
 | `GET /metrics/health` | `worker/health-http.ts` -> `worker/health-metrics.ts` | low-cardinality projection of local live/ready state; does not refresh dependency health | `health-metrics`; application-owned before security |
 | `GET /api/maintenance/status` | `worker/maintenance-mode-gate.ts` via `security-composition.ts` | bounded public maintenance state | `public-maintenance-status`; explicit maintenance gate remains handler |
 | `/_vinext/image` | `worker/framework-http-entry.ts` | Vinext image optimization adapter; reached through compatibility dispatch in #635 B1 | `vinext-image`; explicit owner, application cutover deferred until parity proof |
-| HTML application routes and ordinary static/RSC fallback | `worker/framework-http.ts` -> `framework-http-entry.ts` -> Vinext handler | UI hosting / route-to-root compatibility behavior; `worker/index.ts` delegates during #635 B1 | `framework`; application-level cutover follows parity proof |
+| HTML application routes and ordinary static/RSC fallback | `worker/framework-http.ts` -> `framework-http-entry.ts` -> Vinext handler | UI hosting / route-to-root compatibility behavior; `operations-http-entry.ts` delegates directly to the explicit framework owner | `framework`; application-level cutover follows parity proof |
 
 A route missing from `portalRouteContracts` is **not automatically a bug**. Infrastructure/static routes have different ownership. `worker/application-router.ts` classifies the known supplemental surfaces explicitly. #630 demonstrates that a supplemental classification may become an application-owned handler only after parity evidence; classification alone is not authorization or handler ownership.
 
@@ -276,7 +276,7 @@ The current slices establish **one application composition point**, explicit sec
 9. `backup-selective-restore-root-entry.ts` owns selective/encrypted/preview backup predispatch and delegates ordinary traffic back into the existing session/settings/security chain without cross-domain FreeIPA ownership;
 10. after local/session/settings compatibility handling, `secure-entry.ts` normalizes the accepted identity context and delegates to `backup-http-entry.ts`; sanitized backup export is handled there and unmatched traffic continues to `freeipa-http-entry.ts`;
 11. `freeipa-http-entry.ts` owns base users/groups reads, query/filter projection, CSV export, group-member projection, bulk orchestration, status permission projection and direct FreeIPA actions, while unmatched traffic falls through to `operations-http-entry.ts`;
-12. `operations-http-entry.ts` owns #632A-D user catalog reads/execution, the legacy integration-action compatibility path, run-history/result-file reads, cancel/rerun, notifications, and approval list/decision/cancel/execute HTTP composition after the same security boundary; #635 C4 additionally dispatches read-only integration status to `integration-status-http.ts` immediately before unmatched traffic falls through to `worker/index.ts`; rerun and approval execution reuse the same operations-owned catalog-run handler, with claimed approval identifiers passed only in memory;
+12. `operations-http-entry.ts` owns #632A-D user catalog reads/execution, the legacy integration-action compatibility path, run-history/result-file reads, cancel/rerun, notifications, and approval list/decision/cancel/execute HTTP composition after the same security boundary; #635 C4 dispatches read-only integration status to `integration-status-http.ts`; after the later C8 cutover unmatched traffic falls directly to `framework-http-entry.ts`; rerun and approval execution reuse the same operations-owned catalog-run handler, with claimed approval identifiers passed only in memory;
 13. after non-health downstream execution, `application-router.ts` canonicalizes only matching negative outcomes: `method-not-allowed + downstream 405` to `{ "error": "Method not allowed" }`, and `unknown-api + downstream 404` to `{ "error": "Not found" }`, preserving non-content headers and `cache-control: no-store`;
 14. the generic finalizer never promotes `401`, `403`, legacy `404` for a method mismatch, `409`, `429`, `5xx`, success, stable, supplemental or framework responses into a routing error; health-owned 405 responses are returned before this finalizer;
 15. framework/static/RSC paths still reach the existing Vinext owner;
@@ -318,10 +318,10 @@ The following are confirmed migration risks:
 - current authorization context is partly canonical and partly reconstructed from trusted legacy headers/env;
 - service-admin and local-admin compatibility paths synthesize downstream identity/admin state;
 - authenticated local administrator diagnostics remain in `diagnostics-entry.ts` as an auth/settings compatibility concern distinct from public health diagnostics;
-- the central Worker still contains several independent non-FreeIPA integration/operation domains, so later extraction work must continue to preserve shared access/run/audit helpers instead of forking them;
+- the former central Worker tail has been removed; remaining compatibility debt is limited to explicitly enumerated mixed adapters and must preserve shared access/run/audit helpers;
 - settings source behavior contains a real dispatch branch and DB/environment virtualization;
 - catalog synchronization mixes identity adaptation, HTTP route ownership, persistence, audit and scheduled execution in `secure-entry.ts`;
-- `worker/index.ts` combines framework hosting and several independent integration/operation domains;
+- framework hosting is explicitly owned by `worker/framework-http-entry.ts`; no central `worker/index.ts` tail remains;
 - infrastructure/static surfaces are not all represented in the stable API metadata registry.
 
 Remaining questions for later slices must be answered from tests/current code rather than assumed:
@@ -357,7 +357,7 @@ Primary current evidence for this inventory:
 - `worker/middleware/local-security-routing.ts`
 - settings source/lifecycle/revision entry modules
 - `worker/secure-entry.ts`
-- `worker/index.ts`
+- `worker/framework-http-entry.ts`
 - canonical domain modules under `src/**`
 - `db/portal-schema.ts`
 - `tests/auth/portal-application-router.test.mjs`
@@ -389,3 +389,8 @@ The eight final canonical stable routes formerly owned by `worker/index.ts` now 
 ## #635 checkpoint C7
 
 XYOps catalog runtime ownership lives in `worker/xyops-catalog-runtime.ts`: snapshot/history persistence, upstream event normalization, demo projection, `loadCatalog` and `portalCatalog`. `operations-http-entry.ts` consumes it directly. The central `worker/index.ts` tail no longer contains catalog runtime behavior and is limited to framework compatibility delegation plus historical re-exports until a separate parity-gated cutover.
+
+
+## #635 checkpoint C8
+
+The central compatibility tail `worker/index.ts` is removed. `operations-http-entry.ts` delegates unmatched framework/static/RSC/image traffic directly to the explicit `worker/framework-http-entry.ts` owner. The old tail had no scheduled implementation, so the downstream scheduled fallback is preserved explicitly as a no-op. Remaining mixed compatibility adapters are limited to the machine-readable exceptions in `worker/application-composition-contract.ts`.

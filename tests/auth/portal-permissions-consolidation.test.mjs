@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
@@ -58,8 +59,7 @@ test("backup preview access exposes only canonical permissions", () => {
 });
 
 test("runtime route owners do not maintain duplicate portal permission registries", async () => {
-  const [workerIndex, operationsOwner, auditOwner, portalAccessRuntime, settingsSource, previewRoot, encryptedRoot] = await Promise.all([
-    read("worker/index.ts"),
+  const [operationsOwner, auditOwner, portalAccessRuntime, settingsSource, previewRoot, encryptedRoot] = await Promise.all([
     read("worker/operations-http-entry.ts"),
     read("worker/integration-audit-http.ts"),
     read("worker/portal-access-runtime.ts"),
@@ -69,7 +69,6 @@ test("runtime route owners do not maintain duplicate portal permission registrie
   ]);
 
   for (const [path, source] of [
-    ["worker/index.ts", workerIndex],
     ["worker/operations-http-entry.ts", operationsOwner],
     ["worker/integration-audit-http.ts", auditOwner],
     ["worker/portal-access-runtime.ts", portalAccessRuntime],
@@ -79,7 +78,7 @@ test("runtime route owners do not maintain duplicate portal permission registrie
     assert.doesNotMatch(source, /type\s+PortalPermission\s*=\s*"/, `${path} must import the canonical permission vocabulary`);
   }
 
-  assert.doesNotMatch(workerIndex, /from ["']\.\/portal-access-runtime\.ts["']/, "central compatibility tail must not retain route access ownership");
+  assert.equal(fs.existsSync(new URL("../../worker/index.ts", import.meta.url)), false, "retired central Worker tail must stay absent");
   assert.match(operationsOwner, /from ["']\.\/portal-access-runtime\.ts["']/, "operations owner must delegate access resolution to the shared portal access runtime");
   assert.match(auditOwner, /from ["']\.\/portal-access-runtime\.ts["']/, "integration audit owner must delegate access resolution to the shared portal access runtime");
   assert.match(portalAccessRuntime, /from ["']\.\.\/src\/auth\/portal-permissions\.ts["']/, "shared portal access runtime must consume the canonical permission registry");

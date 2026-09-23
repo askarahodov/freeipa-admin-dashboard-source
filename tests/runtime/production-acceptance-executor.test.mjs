@@ -6,6 +6,8 @@ import {
   acceptanceCleanupCommand,
   evaluateAcceptanceCheck,
   executeProductionAcceptance,
+  PRODUCTION_ACCEPTANCE_REPORT_SCHEMA_VERSION,
+  productionAcceptanceRemediationCode,
   normalizeProductionAcceptanceTarget,
   productionAcceptanceCommandEnvironment,
   renderProductionAcceptanceHtml,
@@ -110,6 +112,18 @@ test("acceptance command environment overrides ambient exposure with the normali
   assert.equal(environment.DASHBOARD_PORT, "3100");
 });
 
+test("release evidence uses bounded remediation codes", () => {
+  assert.equal(productionAcceptanceRemediationCode(null), "none");
+  assert.equal(
+    productionAcceptanceRemediationCode("acceptance_cleanup_failed"),
+    "remove_isolated_acceptance_project",
+  );
+  assert.equal(
+    productionAcceptanceRemediationCode("acceptance_unknown_failure"),
+    "inspect_acceptance_executor",
+  );
+});
+
 test("baseline evaluator requires both expected status and required JSON predicates", () => {
   const check = manifest().baseline[0];
   assert.equal(evaluateAcceptanceCheck(check, healthyResponse(check)).outcome, "passed");
@@ -142,8 +156,15 @@ test("executor starts exact compose plan, checks baseline and always tears down 
     })(),
   });
 
+  assert.equal(report.schemaVersion, PRODUCTION_ACCEPTANCE_REPORT_SCHEMA_VERSION);
   assert.equal(report.outcome, "passed");
   assert.equal(report.failureCode, null);
+  assert.equal(report.remediationCode, "none");
+  assert.deepEqual(report.stages, [
+    { id: "compose_start", outcome: "passed", code: "compose_started", remediationCode: "none" },
+    { id: "baseline", outcome: "passed", code: "baseline_healthy", remediationCode: "none" },
+    { id: "cleanup", outcome: "passed", code: "cleanup_complete", remediationCode: "none" },
+  ]);
   assert.equal(report.checks.length, 4);
   assert.equal(report.checks.every((check) => check.outcome === "passed"), true);
   assert.deepEqual(commands[0].command, plan.compose.args);
@@ -168,6 +189,8 @@ test("executor retries unhealthy startup and reports bounded timeout without lea
 
   assert.equal(report.outcome, "failed");
   assert.equal(report.failureCode, "acceptance_baseline_timeout");
+  assert.equal(report.remediationCode, "inspect_local_health_and_dependencies");
+  assert.equal(report.stages.find((stage) => stage.id === "baseline")?.outcome, "failed");
   assert.equal(report.checks.every((check) => check.outcome === "failed"), true);
   assert.equal(JSON.stringify(report).includes("private"), false);
   assert.deepEqual(commands.at(-1), acceptanceCleanupCommand(plan));
@@ -190,6 +213,22 @@ test("executor sanitizes command failures and still attempts cleanup", async () 
   assert.equal(calls, 2);
   assert.equal(report.outcome, "failed");
   assert.equal(report.failureCode, "acceptance_compose_start_failed");
+  assert.equal(report.remediationCode, "inspect_local_compose_start");
+  assert.deepEqual(report.stages.slice(0, 2), [
+    {
+      id: "compose_start",
+      outcome: "failed",
+      code: "acceptance_compose_start_failed",
+      remediationCode: "inspect_local_compose_start",
+    },
+    {
+      id: "baseline",
+      outcome: "skipped",
+      code: "blocked_by_compose_start",
+      remediationCode: "inspect_local_compose_start",
+    },
+  ]);
+  assert.equal(report.checks.every((check) => check.outcome === "skipped"), true);
   assert.equal(JSON.stringify(report).includes("do-not-report"), false);
   assert.deepEqual(report.cleanup, { outcome: "passed", code: "cleanup_complete" });
 });
@@ -208,6 +247,8 @@ test("cleanup failure is release-blocking even after a healthy baseline", async 
 
   assert.equal(report.outcome, "failed");
   assert.equal(report.failureCode, "acceptance_cleanup_failed");
+  assert.equal(report.remediationCode, "remove_isolated_acceptance_project");
+  assert.equal(report.stages.find((stage) => stage.id === "cleanup")?.outcome, "failed");
   assert.deepEqual(report.cleanup, { outcome: "failed", code: "cleanup_failed" });
 });
 
@@ -220,6 +261,9 @@ test("HTML evidence renders only the already-sanitized bounded report", async ()
   });
   const html = renderProductionAcceptanceHtml(report);
   assert.match(html, /Production acceptance: passed/u);
+  assert.match(html, /Schema version/u);
+  assert.match(html, /Remediation code/u);
+  assert.match(html, /baseline_healthy/u);
   assert.match(html, new RegExp(commit, "u"));
   assert.equal(html.includes("http://"), false);
   assert.equal(html.includes("registry.example.test"), false);

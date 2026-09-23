@@ -83,6 +83,17 @@ export function productionAcceptanceScenarioDefinitions({
         PORTAL_ACCEPTANCE_FREEIPA_MODE: "read",
         PORTAL_ACCEPTANCE_FREEIPA_MUTATIONS: "false",
       }),
+      omitEnvironmentKeys: Object.freeze([
+        "ADMIN_TOKEN",
+        "CONFIG_ENCRYPTION_KEY",
+        "IPA_URL",
+        "IPA_USERNAME",
+        "IPA_PASSWORD",
+        "IPA_NODE_GATEWAY_URL",
+        "IPA_NODE_GATEWAY_TOKEN",
+        "XYOPS_URL",
+        "XYOPS_API_KEY",
+      ]),
       passedCode: "freeipa_read_passed",
       failedCode: "acceptance_freeipa_read_failed",
       remediationCode: "inspect_freeipa_read",
@@ -96,6 +107,17 @@ export function productionAcceptanceScenarioDefinitions({
         PORTAL_ACCEPTANCE_FREEIPA_MODE: "mutate",
         PORTAL_ACCEPTANCE_FREEIPA_MUTATIONS: "true",
       }),
+      omitEnvironmentKeys: Object.freeze([
+        "ADMIN_TOKEN",
+        "CONFIG_ENCRYPTION_KEY",
+        "IPA_URL",
+        "IPA_USERNAME",
+        "IPA_PASSWORD",
+        "IPA_NODE_GATEWAY_URL",
+        "IPA_NODE_GATEWAY_TOKEN",
+        "XYOPS_URL",
+        "XYOPS_API_KEY",
+      ]),
       passedCode: "freeipa_crud_membership_passed",
       failedCode: "acceptance_freeipa_crud_membership_failed",
       remediationCode: "inspect_freeipa_acceptance",
@@ -114,10 +136,12 @@ export async function runProductionAcceptanceScenarios({
   const stages = [];
   for (const definition of definitions) {
     try {
-      await runScript(definition.script, Object.freeze({
+      const childEnvironment = {
         ...(environment ?? {}),
         ...(definition.environment ?? {}),
-      }));
+      };
+      for (const key of definition.omitEnvironmentKeys ?? []) delete childEnvironment[key];
+      await runScript(definition.script, Object.freeze(childEnvironment));
       stages.push(Object.freeze({
         id: definition.id,
         outcome: "passed",

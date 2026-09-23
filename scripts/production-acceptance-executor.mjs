@@ -148,6 +148,7 @@ export async function runProductionAcceptance(manifest, options = {}) {
   let cleanupOutcome = "failed";
   let readiness = null;
   const checks = [];
+  const failureCodes = [];
 
   try {
     try {
@@ -157,6 +158,7 @@ export async function runProductionAcceptance(manifest, options = {}) {
       startOutcome = "passed";
     } catch {
       startOutcome = "failed";
+      failureCodes.push("acceptance_compose_start_failed");
     }
 
     if (startOutcome === "passed") {
@@ -178,6 +180,9 @@ export async function runProductionAcceptance(manifest, options = {}) {
           checks.push(await executeProbe(check, { baseUrl, requestJson, now }));
         }
       }
+      if (checks.some((check) => check.outcome !== "passed")) {
+        failureCodes.push("acceptance_baseline_failed");
+      }
     }
   } finally {
     const down = composeDownCommand(manifest);
@@ -188,6 +193,7 @@ export async function runProductionAcceptance(manifest, options = {}) {
       cleanupOutcome = "passed";
     } catch {
       cleanupOutcome = "failed";
+      failureCodes.push("acceptance_cleanup_failed");
     }
   }
 
@@ -208,6 +214,7 @@ export async function runProductionAcceptance(manifest, options = {}) {
       start: startOutcome,
       cleanup: cleanupOutcome,
     }),
+    failureCodes: Object.freeze([...new Set(failureCodes)]),
     checks: Object.freeze(checks),
     startedAt: isoTimestamp(startedAt),
     finishedAt: isoTimestamp(now()),

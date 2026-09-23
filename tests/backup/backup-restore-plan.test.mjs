@@ -185,6 +185,29 @@ test("non-audit current changes still invalidate a plan that also selects audit"
   assert.notEqual(changedSettings.approvalToken, baseline.approvalToken);
 });
 
+test("current audit payload remains schema and count validated even though its digest is unbound", async () => {
+  const bad = registryWithAudit("secret-a", ["audit-1"]);
+  bad.set("audit", {
+    ...bad.get("audit"),
+    async export() {
+      return { payload: auditPayload(["audit-1"]), records: 99 };
+    },
+  });
+
+  await assert.rejects(
+    () => createBackupRestorePlan(
+      { DB: {} },
+      auditDocument(),
+      ["settings", "audit"],
+      1,
+      bad,
+    ),
+    (error) => error instanceof BackupRestorePlanError
+      && error.code === "backup_schema_incompatible"
+      && error.status === 409,
+  );
+});
+
 test("verifies only strict lowercase SHA-256 approval tokens", async () => {
   const plan = await createBackupRestorePlan({ DB: {} }, document(), ["settings"], 1, registry());
   assert.equal(verifyBackupRestoreApprovalToken(plan.approvalToken, plan.approvalToken), true);

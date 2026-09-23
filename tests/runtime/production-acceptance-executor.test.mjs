@@ -139,6 +139,14 @@ test("release evidence uses bounded remediation codes", () => {
     "inspect_freeipa_acceptance",
   );
   assert.equal(
+    productionAcceptanceRemediationCode("acceptance_xyops_read_failed"),
+    "inspect_xyops_read",
+  );
+  assert.equal(
+    productionAcceptanceRemediationCode("acceptance_xyops_lifecycle_failed"),
+    "inspect_xyops_acceptance",
+  );
+  assert.equal(
     productionAcceptanceRemediationCode("acceptance_unknown_failure"),
     "inspect_acceptance_executor",
   );

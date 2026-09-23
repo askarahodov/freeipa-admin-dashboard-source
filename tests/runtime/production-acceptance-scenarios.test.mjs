@@ -217,10 +217,9 @@ test("FreeIPA mutation selection always runs safe read first and scopes child mo
   assert.equal(calls.every((item) => item.environment.IPA_PASSWORD === undefined), true);
   assert.equal(calls.every((item) => item.environment.XYOPS_API_KEY === undefined), true);
   assert.equal(calls.every((item) => item.environment.ADMIN_TOKEN === undefined), true);
-  assert.equal(calls[0].environment.PORTAL_ACCEPTANCE_XYOPS_REQUESTER_PASSWORD, undefined);
-  assert.equal(calls[0].environment.PORTAL_ACCEPTANCE_XYOPS_EVENT_ID, undefined);
-  assert.equal(calls[1].environment.PORTAL_ACCEPTANCE_XYOPS_REQUESTER_PASSWORD, "operator-password");
-  assert.equal(calls[1].environment.PORTAL_ACCEPTANCE_XYOPS_EVENT_ID, "portal-acceptance-event");
+  assert.equal(calls.every((item) => item.environment.PORTAL_ACCEPTANCE_XYOPS_REQUESTER_USERNAME === undefined), true);
+  assert.equal(calls.every((item) => item.environment.PORTAL_ACCEPTANCE_XYOPS_REQUESTER_PASSWORD === undefined), true);
+  assert.equal(calls.every((item) => item.environment.PORTAL_ACCEPTANCE_XYOPS_EVENT_ID === undefined), true);
   assert.deepEqual(stages.map((stage) => [stage.id, stage.outcome]), [
     ["freeipa_read", "passed"],
     ["freeipa_crud_membership", "passed"],

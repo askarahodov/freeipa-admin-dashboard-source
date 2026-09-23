@@ -586,6 +586,16 @@ The policy format is versioned. A configured source must contain:
 
 The source image repository must exactly match the target image repository from the generated production-acceptance plan. Mutable tags, a source digest equal to the target digest, a source commit equal to the target commit, malformed schema versions and cross-repository source images fail closed before Docker execution.
 
+The declared source commit is also bound to the immutable image itself. Runtime images intended to participate in upgrade acceptance must be built with:
+
+```bash
+docker build --target runtime \
+  --build-arg PORTAL_SOURCE_COMMIT=<40-hex-git-sha> \
+  ...
+```
+
+The runtime image stores that SHA in the standard OCI label `org.opencontainers.image.revision`. After the source digest is started, the upgrade runner inspects the exact digest and requires that label to equal the policy `commitSha` before it performs readiness checks or any portal mutation. A missing, malformed or mismatched revision fails closed; a well-formed but unrelated SHA in the policy cannot certify the image.
+
 The repository currently contains an explicit unconfigured policy:
 
 ```json

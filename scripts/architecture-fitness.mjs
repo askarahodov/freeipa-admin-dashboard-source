@@ -39,11 +39,55 @@ function issue(code, source, target, message) {
   return Object.freeze({ code, source, target: target ?? null, message });
 }
 
+const runtimeRouterOwners = new Set([
+  "worker/application-router.ts",
+  "src/auth/portal-route-contract.ts",
+  "src/auth/portal-route-router.ts",
+  "src/auth/portal-route-security-plan.ts",
+]);
+
+function findSourceCycles(graph) {
+  const visiting = new Set();
+  const visited = new Set();
+  const stack = [];
+  const cycles = [];
+  const seen = new Set();
+
+  function visit(node) {
+    if (visited.has(node)) return;
+    if (visiting.has(node)) {
+      const start = stack.indexOf(node);
+      const cycle = [...stack.slice(start), node];
+      const key = [...new Set(cycle.slice(0, -1))].sort().join("|");
+      if (!seen.has(key)) {
+        seen.add(key);
+        cycles.push(cycle);
+      }
+      return;
+    }
+
+    visiting.add(node);
+    stack.push(node);
+    for (const target of graph.get(node) ?? []) visit(target);
+    stack.pop();
+    visiting.delete(node);
+    visited.add(node);
+  }
+
+  for (const node of [...graph.keys()].sort()) visit(node);
+  return cycles;
+}
+
 export function inspectArchitectureFitness(files, options = {}) {
   const entries = files instanceof Map ? [...files.entries()] : Object.entries(files ?? {});
   const normalized = new Map(entries.map(([filePath, source]) => [normalizePath(filePath), String(source ?? "")]));
   const knownPaths = new Set(normalized.keys());
   const issues = [];
+  const sourceGraph = new Map(
+    [...knownPaths]
+      .filter((filePath) => filePath.startsWith("src/"))
+      .map((filePath) => [filePath, new Set()]),
+  );
 
   if (knownPaths.has("worker/index.ts")) {
     issues.push(issue(
@@ -68,6 +112,10 @@ export function inspectArchitectureFitness(files, options = {}) {
         ));
       }
 
+      if (filePath.startsWith("src/") && target.startsWith("src/") && knownPaths.has(target)) {
+        sourceGraph.get(filePath)?.add(target);
+      }
+
       if (filePath.startsWith("src/") && (target.startsWith("worker/") || target.startsWith("runtime/"))) {
         issues.push(issue(
           "reverse-adapter-dependency",
@@ -76,7 +124,25 @@ export function inspectArchitectureFitness(files, options = {}) {
           `Domain/application module '${filePath}' must not depend on adapter/runtime module '${target}'. Move the contract into src/** or depend in the worker/runtime -> src direction.`,
         ));
       }
+
+      if (filePath.startsWith("runtime/") && runtimeRouterOwners.has(target)) {
+        issues.push(issue(
+          "runtime-router-ownership",
+          filePath,
+          target,
+          `Runtime host module '${filePath}' must not import HTTP route/application router owner '${target}'. Keep process lifecycle in runtime/** and HTTP/domain routing in the Worker application composition.`,
+        ));
+      }
     }
+  }
+
+  for (const cycle of findSourceCycles(sourceGraph)) {
+    issues.push(issue(
+      "source-dependency-cycle",
+      cycle[0],
+      cycle[1] ?? cycle[0],
+      `Canonical src/** dependency graph contains a cycle: ${cycle.join(" -> ")}. Break the cycle at a domain/application contract boundary instead of adding adapter indirection.`,
+    ));
   }
 
   const adapters = Array.from(options.compatibilityAdapters ?? []);

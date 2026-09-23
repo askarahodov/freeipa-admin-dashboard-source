@@ -21,6 +21,7 @@ import {
   productionAcceptanceScenarioEnvironment,
   runProductionAcceptanceScenarios,
   validateProductionAcceptanceMutationConfirmation,
+  validateProductionAcceptanceXyOpsConfiguration,
 } from "./production-acceptance-scenarios.mjs";
 
 const execFileAsync = promisify(execFile);
@@ -52,6 +53,8 @@ const runLocalAuthP0 = process.argv.includes("--run-local-auth-p0");
 const runSettings = process.argv.includes("--run-settings");
 const runFreeIpaRead = process.argv.includes("--run-freeipa-read");
 const runFreeIpaMutations = process.argv.includes("--run-freeipa-mutations");
+const runXyOpsRead = process.argv.includes("--run-xyops-read");
+const runXyOpsLifecycle = process.argv.includes("--run-xyops-lifecycle");
 
 try {
   const acceptanceTarget = normalizeProductionAcceptanceTarget(rawBaseUrl);
@@ -64,12 +67,20 @@ try {
   const manifest = JSON.parse(await fs.readFile(planPath, "utf8"));
   validateProductionAcceptanceManifest(manifest);
 
-  const mutationRequested = runLocalAuthP0 || runSettings || runFreeIpaMutations;
+  const mutationRequested = runLocalAuthP0 || runSettings || runFreeIpaMutations || runXyOpsLifecycle;
   validateProductionAcceptanceMutationConfirmation({
     enabled: mutationRequested,
     confirmation: argument("--confirm-destructive") ?? process.env.PORTAL_ACCEPTANCE_CONFIRM_DESTRUCTIVE,
     confirmedProject: argument("--confirm-project") ?? process.env.PORTAL_ACCEPTANCE_CONFIRM_PROJECT,
     expectedProject: manifest.compose.projectName,
+  });
+  validateProductionAcceptanceXyOpsConfiguration({
+    enabled: runXyOpsLifecycle,
+    requesterUsername: process.env.PORTAL_ACCEPTANCE_XYOPS_REQUESTER_USERNAME,
+    requesterPassword: process.env.PORTAL_ACCEPTANCE_XYOPS_REQUESTER_PASSWORD,
+    approverUsername: process.env.PORTAL_ACCEPTANCE_ADMIN_USERNAME,
+    eventId: process.env.PORTAL_ACCEPTANCE_XYOPS_EVENT_ID,
+    confirmedEventId: process.env.PORTAL_ACCEPTANCE_XYOPS_CONFIRM_EVENT_ID,
   });
 
   const scenarioDefinitions = productionAcceptanceScenarioDefinitions({
@@ -77,6 +88,8 @@ try {
     includeSettings: runSettings,
     includeFreeIpaRead: runFreeIpaRead,
     includeFreeIpaMutations: runFreeIpaMutations,
+    includeXyOpsRead: runXyOpsRead,
+    includeXyOpsLifecycle: runXyOpsLifecycle,
   });
   const scenarioEnvironment = scenarioDefinitions.length
     ? productionAcceptanceScenarioEnvironment({

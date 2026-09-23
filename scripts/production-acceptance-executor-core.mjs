@@ -70,6 +70,8 @@ const REMEDIATION_BY_FAILURE_CODE = Object.freeze({
   acceptance_settings_persistence_rollback_failed: "inspect_settings_acceptance",
   acceptance_freeipa_read_failed: "inspect_freeipa_read",
   acceptance_freeipa_crud_membership_failed: "inspect_freeipa_acceptance",
+  acceptance_xyops_read_failed: "inspect_xyops_read",
+  acceptance_xyops_lifecycle_failed: "inspect_xyops_acceptance",
   acceptance_destructive_scenario_failed: "inspect_acceptance_scenarios",
 });
 

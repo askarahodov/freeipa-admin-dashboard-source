@@ -18,6 +18,33 @@ export function validateProductionAcceptanceMutationConfirmation({
   return Object.freeze({ enabled: true, projectName: expectedProject });
 }
 
+export function validateProductionAcceptanceXyOpsConfiguration({
+  enabled = false,
+  requesterUsername,
+  requesterPassword,
+  approverUsername,
+  eventId,
+  confirmedEventId,
+} = {}) {
+  if (!enabled) return Object.freeze({ enabled: false });
+  const normalizedRequester = String(requesterUsername ?? "").trim();
+  const normalizedApprover = String(approverUsername ?? "").trim();
+  if (!normalizedRequester || !String(requesterPassword ?? "")) {
+    throw new Error("acceptance_xyops_requester_credentials_required");
+  }
+  if (!normalizedApprover || normalizedRequester.toLowerCase() === normalizedApprover.toLowerCase()) {
+    throw new Error("acceptance_xyops_independent_approver_required");
+  }
+  const normalizedEventId = String(eventId ?? "").trim();
+  if (!/^[A-Za-z0-9_.:-]{1,160}$/u.test(normalizedEventId)) {
+    throw new Error("acceptance_xyops_event_id_invalid");
+  }
+  if (String(confirmedEventId ?? "").trim() !== normalizedEventId) {
+    throw new Error("acceptance_xyops_event_confirmation_required");
+  }
+  return Object.freeze({ enabled: true, eventId: normalizedEventId });
+}
+
 export function productionAcceptanceScenarioEnvironment({
   ambientEnvironment = {},
   baseUrl,
@@ -46,6 +73,8 @@ export function productionAcceptanceScenarioDefinitions({
   includeSettings = false,
   includeFreeIpaRead = false,
   includeFreeIpaMutations = false,
+  includeXyOpsRead = false,
+  includeXyOpsLifecycle = false,
 } = {}) {
   const definitions = [];
   if (includeLocalAuthP0) {
@@ -121,6 +150,58 @@ export function productionAcceptanceScenarioDefinitions({
       passedCode: "freeipa_crud_membership_passed",
       failedCode: "acceptance_freeipa_crud_membership_failed",
       remediationCode: "inspect_freeipa_acceptance",
+    }));
+  }
+  if (includeXyOpsRead || includeXyOpsLifecycle) {
+    definitions.push(Object.freeze({
+      id: "xyops_read",
+      script: "scripts/xyops-acceptance.mjs",
+      environment: Object.freeze({
+        PORTAL_ACCEPTANCE_XYOPS_MODE: "read",
+      }),
+      omitEnvironmentKeys: Object.freeze([
+        "ADMIN_TOKEN",
+        "CONFIG_ENCRYPTION_KEY",
+        "IPA_URL",
+        "IPA_USERNAME",
+        "IPA_PASSWORD",
+        "IPA_NODE_GATEWAY_URL",
+        "IPA_NODE_GATEWAY_TOKEN",
+        "XYOPS_URL",
+        "XYOPS_API_KEY",
+        "PORTAL_PROXY_SHARED_SECRET",
+        "PORTAL_ACCEPTANCE_XYOPS_REQUESTER_USERNAME",
+        "PORTAL_ACCEPTANCE_XYOPS_REQUESTER_PASSWORD",
+        "PORTAL_ACCEPTANCE_XYOPS_EVENT_ID",
+        "PORTAL_ACCEPTANCE_XYOPS_CONFIRM_EVENT_ID",
+      ]),
+      passedCode: "xyops_read_passed",
+      failedCode: "acceptance_xyops_read_failed",
+      remediationCode: "inspect_xyops_read",
+    }));
+  }
+  if (includeXyOpsLifecycle) {
+    definitions.push(Object.freeze({
+      id: "xyops_approval_cancel_result",
+      script: "scripts/xyops-acceptance.mjs",
+      environment: Object.freeze({
+        PORTAL_ACCEPTANCE_XYOPS_MODE: "lifecycle",
+      }),
+      omitEnvironmentKeys: Object.freeze([
+        "ADMIN_TOKEN",
+        "CONFIG_ENCRYPTION_KEY",
+        "IPA_URL",
+        "IPA_USERNAME",
+        "IPA_PASSWORD",
+        "IPA_NODE_GATEWAY_URL",
+        "IPA_NODE_GATEWAY_TOKEN",
+        "XYOPS_URL",
+        "XYOPS_API_KEY",
+        "PORTAL_PROXY_SHARED_SECRET",
+      ]),
+      passedCode: "xyops_approval_cancel_result_passed",
+      failedCode: "acceptance_xyops_lifecycle_failed",
+      remediationCode: "inspect_xyops_acceptance",
     }));
   }
   return Object.freeze(definitions);

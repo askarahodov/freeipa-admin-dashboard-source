@@ -502,3 +502,46 @@ Create attempts are treated as potentially committed **before** the request resu
 If cleanup cannot prove the acceptance objects were removed, the run is release-blocking. Child stdout/stderr, temporary credentials, directory entries, upstream error bodies and FreeIPA endpoint details are not copied into the release report. Only the bounded `freeipa_crud_membership` stage result is persisted.
 
 `--run-freeipa-read` may be used by itself. `--run-freeipa-mutations` already includes the read stage, so supplying both flags is harmless but unnecessary. FreeIPA acceptance does not own Compose lifecycle; isolated project/volume teardown remains unconditional in the production executor.
+
+
+## 16. XYOps read and dedicated test-process lifecycle acceptance
+
+XYOps release acceptance is split into a safe read stage and a separately confirmed lifecycle stage. Both communicate only with the isolated loopback portal; the child runner does not receive `XYOPS_URL` or `XYOPS_API_KEY`.
+
+Safe catalog/status validation:
+
+```bash
+node scripts/production-acceptance-executor.mjs \
+  --plan artifacts/production-acceptance/plan.json \
+  --base-url http://127.0.0.1:3001 \
+  --run-xyops-read
+```
+
+The caller must provide the dedicated portal acceptance administrator credentials used by the other release scenarios. The read stage requires live/configured/reachable XYOps and a canonical catalog response, but it does not launch a process.
+
+The lifecycle stage is mutation-capable and must target an explicitly dedicated non-production XYOps event. The event must be enabled, marked dangerous, expose no input fields and no fixed targets. This intentionally narrow contract prevents the acceptance runner from forwarding arbitrary parameters or selecting an ordinary production process.
+
+Provide a dedicated portal requester account with `xyops.run`, and use the dedicated acceptance administrator as the independent approver. The requester username must differ from the acceptance administrator username (case-insensitive); this is validated before Compose starts:
+
+```bash
+export PORTAL_ACCEPTANCE_XYOPS_REQUESTER_USERNAME=<dedicated-test-operator>
+export PORTAL_ACCEPTANCE_XYOPS_REQUESTER_PASSWORD=<dedicated-test-password>
+export PORTAL_ACCEPTANCE_XYOPS_EVENT_ID=portal-acceptance-event
+export PORTAL_ACCEPTANCE_XYOPS_CONFIRM_EVENT_ID=portal-acceptance-event
+
+node scripts/production-acceptance-executor.mjs \
+  --plan artifacts/production-acceptance/plan.json \
+  --base-url http://127.0.0.1:3001 \
+  --run-xyops-lifecycle \
+  --confirm-destructive YES \
+  --confirm-project portal-accept-0123456789ab
+```
+
+The event ID must be entered twice independently and match exactly. The lifecycle verifies two controlled executions:
+
+1. requester creates an approval request, the independent approver approves it, requester executes it, then the resulting active run is cancelled;
+2. a second independent approval/execution is allowed to reach terminal success and must expose a sanitized portal result.
+
+Any pending approval or active run left by a partial failure is reconciled in `finally`. The runner snapshots visible approvals/runs before the lifecycle so a lost response after approval creation can be detected as new residue for the confirmed dedicated event without touching pre-existing objects. Failure to prove cleanup is release-blocking. Production release evidence contains only bounded `xyops_read` and `xyops_approval_cancel_result` stage codes. Approval IDs, run IDs, catalog payloads, credentials, upstream URLs/API keys and result bodies are not copied into release evidence.
+
+The dedicated XYOps test event must be provisioned so one invocation remains active long enough for cancellation and another can complete successfully with a result. Do not point this stage at an ordinary or production process.

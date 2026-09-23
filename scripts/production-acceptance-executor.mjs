@@ -7,6 +7,7 @@ import { promisify } from "node:util";
 import {
   executeProductionAcceptance,
   normalizeProductionAcceptanceTarget,
+  productionAcceptanceCommandEnvironment,
   renderProductionAcceptanceHtml,
   validateProductionAcceptanceManifest,
 } from "./production-acceptance-executor-core.mjs";
@@ -47,11 +48,11 @@ try {
   const runCommand = async (command, environment) => {
     const [executable, ...args] = command;
     await execFileAsync(executable, args, {
-      env: {
-        ...process.env,
-        ...environment,
-        ...acceptanceTarget.composeEnvironment,
-      },
+      env: productionAcceptanceCommandEnvironment(
+        process.env,
+        environment,
+        acceptanceTarget,
+      ),
       maxBuffer: 1024 * 1024,
     });
   };

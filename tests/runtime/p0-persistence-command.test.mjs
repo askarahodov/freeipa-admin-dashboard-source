@@ -27,6 +27,7 @@ test("P0 persistence recreate command preserves the image and named volume contr
       "compose.yaml",
       "up",
       "-d",
+      "--no-deps",
       "--no-build",
       "--force-recreate",
       "dashboard",

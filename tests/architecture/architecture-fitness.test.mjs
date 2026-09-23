@@ -81,6 +81,37 @@ test("harmless moves inside src do not fail dependency direction", () => {
   assert.deepEqual(inspectArchitectureFitness(files), []);
 });
 
+
+test("detects cycles inside the canonical src dependency graph", () => {
+  const issues = inspectArchitectureFitness(new Map([
+    ["src/a.ts", 'import "./b.ts";'],
+    ["src/b.ts", 'import "./c.ts";'],
+    ["src/c.ts", 'import "./a.ts";'],
+  ]));
+  const cycle = issues.find((entry) => entry.code === "source-dependency-cycle");
+  assert.ok(cycle);
+  assert.match(cycle.message, /src\/a\.ts -> src\/b\.ts -> src\/c\.ts -> src\/a\.ts/u);
+});
+
+test("runtime hosting cannot become a second HTTP application router", () => {
+  const issues = inspectArchitectureFitness(new Map([
+    ["runtime/host.mjs", 'import { resolvePortalApplicationRoute } from "../worker/application-router.ts";'],
+    ["worker/application-router.ts", "export const resolvePortalApplicationRoute = () => null;"],
+  ]));
+  assert.deepEqual(issues.map((entry) => entry.code), ["runtime-router-ownership"]);
+  assert.match(formatArchitectureFitnessIssues(issues), /runtime\/host\.mjs -> worker\/application-router\.ts/u);
+});
+
+test("acyclic src graph and runtime hosting without router imports stay valid", () => {
+  const files = new Map([
+    ["src/domain/a.ts", 'import "../shared/b.ts";'],
+    ["src/shared/b.ts", "export const b = 1;"],
+    ["runtime/host.mjs", 'import "./scheduler.mjs";'],
+    ["runtime/scheduler.mjs", "export const scheduler = true;"],
+  ]);
+  assert.deepEqual(inspectArchitectureFitness(files), []);
+});
+
 test("current tracked architecture satisfies the fitness foundation", () => {
   const files = readTrackedSourceFiles(repositoryRoot);
   assert.ok(files.has("worker/application.ts"));

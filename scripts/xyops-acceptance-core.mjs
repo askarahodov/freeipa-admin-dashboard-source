@@ -152,8 +152,80 @@ async function waitForSuccessfulResult({
   }
 }
 
-async function reconcileCleanup({ requesterRequest, activeRuns, pendingApprovals }) {
+async function acceptanceLifecycleBaseline(request) {
+  const [approvalPayload, runPayload] = await Promise.all([
+    request("/api/integrations/approvals?limit=100", { method: "GET" }),
+    request("/api/integrations/runs?sync=1&limit=100", { method: "GET" }),
+  ]);
+  const approvals = boundedPayload(approvalPayload, 200, "acceptance_xyops_approvals_read_failed");
+  const runs = boundedPayload(runPayload, 200, "acceptance_xyops_runs_read_failed");
+  if (!Array.isArray(approvals.approvals) || !Array.isArray(runs.runs)) {
+    throw new Error("acceptance_xyops_baseline_invalid");
+  }
+  return Object.freeze({
+    approvalIds: new Set(approvals.approvals.map((item) => String(item?.id ?? "")).filter(Boolean)),
+    runIds: new Set(runs.runs.map((item) => String(item?.id ?? "")).filter(Boolean)),
+  });
+}
+
+async function discoverAcceptanceResidue({
+  requesterRequest,
+  eventId,
+  baseline,
+  activeRuns,
+  pendingApprovals,
+}) {
+  const approvalsPayload = boundedPayload(
+    await requesterRequest("/api/integrations/approvals?limit=100", { method: "GET" }),
+    200,
+    "acceptance_xyops_cleanup_failed",
+  );
+  if (!Array.isArray(approvalsPayload.approvals)) throw new Error("acceptance_xyops_cleanup_failed");
+
+  for (const approval of approvalsPayload.approvals) {
+    const id = String(approval?.id ?? "");
+    if (!id || baseline.approvalIds.has(id) || approval?.eventId !== eventId) continue;
+    const status = String(approval?.status ?? "");
+    if (status === "executed" && typeof approval?.runId === "string" && approval.runId) {
+      activeRuns.add(approval.runId);
+      continue;
+    }
+    if (["pending", "approved"].includes(status)) pendingApprovals.add(id);
+  }
+
+  const runsPayload = boundedPayload(
+    await requesterRequest("/api/integrations/runs?sync=1&limit=100", { method: "GET" }),
+    200,
+    "acceptance_xyops_cleanup_failed",
+  );
+  if (!Array.isArray(runsPayload.runs)) throw new Error("acceptance_xyops_cleanup_failed");
+  for (const run of runsPayload.runs) {
+    const id = String(run?.id ?? "");
+    if (!id || baseline.runIds.has(id) || run?.eventId !== eventId) continue;
+    if (!["success", "failed", "cancelled"].includes(String(run?.status ?? ""))) activeRuns.add(id);
+  }
+}
+
+async function reconcileCleanup({
+  requesterRequest,
+  eventId,
+  baseline,
+  activeRuns,
+  pendingApprovals,
+}) {
   let cleanupFailed = false;
+
+  try {
+    await discoverAcceptanceResidue({
+      requesterRequest,
+      eventId,
+      baseline,
+      activeRuns,
+      pendingApprovals,
+    });
+  } catch {
+    cleanupFailed = true;
+  }
 
   for (const approvalId of [...pendingApprovals]) {
     try {
@@ -246,6 +318,7 @@ export async function executeXyOpsLifecycleAcceptance({
   await readStatus(approverRequest);
   const { events } = await readCatalog(requesterRequest);
   dedicatedLifecycleEvent(events, normalized);
+  const baseline = await acceptanceLifecycleBaseline(requesterRequest);
 
   const activeRuns = new Set();
   const pendingApprovals = new Set();
@@ -275,7 +348,13 @@ export async function executeXyOpsLifecycleAcceptance({
     primaryError = error;
   } finally {
     try {
-      await reconcileCleanup({ requesterRequest, activeRuns, pendingApprovals });
+      await reconcileCleanup({
+        requesterRequest,
+        eventId: normalized,
+        baseline,
+        activeRuns,
+        pendingApprovals,
+      });
     } catch {
       cleanupError = new Error("acceptance_xyops_cleanup_failed");
     }

@@ -104,6 +104,95 @@ export function createProductionAcceptanceManifest({ imageReference, commitSha }
   });
 }
 
+export function validateProductionAcceptanceManifest(manifest) {
+  if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) {
+    throw new Error("acceptance_manifest_invalid");
+  }
+  if (manifest.schemaVersion !== PRODUCTION_ACCEPTANCE_MANIFEST_VERSION) {
+    throw new Error("acceptance_manifest_version_unsupported");
+  }
+  if (manifest.mode !== PRODUCTION_ACCEPTANCE_MODE || manifest.destructive !== false) {
+    throw new Error("acceptance_manifest_mode_invalid");
+  }
+
+  const image = parseImmutableImageReference(manifest.image?.reference);
+  const commitSha = normalizeCommitSha(manifest.source?.commitSha);
+  const expectedProject = acceptanceProjectName(image.digest);
+  if (manifest.image?.digest !== image.digest || manifest.image?.repository !== image.repository) {
+    throw new Error("acceptance_manifest_image_mismatch");
+  }
+  if (manifest.compose?.projectName !== expectedProject) {
+    throw new Error("acceptance_manifest_project_mismatch");
+  }
+  if (manifest.compose?.expectedDataVolume !== `${expectedProject}_dashboard-data`) {
+    throw new Error("acceptance_manifest_volume_mismatch");
+  }
+  if (manifest.compose?.service !== "dashboard" || manifest.compose?.serviceEnvFile !== ".env.acceptance") {
+    throw new Error("acceptance_manifest_compose_invalid");
+  }
+  if (
+    manifest.compose?.environment?.PORTAL_IMAGE !== image.reference
+    || manifest.compose?.environment?.PORTAL_SERVICE_ENV_FILE !== ".env.acceptance"
+  ) {
+    throw new Error("acceptance_manifest_environment_invalid");
+  }
+
+  const expectedArgs = [
+    "docker",
+    "compose",
+    "--project-name",
+    expectedProject,
+    "--env-file",
+    ".env.acceptance",
+    "-f",
+    "compose.yaml",
+    "up",
+    "-d",
+    "--no-build",
+    "dashboard",
+  ];
+  if (!Array.isArray(manifest.compose?.args) || manifest.compose.args.length !== expectedArgs.length) {
+    throw new Error("acceptance_manifest_compose_args_invalid");
+  }
+  for (let index = 0; index < expectedArgs.length; index += 1) {
+    if (manifest.compose.args[index] !== expectedArgs[index]) {
+      throw new Error("acceptance_manifest_compose_args_invalid");
+    }
+  }
+
+  if (!Array.isArray(manifest.baseline) || manifest.baseline.length !== 4) {
+    throw new Error("acceptance_manifest_baseline_invalid");
+  }
+  const ids = new Set();
+  for (const check of manifest.baseline) {
+    if (!check || typeof check !== "object" || Array.isArray(check)) {
+      throw new Error("acceptance_manifest_baseline_invalid");
+    }
+    if (typeof check.id !== "string" || !check.id || ids.has(check.id)) {
+      throw new Error("acceptance_manifest_baseline_invalid");
+    }
+    ids.add(check.id);
+    if (check.method !== "GET" || typeof check.path !== "string" || !check.path.startsWith("/")) {
+      throw new Error("acceptance_manifest_baseline_invalid");
+    }
+    if (!Array.isArray(check.expectedStatus) || check.expectedStatus.length === 0) {
+      throw new Error("acceptance_manifest_baseline_invalid");
+    }
+    if (!check.expectedStatus.every((status) => Number.isInteger(status) && status >= 100 && status <= 599)) {
+      throw new Error("acceptance_manifest_baseline_invalid");
+    }
+    if (!check.requiredJson || typeof check.requiredJson !== "object" || Array.isArray(check.requiredJson)) {
+      throw new Error("acceptance_manifest_baseline_invalid");
+    }
+  }
+
+  return Object.freeze({
+    image,
+    commitSha,
+    projectName: expectedProject,
+  });
+}
+
 function scanString(value, path, findings, secretValues, { key = false } = {}) {
   if (key && SENSITIVE_KEY_PATTERN.test(value)) findings.push({ code: "sensitive_report_key", path });
 

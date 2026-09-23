@@ -56,7 +56,8 @@ test("backup predispatch is not owned by the FreeIPA adapter", async () => {
 });
 
 test("FreeIPA action ownership is canonical in the adapter and absent from the central Worker", async () => {
-  const central = await source("worker/index.ts");
+  assert.equal(await exists("worker/index.ts"), false, "retired central Worker tail must stay absent");
+  const central = "";
   const operationsOwner = await source("worker/operations-http-entry.ts");
   const adapter = await source("worker/freeipa-http-entry.ts");
   const baseRead = await source("worker/freeipa-base-read.ts");

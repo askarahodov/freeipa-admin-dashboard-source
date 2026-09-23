@@ -151,6 +151,7 @@ test("upgrade acceptance seeds source state then verifies target schema login an
   const commands = [];
   let readyCall = 0;
   let authCall = 0;
+  let targetBaselineCalls = 0;
   let sourceEffectiveReads = 0;
 
   const sourceRequest = async (pathname, options = {}) => {
@@ -197,6 +198,9 @@ test("upgrade acceptance seeds source state then verifies target schema login an
       assert.equal(expectedVersion, undefined);
       return { currentVersion: 5, latestVersion: 5 };
     },
+    verifyTargetBaseline: async () => {
+      targetBaselineCalls += 1;
+    },
     createAuthenticatedRequest: async () => {
       authCall += 1;
       return authCall === 1 ? sourceRequest : targetRequest;
@@ -207,6 +211,7 @@ test("upgrade acceptance seeds source state then verifies target schema login an
     outcome: "passed",
     sourceSchema: "verified",
     targetSchema: "verified",
+    targetHealth: "verified",
     login: "verified",
     persistence: "verified",
   });
@@ -223,6 +228,7 @@ test("upgrade acceptance seeds source state then verifies target schema login an
     targetImage,
   ]);
   assert.equal(authCall, 2);
+  assert.equal(targetBaselineCalls, 1);
 });
 
 test("upgrade acceptance fails closed on source schema mismatch before marker mutation", async () => {
@@ -235,6 +241,7 @@ test("upgrade acceptance fails closed on source schema mismatch before marker mu
       projectName,
       runCommand: async () => {},
       waitReady: async () => ({ currentVersion: 3, latestVersion: 3 }),
+      verifyTargetBaseline: async () => {},
       createAuthenticatedRequest: async () => {
         authenticated = true;
         throw new Error("should not authenticate");
@@ -275,6 +282,7 @@ test("upgrade acceptance rejects target persistence loss", async () => {
       waitReady: async (expected) => expected === 4
         ? { currentVersion: 4, latestVersion: 4 }
         : { currentVersion: 5, latestVersion: 5 },
+      verifyTargetBaseline: async () => {},
       createAuthenticatedRequest: async () => {
         authCall += 1;
         return authCall === 1 ? sourceRequest : targetRequest;
@@ -282,4 +290,44 @@ test("upgrade acceptance rejects target persistence loss", async () => {
     }),
     /acceptance_upgrade_persistence_failed/u,
   );
+});
+
+
+test("upgrade acceptance blocks target login when post-upgrade baseline is unhealthy", async () => {
+  let authCall = 0;
+  let effectiveReads = 0;
+  const sourceRequest = async (pathname) => {
+    if (pathname === "/api/integrations/settings/effective") {
+      effectiveReads += 1;
+      return effectiveReads === 1
+        ? { status: 200, json: { revision: 1, settings: { demoMode: false } } }
+        : { status: 200, json: { revision: 2, settings: { demoMode: true } } };
+    }
+    if (pathname === "/api/integrations/settings/drafts") return { status: 201, json: { draft: { id: "d" } } };
+    if (pathname.endsWith("/validate")) return { status: 200, json: { draft: { status: "validated" } } };
+    if (pathname.endsWith("/apply")) return { status: 200, json: { ok: true } };
+    throw new Error("unexpected");
+  };
+
+  await assert.rejects(
+    () => executeUpgradeAcceptance({
+      policy: configuredPolicy(),
+      targetImageReference: targetImage,
+      targetCommitSha: targetCommit,
+      projectName,
+      runCommand: async () => {},
+      waitReady: async (expected) => expected === 4
+        ? { currentVersion: 4, latestVersion: 4 }
+        : { currentVersion: 5, latestVersion: 5 },
+      verifyTargetBaseline: async () => {
+        throw new Error("acceptance_upgrade_target_baseline_failed");
+      },
+      createAuthenticatedRequest: async () => {
+        authCall += 1;
+        return sourceRequest;
+      },
+    }),
+    /acceptance_upgrade_target_baseline_failed/u,
+  );
+  assert.equal(authCall, 1);
 });

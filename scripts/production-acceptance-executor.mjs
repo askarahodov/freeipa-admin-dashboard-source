@@ -78,6 +78,7 @@ try {
     enabled: runXyOpsLifecycle,
     requesterUsername: process.env.PORTAL_ACCEPTANCE_XYOPS_REQUESTER_USERNAME,
     requesterPassword: process.env.PORTAL_ACCEPTANCE_XYOPS_REQUESTER_PASSWORD,
+    approverUsername: process.env.PORTAL_ACCEPTANCE_ADMIN_USERNAME,
     eventId: process.env.PORTAL_ACCEPTANCE_XYOPS_EVENT_ID,
     confirmedEventId: process.env.PORTAL_ACCEPTANCE_XYOPS_CONFIRM_EVENT_ID,
   });

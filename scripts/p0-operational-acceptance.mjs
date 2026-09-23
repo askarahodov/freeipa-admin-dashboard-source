@@ -3,12 +3,15 @@ import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import { buildP0DashboardPersistenceCommand } from "./p0-persistence-command.mjs";
+
 const confirmation = String(process.env.PORTAL_TEST_CONFIRM ?? "").trim();
 const baseUrl = String(process.env.PORTAL_TEST_BASE_URL ?? "http://127.0.0.1:3001").trim().replace(/\/+$/, "");
 const adminUsername = String(process.env.PORTAL_TEST_ADMIN_USERNAME ?? "").trim();
 const adminPassword = String(process.env.PORTAL_TEST_ADMIN_PASSWORD ?? "");
 const timeoutMs = clampNumber(process.env.PORTAL_TEST_TIMEOUT_MS, 15_000, 1_000, 120_000);
 const restartEnabled = parseBoolean(process.env.PORTAL_TEST_RESTART_DASHBOARD, false);
+const recreateEnabled = parseBoolean(process.env.PORTAL_TEST_RECREATE_DASHBOARD, false);
 const restartTimeoutMs = clampNumber(process.env.PORTAL_TEST_RESTART_TIMEOUT_MS, 120_000, 10_000, 600_000);
 const composeFile = String(process.env.PORTAL_TEST_COMPOSE_FILE ?? "compose.yaml").trim();
 const composeEnvFile = String(process.env.PORTAL_TEST_COMPOSE_ENV_FILE ?? ".env").trim();
@@ -178,10 +181,27 @@ async function runCommand(command, args) {
   });
 }
 
-async function restartDashboard() {
+async function cycleDashboard(action) {
   assert(composeFile && composeEnvFile && composeService, "Compose file, env file and service must be configured");
-  await runCommand("docker", ["compose", "--env-file", composeEnvFile, "-f", composeFile, "restart", composeService]);
+  const command = buildP0DashboardPersistenceCommand({
+    action,
+    composeFile,
+    composeEnvFile,
+    composeService,
+  });
+  await runCommand(command.command, command.args);
   await waitForPortal();
+}
+
+async function verifyCreatedUserPersistence(actionLabel) {
+  adminCookie = (await login(adminUsername, adminPassword)).cookie;
+  const users = (await request("/api/auth/users", { cookie: adminCookie, expected: 200 })).payload.users ?? [];
+  const persisted = users.find((item) => String(item.id) === createdUser.id);
+  assert(persisted, `Created user disappeared after ${actionLabel}`);
+  assert(persisted.username === createdUser.username, `Persisted username changed after ${actionLabel}`);
+  assert(persisted.role === createdUser.role, `Persisted role changed after ${actionLabel}`);
+  await login(createdUser.username, userPassword);
+  return { username: persisted.username, role: persisted.role };
 }
 
 async function cleanup() {
@@ -224,6 +244,7 @@ async function writeReport() {
     generatedAt: new Date().toISOString(),
     target: targetOrigin,
     restartEnabled,
+    recreateEnabled,
     status: failed || fatalError ? "failed" : "success",
     summary: { total: steps.length, success: steps.length - failed - skipped, failed, skipped },
     error: redact(fatalError),
@@ -286,26 +307,22 @@ try {
 
   if (restartEnabled) {
     await step("Restart dashboard container", async () => {
-      await restartDashboard();
+      await cycleDashboard("restart");
       return `${composeService} restarted`;
     });
-
-    adminCookie = await step("Bootstrap admin survives restart", async () => {
-      const authenticated = await login(adminUsername, adminPassword);
-      return authenticated.cookie;
-    });
-
-    await step("Created user and role survive restart", async () => {
-      const users = (await request("/api/auth/users", { cookie: adminCookie, expected: 200 })).payload.users ?? [];
-      const persisted = users.find((item) => String(item.id) === createdUser.id);
-      assert(persisted, "Created user disappeared after Docker restart");
-      assert(persisted.username === createdUser.username, "Persisted username changed after restart");
-      assert(persisted.role === createdUser.role, "Persisted role changed after restart");
-      await login(createdUser.username, userPassword);
-      return { username: persisted.username, role: persisted.role };
-    });
+    await step("Created user, role and login survive restart", () => verifyCreatedUserPersistence("Docker restart"));
   } else {
     await step("Docker restart persistence", "PORTAL_TEST_RESTART_DASHBOARD is disabled", { skipped: true });
+  }
+
+  if (recreateEnabled) {
+    await step("Recreate dashboard container", async () => {
+      await cycleDashboard("recreate");
+      return `${composeService} recreated without rebuild`;
+    });
+    await step("Created user, role and login survive recreate", () => verifyCreatedUserPersistence("Docker recreate"));
+  } else {
+    await step("Docker recreate persistence", "PORTAL_TEST_RECREATE_DASHBOARD is disabled", { skipped: true });
   }
 } catch (error) {
   fatalError = error instanceof Error ? error.message : String(error);

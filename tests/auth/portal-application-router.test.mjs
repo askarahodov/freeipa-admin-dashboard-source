@@ -99,6 +99,16 @@ test("unknown API and framework/static traffic are classified separately", () =>
   assert.deepEqual(framework, { kind: "framework", pathname: "/settings/general" });
 });
 
+test("unknown sensitive API paths fail closed into negative routing instead of framework traffic", () => {
+  for (const pathname of [
+    "/api/admin/not-a-real-admin-route",
+    "/api/integrations/not-a-real-integration-route",
+  ]) {
+    const route = resolvePortalApplicationRoute(new Request(`https://portal.test${pathname}`));
+    assert.deepEqual(route, { kind: "unknown-api", pathname });
+  }
+});
+
 test("route kinds select exactly one explicit dispatch registration", async () => {
   const observed = [];
   const handler = (owner) => async ({ route }) => {

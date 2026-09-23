@@ -186,6 +186,25 @@ export function validateProductionAcceptanceManifest(manifest) {
     }
   }
 
+  const expectedManifest = createProductionAcceptanceManifest({
+    imageReference: image.reference,
+    commitSha,
+  });
+
+  const canonicalJson = (value) => {
+    if (Array.isArray(value)) return value.map(canonicalJson);
+    if (value && typeof value === "object") {
+      return Object.fromEntries(
+        Object.keys(value).sort().map((key) => [key, canonicalJson(value[key])]),
+      );
+    }
+    return value;
+  };
+
+  if (JSON.stringify(canonicalJson(manifest)) !== JSON.stringify(canonicalJson(expectedManifest))) {
+    throw new Error("acceptance_manifest_mismatch");
+  }
+
   return Object.freeze({
     image,
     commitSha,

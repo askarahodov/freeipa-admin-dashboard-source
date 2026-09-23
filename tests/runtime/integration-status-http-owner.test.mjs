@@ -213,12 +213,12 @@ test("demo integration status skips external probes and non-GET falls through", 
 
 test("#635 C4 gives integration status one explicit post-security owner", () => {
   const operations = fs.readFileSync(new URL("../../worker/operations-http-entry.ts", import.meta.url), "utf8");
-  const central = fs.readFileSync(new URL("../../worker/index.ts", import.meta.url), "utf8");
+  const centralUrl = new URL("../../worker/index.ts", import.meta.url);
+  assert.equal(fs.existsSync(centralUrl), false, "retired central Worker tail must stay absent");
   const routes = fs.readFileSync(new URL("../../src/auth/portal-route-contract.ts", import.meta.url), "utf8");
 
   const dispatch = operations.indexOf("handleIntegrationStatusRequest(request, sourceEnv)");
-  const fallback = operations.indexOf("integrationRuntime.fetch(request, sourceEnv, ctx)", dispatch);
-  assert.ok(dispatch >= 0 && fallback > dispatch, "status must run immediately before central fallback");
-  assert.equal(central.includes('url.pathname === "/api/integrations/status"'), false);
+  const fallback = operations.indexOf("handleFrameworkRequest(request, sourceEnv, ctx)", dispatch);
+  assert.ok(dispatch >= 0 && fallback > dispatch, "status must run before explicit framework fallback");
   assert.match(routes, /id: "integration\.status".*owner: "worker\/integration-status-http\.ts"/);
 });

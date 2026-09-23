@@ -146,11 +146,13 @@ export async function executeUpgradeAcceptance({
   serviceEnvFile = ".env.acceptance",
   runCommand,
   waitReady,
+  readSourceImageRevision,
   verifyTargetBaseline,
   createAuthenticatedRequest,
 } = {}) {
   if (typeof runCommand !== "function"
       || typeof waitReady !== "function"
+      || typeof readSourceImageRevision !== "function"
       || typeof verifyTargetBaseline !== "function"
       || typeof createAuthenticatedRequest !== "function") {
     throw new Error("acceptance_upgrade_dependency_invalid");
@@ -165,6 +167,10 @@ export async function executeUpgradeAcceptance({
   await runCommand(upgradeComposeCommand({ projectName, serviceEnvFile, imageReference: source.image.reference, action: "up" }), {
     PORTAL_IMAGE: source.image.reference,
   });
+  const sourceRevision = String(await readSourceImageRevision(source.image.reference)).trim().toLowerCase();
+  if (sourceRevision !== source.commitSha) {
+    throw new Error("acceptance_upgrade_source_provenance_mismatch");
+  }
   const sourceReady = await waitReady(source.portalSchemaVersion);
   if (sourceReady?.currentVersion !== source.portalSchemaVersion || sourceReady?.latestVersion !== source.portalSchemaVersion) {
     throw new Error("acceptance_upgrade_source_schema_mismatch");
@@ -197,6 +203,7 @@ export async function executeUpgradeAcceptance({
 
   return Object.freeze({
     outcome: "passed",
+    sourceProvenance: "verified",
     sourceSchema: "verified",
     targetSchema: "verified",
     targetHealth: "verified",

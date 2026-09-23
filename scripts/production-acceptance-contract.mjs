@@ -72,30 +72,40 @@ export function createProductionAcceptanceManifest({ imageReference, commitSha }
       ]),
     }),
     baseline: Object.freeze([
-      Object.freeze({ id: "liveness", method: "GET", path: "/health/live", expectedStatus: Object.freeze([200]) }),
-      Object.freeze({ id: "readiness", method: "GET", path: "/health/ready", expectedStatus: Object.freeze([200, 503]) }),
-      Object.freeze({ id: "dependencies", method: "GET", path: "/health/dependencies", expectedStatus: Object.freeze([200, 503]) }),
-      Object.freeze({ id: "maintenance", method: "GET", path: "/api/maintenance/status", expectedStatus: Object.freeze([200]) }),
+      Object.freeze({
+        id: "liveness",
+        method: "GET",
+        path: "/health/live",
+        expectedStatus: Object.freeze([200]),
+        requiredJson: Object.freeze({ state: "healthy", code: "health_live", ok: true }),
+      }),
+      Object.freeze({
+        id: "readiness",
+        method: "GET",
+        path: "/health/ready",
+        expectedStatus: Object.freeze([200]),
+        requiredJson: Object.freeze({ state: "healthy", code: "health_ready", ok: true }),
+      }),
+      Object.freeze({
+        id: "dependencies",
+        method: "GET",
+        path: "/health/dependencies",
+        expectedStatus: Object.freeze([200]),
+        requiredJson: Object.freeze({ state: "healthy", code: "dependencies_healthy", ok: true }),
+      }),
+      Object.freeze({
+        id: "maintenance",
+        method: "GET",
+        path: "/api/maintenance/status",
+        expectedStatus: Object.freeze([200]),
+        requiredJson: Object.freeze({ maintenance: false, state: "inactive", recoveryRequired: false }),
+      }),
     ]),
   });
 }
 
-function walk(value, path, findings, secretValues) {
-  if (Array.isArray(value)) {
-    value.forEach((item, index) => walk(item, `${path}[${index}]`, findings, secretValues));
-    return;
-  }
-  if (value && typeof value === "object") {
-    for (const [key, child] of Object.entries(value)) {
-      const childPath = path ? `${path}.${key}` : key;
-      if (SENSITIVE_KEY_PATTERN.test(key)) {
-        findings.push({ code: "sensitive_report_key", path: childPath });
-      }
-      walk(child, childPath, findings, secretValues);
-    }
-    return;
-  }
-  if (typeof value !== "string") return;
+function scanString(value, path, findings, secretValues, { key = false } = {}) {
+  if (key && SENSITIVE_KEY_PATTERN.test(value)) findings.push({ code: "sensitive_report_key", path });
 
   for (const secret of secretValues) {
     if (secret && value.includes(secret)) {
@@ -104,8 +114,24 @@ function walk(value, path, findings, secretValues) {
     }
   }
   if (SECRET_MARKER_PATTERN.test(value)) findings.push({ code: "credential_marker_present", path });
-  const urls = value.match(URL_PATTERN) ?? [];
-  if (urls.length > 0) findings.push({ code: "url_present_in_report", path });
+  if ((value.match(URL_PATTERN) ?? []).length > 0) findings.push({ code: "url_present_in_report", path });
+}
+
+function walk(value, path, findings, secretValues) {
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => walk(item, `${path}.item[${index}]`, findings, secretValues));
+    return;
+  }
+  if (value && typeof value === "object") {
+    Object.entries(value).forEach(([key, child], index) => {
+      const keyPath = `${path}.key[${index}]`;
+      const valuePath = `${path}.value[${index}]`;
+      scanString(key, keyPath, findings, secretValues, { key: true });
+      walk(child, valuePath, findings, secretValues);
+    });
+    return;
+  }
+  if (typeof value === "string") scanString(value, path, findings, secretValues);
 }
 
 export function scanProductionAcceptanceReport(report, { secretValues = [] } = {}) {

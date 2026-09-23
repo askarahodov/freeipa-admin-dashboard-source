@@ -18,7 +18,11 @@ test("#632 checkpoint D gives catalog, runs, notifications, and approvals one po
   assert.match(freeIpaOwner, /import integrationRuntime from ["']\.\/operations-http-entry\.ts["']/);
   assert.match(
     operationsOwner,
-    /import integrationRuntime, \{ loadCatalog, portalCatalog \} from ["']\.\/index["']/,
+    /import integrationRuntime from ["']\.\/index["']/,
+  );
+  assert.match(
+    operationsOwner,
+    /import \{ loadCatalog, portalCatalog \} from ["']\.\/xyops-catalog-runtime\.ts["']/,
   );
   assert.match(
     operationsOwner,
@@ -59,7 +63,7 @@ test("#632 checkpoint D gives catalog, runs, notifications, and approvals one po
   assert.equal(central.includes("function runStatus"), false);
   assert.equal(central.includes("async function listOperationRuns"), false);
   assert.equal(central.includes("async function syncOperationRuns"), false);
-  assert.match(central, /from ["']\.\/xyops-run-runtime\.ts["']/);
+  assert.doesNotMatch(central, /from ["']\.\/xyops-run-runtime\.ts["']/, "central framework tail must not retain catalog/run runtime dependencies");
   assert.match(operationsOwner, /import \{[^}]*extractJobStages[^}]*\} from ["']\.\/xyops-run-runtime\.ts["']/s);
   assert.match(operationsOwner, /stages: extractJobStages\(result\)/u);
 
@@ -79,8 +83,15 @@ test("#632 checkpoint D gives catalog, runs, notifications, and approvals one po
   assert.match(operationsOwner, /loadCatalog\(runtime\.env, runtime\.xyopsUrl\)/u);
   assert.match(operationsOwner, /currentRequirement\.requiredApprovals/u);
   assert.match(operationsOwner, /handleCatalogRunRequest\([\s\S]*runtime, approvalId\)/u);
-  assert.match(central, /export async function loadCatalog/);
-  assert.match(central, /export async function portalCatalog/);
+  const catalogRuntime = await source("worker/xyops-catalog-runtime.ts");
+  assert.doesNotMatch(central, /export async function loadCatalog/);
+  assert.doesNotMatch(central, /export async function portalCatalog/);
+  assert.doesNotMatch(central, /xyops_catalog_snapshot|xyops_catalog_history|get_events\/v1/);
+  assert.match(catalogRuntime, /export async function loadCatalog/);
+  assert.match(catalogRuntime, /export async function portalCatalog/);
+  assert.match(catalogRuntime, /xyops_catalog_snapshot/);
+  assert.match(catalogRuntime, /xyops_catalog_history/);
+  assert.match(catalogRuntime, /get_events\/v1/);
   assert.match(central, /export \{ allowedOperations, automationRoutes, resolveCatalogRuntime \} from ["']\.\/xyops-admin-runtime\.ts["']/);
   assert.equal(central.includes("async function resolveCatalogRuntime"), false);
   assert.equal(central.includes("function automationRoutes"), false);

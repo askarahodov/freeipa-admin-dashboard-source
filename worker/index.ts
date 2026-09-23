@@ -2,8 +2,6 @@
 import { handleFrameworkRequest } from "./framework-http-entry.ts";
 import type { FrameworkHttpContext, FrameworkHttpEnv } from "./framework-http.ts";
 import type { CatalogEvent } from "../src/automation/automation-types";
-import { listAuditEvents } from "../audit-log";
-import { requirePortalPermission } from "./portal-access-runtime.ts";
 import { automationRoutes, normalizeXyFields } from "./xyops-admin-runtime.ts";
 import { xyopsPayloadSucceeded } from "./xyops-run-runtime.ts";
 export { allowedOperations, automationRoutes, resolveCatalogRuntime } from "./xyops-admin-runtime.ts";
@@ -40,19 +38,9 @@ const worker = {
     const url = new URL(request.url);
     const runtimeEnv = env ?? (process.env as unknown as Env);
 
-    if (url.pathname.startsWith("/api/integrations/")) {
-      return handleIntegrationApi(request, runtimeEnv, url);
-    }
-
     return handleFrameworkRequest(request, runtimeEnv, ctx);
   },
 };
-
-const jsonHeaders = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
-
-function json(data: unknown, status = 200): Response {
-  return new Response(JSON.stringify(data), { status, headers: jsonHeaders });
-}
 
 async function readCatalogSnapshot(env: Env): Promise<CatalogSnapshot | null> {
   if (!env.DB) return null;
@@ -234,29 +222,6 @@ export async function portalCatalog(env: Env, xyopsUrl: string | null): Promise<
     if (previous) return { mode: "cached", source: "cache", events: previous.events, syncedAt: new Date(previous.syncedAt).toISOString(), stale: true, changes: [] };
     throw error;
   }
-}
-
-async function handleIntegrationApi(request: Request, baseEnv: Env, url: URL): Promise<Response> {
-  if (request.method === "GET" && url.pathname === "/api/integrations/health") return json({ ok: true });
-
-  if (url.pathname === "/api/integrations/audit") {
-    const denied = requirePortalPermission(request, baseEnv, "settings.manage");
-    if (denied) return denied;
-    if (request.method !== "GET") return json({ error: "Method not allowed" }, 405);
-    const numberParam = (name: string) => { const value = Number(url.searchParams.get(name) ?? ""); return Number.isFinite(value) ? value : undefined; };
-    try {
-      return json(await listAuditEvents(baseEnv, {
-        limit: numberParam("limit"), actor: url.searchParams.get("actor") ?? undefined, action: url.searchParams.get("action") ?? undefined,
-        outcome: url.searchParams.get("outcome") ?? undefined, eventId: url.searchParams.get("eventId") ?? undefined,
-        approvalId: url.searchParams.get("approvalId") ?? undefined, runId: url.searchParams.get("runId") ?? undefined,
-        correlationId: url.searchParams.get("correlationId") ?? undefined, dateFrom: numberParam("dateFrom"), dateTo: numberParam("dateTo"),
-      }));
-    } catch (error) { return json({ error: error instanceof Error ? error.message : "Cannot load audit log" }, 503); }
-  }
-
-
-
-  return json({ error: "Not found" }, 404);
 }
 
 export default worker;

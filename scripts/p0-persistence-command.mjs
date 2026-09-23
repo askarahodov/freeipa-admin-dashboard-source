@@ -25,7 +25,7 @@ export function buildP0DashboardPersistenceCommand({
   const common = ["compose", "--env-file", envFile, "-f", file];
   const args = normalizedAction === "restart"
     ? [...common, "restart", service]
-    : [...common, "up", "-d", "--no-build", "--force-recreate", service];
+    : [...common, "up", "-d", "--no-deps", "--no-build", "--force-recreate", service];
 
   return Object.freeze({
     command: "docker",

@@ -11,7 +11,7 @@ const sourceUrl = new URL("../../worker/settings-source-entry.ts", import.meta.u
 const sourceSafeUrl = new URL("../../worker/settings-source-safe-entry.ts", import.meta.url);
 const owner = fs.readFileSync(ownerUrl, "utf8");
 const secure = fs.readFileSync(secureUrl, "utf8");
-const central = fs.readFileSync(centralUrl, "utf8");
+const centralExists = fs.existsSync(centralUrl);
 const source = fs.readFileSync(sourceUrl, "utf8");
 const sourceSafe = fs.readFileSync(sourceSafeUrl, "utf8");
 const routes = fs.readFileSync(new URL("../../src/auth/portal-route-contract.ts", import.meta.url), "utf8");
@@ -30,21 +30,7 @@ test("#633 checkpoints A/B give settings read/test/direct-write one explicit pos
   assert.equal(owner.includes("xyopsPayloadSucceeded(payload)"), true);
   assert.equal(owner.includes('action: "settings.connection_test"'), true);
 
-  assert.equal(
-    central.includes('request.method === "GET" && url.pathname === "/api/integrations/settings"'),
-    false,
-    "central Worker must not retain settings-read HTTP handling",
-  );
-  assert.equal(
-    central.includes('"/api/integrations/settings/test"'),
-    false,
-    "central Worker must not retain settings connection-test HTTP ownership",
-  );
-  assert.equal(
-    central.includes('request.method === "PUT" && url.pathname === "/api/integrations/settings"'),
-    false,
-    "central Worker must not retain direct settings-write HTTP handling",
-  );
+  assert.equal(centralExists, false, "retired central Worker tail must stay absent");
   assert.equal(
     source.includes('request.method === "PUT" && url.pathname === "/api/integrations/settings"'),
     true,
@@ -72,8 +58,8 @@ test("canonical route metadata points all extracted base settings routes at the 
   assert.match(routes, /id: "settings\.update".*owner: "worker\/settings-http\.ts"/);
 });
 
-test("settings owner, secure boundary and central Worker parse under the repository Node TypeScript baseline", () => {
-  for (const url of [ownerUrl, secureUrl, centralUrl, sourceUrl, sourceSafeUrl]) {
+test("settings owner and remaining boundaries parse under the repository Node TypeScript baseline", () => {
+  for (const url of [ownerUrl, secureUrl, sourceUrl, sourceSafeUrl]) {
     const result = spawnSync(process.execPath, ["--experimental-strip-types", "--check", fileURLToPath(url)], { encoding: "utf8" });
     assert.equal(result.status, 0, result.stderr || result.stdout);
   }

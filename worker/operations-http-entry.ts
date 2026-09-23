@@ -1,6 +1,7 @@
 import type { RouteField } from "../src/automation/automation-types";
 import { fieldConditionMatches } from "../src/automation/field-conditions";
-import integrationRuntime, { loadCatalog, portalCatalog } from "./index";
+import integrationRuntime from "./index";
+import { loadCatalog, portalCatalog } from "./xyops-catalog-runtime.ts";
 import { allowedOperations, automationRoutes, resolveCatalogRuntime } from "./xyops-admin-runtime.ts";
 import { listRunNotifications, markRunNotificationsRead } from "../src/operations/run/run-notifications.ts";
 import { readRunReplay, listRunReplaySummaries, saveRunReplay } from "../src/operations/run/run-replays.ts";

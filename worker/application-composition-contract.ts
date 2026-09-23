@@ -50,9 +50,9 @@ export const portalCompatibilityAdapters = Object.freeze([
 
 export const portalCentralCompatibilityTail = Object.freeze({
   path: "worker/index.ts",
-  responsibility: "compatibility-only legacy catalog helpers before explicit framework delegation",
-  reason: "canonical stable route ownership has been extracted, but reusable catalog helpers and framework dispatch still terminate here",
-  removalCondition: "move remaining catalog helpers to their explicit runtime owner, route framework traffic directly to its explicit owner after parity proof, then delete the central compatibility tail",
+  responsibility: "thin framework compatibility adapter plus legacy re-exports before direct framework cutover",
+  reason: "canonical stable routes and catalog runtime have explicit owners; framework traffic still reaches its explicit owner through this compatibility tail and historical re-exports remain",
+  removalCondition: "migrate remaining compatibility re-export consumers, route framework traffic directly to its explicit owner after parity proof, then delete the central compatibility tail",
 } as const);
 
 export type PortalCompatibilityAdapter = (typeof portalCompatibilityAdapters)[number];

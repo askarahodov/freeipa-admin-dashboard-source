@@ -36,6 +36,7 @@ test("artifact writer keeps latest evidence, archives the run and removes only e
   const oldManaged = path.join(historyDirectory, "2026-09-20T08-00-00-000Z");
   const unmanaged = path.join(historyDirectory, "manual-notes");
   await fs.mkdir(oldManaged, { recursive: true });
+  await fs.writeFile(path.join(oldManaged, ".portal-production-acceptance"), "portal-production-acceptance:v1\n");
   await fs.mkdir(unmanaged, { recursive: true });
   const oldTime = new Date("2026-09-20T08:00:00.000Z");
   await fs.utimes(oldManaged, oldTime, oldTime);
@@ -107,4 +108,22 @@ test("history pruning ignores files and unmanaged directory names", async (t) =>
     nowMs: Date.now() + 10_000,
   });
   assert.deepEqual(removed, []);
+});
+
+test("history pruning preserves timestamp-shaped directories without the acceptance ownership marker", async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "portal-acceptance-unowned-"));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const foreignDirectory = path.join(root, "2026-09-20T08-00-00-000Z");
+  await fs.mkdir(foreignDirectory, { recursive: true });
+  await fs.writeFile(path.join(foreignDirectory, "notes.txt"), "foreign data");
+  const oldTime = new Date("2026-09-20T08:00:00.000Z");
+  await fs.utimes(foreignDirectory, oldTime, oldTime);
+
+  const removed = await pruneProductionAcceptanceHistory(root, {
+    retentionSeconds: 1,
+    nowMs: new Date("2026-09-23T08:00:02.000Z").getTime(),
+  });
+
+  assert.deepEqual(removed, []);
+  assert.equal(await fs.readFile(path.join(foreignDirectory, "notes.txt"), "utf8"), "foreign data");
 });

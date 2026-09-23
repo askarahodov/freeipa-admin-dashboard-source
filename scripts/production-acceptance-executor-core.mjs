@@ -8,6 +8,39 @@ import {
 
 const DEFAULT_STARTUP_TIMEOUT_MS = 60_000;
 const DEFAULT_PROBE_INTERVAL_MS = 1_000;
+const ACCEPTANCE_LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
+
+export function normalizeProductionAcceptanceTarget(value) {
+  let url;
+  try {
+    url = new URL(String(value ?? ""));
+  } catch {
+    throw new Error("acceptance_base_url_invalid");
+  }
+
+  if (url.protocol !== "http:") throw new Error("acceptance_base_url_invalid");
+  if (!ACCEPTANCE_LOOPBACK_HOSTS.has(url.hostname.toLowerCase())) {
+    throw new Error("acceptance_base_url_not_loopback");
+  }
+  if (url.username || url.password || url.search || url.hash || url.pathname !== "/") {
+    throw new Error("acceptance_base_url_invalid");
+  }
+
+  const port = url.port || "3001";
+  const numericPort = Number(port);
+  if (!Number.isInteger(numericPort) || numericPort < 1 || numericPort > 65535) {
+    throw new Error("acceptance_base_url_invalid");
+  }
+
+  return Object.freeze({
+    baseUrl: `http://127.0.0.1:${port}`,
+    port,
+    composeEnvironment: Object.freeze({
+      DASHBOARD_BIND_ADDRESS: "127.0.0.1",
+      DASHBOARD_PORT: port,
+    }),
+  });
+}
 
 function errorCode(error, fallback) {
   const message = error instanceof Error ? error.message : String(error ?? "");

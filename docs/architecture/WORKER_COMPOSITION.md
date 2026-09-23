@@ -389,3 +389,8 @@ The eight final canonical stable routes formerly owned by `worker/index.ts` now 
 ## #635 checkpoint C7
 
 XYOps catalog runtime ownership lives in `worker/xyops-catalog-runtime.ts`: snapshot/history persistence, upstream event normalization, demo projection, `loadCatalog` and `portalCatalog`. `operations-http-entry.ts` consumes it directly. The central `worker/index.ts` tail no longer contains catalog runtime behavior and is limited to framework compatibility delegation plus historical re-exports until a separate parity-gated cutover.
+
+
+## #635 checkpoint C8
+
+The central compatibility tail `worker/index.ts` is removed. `operations-http-entry.ts` delegates unmatched framework/static/RSC/image traffic directly to the explicit `worker/framework-http-entry.ts` owner. The old tail had no scheduled implementation, so the downstream scheduled fallback is preserved explicitly as a no-op. Remaining mixed compatibility adapters are limited to the machine-readable exceptions in `worker/application-composition-contract.ts`.

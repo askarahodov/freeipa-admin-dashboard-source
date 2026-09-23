@@ -53,7 +53,7 @@ HTML access pages (`/login`, `/access`, `/sessions`, `/diagnostics`) have their 
 
 ## Integration status, settings and audit
 
-Integration status/audit still reach the compatibility integration handler. #633 checkpoints A/B move settings read, direct write and connection-test HTTP ownership to `worker/settings-http.ts`, dispatched only after the unchanged `secure-entry.ts` identity normalization. Source-lock/override/CAS/compensation wrappers remain around the write path and preserve existing persistence semantics.
+Integration status is owned by `worker/integration-status-http.ts`; bounded audit queries are owned by `worker/integration-audit-http.ts`. Both are dispatched from the existing operations adapter before the compatibility framework tail. Settings read, direct write and connection-test HTTP ownership remains in `worker/settings-http.ts` after `secure-entry.ts` identity normalization. Source-lock/override/CAS/compensation wrappers remain around the write path and preserve existing persistence semantics.
 
 | Method | Path | Purpose | Boundary / capability |
 | --- | --- | --- | --- |

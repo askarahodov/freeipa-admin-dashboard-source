@@ -379,3 +379,8 @@ This inventory is intentionally updated as a current-state architecture artifact
 ## #635 C5 — XYOps administration cluster
 
 The eight final canonical stable routes formerly owned by `worker/index.ts` now resolve to `worker/xyops-admin-http.ts`: automation routes, process presentation, catalog visibility policies and approval policies (read/update). Shared route normalization/effective-settings persistence lives in `worker/xyops-admin-runtime.ts`. Dispatch occurs inside the existing `operations-http-entry.ts` boundary before the compatibility fallback, so upstream local-session/service-admin/same-origin ordering is unchanged. `worker/index.ts` remains a compatibility tail but is no longer a canonical stable route owner.
+
+
+## #635 checkpoint C6
+
+`GET /api/integrations/audit` is owned by `worker/integration-audit-http.ts` and dispatched from the existing operations adapter. `worker/index.ts` no longer dispatches any `/api/integrations/*` HTTP route; its remaining role is catalog-helper compatibility plus framework delegation until the final parity-gated tail removal.

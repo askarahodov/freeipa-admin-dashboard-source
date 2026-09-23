@@ -53,3 +53,6 @@ Run the narrow worker/domain contract tests for the changed boundary. `tests/aut
 Update normalized references only when the external contract changes; keep implementation details in their canonical source modules.
 
 #635 checkpoint C5 removes the final canonical stable route ownership from `worker/index.ts`. `worker/xyops-admin-http.ts` owns automation-route, process-presentation, catalog-policy and approval-policy administration, while `worker/xyops-admin-runtime.ts` owns the shared route/effective-settings helpers. `operations-http-entry.ts` invokes this owner before the remaining central compatibility fallback, without adding another wrapper hop.
+
+
+#635 checkpoint C6 moves `/api/integrations/audit` into `integration-audit-http.ts` and removes the final `/api/integrations/*` HTTP dispatcher from `worker/index.ts`; the central tail remains only for catalog helper compatibility and framework delegation pending parity proof.

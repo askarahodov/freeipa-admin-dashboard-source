@@ -22,6 +22,7 @@ import { appendAuditEvent, auditCorrelationFor, auditErrorCode, createAuditConte
 import { operationRun, saveOperationRun } from "./operation-run-runtime.ts";
 import { effectiveXyOpsRuntime, type XyOpsSettingsEnv } from "./integration-settings-runtime.ts";
 import { handleIntegrationStatusRequest } from "./integration-status-http.ts";
+import { handleIntegrationAuditRequest } from "./integration-audit-http.ts";
 import { handleXyOpsAdminRequest } from "./xyops-admin-http.ts";
 import { portalAccess, requestActor, requirePortalPermission } from "./portal-access-runtime.ts";
 import { applyProcessPresentation, availableProcessPresentationLocales, presentationLocalePreferences, readProcessPresentationSet, resolveProcessPresentationLocale } from "../src/operations/presentation/process-presentation";
@@ -684,6 +685,8 @@ const worker = {
     if (adminResponse) return adminResponse;
     const statusResponse = await handleIntegrationStatusRequest(request, sourceEnv);
     if (statusResponse) return statusResponse;
+    const auditResponse = await handleIntegrationAuditRequest(request, sourceEnv);
+    if (auditResponse) return auditResponse;
     return integrationRuntime.fetch(request, sourceEnv, ctx);
   },
 

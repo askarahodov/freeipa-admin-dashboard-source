@@ -66,6 +66,7 @@ test("FreeIPA action ownership is canonical in the adapter and absent from the c
   const actionRuntime = await source("worker/freeipa-action-runtime.ts");
   const operationRuntime = await source("worker/operation-run-runtime.ts");
   const accessRuntime = await source("worker/portal-access-runtime.ts");
+  const auditOwner = await source("worker/integration-audit-http.ts");
 
   assert.equal(central.includes("handleFreeIpaBaseRead"), false);
   assert.equal(central.includes('url.pathname === "/api/integrations/users"'), false);
@@ -91,7 +92,8 @@ test("FreeIPA action ownership is canonical in the adapter and absent from the c
   assert.equal(central.includes("function freeIpaDirectCall"), false, "central Worker must not duplicate FreeIPA action normalization");
   assert.equal(central.includes("function portalAccess"), false, "central Worker must reuse shared portal access runtime");
   assert.equal(central.includes("function operationRun"), false, "central Worker must reuse shared operation runtime");
-  assert.match(central, /from ["']\.\/portal-access-runtime\.ts["']/);
+  assert.doesNotMatch(central, /from ["']\.\/portal-access-runtime\.ts["']/, "central compatibility tail must not retain route authorization ownership");
+  assert.match(auditOwner, /from ["']\.\/portal-access-runtime\.ts["']/, "integration audit owner must delegate access resolution to the shared runtime");
   assert.equal(central.includes('from "./operation-run-runtime.ts"'), false, "central Worker must not retain a dead operations persistence dependency");
   assert.match(operationsOwner, /from ["']\.\/operation-run-runtime\.ts["']/);
   assert.match(adapter, /freeIpaDirectCall/);

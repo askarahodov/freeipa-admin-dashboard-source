@@ -396,7 +396,7 @@ The child runners receive the normalized loopback target and `PORTAL_TEST_CONFIR
 
 Production release evidence stores only bounded scenario stage results such as `local_auth_rbac_passed` or `acceptance_p0_operational_failed`; child stdout/stderr, cookies, passwords and raw responses are not copied into the production report. If either scenario fails, later mutation scenarios stop and the isolated Compose cleanup still executes from the executor's `finally` path.
 
-This mode is still not permission to run against production. The production acceptance target is loopback-only and the Compose project is digest-derived and isolated. External FreeIPA/XYOps mutation scenarios are handled by later checkpoints.
+This mode is still not permission to run against production. The production acceptance target is loopback-only and the Compose project is digest-derived and isolated. FreeIPA acceptance is documented in section 15; XYOps mutation scenarios remain a later checkpoint.
 
 
 ## 14. Opt-in settings persistence and rollback acceptance
@@ -438,3 +438,67 @@ If the initial value came from ENV/default, rollback uses the existing `resetFie
 A failed persistence read still triggers rollback. Any rollback mismatch or rollback API failure is release-blocking. Production release evidence receives only the bounded `settings_persistence_rollback` stage with safe success/failure/remediation codes; settings payloads, session cookies and credentials are not copied into the release report.
 
 The settings runner is loopback-only and requires `PORTAL_TEST_CONFIRM=YES` from the production orchestrator. It does not own Compose restart/recreate; final isolated-project and volume cleanup remains owned by the production acceptance executor.
+
+
+## 15. FreeIPA read and opt-in CRUD/membership acceptance
+
+FreeIPA release acceptance is split into a safe read stage and a separately confirmed mutation stage. Both act **through the portal's canonical FreeIPA HTTP/API owner**; the acceptance runner does not implement FreeIPA JSON-RPC itself and never receives the upstream FreeIPA URL or service-account credential.
+
+The service environment used by the isolated acceptance Compose project must point to a dedicated non-production FreeIPA test instance when mutation mode is used. Do not enable FreeIPA mutation acceptance against production.
+
+### Read-only FreeIPA acceptance
+
+The read stage is opt-in but does not require destructive confirmation:
+
+```bash
+node scripts/production-acceptance-executor.mjs \
+  --plan artifacts/production-acceptance/plan.json \
+  --base-url http://127.0.0.1:3001 \
+  --run-freeipa-read
+```
+
+Dedicated local portal administrator credentials are still required so the runner can authenticate to the isolated portal:
+
+```bash
+export PORTAL_ACCEPTANCE_ADMIN_USERNAME=<dedicated-test-admin>
+export PORTAL_ACCEPTANCE_ADMIN_PASSWORD=<dedicated-test-password>
+```
+
+The read stage requires:
+
+- integration status to report FreeIPA as configured and reachable in live mode;
+- `GET /api/integrations/users` to return the canonical live users envelope;
+- `GET /api/integrations/groups` to return the canonical live groups envelope.
+
+No upstream URL, identity list or directory object is copied into production release evidence. The stage records only `freeipa_read` plus bounded pass/fail/remediation codes.
+
+### Opt-in FreeIPA CRUD and membership acceptance
+
+Mutation mode automatically runs the safe read stage first and then the CRUD/membership stage. It requires the same two independent mutation confirmations used by other destructive acceptance scenarios:
+
+```bash
+node scripts/production-acceptance-executor.mjs \
+  --plan artifacts/production-acceptance/plan.json \
+  --base-url http://127.0.0.1:3001 \
+  --run-freeipa-mutations \
+  --confirm-destructive YES \
+  --confirm-project portal-accept-0123456789ab
+```
+
+The mutation stage:
+
+1. proves FreeIPA is live, configured and reachable;
+2. derives a unique acceptance namespace from the digest-derived Compose project plus a random run suffix;
+3. verifies the generated user/group identifiers do not already exist;
+4. creates an acceptance group;
+5. creates an acceptance user with a generated temporary credential;
+6. updates the user and verifies the canonical users API reflects the update;
+7. adds the user to the group and verifies membership through the canonical group-members API;
+8. removes the membership and verifies it is absent;
+9. in `finally`, deletes the acceptance user and group and verifies they are absent.
+
+Create attempts are treated as potentially committed **before** the request result is known. If a network response is lost after FreeIPA committed an object, cleanup re-reads the directory and removes that object. A pre-existing identifier collision fails before any mutation and is never cleaned up by the runner.
+
+If cleanup cannot prove the acceptance objects were removed, the run is release-blocking. Child stdout/stderr, temporary credentials, directory entries, upstream error bodies and FreeIPA endpoint details are not copied into the release report. Only the bounded `freeipa_crud_membership` stage result is persisted.
+
+`--run-freeipa-read` may be used by itself. `--run-freeipa-mutations` already includes the read stage, so supplying both flags is harmless but unnecessary. FreeIPA acceptance does not own Compose lifecycle; isolated project/volume teardown remains unconditional in the production executor.

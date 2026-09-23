@@ -67,6 +67,7 @@ const REMEDIATION_BY_FAILURE_CODE = Object.freeze({
   acceptance_cleanup_failed: "remove_isolated_acceptance_project",
   acceptance_local_auth_rbac_failed: "inspect_local_auth_acceptance",
   acceptance_p0_operational_failed: "inspect_p0_operational_acceptance",
+  acceptance_settings_persistence_rollback_failed: "inspect_settings_acceptance",
   acceptance_destructive_scenario_failed: "inspect_acceptance_scenarios",
 });
 

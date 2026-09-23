@@ -44,6 +44,14 @@ test("executor validates the versioned immutable manifest before running", () =>
   const mutableExecution = structuredClone(valid);
   mutableExecution.compose.args = mutableExecution.compose.args.filter((arg) => arg !== "--no-build");
   assert.throws(() => validateProductionAcceptanceManifest(mutableExecution), /acceptance_manifest_compose_args_invalid/u);
+
+  const weakenedBaseline = structuredClone(valid);
+  weakenedBaseline.baseline[1].requiredJson = { ok: true };
+  assert.throws(() => validateProductionAcceptanceManifest(weakenedBaseline), /acceptance_manifest_mismatch/u);
+
+  const injectedEnvironment = structuredClone(valid);
+  injectedEnvironment.compose.environment.EXTRA_RUNTIME_OVERRIDE = "1";
+  assert.throws(() => validateProductionAcceptanceManifest(injectedEnvironment), /acceptance_manifest_mismatch/u);
 });
 
 test("acceptance probes are restricted to loopback targets", () => {
@@ -124,6 +132,7 @@ test("read-only executor starts exact compose plan, waits for readiness, runs ba
   assert.equal(report.outcome, "passed");
   assert.equal(report.compose.start, "passed");
   assert.equal(report.compose.cleanup, "passed");
+  assert.deepEqual(report.failureCodes, []);
   assert.equal(report.checks.length, 4);
   assert.equal(report.checks.find((item) => item.id === "readiness")?.attempts, 2);
   assert.equal(scanProductionAcceptanceReport(report, { secretValues: ["must-not-be-copied"] }).length, 0);
@@ -171,6 +180,7 @@ test("baseline failure is fail-closed and cleanup still runs", async () => {
   });
 
   assert.equal(report.outcome, "failed");
+  assert.deepEqual(report.failureCodes, ["acceptance_baseline_failed"]);
   assert.equal(report.checks.find((item) => item.id === "dependencies")?.code, "json_predicate_mismatch");
   assert.equal(report.compose.cleanup, "passed");
   assert.equal(commands.length, 2);
@@ -218,6 +228,7 @@ test("compose startup or cleanup failures cannot produce a passing report", asyn
   assert.equal(startFailed.outcome, "failed");
   assert.equal(startFailed.compose.start, "failed");
   assert.equal(startFailed.compose.cleanup, "passed");
+  assert.deepEqual(startFailed.failureCodes, ["acceptance_compose_start_failed"]);
   assert.deepEqual(startFailed.checks, []);
 
   calls = 0;
@@ -234,5 +245,6 @@ test("compose startup or cleanup failures cannot produce a passing report", asyn
   assert.equal(cleanupFailed.outcome, "failed");
   assert.equal(cleanupFailed.compose.start, "passed");
   assert.equal(cleanupFailed.compose.cleanup, "failed");
+  assert.deepEqual(cleanupFailed.failureCodes, ["acceptance_cleanup_failed"]);
   assert.equal(JSON.stringify(cleanupFailed).includes("raw cleanup failure"), false);
 });

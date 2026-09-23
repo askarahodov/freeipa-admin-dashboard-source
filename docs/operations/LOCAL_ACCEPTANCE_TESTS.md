@@ -521,7 +521,7 @@ The caller must provide the dedicated portal acceptance administrator credential
 
 The lifecycle stage is mutation-capable and must target an explicitly dedicated non-production XYOps event. The event must be enabled, marked dangerous, expose no input fields and no fixed targets. This intentionally narrow contract prevents the acceptance runner from forwarding arbitrary parameters or selecting an ordinary production process.
 
-Provide a dedicated portal requester account with `xyops.run`, and use the dedicated acceptance administrator as the independent approver:
+Provide a dedicated portal requester account with `xyops.run`, and use the dedicated acceptance administrator as the independent approver. The requester username must differ from the acceptance administrator username (case-insensitive); this is validated before Compose starts:
 
 ```bash
 export PORTAL_ACCEPTANCE_XYOPS_REQUESTER_USERNAME=<dedicated-test-operator>

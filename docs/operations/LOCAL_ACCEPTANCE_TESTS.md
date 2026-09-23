@@ -594,7 +594,7 @@ docker build --target runtime \
   ...
 ```
 
-The runtime image stores that SHA in the standard OCI label `org.opencontainers.image.revision`. After the source digest is started, the upgrade runner inspects the exact digest and requires that label to equal the policy `commitSha` before it performs readiness checks or any portal mutation. A missing, malformed or mismatched revision fails closed; a well-formed but unrelated SHA in the policy cannot certify the image.
+The runtime image stores that SHA in the standard OCI label `org.opencontainers.image.revision`. The upgrade runner first pulls the exact immutable source digest, inspects that local digest, and requires the OCI revision to equal policy `commitSha` **before the source container is started**. A missing, malformed or mismatched revision fails closed; a well-formed but unrelated SHA in the policy cannot certify or execute the image.
 
 The repository currently contains an explicit unconfigured policy:
 
@@ -626,15 +626,16 @@ Upgrade mode is deliberately exclusive: do not combine `--run-upgrade` with loca
 The stage performs:
 
 1. remove only the isolated acceptance project containers and volume;
-2. start the configured previous-supported image with `--no-build` on that exact project;
-3. require healthy source readiness with the policy-declared current/latest schema version;
-4. authenticate using the dedicated acceptance administrator;
-5. persist a non-secret `demoMode` marker through the canonical settings draft/validate/apply lifecycle;
-6. stop only the source dashboard container while preserving the acceptance volume;
-7. start the exact target image digest from the acceptance manifest with `--no-deps --no-build --force-recreate`;
-8. require target readiness with `currentVersion === latestVersion` and no schema regression below the source version;
-9. re-run the strict final target baseline: healthy liveness/readiness/dependencies and inactive maintenance;
-10. authenticate again and require the exact settings marker revision/value to survive the upgrade.
+2. pull the configured immutable previous-supported digest and verify its OCI source revision against the policy commit;
+3. start that verified source image with `--no-deps --no-build --force-recreate` on the exact acceptance project;
+4. require healthy source readiness with the policy-declared current/latest schema version;
+5. authenticate using the dedicated acceptance administrator;
+6. persist a non-secret `demoMode` marker through the canonical settings draft/validate/apply lifecycle;
+7. stop only the source dashboard container while preserving the acceptance volume;
+8. start the exact target image digest from the acceptance manifest with `--no-deps --no-build --force-recreate`;
+9. require target readiness with `currentVersion === latestVersion` and no schema regression below the source version;
+10. re-run the strict final target baseline: healthy liveness/readiness/dependencies and inactive maintenance;
+11. authenticate again and require the exact settings marker revision/value to survive the upgrade.
 
 The outer production-acceptance executor remains responsible for unconditional final `down --volumes --remove-orphans` cleanup. Source/target image references, source release identifiers, settings payloads, cookies and credentials are not copied into release evidence; the report stores only the bounded `previous_supported_upgrade` stage pass/fail/remediation code.
 

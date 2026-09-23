@@ -13,6 +13,16 @@ import { selectBackupRestoreDomains } from "./backup-restore-selection.ts";
 
 export const BACKUP_RESTORE_PLAN_VERSION = 1 as const;
 
+/**
+ * Audit is append-only operational evidence. Preview/test-restore themselves append
+ * audit events, so binding the approval token to the current audit payload would
+ * make a freshly issued token stale before it can be consumed. The backup-side
+ * audit manifest entry remains part of the token, and the current audit payload is
+ * still exported and validated below; only its volatile current-state digest is
+ * excluded from stale-state binding.
+ */
+const CURRENT_STATE_UNBOUND_DOMAINS = new Set<PortalBackupDomain>(["audit"]);
+
 export class BackupRestorePlanError extends Error {
   readonly code: string;
   readonly status: number;
@@ -94,11 +104,13 @@ export async function createBackupRestorePlan(
       if (records !== exported.records) {
         fail("backup_schema_incompatible", 409, "Current backup domain record count is inconsistent");
       }
-      currentDomains.push({
-        domain,
-        sha256: await sha256Hex(canonicalBackupJson(payload)),
-        records,
-      });
+      if (!CURRENT_STATE_UNBOUND_DOMAINS.has(domain)) {
+        currentDomains.push({
+          domain,
+          sha256: await sha256Hex(canonicalBackupJson(payload)),
+          records,
+        });
+      }
     }
 
     const tokenMaterial = {

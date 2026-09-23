@@ -60,6 +60,65 @@ function registry(secret = "secret-a") {
   ]);
 }
 
+
+function auditPayload(ids = ["audit-1"]) {
+  return {
+    domain: "audit",
+    schemaVersion: 1,
+    tables: [{
+      name: "portal_audit_events",
+      columns: [
+        "id", "created_at", "correlation_id", "actor_identity", "actor_role",
+        "actor_groups_json", "action", "resource_type", "resource_id", "event_id",
+        "schema_version", "approval_id", "run_id", "job_id", "outcome", "error_code",
+        "metadata_json",
+      ],
+      primaryKey: ["id"],
+      rows: ids.map((id, index) => [
+        id,
+        index + 1,
+        `correlation-${index}`,
+        "admin",
+        "admin",
+        "[]",
+        "backup.encrypted.preview.completed",
+        "portal-backup",
+        "",
+        "",
+        "1",
+        null,
+        null,
+        null,
+        "success",
+        null,
+        "{}",
+      ]),
+    }],
+  };
+}
+
+function auditDocument() {
+  return document({
+    domains: ["settings", "audit"],
+    entries: [
+      { domain: "settings", path: "domains/settings.json", sha256: "a".repeat(64), bytes: 100, records: 1 },
+      { domain: "audit", path: "domains/audit.json", sha256: "c".repeat(64), bytes: 300, records: 1 },
+    ],
+  });
+}
+
+function registryWithAudit(settingsSecret = "secret-a", auditIds = ["audit-1"]) {
+  const value = registry(settingsSecret);
+  value.set("audit", {
+    domain: "audit",
+    path: "domains/audit.json",
+    async export() {
+      return { payload: auditPayload(auditIds), records: auditIds.length };
+    },
+  });
+  return value;
+}
+
 test("creates a deterministic opaque restore plan", async () => {
   const first = await createBackupRestorePlan({ DB: {} }, document(), ["settings", "local-auth"], 1, registry());
   const second = await createBackupRestorePlan({ DB: {} }, document(), ["settings", "local-auth"], 1, registry());
@@ -86,6 +145,67 @@ test("token changes with backup selection schema and current full state", async 
   ];
 
   for (const candidate of await Promise.all(cases)) assert.notEqual(candidate.approvalToken, baseline.approvalToken);
+});
+
+test("audit-only current growth does not self-invalidate a restore approval token", async () => {
+  const first = await createBackupRestorePlan(
+    { DB: {} },
+    auditDocument(),
+    ["settings", "audit"],
+    1,
+    registryWithAudit("secret-a", ["audit-1"]),
+  );
+  const afterPreviewAudit = await createBackupRestorePlan(
+    { DB: {} },
+    auditDocument(),
+    ["settings", "audit"],
+    1,
+    registryWithAudit("secret-a", ["audit-1", "audit-2"]),
+  );
+
+  assert.equal(afterPreviewAudit.approvalToken, first.approvalToken);
+});
+
+test("non-audit current changes still invalidate a plan that also selects audit", async () => {
+  const baseline = await createBackupRestorePlan(
+    { DB: {} },
+    auditDocument(),
+    ["settings", "audit"],
+    1,
+    registryWithAudit("secret-a", ["audit-1"]),
+  );
+  const changedSettings = await createBackupRestorePlan(
+    { DB: {} },
+    auditDocument(),
+    ["settings", "audit"],
+    1,
+    registryWithAudit("secret-b", ["audit-1", "audit-2"]),
+  );
+
+  assert.notEqual(changedSettings.approvalToken, baseline.approvalToken);
+});
+
+test("current audit payload remains schema and count validated even though its digest is unbound", async () => {
+  const bad = registryWithAudit("secret-a", ["audit-1"]);
+  bad.set("audit", {
+    ...bad.get("audit"),
+    async export() {
+      return { payload: auditPayload(["audit-1"]), records: 99 };
+    },
+  });
+
+  await assert.rejects(
+    () => createBackupRestorePlan(
+      { DB: {} },
+      auditDocument(),
+      ["settings", "audit"],
+      1,
+      bad,
+    ),
+    (error) => error instanceof BackupRestorePlanError
+      && error.code === "backup_schema_incompatible"
+      && error.status === 409,
+  );
 });
 
 test("verifies only strict lowercase SHA-256 approval tokens", async () => {

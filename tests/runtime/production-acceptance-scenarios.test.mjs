@@ -368,3 +368,42 @@ test("XYOps safe read can run without lifecycle mutations", () => {
     ["xyops_read"],
   );
 });
+
+
+test("backup restore smoke is opt-in and strips server/upstream secrets", async () => {
+  const definitions = productionAcceptanceScenarioDefinitions({
+    includeLocalAuthP0: false,
+    includeBackupRestore: true,
+  });
+  assert.deepEqual(definitions.map((item) => item.id), ["backup_restore_smoke"]);
+
+  const calls = [];
+  const stages = await runProductionAcceptanceScenarios({
+    definitions,
+    environment: {
+      PORTAL_TEST_ADMIN_USERNAME: "accept-admin",
+      PORTAL_TEST_ADMIN_PASSWORD: "admin-password",
+      ADMIN_TOKEN: "must-not-reach-child",
+      CONFIG_ENCRYPTION_KEY: "must-not-reach-child",
+      IPA_PASSWORD: "must-not-reach-child",
+      XYOPS_API_KEY: "must-not-reach-child",
+      PORTAL_PROXY_SHARED_SECRET: "must-not-reach-child",
+    },
+    runScript: async (script, environment) => calls.push({ script, environment }),
+  });
+
+  assert.equal(calls[0].script, "scripts/backup-restore-acceptance.mjs");
+  assert.equal(calls[0].environment.PORTAL_TEST_ADMIN_USERNAME, "accept-admin");
+  assert.equal(calls[0].environment.PORTAL_TEST_ADMIN_PASSWORD, "admin-password");
+  assert.equal(calls[0].environment.ADMIN_TOKEN, undefined);
+  assert.equal(calls[0].environment.CONFIG_ENCRYPTION_KEY, undefined);
+  assert.equal(calls[0].environment.IPA_PASSWORD, undefined);
+  assert.equal(calls[0].environment.XYOPS_API_KEY, undefined);
+  assert.equal(calls[0].environment.PORTAL_PROXY_SHARED_SECRET, undefined);
+  assert.deepEqual(stages, [{
+    id: "backup_restore_smoke",
+    outcome: "passed",
+    code: "backup_restore_smoke_passed",
+    remediationCode: "none",
+  }]);
+});

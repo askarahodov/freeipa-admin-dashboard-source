@@ -75,6 +75,7 @@ export function productionAcceptanceScenarioDefinitions({
   includeFreeIpaMutations = false,
   includeXyOpsRead = false,
   includeXyOpsLifecycle = false,
+  includeBackupRestore = false,
 } = {}) {
   const definitions = [];
   if (includeLocalAuthP0) {
@@ -202,6 +203,31 @@ export function productionAcceptanceScenarioDefinitions({
       passedCode: "xyops_approval_cancel_result_passed",
       failedCode: "acceptance_xyops_lifecycle_failed",
       remediationCode: "inspect_xyops_acceptance",
+    }));
+  }
+  if (includeBackupRestore) {
+    definitions.push(Object.freeze({
+      id: "backup_restore_smoke",
+      script: "scripts/backup-restore-acceptance.mjs",
+      omitEnvironmentKeys: Object.freeze([
+        "ADMIN_TOKEN",
+        "CONFIG_ENCRYPTION_KEY",
+        "IPA_URL",
+        "IPA_USERNAME",
+        "IPA_PASSWORD",
+        "IPA_NODE_GATEWAY_URL",
+        "IPA_NODE_GATEWAY_TOKEN",
+        "XYOPS_URL",
+        "XYOPS_API_KEY",
+        "PORTAL_PROXY_SHARED_SECRET",
+        "PORTAL_ACCEPTANCE_XYOPS_REQUESTER_USERNAME",
+        "PORTAL_ACCEPTANCE_XYOPS_REQUESTER_PASSWORD",
+        "PORTAL_ACCEPTANCE_XYOPS_EVENT_ID",
+        "PORTAL_ACCEPTANCE_XYOPS_CONFIRM_EVENT_ID",
+      ]),
+      passedCode: "backup_restore_smoke_passed",
+      failedCode: "acceptance_backup_restore_smoke_failed",
+      remediationCode: "inspect_backup_restore_acceptance",
     }));
   }
   return Object.freeze(definitions);

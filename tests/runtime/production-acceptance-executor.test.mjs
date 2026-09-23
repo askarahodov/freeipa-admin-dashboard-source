@@ -147,6 +147,10 @@ test("release evidence uses bounded remediation codes", () => {
     "inspect_xyops_acceptance",
   );
   assert.equal(
+    productionAcceptanceRemediationCode("acceptance_backup_restore_smoke_failed"),
+    "inspect_backup_restore_acceptance",
+  );
+  assert.equal(
     productionAcceptanceRemediationCode("acceptance_unknown_failure"),
     "inspect_acceptance_executor",
   );

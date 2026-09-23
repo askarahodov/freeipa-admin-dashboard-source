@@ -151,6 +151,7 @@ test("upgrade acceptance seeds source state then verifies target schema login an
   const commands = [];
   let readyCall = 0;
   let authCall = 0;
+  let provenanceCalls = 0;
   let targetBaselineCalls = 0;
   let sourceEffectiveReads = 0;
 
@@ -189,6 +190,11 @@ test("upgrade acceptance seeds source state then verifies target schema login an
     runCommand: async (command, environment) => {
       commands.push({ command: [...command], environment: { ...environment } });
     },
+    readSourceImageRevision: async (imageReference) => {
+      provenanceCalls += 1;
+      assert.equal(imageReference, sourceImage);
+      return sourceCommit;
+    },
     waitReady: async (expectedVersion) => {
       readyCall += 1;
       if (readyCall === 1) {
@@ -209,6 +215,7 @@ test("upgrade acceptance seeds source state then verifies target schema login an
 
   assert.deepEqual(result, {
     outcome: "passed",
+    sourceProvenance: "verified",
     sourceSchema: "verified",
     targetSchema: "verified",
     targetHealth: "verified",
@@ -228,6 +235,7 @@ test("upgrade acceptance seeds source state then verifies target schema login an
     targetImage,
   ]);
   assert.equal(authCall, 2);
+  assert.equal(provenanceCalls, 1);
   assert.equal(targetBaselineCalls, 1);
 });
 
@@ -240,6 +248,7 @@ test("upgrade acceptance fails closed on source schema mismatch before marker mu
       targetCommitSha: targetCommit,
       projectName,
       runCommand: async () => {},
+      readSourceImageRevision: async () => sourceCommit,
       waitReady: async () => ({ currentVersion: 3, latestVersion: 3 }),
       verifyTargetBaseline: async () => {},
       createAuthenticatedRequest: async () => {
@@ -279,6 +288,7 @@ test("upgrade acceptance rejects target persistence loss", async () => {
       targetCommitSha: targetCommit,
       projectName,
       runCommand: async () => {},
+      readSourceImageRevision: async () => sourceCommit,
       waitReady: async (expected) => expected === 4
         ? { currentVersion: 4, latestVersion: 4 }
         : { currentVersion: 5, latestVersion: 5 },
@@ -316,6 +326,7 @@ test("upgrade acceptance blocks target login when post-upgrade baseline is unhea
       targetCommitSha: targetCommit,
       projectName,
       runCommand: async () => {},
+      readSourceImageRevision: async () => sourceCommit,
       waitReady: async (expected) => expected === 4
         ? { currentVersion: 4, latestVersion: 4 }
         : { currentVersion: 5, latestVersion: 5 },
@@ -330,4 +341,35 @@ test("upgrade acceptance blocks target login when post-upgrade baseline is unhea
     /acceptance_upgrade_target_baseline_failed/u,
   );
   assert.equal(authCall, 1);
+});
+
+
+test("upgrade acceptance rejects source image provenance mismatch before readiness or mutation", async () => {
+  let ready = false;
+  let authenticated = false;
+  await assert.rejects(
+    () => executeUpgradeAcceptance({
+      policy: configuredPolicy(),
+      targetImageReference: targetImage,
+      targetCommitSha: targetCommit,
+      projectName,
+      runCommand: async () => {},
+      readSourceImageRevision: async (imageReference) => {
+        assert.equal(imageReference, sourceImage);
+        return "e".repeat(40);
+      },
+      waitReady: async () => {
+        ready = true;
+        return { currentVersion: 4, latestVersion: 4 };
+      },
+      verifyTargetBaseline: async () => {},
+      createAuthenticatedRequest: async () => {
+        authenticated = true;
+        throw new Error("should not authenticate");
+      },
+    }),
+    /acceptance_upgrade_source_provenance_mismatch/u,
+  );
+  assert.equal(ready, false);
+  assert.equal(authenticated, false);
 });

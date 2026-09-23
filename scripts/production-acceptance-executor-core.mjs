@@ -8,6 +8,40 @@ import {
 
 const DEFAULT_STARTUP_TIMEOUT_MS = 60_000;
 const DEFAULT_PROBE_INTERVAL_MS = 1_000;
+
+export function normalizeProductionAcceptanceTarget(value) {
+  let parsed;
+  try {
+    parsed = new URL(String(value ?? "").trim());
+  } catch {
+    throw new Error("acceptance_base_url_invalid");
+  }
+
+  if (parsed.protocol !== "http:") throw new Error("acceptance_base_url_protocol_invalid");
+  if (parsed.username || parsed.password) throw new Error("acceptance_base_url_credentials_forbidden");
+  if (parsed.search) throw new Error("acceptance_base_url_query_forbidden");
+  if (parsed.hash) throw new Error("acceptance_base_url_fragment_forbidden");
+  if (parsed.pathname !== "/") throw new Error("acceptance_base_url_path_invalid");
+
+  const loopbackHosts = new Set(["127.0.0.1", "localhost", "[::1]"]);
+  if (!loopbackHosts.has(parsed.hostname.toLowerCase())) {
+    throw new Error("acceptance_base_url_loopback_required");
+  }
+
+  const port = parsed.port || "80";
+  const numericPort = Number(port);
+  if (!Number.isInteger(numericPort) || numericPort < 1 || numericPort > 65535) {
+    throw new Error("acceptance_base_url_port_invalid");
+  }
+
+  return Object.freeze({
+    baseUrl: `http://127.0.0.1:${port}`,
+    composeEnvironment: Object.freeze({
+      DASHBOARD_BIND_ADDRESS: "127.0.0.1",
+      DASHBOARD_PORT: port,
+    }),
+  });
+}
 const ACCEPTANCE_LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
 
 export function normalizeProductionAcceptanceTarget(value) {

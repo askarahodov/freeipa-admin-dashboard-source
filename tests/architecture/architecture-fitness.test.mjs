@@ -9,6 +9,7 @@ import {
   validateArchitectureFitness,
 } from "../../scripts/architecture-fitness.mjs";
 import { portalCompatibilityAdapters } from "../../worker/application-composition-contract.ts";
+import { portalRouteContracts } from "../../src/auth/portal-route-contract.ts";
 
 const repositoryRoot = fileURLToPath(new URL("../../", import.meta.url));
 
@@ -41,6 +42,29 @@ test("rejects resurrection or imports of the retired central Worker tail", () =>
       ["worker/index.ts", "export default {};"],
     ])),
     /Architecture fitness failed:[\s\S]*retired-central-tail/u,
+  );
+});
+
+test("canonical route contracts must point to existing tracked owners", () => {
+  const files = new Map([
+    ["worker/real-owner.ts", "export {};"],
+    ["src/auth/portal-route-contract.ts", "export {};"],
+  ]);
+  const issues = inspectArchitectureFitness(files, {
+    routeContracts: [
+      { id: "good.route", owner: "worker/real-owner.ts" },
+      { id: "missing.route", owner: "worker/missing-owner.ts" },
+      { id: "invalid.route", owner: "" },
+    ],
+  });
+
+  assert.deepEqual(issues.map((entry) => entry.code), [
+    "missing-route-owner",
+    "invalid-route-owner",
+  ]);
+  assert.match(
+    formatArchitectureFitnessIssues(issues),
+    /missing\.route[\s\S]*worker\/missing-owner\.ts/u,
   );
 });
 
@@ -118,5 +142,6 @@ test("current tracked architecture satisfies the fitness foundation", () => {
   assert.equal(files.has("worker/index.ts"), false);
   assert.doesNotThrow(() => validateArchitectureFitness(files, {
     compatibilityAdapters: portalCompatibilityAdapters,
+    routeContracts: portalRouteContracts,
   }));
 });

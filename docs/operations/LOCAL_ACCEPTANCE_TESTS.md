@@ -545,3 +545,21 @@ The event ID must be entered twice independently and match exactly. The lifecycl
 Any pending approval or active run left by a partial failure is reconciled in `finally`. The runner snapshots visible approvals/runs before the lifecycle so a lost response after approval creation can be detected as new residue for the confirmed dedicated event without touching pre-existing objects. Failure to prove cleanup is release-blocking. Production release evidence contains only bounded `xyops_read` and `xyops_approval_cancel_result` stage codes. Approval IDs, run IDs, catalog payloads, credentials, upstream URLs/API keys and result bodies are not copied into release evidence.
 
 The dedicated XYOps test event must be provisioned so one invocation remains active long enough for cancellation and another can complete successfully with a result. Do not point this stage at an ordinary or production process.
+
+
+## 17. Encrypted backup and isolated restore smoke
+
+Checkpoint H adds an opt-in release stage that verifies backup creation and restoreability without committing restored data into the active acceptance database.
+
+```bash
+node scripts/production-acceptance-executor.mjs \
+  --plan artifacts/production-acceptance/plan.json \
+  --base-url http://127.0.0.1:3001 \
+  --run-backup-restore-smoke
+```
+
+Provide the dedicated acceptance administrator credentials used by the other portal-admin acceptance stages. The child runner talks only to the isolated loopback portal.
+
+The stage snapshots the authenticated administrator identity plus effective settings revision/value/source, creates an encrypted backup across the canonical backup domains, previews it through the canonical encrypted-import endpoint, consumes the returned restore-plan approval token, and runs only the isolated test-restore endpoint. It requires the restore result to report `productionMutated: false` and verifies the portal snapshot remains unchanged afterward.
+
+The backup password is generated inside the child process and is never persisted. The runner never invokes selective restore prepare/commit. Backup payloads, password, approval token, user data, restored contents, cookies and upstream credentials are not copied into release evidence. The production report stores only the bounded `backup_restore_smoke` stage with safe pass/fail/remediation codes.

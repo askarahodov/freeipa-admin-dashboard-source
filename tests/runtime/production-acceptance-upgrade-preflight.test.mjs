@@ -14,7 +14,6 @@ test("unconfigured previous-supported policy fails before any Docker execution",
   const markerPath = join(directory, "docker-called");
   const dockerPath = join(directory, "docker");
   const executorPath = fileURLToPath(new URL("../../scripts/production-acceptance-executor.mjs", import.meta.url));
-  const policyPath = fileURLToPath(new URL("../../release/previous-supported.json", import.meta.url));
 
   try {
     const manifest = createProductionAcceptanceManifest({
@@ -29,7 +28,6 @@ test("unconfigured previous-supported policy fails before any Docker execution",
       executorPath,
       "--plan", planPath,
       "--run-upgrade",
-      "--upgrade-policy", policyPath,
       "--base-url", "http://127.0.0.1:3001",
     ], {
       cwd: dirname(dirname(executorPath)),

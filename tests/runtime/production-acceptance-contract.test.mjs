@@ -45,12 +45,12 @@ test("acceptance manifest derives an isolated compose project and read-only base
   assert.equal(manifest.compose.args.includes("--no-build"), true);
   assert.equal(manifest.compose.args.at(-1), "dashboard");
   assert.deepEqual(
-    manifest.baseline.map((check) => [check.method, check.path]),
+    manifest.baseline.map((check) => [check.method, check.path, check.expectedStatus, check.requiredJson]),
     [
-      ["GET", "/health/live"],
-      ["GET", "/health/ready"],
-      ["GET", "/health/dependencies"],
-      ["GET", "/api/maintenance/status"],
+      ["GET", "/health/live", [200], { state: "healthy", code: "health_live", ok: true }],
+      ["GET", "/health/ready", [200], { state: "healthy", code: "health_ready", ok: true }],
+      ["GET", "/health/dependencies", [200], { state: "healthy", code: "dependencies_healthy", ok: true }],
+      ["GET", "/api/maintenance/status", [200], { maintenance: false, state: "inactive", recoveryRequired: false }],
     ],
   );
   assert.equal(assertProductionAcceptanceReportSafe(manifest), true);
@@ -79,6 +79,38 @@ test("report safety scan blocks secret-shaped keys, credential markers, secret v
     () => assertProductionAcceptanceReportSafe({ password: "redacted" }),
     /acceptance_report_redaction_failed/u,
   );
+});
+
+test("report safety scan applies the same content checks to object keys without leaking them in diagnostics", () => {
+  const secret = "acceptance-super-secret-value";
+  const internalUrl = "https://private.internal.example/path";
+  const report = {
+    [secret]: "secret only exists as a key",
+    [internalUrl]: "url only exists as a key",
+    "authorization: Bearer hidden": "credential marker only exists as a key",
+  };
+
+  const findings = scanProductionAcceptanceReport(report, { secretValues: [secret] });
+  const codes = findings.map((finding) => finding.code);
+  assert.equal(codes.includes("secret_value_present"), true);
+  assert.equal(codes.includes("url_present_in_report"), true);
+  assert.equal(codes.includes("credential_marker_present"), true);
+  for (const finding of findings) {
+    assert.equal(finding.path.includes(secret), false);
+    assert.equal(finding.path.includes(internalUrl), false);
+    assert.equal(finding.path.includes("authorization"), false);
+  }
+
+  let message = "";
+  try {
+    assertProductionAcceptanceReportSafe(report, { secretValues: [secret] });
+  } catch (error) {
+    message = error instanceof Error ? error.message : String(error);
+  }
+  assert.match(message, /acceptance_report_redaction_failed/u);
+  assert.equal(message.includes(secret), false);
+  assert.equal(message.includes(internalUrl), false);
+  assert.equal(message.includes("Bearer hidden"), false);
 });
 
 test("harmless release evidence remains report-safe", () => {

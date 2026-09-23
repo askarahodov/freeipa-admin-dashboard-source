@@ -16,6 +16,7 @@ const restartTimeoutMs = clampNumber(process.env.PORTAL_TEST_RESTART_TIMEOUT_MS,
 const composeFile = String(process.env.PORTAL_TEST_COMPOSE_FILE ?? "compose.yaml").trim();
 const composeEnvFile = String(process.env.PORTAL_TEST_COMPOSE_ENV_FILE ?? ".env").trim();
 const composeService = String(process.env.PORTAL_TEST_COMPOSE_SERVICE ?? "dashboard").trim();
+const acceptanceImage = String(process.env.PORTAL_TEST_ACCEPTANCE_IMAGE ?? "").trim();
 
 if (confirmation !== "YES") {
   console.error("P0 acceptance mutates the portal user database. Set PORTAL_TEST_CONFIRM=YES.");
@@ -23,6 +24,31 @@ if (confirmation !== "YES") {
 }
 if (!adminUsername || !adminPassword) {
   console.error("Set PORTAL_TEST_ADMIN_USERNAME and PORTAL_TEST_ADMIN_PASSWORD.");
+  process.exit(2);
+}
+
+try {
+  if (acceptanceImage) {
+    buildP0DashboardPersistenceCommand({
+      action: "restart",
+      composeFile,
+      composeEnvFile,
+      composeService,
+      imageReference: acceptanceImage,
+    });
+  }
+  if (recreateEnabled) {
+    buildP0DashboardPersistenceCommand({
+      action: "recreate",
+      composeFile,
+      composeEnvFile,
+      composeService,
+      imageReference: acceptanceImage,
+    });
+  }
+} catch (error) {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(/^p0_persistence_|^acceptance_image_/u.test(message) ? message : "p0_persistence_configuration_invalid");
   process.exit(2);
 }
 
@@ -166,9 +192,12 @@ async function waitForPortal() {
   throw new Error(`Portal did not become healthy after restart: ${redact(lastError)}`);
 }
 
-async function runCommand(command, args) {
+async function runCommand(command, args, environment = {}) {
   await new Promise((resolve, reject) => {
-    const child = spawn(command, args, { stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(command, args, {
+      stdio: ["ignore", "pipe", "pipe"],
+      env: { ...process.env, ...environment },
+    });
     let stdout = "";
     let stderr = "";
     child.stdout.on("data", (chunk) => { stdout += String(chunk); });
@@ -188,8 +217,9 @@ async function cycleDashboard(action) {
     composeFile,
     composeEnvFile,
     composeService,
+    imageReference: acceptanceImage || undefined,
   });
-  await runCommand(command.command, command.args);
+  await runCommand(command.command, command.args, command.environment);
   await waitForPortal();
 }
 

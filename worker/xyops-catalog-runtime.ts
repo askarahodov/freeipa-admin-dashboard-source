@@ -11,7 +11,7 @@ export type XyOpsCatalogRuntimeEnv = XyOpsAdminRuntimeEnv;
 type CatalogChange = { id: string; title: string; kind: "new" | "changed" | "removed" };
 type CatalogSnapshot = { events: CatalogEvent[]; syncedAt: number };
 
-async function readCatalogSnapshot(env: Env): Promise<CatalogSnapshot | null> {
+async function readCatalogSnapshot(env: XyOpsCatalogRuntimeEnv): Promise<CatalogSnapshot | null> {
   if (!env.DB) return null;
   const row = await env.DB.prepare("SELECT catalog_json, synced_at FROM xyops_catalog_snapshot WHERE id = ?").bind("current").first<{ catalog_json: string; synced_at: number }>();
   if (!row) return null;
@@ -21,13 +21,13 @@ async function readCatalogSnapshot(env: Env): Promise<CatalogSnapshot | null> {
   } catch { return null; }
 }
 
-async function saveCatalogSnapshot(env: Env, events: CatalogEvent[], syncedAt: number): Promise<void> {
+async function saveCatalogSnapshot(env: XyOpsCatalogRuntimeEnv, events: CatalogEvent[], syncedAt: number): Promise<void> {
   if (!env.DB) return;
   await env.DB.prepare("INSERT INTO xyops_catalog_snapshot (id, catalog_json, synced_at) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET catalog_json = excluded.catalog_json, synced_at = excluded.synced_at")
     .bind("current", JSON.stringify(events), syncedAt).run();
 }
 
-async function saveCatalogHistory(env: Env, events: CatalogEvent[], changes: CatalogChange[], syncedAt: number): Promise<void> {
+async function saveCatalogHistory(env: XyOpsCatalogRuntimeEnv, events: CatalogEvent[], changes: CatalogChange[], syncedAt: number): Promise<void> {
   if (!env.DB || !changes.length) return;
   await env.DB.prepare("INSERT INTO xyops_catalog_history (id, synced_at, changes_json, catalog_json) VALUES (?, ?, ?, ?)")
     .bind(crypto.randomUUID(), syncedAt, JSON.stringify(changes), JSON.stringify(events)).run();
@@ -142,7 +142,7 @@ function catalogItem(event: Record<string, unknown>): CatalogEvent {
   return item;
 }
 
-function demoCatalog(env: Env): CatalogEvent[] {
+function demoCatalog(env: XyOpsCatalogRuntimeEnv): CatalogEvent[] {
   const routeEvents = automationRoutes(env).map((route) => ({ id: route.eventId, title: route.title, description: "Маршрут администрирования FreeIPA", operation: route.operation, kind: route.kind, enabled: route.enabled !== false, category: "FreeIPA", plugin: route.kind === "workflow" ? null : "freeipa", fields: route.fields ?? [], targets: route.targets ?? [], dangerous: false }));
   const events: CatalogEvent[] = [...routeEvents, { id: "database-backup", title: "Резервное копирование базы данных", description: "Создание и проверка резервной копии выбранной БД", kind: "workflow", enabled: true, category: "Databases", plugin: null, targets: ["db-prod-01", "db-stage-01"], dangerous: false, fields: [
     { key: "database", label: "База данных", type: "string", required: true, target: "workflowData", placeholder: "billing" },
@@ -153,7 +153,7 @@ function demoCatalog(env: Env): CatalogEvent[] {
   return events.map((event) => ({ ...event, schemaVersion: schemaFingerprint(event) }));
 }
 
-export async function loadCatalog(env: Env, xyopsUrl: string | null): Promise<{ mode: "demo" | "live" | "unconfigured"; events: CatalogEvent[] }> {
+export async function loadCatalog(env: XyOpsCatalogRuntimeEnv, xyopsUrl: string | null): Promise<{ mode: "demo" | "live" | "unconfigured"; events: CatalogEvent[] }> {
   if (boolValue(env.DEMO_MODE)) return { mode: "demo", events: demoCatalog(env) };
   if (!xyopsUrl || !env.XYOPS_API_KEY) return { mode: "unconfigured", events: [] };
   let response: Response;
@@ -173,7 +173,7 @@ export async function loadCatalog(env: Env, xyopsUrl: string | null): Promise<{ 
   return { mode: "live", events: extractEventRows(payload).map(catalogItem).filter((event) => event.id) };
 }
 
-export async function portalCatalog(env: Env, xyopsUrl: string | null): Promise<{ mode: "demo" | "live" | "cached" | "unconfigured"; source: "demo" | "xyops" | "cache" | "none"; events: CatalogEvent[]; syncedAt: string | null; stale: boolean; changes: CatalogChange[] }> {
+export async function portalCatalog(env: XyOpsCatalogRuntimeEnv, xyopsUrl: string | null): Promise<{ mode: "demo" | "live" | "cached" | "unconfigured"; source: "demo" | "xyops" | "cache" | "none"; events: CatalogEvent[]; syncedAt: string | null; stale: boolean; changes: CatalogChange[] }> {
   if (boolValue(env.DEMO_MODE)) return { mode: "demo", source: "demo", events: demoCatalog(env), syncedAt: new Date().toISOString(), stale: false, changes: [] };
   const previous = await readCatalogSnapshot(env).catch(() => null);
   if (!xyopsUrl || !env.XYOPS_API_KEY) return previous

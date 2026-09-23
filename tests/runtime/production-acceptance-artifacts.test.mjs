@@ -61,6 +61,42 @@ test("artifact writer keeps latest evidence, archives the run and removes only e
   await assert.rejects(fs.access(oldManaged));
 });
 
+test("artifact writer refuses unsafe report or HTML before persisting evidence", async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "portal-acceptance-unsafe-"));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+
+  await assert.rejects(
+    writeProductionAcceptanceArtifacts({
+      report: {
+        schemaVersion: 1,
+        outcome: "failed",
+        timing: { startedAt: "2026-09-23T08:00:01.234Z" },
+        detail: "authorization: Bearer hidden",
+      },
+      html: "<html>safe</html>",
+      outputDirectory: path.join(root, "latest"),
+      historyDirectory: path.join(root, "runs"),
+    }),
+    /acceptance_report_redaction_failed/u,
+  );
+
+  await assert.rejects(
+    writeProductionAcceptanceArtifacts({
+      report: {
+        schemaVersion: 1,
+        outcome: "passed",
+        timing: { startedAt: "2026-09-23T08:00:01.234Z" },
+      },
+      html: "<html>http://internal.example.test</html>",
+      outputDirectory: path.join(root, "latest"),
+      historyDirectory: path.join(root, "runs"),
+    }),
+    /acceptance_report_redaction_failed/u,
+  );
+
+  await assert.rejects(fs.access(path.join(root, "latest", "report.json")));
+});
+
 test("history pruning ignores files and unmanaged directory names", async (t) => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "portal-acceptance-prune-"));
   t.after(() => fs.rm(root, { recursive: true, force: true }));

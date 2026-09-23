@@ -419,3 +419,10 @@ These checks remain structural rather than filename-layout scoring: acyclic move
 Architecture fitness consumes the existing canonical `portalRouteContracts` as input and verifies that every declared route owner resolves to a tracked source file. It does not define route paths, permissions, auth boundaries or mutation classes itself; those remain owned by `src/auth/portal-route-contract.ts` and its existing contract tests.
 
 The application-router parity suite also asserts that unknown sensitive `/api/admin/**` and `/api/integrations/**` paths are classified as `unknown-api` and routed through the negative path rather than silently becoming framework/static traffic.
+
+
+## #636 checkpoint D — explicit Worker entry registration
+
+The final architecture-fitness layer prevents a new feature-specific `worker/*-entry.ts` wrapper from appearing as hidden composition debt. Entry adapters must be explicitly accounted for by one of the existing ownership sources: canonical route owner metadata, the application composition contract, the bounded compatibility-adapter list, or the internal domain-entry list in `worker/application-composition-contract.ts`.
+
+This is intentionally not a filename freeze. A legitimate rename or move remains valid when its ownership metadata is updated in the same change. An unregistered wrapper fails with `unregistered-entry-wrapper` and points contributors back to the canonical composition contract instead of encouraging another hidden chain.

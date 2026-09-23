@@ -210,6 +210,68 @@ export function inspectArchitectureFitness(files, options = {}) {
     }
   }
 
+
+  if (options.enforceEntryRegistration === true) {
+    const registeredEntryPaths = new Set();
+
+    for (const route of routeContracts) {
+      const ownerPath = normalizePath(route?.owner);
+      if (ownerPath.endsWith("-entry.ts")) registeredEntryPaths.add(ownerPath);
+    }
+
+    for (const value of Object.values(options.applicationComposition ?? {})) {
+      const ownerPath = normalizePath(value);
+      if (ownerPath.endsWith("-entry.ts")) registeredEntryPaths.add(ownerPath);
+    }
+
+    for (const adapter of adapters) {
+      const adapterPath = normalizePath(adapter?.path);
+      if (adapterPath.endsWith("-entry.ts")) registeredEntryPaths.add(adapterPath);
+    }
+
+    const internalEntries = Array.from(options.internalEntryAdapters ?? []).map(normalizePath);
+    const internalEntryPaths = new Set();
+    for (const entryPath of internalEntries) {
+      if (!/^worker\/[^/]+-entry\.ts$/u.test(entryPath)) {
+        issues.push(issue(
+          "invalid-internal-entry-registration",
+          "worker/application-composition-contract.ts",
+          entryPath || null,
+          `Internal entry registration '${entryPath || "<empty>"}' must name one worker/*-entry.ts source file.`,
+        ));
+        continue;
+      }
+      if (internalEntryPaths.has(entryPath)) {
+        issues.push(issue(
+          "duplicate-internal-entry-registration",
+          "worker/application-composition-contract.ts",
+          entryPath,
+          `Internal entry adapter '${entryPath}' is registered more than once.`,
+        ));
+      }
+      internalEntryPaths.add(entryPath);
+      registeredEntryPaths.add(entryPath);
+      if (!knownPaths.has(entryPath)) {
+        issues.push(issue(
+          "missing-internal-entry-registration-target",
+          "worker/application-composition-contract.ts",
+          entryPath,
+          `Registered internal entry adapter '${entryPath}' is missing from the tracked source snapshot.`,
+        ));
+      }
+    }
+
+    for (const filePath of [...knownPaths].filter((candidate) => /^worker\/[^/]+-entry\.ts$/u.test(candidate)).sort()) {
+      if (registeredEntryPaths.has(filePath)) continue;
+      issues.push(issue(
+        "unregistered-entry-wrapper",
+        filePath,
+        null,
+        `Worker entry adapter '${filePath}' is not registered as a canonical route owner, application composition owner, compatibility adapter, or internal domain adapter. Register the legitimate owner boundary in worker/application-composition-contract.ts or use an existing canonical handler/module instead of adding a hidden wrapper.`,
+      ));
+    }
+  }
+
   return issues;
 }
 

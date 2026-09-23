@@ -48,6 +48,19 @@ export const portalCompatibilityAdapters = Object.freeze([
   }),
 ] as const);
 
+export const portalInternalEntryAdapters = Object.freeze([
+  "worker/backup-encrypted-export-entry.ts",
+  "worker/backup-encrypted-preview-entry.ts",
+  "worker/backup-export-entry.ts",
+  "worker/backup-import-preview-entry.ts",
+  "worker/backup-isolated-restore-entry.ts",
+  "worker/backup-selective-restore-entry.ts",
+  "worker/backup-selective-restore-root-entry.ts",
+  "worker/diagnostics-entry.ts",
+  "worker/session-management-entry.ts",
+  "worker/settings-lifecycle-root-entry.ts",
+] as const);
+
 export const portalCentralCompatibilityTail = null;
 
 export type PortalCompatibilityAdapter = (typeof portalCompatibilityAdapters)[number];

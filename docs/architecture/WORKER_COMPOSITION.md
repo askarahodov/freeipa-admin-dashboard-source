@@ -384,3 +384,8 @@ The eight final canonical stable routes formerly owned by `worker/index.ts` now 
 ## #635 checkpoint C6
 
 `GET /api/integrations/audit` is owned by `worker/integration-audit-http.ts` and dispatched from the existing operations adapter. `worker/index.ts` no longer dispatches any `/api/integrations/*` HTTP route; its remaining role is catalog-helper compatibility plus framework delegation until the final parity-gated tail removal.
+
+
+## #635 checkpoint C7
+
+XYOps catalog runtime ownership lives in `worker/xyops-catalog-runtime.ts`: snapshot/history persistence, upstream event normalization, demo projection, `loadCatalog` and `portalCatalog`. `operations-http-entry.ts` consumes it directly. The central `worker/index.ts` tail no longer contains catalog runtime behavior and is limited to framework compatibility delegation plus historical re-exports until a separate parity-gated cutover.

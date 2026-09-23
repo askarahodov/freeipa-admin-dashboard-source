@@ -171,3 +171,79 @@ test("backup acceptance fails closed if active portal state changes after isolat
     /acceptance_backup_production_state_changed/u,
   );
 });
+
+
+test("backup acceptance rejects a restore result that claims production mutation", async () => {
+  const harness = requestHarness();
+  const request = async (pathname, options) => {
+    const response = await harness.request(pathname, options);
+    if (pathname === "/api/admin/backups/import/encrypted/test-restore") {
+      return { ...response, json: { ...response.json, productionMutated: true } };
+    }
+    return response;
+  };
+
+  await assert.rejects(
+    () => executeBackupRestoreAcceptance({
+      request,
+      password: "test-only-backup-password",
+    }),
+    /acceptance_backup_test_restore_invalid/u,
+  );
+});
+
+test("backup acceptance requires a zero-conflict restorable preview", async () => {
+  const harness = requestHarness();
+  const request = async (pathname, options) => {
+    const response = await harness.request(pathname, options);
+    if (pathname === "/api/admin/backups/import/encrypted/preview") {
+      return { ...response, json: { ...response.json, canRestore: false } };
+    }
+    return response;
+  };
+
+  await assert.rejects(
+    () => executeBackupRestoreAcceptance({
+      request,
+      password: "test-only-backup-password",
+    }),
+    /acceptance_backup_preview_invalid/u,
+  );
+});
+
+test("backup acceptance maps raw export failures to a bounded code", async () => {
+  const harness = requestHarness();
+  const request = async (pathname, options) => {
+    if (pathname === "/api/admin/backups/export/encrypted") {
+      return { status: 500, json: { error: "raw password=do-not-report" } };
+    }
+    return harness.request(pathname, options);
+  };
+
+  await assert.rejects(
+    () => executeBackupRestoreAcceptance({
+      request,
+      password: "do-not-report-backup-password",
+    }),
+    (error) => {
+      assert.equal(error.message, "acceptance_backup_export_failed");
+      assert.equal(String(error).includes("do-not-report"), false);
+      return true;
+    },
+  );
+});
+
+test("backup acceptance validates its in-memory password before any portal call", async () => {
+  let called = false;
+  await assert.rejects(
+    () => executeBackupRestoreAcceptance({
+      request: async () => {
+        called = true;
+        return { status: 500, json: {} };
+      },
+      password: "short",
+    }),
+    /acceptance_backup_password_invalid/u,
+  );
+  assert.equal(called, false);
+});

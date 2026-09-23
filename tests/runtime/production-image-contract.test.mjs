@@ -22,3 +22,12 @@ test("production runtime image does not copy the project npm dependency tree", (
   assert.match(runtimeStage, /COPY --from=build[^\n]*\/app\/runtime \.\/runtime/u);
   assert.match(runtimeStage, /COPY --from=build[^\n]*\/app\/db \.\/db/u);
 });
+
+
+test("production runtime image exposes an OCI source revision label", () => {
+  assert.match(runtimeStage, /ARG PORTAL_SOURCE_COMMIT=unknown/u);
+  assert.match(
+    runtimeStage,
+    /LABEL org\.opencontainers\.image\.revision="\$\{PORTAL_SOURCE_COMMIT\}"/u,
+  );
+});

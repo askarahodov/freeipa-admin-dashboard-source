@@ -1,3 +1,16 @@
+export function settingsAcceptanceRequestHeaders({ origin, cookie = "", json = false } = {}) {
+  let normalizedOrigin;
+  try {
+    normalizedOrigin = new URL(String(origin ?? "")).origin;
+  } catch {
+    throw new Error("acceptance_settings_origin_invalid");
+  }
+  const headers = { accept: "application/json", origin: normalizedOrigin };
+  if (cookie) headers.cookie = cookie;
+  if (json) headers["content-type"] = "application/json";
+  return Object.freeze(headers);
+}
+
 function responseCode(status, expected, code) {
   if (status !== expected) throw new Error(code);
 }

@@ -312,3 +312,69 @@ test("HTML evidence renders only the already-sanitized bounded report", async ()
   assert.equal(html.includes("http://"), false);
   assert.equal(html.includes("registry.example.test"), false);
 });
+
+test("optional post-baseline scenarios run before cleanup and are included as bounded stages", async () => {
+  const plan = manifest();
+  const events = [];
+  const report = await executeProductionAcceptance({
+    manifest: plan,
+    runCommand: async (command) => {
+      events.push(command.includes("down") ? "cleanup" : "compose");
+    },
+    probe: async (check) => healthyResponse(check),
+    runPostBaseline: async () => {
+      events.push("scenarios");
+      return [
+        {
+          id: "local_auth_rbac",
+          outcome: "passed",
+          code: "local_auth_rbac_passed",
+          remediationCode: "none",
+        },
+      ];
+    },
+  });
+
+  assert.deepEqual(events, ["compose", "scenarios", "cleanup"]);
+  assert.equal(report.outcome, "passed");
+  assert.deepEqual(report.stages.map((stage) => stage.id), [
+    "compose_start",
+    "baseline",
+    "local_auth_rbac",
+    "cleanup",
+  ]);
+});
+
+test("scenario failure is release-blocking and cleanup still runs", async () => {
+  const plan = manifest();
+  const events = [];
+  const report = await executeProductionAcceptance({
+    manifest: plan,
+    runCommand: async (command) => {
+      events.push(command.includes("down") ? "cleanup" : "compose");
+    },
+    probe: async (check) => healthyResponse(check),
+    runPostBaseline: async () => {
+      events.push("scenarios");
+      const error = new Error("acceptance_p0_operational_failed");
+      error.acceptanceStages = [
+        {
+          id: "p0_operational",
+          outcome: "failed",
+          code: "acceptance_p0_operational_failed",
+          remediationCode: "inspect_p0_operational_acceptance",
+        },
+      ];
+      throw error;
+    },
+  });
+
+  assert.deepEqual(events, ["compose", "scenarios", "cleanup"]);
+  assert.equal(report.outcome, "failed");
+  assert.equal(report.failureCode, "acceptance_p0_operational_failed");
+  assert.equal(report.remediationCode, "inspect_p0_operational_acceptance");
+  assert.equal(report.stages.find((stage) => stage.id === "p0_operational")?.outcome, "failed");
+  assert.equal(report.stages.at(-1)?.id, "cleanup");
+  assert.equal(report.cleanup.outcome, "passed");
+});
+

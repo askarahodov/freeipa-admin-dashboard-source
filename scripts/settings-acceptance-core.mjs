@@ -6,7 +6,7 @@ function effectiveSnapshot(payload) {
   const revision = Number(payload?.revision);
   const demoMode = payload?.settings?.demoMode;
   const source = payload?.fields?.demoMode?.source;
-  if (!Number.isFinite(revision) || revision < 0 || typeof demoMode !== "boolean") {
+  if (!Number.isInteger(revision) || revision < 0 || typeof demoMode !== "boolean") {
     throw new Error("acceptance_settings_effective_invalid");
   }
   if (!["database", "environment", "default"].includes(source)) {
@@ -55,14 +55,14 @@ export async function executeSettingsPersistenceRollback({ request } = {}) {
 
   const initial = await readEffective(request);
   const changedMode = !initial.demoMode;
-  let mutationApplied = false;
+  let applyAttempted = false;
   let rollbackComplete = false;
   let primaryError = null;
 
   try {
     const draftId = await createValidatedDraft(request, initial.revision, { demoMode: changedMode });
+    applyAttempted = true;
     await applyDraft(request, draftId);
-    mutationApplied = true;
 
     const persisted = await readEffective(request);
     if (
@@ -75,19 +75,23 @@ export async function executeSettingsPersistenceRollback({ request } = {}) {
   } catch (error) {
     primaryError = error;
   } finally {
-    if (mutationApplied) {
+    if (applyAttempted) {
       try {
         const current = await readEffective(request);
-        const rollbackChanges = initial.source === "database"
-          ? { demoMode: initial.demoMode }
-          : { resetFields: ["demoMode"] };
-        const rollbackDraftId = await createValidatedDraft(request, current.revision, rollbackChanges);
-        await applyDraft(request, rollbackDraftId);
-        const restored = await readEffective(request);
-        if (restored.demoMode !== initial.demoMode || restored.source !== initial.source) {
-          throw new Error("acceptance_settings_rollback_failed");
+        if (current.demoMode === initial.demoMode && current.source === initial.source) {
+          rollbackComplete = true;
+        } else {
+          const rollbackChanges = initial.source === "database"
+            ? { demoMode: initial.demoMode }
+            : { resetFields: ["demoMode"] };
+          const rollbackDraftId = await createValidatedDraft(request, current.revision, rollbackChanges);
+          await applyDraft(request, rollbackDraftId);
+          const restored = await readEffective(request);
+          if (restored.demoMode !== initial.demoMode || restored.source !== initial.source) {
+            throw new Error("acceptance_settings_rollback_failed");
+          }
+          rollbackComplete = true;
         }
-        rollbackComplete = true;
       } catch {
         throw new Error("acceptance_settings_rollback_failed");
       }
@@ -95,7 +99,7 @@ export async function executeSettingsPersistenceRollback({ request } = {}) {
   }
 
   if (primaryError) throw primaryError;
-  if (mutationApplied && !rollbackComplete) throw new Error("acceptance_settings_rollback_failed");
+  if (applyAttempted && !rollbackComplete) throw new Error("acceptance_settings_rollback_failed");
 
   return Object.freeze({
     outcome: "passed",

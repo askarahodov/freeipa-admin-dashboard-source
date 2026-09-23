@@ -36,6 +36,13 @@ export async function pruneProductionAcceptanceHistory(
   for (const entry of entries) {
     if (!entry.isDirectory() || !RUN_ID_PATTERN.test(entry.name)) continue;
     const directory = path.join(historyDirectory, entry.name);
+    let owned = false;
+    try {
+      owned = await fs.readFile(path.join(directory, OWNERSHIP_MARKER), "utf8") === OWNERSHIP_MARKER_CONTENT;
+    } catch {
+      owned = false;
+    }
+    if (!owned) continue;
     const stats = await fs.stat(directory);
     if (nowMs - stats.mtimeMs <= retention * 1_000) continue;
     await fs.rm(directory, { recursive: true, force: true });
@@ -76,6 +83,7 @@ export async function writeProductionAcceptanceArtifacts({
     fs.writeFile(path.join(outputDirectory, "report.html"), html),
     fs.writeFile(path.join(runDirectory, "report.json"), serialized),
     fs.writeFile(path.join(runDirectory, "report.html"), html),
+    fs.writeFile(path.join(runDirectory, OWNERSHIP_MARKER), OWNERSHIP_MARKER_CONTENT),
   ]);
 
   return Object.freeze({

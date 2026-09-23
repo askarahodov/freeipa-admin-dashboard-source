@@ -196,6 +196,9 @@ test("FreeIPA mutation selection always runs safe read first and scopes child mo
     environment: {
       PORTAL_TEST_CONFIRM: "YES",
       PORTAL_ACCEPTANCE_PROJECT_NAME: "portal-accept-0123456789ab",
+      IPA_PASSWORD: "must-not-reach-child",
+      XYOPS_API_KEY: "must-not-reach-child",
+      ADMIN_TOKEN: "must-not-reach-child",
     },
     runScript: async (script, environment) => {
       calls.push({ script, environment });
@@ -210,6 +213,9 @@ test("FreeIPA mutation selection always runs safe read first and scopes child mo
     ["scripts/freeipa-acceptance.mjs", "read", "false"],
     ["scripts/freeipa-acceptance.mjs", "mutate", "true"],
   ]);
+  assert.equal(calls.every((item) => item.environment.IPA_PASSWORD === undefined), true);
+  assert.equal(calls.every((item) => item.environment.XYOPS_API_KEY === undefined), true);
+  assert.equal(calls.every((item) => item.environment.ADMIN_TOKEN === undefined), true);
   assert.deepEqual(stages.map((stage) => [stage.id, stage.outcome]), [
     ["freeipa_read", "passed"],
     ["freeipa_crud_membership", "passed"],

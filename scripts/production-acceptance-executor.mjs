@@ -16,6 +16,11 @@ import {
   renderProductionAcceptanceHtml,
   validateProductionAcceptanceManifest,
 } from "./production-acceptance-executor-core.mjs";
+import {
+  productionAcceptanceScenarioEnvironment,
+  runProductionAcceptanceScenarios,
+  validateProductionAcceptanceMutationConfirmation,
+} from "./production-acceptance-scenarios.mjs";
 
 const execFileAsync = promisify(execFile);
 
@@ -42,6 +47,7 @@ const planPath = path.resolve(argument("--plan") ?? "artifacts/production-accept
 const outputDirectory = path.resolve(argument("--output-dir") ?? "artifacts/production-acceptance/latest");
 const historyDirectory = path.resolve(argument("--history-dir") ?? "artifacts/production-acceptance/runs");
 const rawBaseUrl = argument("--base-url") ?? process.env.PORTAL_ACCEPTANCE_BASE_URL ?? "http://127.0.0.1:3001";
+const runLocalAuthP0 = process.argv.includes("--run-local-auth-p0");
 
 try {
   const acceptanceTarget = normalizeProductionAcceptanceTarget(rawBaseUrl);
@@ -53,6 +59,22 @@ try {
   const probeIntervalMs = positiveNumber(argument("--probe-interval-ms"), 1_000);
   const manifest = JSON.parse(await fs.readFile(planPath, "utf8"));
   validateProductionAcceptanceManifest(manifest);
+
+  const mutationConfirmation = validateProductionAcceptanceMutationConfirmation({
+    enabled: runLocalAuthP0,
+    confirmation: argument("--confirm-destructive") ?? process.env.PORTAL_ACCEPTANCE_CONFIRM_DESTRUCTIVE,
+    confirmedProject: argument("--confirm-project") ?? process.env.PORTAL_ACCEPTANCE_CONFIRM_PROJECT,
+    expectedProject: manifest.compose.projectName,
+  });
+
+  const scenarioEnvironment = mutationConfirmation.enabled
+    ? productionAcceptanceScenarioEnvironment({
+        ambientEnvironment: process.env,
+        baseUrl: acceptanceTarget.baseUrl,
+        adminUsername: process.env.PORTAL_ACCEPTANCE_ADMIN_USERNAME,
+        adminPassword: process.env.PORTAL_ACCEPTANCE_ADMIN_PASSWORD,
+      })
+    : null;
 
   const runCommand = async (command, environment) => {
     const [executable, ...args] = command;
@@ -82,6 +104,18 @@ try {
     return { status: response.status, json };
   };
 
+  const runPostBaseline = mutationConfirmation.enabled
+    ? async () => runProductionAcceptanceScenarios({
+        environment: scenarioEnvironment,
+        runScript: async (script, environment) => {
+          await execFileAsync(process.execPath, [script], {
+            env: environment,
+            maxBuffer: 1024 * 1024,
+          });
+        },
+      })
+    : null;
+
   const report = await executeProductionAcceptance({
     manifest,
     runCommand,
@@ -89,6 +123,7 @@ try {
     startupTimeoutMs,
     probeIntervalMs,
     secretValues: environmentSecretValues(),
+    runPostBaseline,
   });
   const html = renderProductionAcceptanceHtml(report);
 

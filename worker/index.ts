@@ -1,8 +1,14 @@
-/** Cloudflare Worker entry point for the vinext-starter template. */
+/** Thin compatibility tail for framework dispatch during #635. */
 import { handleFrameworkRequest } from "./framework-http-entry.ts";
 import type { FrameworkHttpContext, FrameworkHttpEnv } from "./framework-http.ts";
+
 export { allowedOperations, automationRoutes, resolveCatalogRuntime } from "./xyops-admin-runtime.ts";
 
+/**
+ * Compatibility typing surface for downstream adapters that still infer their
+ * environment from the historical central default export. This type carries no
+ * route or domain ownership in this module and is removed with the final tail.
+ */
 interface Env extends FrameworkHttpEnv {
   DB?: D1Database;
   IPA_URL?: string;
@@ -28,10 +34,11 @@ interface Env extends FrameworkHttpEnv {
 
 type ExecutionContext = FrameworkHttpContext;
 
+const worker = {
+  async fetch(request: Request, env: Env | undefined, ctx: ExecutionContext): Promise<Response> {
+    const runtimeEnv = env ?? (process.env as unknown as Env);
     return handleFrameworkRequest(request, runtimeEnv, ctx);
   },
 };
 
-async function readCatalogSnapshot(env: Env): Promise<CatalogSnapshot | null> {
-  if (!env.DB) return null;
-  const row = await env.DB.prepare("SELECT catalog_json, synced_at FROM xyops_catalog_snapshot WHERE id = ?"
+export default worker;

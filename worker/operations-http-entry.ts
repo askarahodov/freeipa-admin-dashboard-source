@@ -1,6 +1,7 @@
 import type { RouteField } from "../src/automation/automation-types";
 import { fieldConditionMatches } from "../src/automation/field-conditions";
-import integrationRuntime from "./index";
+import { handleFrameworkRequest } from "./framework-http-entry.ts";
+import type { FrameworkHttpContext, FrameworkHttpEnv } from "./framework-http.ts";
 import { loadCatalog, portalCatalog } from "./xyops-catalog-runtime.ts";
 import { allowedOperations, automationRoutes, resolveCatalogRuntime } from "./xyops-admin-runtime.ts";
 import { listRunNotifications, markRunNotificationsRead } from "../src/operations/run/run-notifications.ts";
@@ -29,9 +30,25 @@ import { portalAccess, requestActor, requirePortalPermission } from "./portal-ac
 import { applyProcessPresentation, availableProcessPresentationLocales, presentationLocalePreferences, readProcessPresentationSet, resolveProcessPresentationLocale } from "../src/operations/presentation/process-presentation";
 import { extractJobStages, listOperationRuns, publicRun, runStatus, syncOperationRuns, xyopsPayloadSucceeded } from "./xyops-run-runtime.ts";
 
-type RuntimeEnv = NonNullable<Parameters<typeof integrationRuntime.fetch>[1]> & XyOpsSettingsEnv;
-type RuntimeContext = Parameters<typeof integrationRuntime.fetch>[2];
-type ScheduledController = Parameters<NonNullable<typeof integrationRuntime.scheduled>>[0];
+type RuntimeEnv = FrameworkHttpEnv & XyOpsSettingsEnv & {
+  IPA_URL?: string;
+  IPA_USERNAME?: string;
+  IPA_PASSWORD?: string;
+  IPA_VERIFY_TLS?: string;
+  IPA_NODE_GATEWAY_URL?: string;
+  IPA_NODE_GATEWAY_TOKEN?: string;
+  XYOPS_EVENT_ID?: string;
+  XYOPS_ROUTES_JSON?: string;
+  ADMIN_TOKEN?: string;
+  DEMO_MODE?: string;
+  PORTAL_DEFAULT_ROLE?: string;
+  PORTAL_RBAC_JSON?: string;
+  PORTAL_CATALOG_POLICIES_JSON?: string;
+  PORTAL_APPROVAL_POLICIES_JSON?: string;
+  PORTAL_PROCESS_METADATA_JSON?: string;
+};
+type RuntimeContext = FrameworkHttpContext;
+type ScheduledController = { cron?: string; scheduledTime?: number };
 type ApprovalAction = "approve" | "reject" | "cancel" | "execute";
 
 const jsonHeaders = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
@@ -688,11 +705,13 @@ const worker = {
     if (statusResponse) return statusResponse;
     const auditResponse = await handleIntegrationAuditRequest(request, sourceEnv);
     if (auditResponse) return auditResponse;
-    return integrationRuntime.fetch(request, sourceEnv, ctx);
+    return handleFrameworkRequest(request, sourceEnv, ctx);
   },
 
   async scheduled(controller: ScheduledController, env: RuntimeEnv | undefined, ctx: RuntimeContext): Promise<void> {
-    return integrationRuntime.scheduled?.(controller, env, ctx);
+    void controller;
+    void env;
+    void ctx;
   },
 };
 

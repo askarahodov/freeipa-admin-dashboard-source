@@ -6,6 +6,7 @@ import { promisify } from "node:util";
 
 import {
   executeProductionAcceptance,
+  normalizeProductionAcceptanceTarget,
   renderProductionAcceptanceHtml,
   validateProductionAcceptanceManifest,
 } from "./production-acceptance-executor-core.mjs";
@@ -33,7 +34,9 @@ function environmentSecretValues() {
 
 const planPath = path.resolve(argument("--plan") ?? "artifacts/production-acceptance/plan.json");
 const outputDirectory = path.resolve(argument("--output-dir") ?? "artifacts/production-acceptance/latest");
-const baseUrl = argument("--base-url") ?? process.env.PORTAL_ACCEPTANCE_BASE_URL ?? "http://127.0.0.1:3001";
+const acceptanceTarget = normalizeProductionAcceptanceTarget(
+  argument("--base-url") ?? process.env.PORTAL_ACCEPTANCE_BASE_URL ?? "http://127.0.0.1:3001",
+);
 const startupTimeoutMs = positiveNumber(argument("--startup-timeout-ms"), 60_000);
 const probeIntervalMs = positiveNumber(argument("--probe-interval-ms"), 1_000);
 
@@ -44,13 +47,17 @@ try {
   const runCommand = async (command, environment) => {
     const [executable, ...args] = command;
     await execFileAsync(executable, args, {
-      env: { ...process.env, ...environment },
+      env: {
+        ...process.env,
+        ...environment,
+        ...acceptanceTarget.composeEnvironment,
+      },
       maxBuffer: 1024 * 1024,
     });
   };
 
   const probe = async (check) => {
-    const response = await fetch(new URL(check.path, baseUrl), {
+    const response = await fetch(new URL(check.path, acceptanceTarget.baseUrl), {
       method: check.method,
       headers: { accept: "application/json" },
       redirect: "error",

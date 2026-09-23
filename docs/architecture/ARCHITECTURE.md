@@ -112,7 +112,7 @@ worker/http-security-root-entry.ts
   -> secure-entry.ts
   -> freeipa-http-entry.ts
   -> operations-http-entry.ts
-  -> worker/index.ts
+  -> the retired central Worker tail
 ```
 
 The explicit application/router/security-composition boundary is part of the **current application request architecture**. Storage migration apply/status/reconcile, maintenance and the outer service-admin authentication/adaptation boundary are now explicitly composed there. Local-session/service-admin-fallback/origin routing is now isolated in `worker/middleware/local-security-routing.ts` but deliberately executes at the historical `local-secure-entry.ts` position below the pre-local compatibility adapters; route/domain authorization, handler selection and most audit/error behavior remain compatibility-owned while #56 incrementally replaces them with explicit composition backed by parity tests.
@@ -276,3 +276,8 @@ Use this file to understand system shape and boundaries. Then follow the canonic
 - operational details: the relevant active runbook.
 
 If this document and current runtime disagree, treat that as a documentation defect and verify the current `main` plus the canonical owner before changing behavior.
+
+
+### #635 final central-tail cutover
+
+The historical `worker/index.ts` compatibility tail has been removed. Unmatched framework/static/RSC/image traffic now reaches `worker/framework-http-entry.ts` directly from the operations adapter after the preserved upstream security/domain chain. Remaining compatibility adapters are explicit in `worker/application-composition-contract.ts` and retain documented removal conditions.

@@ -57,6 +57,11 @@ export function validateUpgradeSourcePolicy(value, { targetImageReference, targe
   });
 }
 
+export function upgradeImagePullCommand(imageReference) {
+  const image = parseImmutableImageReference(imageReference);
+  return Object.freeze(["docker", "pull", image.reference]);
+}
+
 export function upgradeComposeCommand({
   projectName,
   serviceEnvFile = ".env.acceptance",
@@ -164,13 +169,15 @@ export async function executeUpgradeAcceptance({
     PORTAL_IMAGE: targetImage.reference,
   });
 
-  await runCommand(upgradeComposeCommand({ projectName, serviceEnvFile, imageReference: source.image.reference, action: "up" }), {
-    PORTAL_IMAGE: source.image.reference,
-  });
+  await runCommand(upgradeImagePullCommand(source.image.reference), {});
   const sourceRevision = String(await readSourceImageRevision(source.image.reference)).trim().toLowerCase();
   if (sourceRevision !== source.commitSha) {
     throw new Error("acceptance_upgrade_source_provenance_mismatch");
   }
+
+  await runCommand(upgradeComposeCommand({ projectName, serviceEnvFile, imageReference: source.image.reference, action: "up" }), {
+    PORTAL_IMAGE: source.image.reference,
+  });
   const sourceReady = await waitReady(source.portalSchemaVersion);
   if (sourceReady?.currentVersion !== source.portalSchemaVersion || sourceReady?.latestVersion !== source.portalSchemaVersion) {
     throw new Error("acceptance_upgrade_source_schema_mismatch");

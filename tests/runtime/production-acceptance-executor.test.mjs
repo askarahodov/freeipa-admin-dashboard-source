@@ -83,6 +83,10 @@ test("acceptance execution target is forced to the local loopback publication bo
     () => normalizeProductionAcceptanceTarget("http://127.0.0.1:3001/?target=other"),
     /acceptance_base_url_query_forbidden/u,
   );
+  assert.throws(
+    () => normalizeProductionAcceptanceTarget("http://127.0.0.1:3001/#fragment"),
+    /acceptance_base_url_fragment_forbidden/u,
+  );
 });
 
 test("acceptance command environment overrides ambient exposure with the normalized loopback target", () => {
@@ -104,28 +108,6 @@ test("acceptance command environment overrides ambient exposure with the normali
   assert.equal(environment.PORTAL_IMAGE, "registry.example.test/image@sha256:test");
   assert.equal(environment.DASHBOARD_BIND_ADDRESS, "127.0.0.1");
   assert.equal(environment.DASHBOARD_PORT, "3100");
-});
-
-test("acceptance runtime environment overrides ambient publication with the canonical loopback target", () => {
-  const target = normalizeProductionAcceptanceTarget("http://localhost:3100");
-  const environment = productionAcceptanceCommandEnvironment(
-    {
-      DASHBOARD_BIND_ADDRESS: "0.0.0.0",
-      DASHBOARD_PORT: "9999",
-      UNRELATED: "ambient",
-    },
-    {
-      PORTAL_IMAGE: image,
-      DASHBOARD_BIND_ADDRESS: "192.0.2.5",
-      DASHBOARD_PORT: "4444",
-    },
-    target,
-  );
-
-  assert.equal(environment.DASHBOARD_BIND_ADDRESS, "127.0.0.1");
-  assert.equal(environment.DASHBOARD_PORT, "3100");
-  assert.equal(environment.PORTAL_IMAGE, image);
-  assert.equal(environment.UNRELATED, "ambient");
 });
 
 test("baseline evaluator requires both expected status and required JSON predicates", () => {

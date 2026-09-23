@@ -45,6 +45,15 @@ export function validateProductionAcceptanceXyOpsConfiguration({
   return Object.freeze({ enabled: true, eventId: normalizedEventId });
 }
 
+export function validateProductionAcceptanceUpgradeSelection({
+  enabled = false,
+  conflicting = false,
+} = {}) {
+  if (!enabled) return Object.freeze({ enabled: false });
+  if (conflicting) throw new Error("acceptance_upgrade_must_be_exclusive");
+  return Object.freeze({ enabled: true });
+}
+
 export function productionAcceptanceScenarioEnvironment({
   ambientEnvironment = {},
   baseUrl,
@@ -76,6 +85,7 @@ export function productionAcceptanceScenarioDefinitions({
   includeXyOpsRead = false,
   includeXyOpsLifecycle = false,
   includeBackupRestore = false,
+  includeUpgrade = false,
 } = {}) {
   const definitions = [];
   if (includeLocalAuthP0) {
@@ -228,6 +238,31 @@ export function productionAcceptanceScenarioDefinitions({
       passedCode: "backup_restore_smoke_passed",
       failedCode: "acceptance_backup_restore_smoke_failed",
       remediationCode: "inspect_backup_restore_acceptance",
+    }));
+  }
+  if (includeUpgrade) {
+    definitions.push(Object.freeze({
+      id: "previous_supported_upgrade",
+      script: "scripts/upgrade-acceptance.mjs",
+      omitEnvironmentKeys: Object.freeze([
+        "ADMIN_TOKEN",
+        "CONFIG_ENCRYPTION_KEY",
+        "IPA_URL",
+        "IPA_USERNAME",
+        "IPA_PASSWORD",
+        "IPA_NODE_GATEWAY_URL",
+        "IPA_NODE_GATEWAY_TOKEN",
+        "XYOPS_URL",
+        "XYOPS_API_KEY",
+        "PORTAL_PROXY_SHARED_SECRET",
+        "PORTAL_ACCEPTANCE_XYOPS_REQUESTER_USERNAME",
+        "PORTAL_ACCEPTANCE_XYOPS_REQUESTER_PASSWORD",
+        "PORTAL_ACCEPTANCE_XYOPS_EVENT_ID",
+        "PORTAL_ACCEPTANCE_XYOPS_CONFIRM_EVENT_ID",
+      ]),
+      passedCode: "previous_supported_upgrade_passed",
+      failedCode: "acceptance_previous_supported_upgrade_failed",
+      remediationCode: "inspect_upgrade_acceptance",
     }));
   }
   return Object.freeze(definitions);

@@ -542,6 +542,6 @@ The event ID must be entered twice independently and match exactly. The lifecycl
 1. requester creates an approval request, the independent approver approves it, requester executes it, then the resulting active run is cancelled;
 2. a second independent approval/execution is allowed to reach terminal success and must expose a sanitized portal result.
 
-Any pending approval or active run left by a partial failure is reconciled in `finally`; failure to prove cleanup is release-blocking. Production release evidence contains only bounded `xyops_read` and `xyops_approval_cancel_result` stage codes. Approval IDs, run IDs, catalog payloads, credentials, upstream URLs/API keys and result bodies are not copied into release evidence.
+Any pending approval or active run left by a partial failure is reconciled in `finally`. The runner snapshots visible approvals/runs before the lifecycle so a lost response after approval creation can be detected as new residue for the confirmed dedicated event without touching pre-existing objects. Failure to prove cleanup is release-blocking. Production release evidence contains only bounded `xyops_read` and `xyops_approval_cancel_result` stage codes. Approval IDs, run IDs, catalog payloads, credentials, upstream URLs/API keys and result bodies are not copied into release evidence.
 
 The dedicated XYOps test event must be provisioned so one invocation remains active long enough for cancellation and another can complete successfully with a result. Do not point this stage at an ordinary or production process.

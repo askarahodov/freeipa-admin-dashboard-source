@@ -13,6 +13,7 @@ function fakeXyOps({
   reachable = true,
   failResult = false,
   failCleanup = false,
+  loseApprovalCreateResponse = false,
 } = {}) {
   const approvals = new Map();
   const runs = new Map();
@@ -53,7 +54,11 @@ function fakeXyOps({
     if (pathname === "/api/integrations/catalog/run" && method === "POST") {
       approvalSequence += 1;
       const approvalId = `approval_${approvalSequence}`;
-      approvals.set(approvalId, { status: "pending" });
+      approvals.set(approvalId, { status: "pending", eventId: String(body.eventId ?? "") });
+      if (loseApprovalCreateResponse) {
+        loseApprovalCreateResponse = false;
+        throw new Error("lost approval create response");
+      }
       return response(202, {
         approvalRequired: true,
         approvalId,
@@ -84,6 +89,7 @@ function fakeXyOps({
         approval.runId = runId;
         runs.set(runId, {
           id: runId,
+          eventId: approval.eventId,
           status: "queued",
           result: { available: false },
         });
@@ -101,6 +107,7 @@ function fakeXyOps({
       return response(200, {
         approvals: Array.from(approvals.entries()).map(([id, approval]) => ({
           id,
+          eventId: approval.eventId,
           status: approval.status,
           runId: approval.runId ?? "",
         })),
@@ -236,6 +243,30 @@ test("XYOps lifecycle reconciles an active second run after a terminal failure",
 
   assert.equal(fake.runs.get("run_1").status, "cancelled");
   assert.equal(fake.runs.get("run_2").status, "failed");
+});
+
+test("XYOps lifecycle reconciles a pending approval when its create response is lost", async () => {
+  const fake = fakeXyOps({ loseApprovalCreateResponse: true });
+
+  await assert.rejects(
+    () => executeXyOpsLifecycleAcceptance({
+      requesterRequest: fake.requesterRequest,
+      approverRequest: fake.approverRequest,
+      eventId: "portal-acceptance-event",
+      confirmedEventId: "portal-acceptance-event",
+      now: () => 1_000,
+      sleep: async () => {},
+      timeoutMs: 10_000,
+      pollIntervalMs: 0,
+    }),
+    /lost approval create response/u,
+  );
+
+  assert.equal(fake.approvals.get("approval_1").status, "cancelled");
+  assert.equal(
+    fake.calls.some((call) => call.pathname === "/api/integrations/approvals?limit=100"),
+    true,
+  );
 });
 
 test("XYOps lifecycle recovers an executed run after the execute response is lost", async () => {

@@ -50,6 +50,8 @@ const historyDirectory = path.resolve(argument("--history-dir") ?? "artifacts/pr
 const rawBaseUrl = argument("--base-url") ?? process.env.PORTAL_ACCEPTANCE_BASE_URL ?? "http://127.0.0.1:3001";
 const runLocalAuthP0 = process.argv.includes("--run-local-auth-p0");
 const runSettings = process.argv.includes("--run-settings");
+const runFreeIpaRead = process.argv.includes("--run-freeipa-read");
+const runFreeIpaMutations = process.argv.includes("--run-freeipa-mutations");
 
 try {
   const acceptanceTarget = normalizeProductionAcceptanceTarget(rawBaseUrl);
@@ -62,19 +64,27 @@ try {
   const manifest = JSON.parse(await fs.readFile(planPath, "utf8"));
   validateProductionAcceptanceManifest(manifest);
 
+  const mutationRequested = runLocalAuthP0 || runSettings || runFreeIpaMutations;
   const mutationConfirmation = validateProductionAcceptanceMutationConfirmation({
-    enabled: runLocalAuthP0 || runSettings,
+    enabled: mutationRequested,
     confirmation: argument("--confirm-destructive") ?? process.env.PORTAL_ACCEPTANCE_CONFIRM_DESTRUCTIVE,
     confirmedProject: argument("--confirm-project") ?? process.env.PORTAL_ACCEPTANCE_CONFIRM_PROJECT,
     expectedProject: manifest.compose.projectName,
   });
 
-  const scenarioEnvironment = mutationConfirmation.enabled
+  const scenarioDefinitions = productionAcceptanceScenarioDefinitions({
+    includeLocalAuthP0: runLocalAuthP0,
+    includeSettings: runSettings,
+    includeFreeIpaRead: runFreeIpaRead,
+    includeFreeIpaMutations: runFreeIpaMutations,
+  });
+  const scenarioEnvironment = scenarioDefinitions.length
     ? productionAcceptanceScenarioEnvironment({
         ambientEnvironment: process.env,
         baseUrl: acceptanceTarget.baseUrl,
         adminUsername: process.env.PORTAL_ACCEPTANCE_ADMIN_USERNAME,
         adminPassword: process.env.PORTAL_ACCEPTANCE_ADMIN_PASSWORD,
+        projectName: manifest.compose.projectName,
       })
     : null;
 
@@ -106,11 +116,7 @@ try {
     return { status: response.status, json };
   };
 
-  const scenarioDefinitions = productionAcceptanceScenarioDefinitions({
-    includeLocalAuthP0: runLocalAuthP0,
-    includeSettings: runSettings,
-  });
-  const runPostBaseline = mutationConfirmation.enabled
+  const runPostBaseline = scenarioDefinitions.length
     ? async () => runProductionAcceptanceScenarios({
         environment: scenarioEnvironment,
         definitions: scenarioDefinitions,

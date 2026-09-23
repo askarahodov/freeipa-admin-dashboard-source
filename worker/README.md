@@ -56,3 +56,6 @@ Update normalized references only when the external contract changes; keep imple
 
 
 #635 checkpoint C6 moves `/api/integrations/audit` into `integration-audit-http.ts` and removes the final `/api/integrations/*` HTTP dispatcher from `worker/index.ts`; the central tail remains only for catalog helper compatibility and framework delegation pending parity proof.
+
+
+#635 checkpoint C7 moves XYOps catalog snapshot/history, upstream normalization, demo projection, `loadCatalog` and `portalCatalog` into `xyops-catalog-runtime.ts`. `operations-http-entry.ts` consumes that owner directly. `worker/index.ts` no longer owns catalog runtime behavior; it remains a thin framework compatibility adapter plus historical re-exports pending final cutover.

@@ -20,7 +20,6 @@
     "test:local": "bash scripts/run-local-integration.sh",
     "test:local-auth:acceptance": "node scripts/local-auth-acceptance.mjs",
     "test:p0:acceptance": "node scripts/p0-operational-acceptance.mjs",
-    "acceptance:plan": "node scripts/production-acceptance-plan.mjs",
     "test:e2e:auth": "bash scripts/run-auth-e2e.sh",
     "validate:artifact": "bash scripts/validate-artifact.sh",
     "security:audit": "node scripts/dependency-audit-policy.mjs",

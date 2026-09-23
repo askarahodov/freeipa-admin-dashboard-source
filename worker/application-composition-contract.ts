@@ -16,9 +16,9 @@ export const portalApplicationComposition = Object.freeze({
   scheduledOwner: "worker/application-scheduled.ts",
   frameworkOwner: "worker/framework-http-entry.ts",
   frameworkPolicy: "worker/framework-http.ts",
-  frameworkDispatchMode: "compatibility-tail",
+  frameworkDispatchMode: "explicit-owner",
   compatibilityRoot: "worker/maintenance-control-root-entry.ts",
-  centralCompatibilityTail: "worker/index.ts",
+  centralCompatibilityTail: null,
 } as const);
 
 export const portalCompatibilityAdapters = Object.freeze([
@@ -48,11 +48,6 @@ export const portalCompatibilityAdapters = Object.freeze([
   }),
 ] as const);
 
-export const portalCentralCompatibilityTail = Object.freeze({
-  path: "worker/index.ts",
-  responsibility: "thin framework compatibility adapter plus legacy re-exports before direct framework cutover",
-  reason: "canonical stable routes and catalog runtime have explicit owners; framework traffic still reaches its explicit owner through this compatibility tail and historical re-exports remain",
-  removalCondition: "migrate remaining compatibility re-export consumers, route framework traffic directly to its explicit owner after parity proof, then delete the central compatibility tail",
-} as const);
+export const portalCentralCompatibilityTail = null;
 
 export type PortalCompatibilityAdapter = (typeof portalCompatibilityAdapters)[number];

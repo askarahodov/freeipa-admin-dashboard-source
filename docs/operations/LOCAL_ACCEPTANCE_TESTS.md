@@ -271,7 +271,7 @@ The command only creates `artifacts/production-acceptance/plan.json`; it does **
 - an isolated Compose project name derived from the digest;
 - the Compose-owned isolated `dashboard-data` volume name;
 - `--no-build` execution semantics so a release run cannot silently rebuild a different image;
-- the default read-only baseline: liveness, readiness, dependency health and sanitized maintenance status.
+- the default read-only baseline: healthy liveness/readiness, healthy dependencies and explicitly inactive maintenance. A `503`, degraded dependency payload or active/failed maintenance state is a release-blocking baseline failure, not an accepted degraded pass.
 
 The generated plan records both `PORTAL_IMAGE` and `PORTAL_SERVICE_ENV_FILE=.env.acceptance`.
 Before any later execution step, create `.env.acceptance` from the normal environment template and replace all credentials with dedicated staging/test values. Do not reuse a production `.env`.

@@ -222,6 +222,17 @@ npm run test:local-auth:acceptance
 
 Перед запуском замените `PORTAL_TEST_ADMIN_PASSWORD` на пароль текущего локального администратора и убедитесь, что `PORTAL_TEST_BASE_URL` указывает только на disposable/test-контур.
 
+Для P0-проверки персистентности используйте тот же изолированный fixture и отдельный runner:
+
+```bash
+set -a
+. ./.env.local-auth-acceptance
+set +a
+npm run test:p0:acceptance
+```
+
+При `PORTAL_TEST_RESTART_DASHBOARD=true` runner создаёт временного viewer, проверяет lock/unlock и login, перезапускает только Dashboard service, затем повторно проверяет пользователя, роль и login. При `PORTAL_TEST_RECREATE_DASHBOARD=true` после этого выполняется `docker compose up -d --no-build --force-recreate dashboard` и та же persisted-state проверка повторяется. Временный пользователь удаляется в cleanup. Не запускайте этот P0 runner против production.
+
 ## 9. Результаты
 
 Проверьте:
@@ -300,14 +311,27 @@ The executor:
 - always runs `docker compose ... down --volumes --remove-orphans` for the isolated acceptance project, including partial-start and failed-baseline paths;
 - never stores raw probe bodies, command stderr, credentials or target URLs in release evidence;
 - runs the blocking report-safety gate before writing `report.json` and `report.html`;
-- returns a non-zero exit code when the baseline or cleanup fails.
+- returns a non-zero exit code when the baseline or cleanup fails;
+- records explicit `compose_start`, `baseline` and `cleanup` stage outcomes (`passed` / `failed` / `skipped`) with bounded machine-readable remediation codes;
+- records the same report schema version, failure/remediation codes and stage evidence in JSON and HTML.
 
-Default artifacts are written to:
+Default release evidence keeps both a stable latest copy and bounded per-run history:
 
 ```text
 artifacts/production-acceptance/latest/report.json
 artifacts/production-acceptance/latest/report.html
+artifacts/production-acceptance/runs/<run-id>/report.json
+artifacts/production-acceptance/runs/<run-id>/report.html
 ```
+
+Managed run directories are retained for 604800 seconds (7 days) by default. Change the bounded retention window when needed:
+
+```bash
+node scripts/production-acceptance-executor.mjs \
+  --retention-seconds 259200
+```
+
+Only managed timestamp-shaped run directories below the history directory are pruned; unrelated files/directories are left untouched.
 
 Optional execution bounds:
 

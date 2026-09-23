@@ -405,3 +405,10 @@ The central compatibility tail `worker/index.ts` is removed. `operations-http-en
 - compatibility adapters declared by `worker/application-composition-contract.ts` must be unique, present in the tracked source snapshot and include actionable responsibility, reason and removal condition.
 
 The guard deliberately does **not** replace the root placement policy, canonical route/permission metadata, security-composition tests or application-router parity checks. Negative fixtures in `tests/architecture/architecture-fitness.test.mjs` prove each enforced failure mode, while harmless moves inside one `src/**` owner boundary remain valid.
+
+
+## #636 checkpoint B — dependency cycle and runtime-router boundaries
+
+The same architecture fitness guard additionally treats the canonical `src/**` import graph as an acyclic domain/application graph and reports the complete offending cycle when one is introduced. It also prevents `runtime/**` process-hosting modules from importing the canonical Worker/application route owners (`application-router.ts` and the route contract/router/security-plan modules). Runtime may host the built Worker and scheduler; it must not become a second HTTP/domain router.
+
+These checks remain structural rather than filename-layout scoring: acyclic moves within `src/**` are accepted, and ordinary runtime-to-runtime hosting dependencies are allowed.

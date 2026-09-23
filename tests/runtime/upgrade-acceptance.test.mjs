@@ -191,11 +191,11 @@ test("upgrade acceptance seeds source state then verifies target schema login an
     login: "verified",
     persistence: "verified",
   });
-  assert.deepEqual(commands.map((item) => item.command.at(-3)), [
-    "down",
-    "-d",
-    "stop",
-    "-d",
+  assert.deepEqual(commands.map((item) => item.command.slice(-3)), [
+    ["down", "--volumes", "--remove-orphans"],
+    ["-d", "--no-build", "dashboard"],
+    ["compose.yaml", "stop", "dashboard"],
+    ["-d", "--no-build", "dashboard"],
   ]);
   assert.deepEqual(commands.map((item) => item.environment.PORTAL_IMAGE), [
     targetImage,

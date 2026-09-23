@@ -63,13 +63,29 @@ test("scenario environment pins canonical runners to the isolated portal and dis
   assert.equal(environment.PORTAL_TEST_RECREATE_DASHBOARD, "false");
 });
 
-test("scenario definitions reuse only canonical local-auth and P0 runners", () => {
+test("scenario definitions preserve local-auth/P0 defaults and opt settings in explicitly", () => {
   assert.deepEqual(
     productionAcceptanceScenarioDefinitions().map((item) => [item.id, item.script]),
     [
       ["local_auth_rbac", "scripts/local-auth-acceptance.mjs"],
       ["p0_operational", "scripts/p0-operational-acceptance.mjs"],
     ],
+  );
+  assert.deepEqual(
+    productionAcceptanceScenarioDefinitions({
+      includeLocalAuthP0: false,
+      includeSettings: true,
+    }).map((item) => [item.id, item.script]),
+    [
+      ["settings_persistence_rollback", "scripts/settings-acceptance.mjs"],
+    ],
+  );
+  assert.deepEqual(
+    productionAcceptanceScenarioDefinitions({
+      includeLocalAuthP0: true,
+      includeSettings: true,
+    }).map((item) => item.id),
+    ["local_auth_rbac", "p0_operational", "settings_persistence_rollback"],
   );
 });
 
@@ -128,4 +144,34 @@ test("scenario failure stops subsequent mutation runner and exposes only safe st
     },
   );
   assert.equal(calls, 1);
+});
+
+
+test("settings scenario failure emits only bounded stage evidence", async () => {
+  const definitions = productionAcceptanceScenarioDefinitions({
+    includeLocalAuthP0: false,
+    includeSettings: true,
+  });
+  await assert.rejects(
+    () => runProductionAcceptanceScenarios({
+      definitions,
+      environment: { PORTAL_TEST_ADMIN_PASSWORD: "do-not-report" },
+      runScript: async () => {
+        throw new Error("raw password=do-not-report");
+      },
+    }),
+    (error) => {
+      assert.equal(error.message, "acceptance_settings_persistence_rollback_failed");
+      assert.deepEqual(error.acceptanceStages, [
+        {
+          id: "settings_persistence_rollback",
+          outcome: "failed",
+          code: "acceptance_settings_persistence_rollback_failed",
+          remediationCode: "inspect_settings_acceptance",
+        },
+      ]);
+      assert.equal(JSON.stringify(error.acceptanceStages).includes("do-not-report"), false);
+      return true;
+    },
+  );
 });

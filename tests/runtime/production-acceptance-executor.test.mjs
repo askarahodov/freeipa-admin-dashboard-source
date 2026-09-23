@@ -127,6 +127,10 @@ test("release evidence uses bounded remediation codes", () => {
     "remove_isolated_acceptance_project",
   );
   assert.equal(
+    productionAcceptanceRemediationCode("acceptance_settings_persistence_rollback_failed"),
+    "inspect_settings_acceptance",
+  );
+  assert.equal(
     productionAcceptanceRemediationCode("acceptance_unknown_failure"),
     "inspect_acceptance_executor",
   );

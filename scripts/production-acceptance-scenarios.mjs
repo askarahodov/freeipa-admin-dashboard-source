@@ -39,32 +39,50 @@ export function productionAcceptanceScenarioEnvironment({
   });
 }
 
-export function productionAcceptanceScenarioDefinitions() {
-  return Object.freeze([
-    Object.freeze({
-      id: "local_auth_rbac",
-      script: "scripts/local-auth-acceptance.mjs",
-      passedCode: "local_auth_rbac_passed",
-      failedCode: "acceptance_local_auth_rbac_failed",
-      remediationCode: "inspect_local_auth_acceptance",
-    }),
-    Object.freeze({
-      id: "p0_operational",
-      script: "scripts/p0-operational-acceptance.mjs",
-      passedCode: "p0_operational_passed",
-      failedCode: "acceptance_p0_operational_failed",
-      remediationCode: "inspect_p0_operational_acceptance",
-    }),
-  ]);
+export function productionAcceptanceScenarioDefinitions({
+  includeLocalAuthP0 = true,
+  includeSettings = false,
+} = {}) {
+  const definitions = [];
+  if (includeLocalAuthP0) {
+    definitions.push(
+      Object.freeze({
+        id: "local_auth_rbac",
+        script: "scripts/local-auth-acceptance.mjs",
+        passedCode: "local_auth_rbac_passed",
+        failedCode: "acceptance_local_auth_rbac_failed",
+        remediationCode: "inspect_local_auth_acceptance",
+      }),
+      Object.freeze({
+        id: "p0_operational",
+        script: "scripts/p0-operational-acceptance.mjs",
+        passedCode: "p0_operational_passed",
+        failedCode: "acceptance_p0_operational_failed",
+        remediationCode: "inspect_p0_operational_acceptance",
+      }),
+    );
+  }
+  if (includeSettings) {
+    definitions.push(Object.freeze({
+      id: "settings_persistence_rollback",
+      script: "scripts/settings-acceptance.mjs",
+      passedCode: "settings_persistence_rollback_passed",
+      failedCode: "acceptance_settings_persistence_rollback_failed",
+      remediationCode: "inspect_settings_acceptance",
+    }));
+  }
+  return Object.freeze(definitions);
 }
 
 export async function runProductionAcceptanceScenarios({
   runScript,
   environment,
+  definitions = productionAcceptanceScenarioDefinitions(),
 } = {}) {
   if (typeof runScript !== "function") throw new Error("acceptance_scenario_runner_invalid");
+  if (!Array.isArray(definitions)) throw new Error("acceptance_scenario_definitions_invalid");
   const stages = [];
-  for (const definition of productionAcceptanceScenarioDefinitions()) {
+  for (const definition of definitions) {
     try {
       await runScript(definition.script, environment);
       stages.push(Object.freeze({

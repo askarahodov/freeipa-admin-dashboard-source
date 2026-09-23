@@ -17,6 +17,7 @@ import {
   validateProductionAcceptanceManifest,
 } from "./production-acceptance-executor-core.mjs";
 import {
+  productionAcceptanceScenarioDefinitions,
   productionAcceptanceScenarioEnvironment,
   runProductionAcceptanceScenarios,
   validateProductionAcceptanceMutationConfirmation,
@@ -48,6 +49,7 @@ const outputDirectory = path.resolve(argument("--output-dir") ?? "artifacts/prod
 const historyDirectory = path.resolve(argument("--history-dir") ?? "artifacts/production-acceptance/runs");
 const rawBaseUrl = argument("--base-url") ?? process.env.PORTAL_ACCEPTANCE_BASE_URL ?? "http://127.0.0.1:3001";
 const runLocalAuthP0 = process.argv.includes("--run-local-auth-p0");
+const runSettings = process.argv.includes("--run-settings");
 
 try {
   const acceptanceTarget = normalizeProductionAcceptanceTarget(rawBaseUrl);
@@ -61,7 +63,7 @@ try {
   validateProductionAcceptanceManifest(manifest);
 
   const mutationConfirmation = validateProductionAcceptanceMutationConfirmation({
-    enabled: runLocalAuthP0,
+    enabled: runLocalAuthP0 || runSettings,
     confirmation: argument("--confirm-destructive") ?? process.env.PORTAL_ACCEPTANCE_CONFIRM_DESTRUCTIVE,
     confirmedProject: argument("--confirm-project") ?? process.env.PORTAL_ACCEPTANCE_CONFIRM_PROJECT,
     expectedProject: manifest.compose.projectName,
@@ -104,9 +106,14 @@ try {
     return { status: response.status, json };
   };
 
+  const scenarioDefinitions = productionAcceptanceScenarioDefinitions({
+    includeLocalAuthP0: runLocalAuthP0,
+    includeSettings: runSettings,
+  });
   const runPostBaseline = mutationConfirmation.enabled
     ? async () => runProductionAcceptanceScenarios({
         environment: scenarioEnvironment,
+        definitions: scenarioDefinitions,
         runScript: async (script, environment) => {
           await execFileAsync(process.execPath, [script], {
             env: environment,

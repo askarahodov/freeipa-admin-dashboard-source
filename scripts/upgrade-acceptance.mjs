@@ -70,6 +70,27 @@ async function waitReady(expectedVersion) {
   }
 }
 
+async function verifyTargetBaseline() {
+  const checks = [
+    ["/health/live", { state: "healthy", code: "health_live", ok: true }],
+    ["/health/ready", { state: "healthy", code: "health_ready", ok: true }],
+    ["/health/dependencies", { state: "healthy", code: "dependencies_healthy", ok: true }],
+    ["/api/maintenance/status", { maintenance: false, state: "inactive", recoveryRequired: false }],
+  ];
+  for (const [pathname, expected] of checks) {
+    const response = await fetch(new URL(pathname, target.baseUrl), {
+      headers: { accept: "application/json" },
+      redirect: "error",
+      signal: AbortSignal.timeout(5_000),
+    });
+    const json = await response.json().catch(() => ({}));
+    if (response.status !== 200
+        || Object.entries(expected).some(([key, value]) => json?.[key] !== value)) {
+      throw new Error("acceptance_upgrade_target_baseline_failed");
+    }
+  }
+}
+
 function requestHeaders(cookie = "", json = false) {
   const headers = { accept: "application/json", origin };
   if (cookie) headers.cookie = cookie;
@@ -112,6 +133,7 @@ try {
     projectName,
     runCommand,
     waitReady,
+    verifyTargetBaseline,
     createAuthenticatedRequest,
   });
   console.log("UPGRADE_ACCEPTANCE_OUTCOME=passed");

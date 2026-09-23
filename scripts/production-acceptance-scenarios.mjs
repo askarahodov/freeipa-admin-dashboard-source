@@ -259,6 +259,7 @@ export function productionAcceptanceScenarioDefinitions({
         "PORTAL_ACCEPTANCE_XYOPS_REQUESTER_PASSWORD",
         "PORTAL_ACCEPTANCE_XYOPS_EVENT_ID",
         "PORTAL_ACCEPTANCE_XYOPS_CONFIRM_EVENT_ID",
+        "PORTAL_ACCEPTANCE_UPGRADE_POLICY",
       ]),
       passedCode: "previous_supported_upgrade_passed",
       failedCode: "acceptance_previous_supported_upgrade_failed",

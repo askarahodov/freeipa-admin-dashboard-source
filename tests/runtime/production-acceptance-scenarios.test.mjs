@@ -458,6 +458,7 @@ test("upgrade scenario is opt-in and strips server/upstream credentials", async 
   assert.equal(calls[0].environment.IPA_PASSWORD, undefined);
   assert.equal(calls[0].environment.XYOPS_API_KEY, undefined);
   assert.equal(calls[0].environment.PORTAL_PROXY_SHARED_SECRET, undefined);
+  assert.equal(calls[0].environment.PORTAL_ACCEPTANCE_UPGRADE_POLICY, undefined);
   assert.deepEqual(stages, [{
     id: "previous_supported_upgrade",
     outcome: "passed",

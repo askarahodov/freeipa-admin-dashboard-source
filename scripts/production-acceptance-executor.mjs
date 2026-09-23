@@ -174,7 +174,7 @@ export async function runProductionAcceptance(manifest, options = {}) {
       });
 
       for (const check of manifest.baseline) {
-        if (check.id === "readiness" && readiness.outcome === "passed") {
+        if (check.id === "readiness") {
           checks.push(readiness);
         } else {
           checks.push(await executeProbe(check, { baseUrl, requestJson, now }));

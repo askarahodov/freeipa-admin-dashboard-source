@@ -23,6 +23,8 @@ USER recovery
 ENTRYPOINT ["node", "--experimental-strip-types", "scripts/portal-recovery.ts"]
 
 FROM node:22-bookworm-slim AS runtime
+ARG PORTAL_SOURCE_COMMIT=unknown
+LABEL org.opencontainers.image.revision="${PORTAL_SOURCE_COMMIT}"
 ENV NODE_ENV=production \
     PORT=3001 \
     HOST=0.0.0.0 \

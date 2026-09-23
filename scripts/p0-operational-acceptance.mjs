@@ -4,6 +4,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { buildP0DashboardPersistenceCommand } from "./p0-persistence-command.mjs";
+import { normalizeProductionAcceptanceTarget } from "./production-acceptance-executor-core.mjs";
 
 const confirmation = String(process.env.PORTAL_TEST_CONFIRM ?? "").trim();
 const baseUrl = String(process.env.PORTAL_TEST_BASE_URL ?? "http://127.0.0.1:3001").trim().replace(/\/+$/, "");
@@ -17,6 +18,17 @@ const composeFile = String(process.env.PORTAL_TEST_COMPOSE_FILE ?? "compose.yaml
 const composeEnvFile = String(process.env.PORTAL_TEST_COMPOSE_ENV_FILE ?? ".env").trim();
 const composeService = String(process.env.PORTAL_TEST_COMPOSE_SERVICE ?? "dashboard").trim();
 const acceptanceImage = String(process.env.PORTAL_TEST_ACCEPTANCE_IMAGE ?? "").trim();
+let persistenceTarget = null;
+
+if (restartEnabled || recreateEnabled) {
+  try {
+    persistenceTarget = normalizeProductionAcceptanceTarget(baseUrl);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(/^acceptance_base_url_/u.test(message) ? message : "p0_persistence_target_invalid");
+    process.exit(2);
+  }
+}
 
 if (confirmation !== "YES") {
   console.error("P0 acceptance mutates the portal user database. Set PORTAL_TEST_CONFIRM=YES.");
@@ -219,7 +231,10 @@ async function cycleDashboard(action) {
     composeService,
     imageReference: acceptanceImage || undefined,
   });
-  await runCommand(command.command, command.args, command.environment);
+  await runCommand(command.command, command.args, {
+    ...command.environment,
+    ...(persistenceTarget?.composeEnvironment ?? {}),
+  });
   await waitForPortal();
 }
 

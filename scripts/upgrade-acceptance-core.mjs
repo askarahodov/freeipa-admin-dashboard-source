@@ -76,7 +76,15 @@ export function upgradeComposeCommand({
     return Object.freeze([...prefix, "stop", "dashboard"]);
   }
   if (action === "up") {
-    return Object.freeze([...prefix, "up", "-d", "--no-build", "dashboard"]);
+    return Object.freeze([
+      ...prefix,
+      "up",
+      "-d",
+      "--no-deps",
+      "--no-build",
+      "--force-recreate",
+      "dashboard",
+    ]);
   }
   throw new Error("acceptance_upgrade_command_invalid");
 }

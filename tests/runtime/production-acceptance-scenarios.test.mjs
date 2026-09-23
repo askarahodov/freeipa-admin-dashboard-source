@@ -52,6 +52,7 @@ test("scenario environment pins canonical runners to the isolated portal and dis
     baseUrl: "http://127.0.0.1:3100",
     adminUsername: "accept-admin",
     adminPassword: "test-only-password",
+    projectName: "portal-accept-0123456789ab",
   });
 
   assert.equal(environment.KEEP, "yes");
@@ -61,6 +62,7 @@ test("scenario environment pins canonical runners to the isolated portal and dis
   assert.equal(environment.PORTAL_TEST_ADMIN_PASSWORD, "test-only-password");
   assert.equal(environment.PORTAL_TEST_RESTART_DASHBOARD, "false");
   assert.equal(environment.PORTAL_TEST_RECREATE_DASHBOARD, "false");
+  assert.equal(environment.PORTAL_ACCEPTANCE_PROJECT_NAME, "portal-accept-0123456789ab");
 });
 
 test("scenario definitions preserve local-auth/P0 defaults and opt settings in explicitly", () => {
@@ -170,6 +172,89 @@ test("settings scenario failure emits only bounded stage evidence", async () => 
           remediationCode: "inspect_settings_acceptance",
         },
       ]);
+      assert.equal(JSON.stringify(error.acceptanceStages).includes("do-not-report"), false);
+      return true;
+    },
+  );
+});
+
+
+test("FreeIPA mutation selection always runs safe read first and scopes child mode per stage", async () => {
+  const definitions = productionAcceptanceScenarioDefinitions({
+    includeLocalAuthP0: false,
+    includeSettings: false,
+    includeFreeIpaMutations: true,
+  });
+  assert.deepEqual(definitions.map((item) => item.id), [
+    "freeipa_read",
+    "freeipa_crud_membership",
+  ]);
+
+  const calls = [];
+  const stages = await runProductionAcceptanceScenarios({
+    definitions,
+    environment: {
+      PORTAL_TEST_CONFIRM: "YES",
+      PORTAL_ACCEPTANCE_PROJECT_NAME: "portal-accept-0123456789ab",
+      IPA_PASSWORD: "must-not-reach-child",
+      XYOPS_API_KEY: "must-not-reach-child",
+      ADMIN_TOKEN: "must-not-reach-child",
+    },
+    runScript: async (script, environment) => {
+      calls.push({ script, environment });
+    },
+  });
+
+  assert.deepEqual(calls.map((item) => [
+    item.script,
+    item.environment.PORTAL_ACCEPTANCE_FREEIPA_MODE,
+    item.environment.PORTAL_ACCEPTANCE_FREEIPA_MUTATIONS,
+  ]), [
+    ["scripts/freeipa-acceptance.mjs", "read", "false"],
+    ["scripts/freeipa-acceptance.mjs", "mutate", "true"],
+  ]);
+  assert.equal(calls.every((item) => item.environment.IPA_PASSWORD === undefined), true);
+  assert.equal(calls.every((item) => item.environment.XYOPS_API_KEY === undefined), true);
+  assert.equal(calls.every((item) => item.environment.ADMIN_TOKEN === undefined), true);
+  assert.deepEqual(stages.map((stage) => [stage.id, stage.outcome]), [
+    ["freeipa_read", "passed"],
+    ["freeipa_crud_membership", "passed"],
+  ]);
+});
+
+test("FreeIPA read can be selected without the mutation stage", () => {
+  assert.deepEqual(
+    productionAcceptanceScenarioDefinitions({
+      includeLocalAuthP0: false,
+      includeFreeIpaRead: true,
+      includeFreeIpaMutations: false,
+    }).map((item) => item.id),
+    ["freeipa_read"],
+  );
+});
+
+test("FreeIPA stage failure exposes bounded evidence and no child environment", async () => {
+  const definitions = productionAcceptanceScenarioDefinitions({
+    includeLocalAuthP0: false,
+    includeFreeIpaMutations: true,
+  });
+
+  await assert.rejects(
+    () => runProductionAcceptanceScenarios({
+      definitions,
+      environment: { PORTAL_TEST_ADMIN_PASSWORD: "do-not-report" },
+      runScript: async () => {
+        throw new Error("upstream credential do-not-report");
+      },
+    }),
+    (error) => {
+      assert.equal(error.message, "acceptance_freeipa_read_failed");
+      assert.deepEqual(error.acceptanceStages, [{
+        id: "freeipa_read",
+        outcome: "failed",
+        code: "acceptance_freeipa_read_failed",
+        remediationCode: "inspect_freeipa_read",
+      }]);
       assert.equal(JSON.stringify(error.acceptanceStages).includes("do-not-report"), false);
       return true;
     },

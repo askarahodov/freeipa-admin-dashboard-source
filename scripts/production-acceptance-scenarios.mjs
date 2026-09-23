@@ -23,6 +23,7 @@ export function productionAcceptanceScenarioEnvironment({
   baseUrl,
   adminUsername,
   adminPassword,
+  projectName,
 } = {}) {
   if (!baseUrl) throw new Error("acceptance_scenario_base_url_required");
   if (!adminUsername || !adminPassword) {
@@ -36,12 +37,15 @@ export function productionAcceptanceScenarioEnvironment({
     PORTAL_TEST_ADMIN_PASSWORD: adminPassword,
     PORTAL_TEST_RESTART_DASHBOARD: "false",
     PORTAL_TEST_RECREATE_DASHBOARD: "false",
+    ...(projectName ? { PORTAL_ACCEPTANCE_PROJECT_NAME: projectName } : {}),
   });
 }
 
 export function productionAcceptanceScenarioDefinitions({
   includeLocalAuthP0 = true,
   includeSettings = false,
+  includeFreeIpaRead = false,
+  includeFreeIpaMutations = false,
 } = {}) {
   const definitions = [];
   if (includeLocalAuthP0) {
@@ -71,6 +75,54 @@ export function productionAcceptanceScenarioDefinitions({
       remediationCode: "inspect_settings_acceptance",
     }));
   }
+  if (includeFreeIpaRead || includeFreeIpaMutations) {
+    definitions.push(Object.freeze({
+      id: "freeipa_read",
+      script: "scripts/freeipa-acceptance.mjs",
+      environment: Object.freeze({
+        PORTAL_ACCEPTANCE_FREEIPA_MODE: "read",
+        PORTAL_ACCEPTANCE_FREEIPA_MUTATIONS: "false",
+      }),
+      omitEnvironmentKeys: Object.freeze([
+        "ADMIN_TOKEN",
+        "CONFIG_ENCRYPTION_KEY",
+        "IPA_URL",
+        "IPA_USERNAME",
+        "IPA_PASSWORD",
+        "IPA_NODE_GATEWAY_URL",
+        "IPA_NODE_GATEWAY_TOKEN",
+        "XYOPS_URL",
+        "XYOPS_API_KEY",
+      ]),
+      passedCode: "freeipa_read_passed",
+      failedCode: "acceptance_freeipa_read_failed",
+      remediationCode: "inspect_freeipa_read",
+    }));
+  }
+  if (includeFreeIpaMutations) {
+    definitions.push(Object.freeze({
+      id: "freeipa_crud_membership",
+      script: "scripts/freeipa-acceptance.mjs",
+      environment: Object.freeze({
+        PORTAL_ACCEPTANCE_FREEIPA_MODE: "mutate",
+        PORTAL_ACCEPTANCE_FREEIPA_MUTATIONS: "true",
+      }),
+      omitEnvironmentKeys: Object.freeze([
+        "ADMIN_TOKEN",
+        "CONFIG_ENCRYPTION_KEY",
+        "IPA_URL",
+        "IPA_USERNAME",
+        "IPA_PASSWORD",
+        "IPA_NODE_GATEWAY_URL",
+        "IPA_NODE_GATEWAY_TOKEN",
+        "XYOPS_URL",
+        "XYOPS_API_KEY",
+      ]),
+      passedCode: "freeipa_crud_membership_passed",
+      failedCode: "acceptance_freeipa_crud_membership_failed",
+      remediationCode: "inspect_freeipa_acceptance",
+    }));
+  }
   return Object.freeze(definitions);
 }
 
@@ -84,7 +136,12 @@ export async function runProductionAcceptanceScenarios({
   const stages = [];
   for (const definition of definitions) {
     try {
-      await runScript(definition.script, environment);
+      const childEnvironment = {
+        ...(environment ?? {}),
+        ...(definition.environment ?? {}),
+      };
+      for (const key of definition.omitEnvironmentKeys ?? []) delete childEnvironment[key];
+      await runScript(definition.script, Object.freeze(childEnvironment));
       stages.push(Object.freeze({
         id: definition.id,
         outcome: "passed",

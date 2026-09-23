@@ -76,6 +76,15 @@ export function normalizeProductionAcceptanceTarget(value) {
   });
 }
 
+export function productionAcceptanceCommandEnvironment(ambientEnvironment, manifestEnvironment, target) {
+  if (!target?.composeEnvironment) throw new Error("acceptance_base_url_invalid");
+  return Object.freeze({
+    ...(ambientEnvironment ?? {}),
+    ...(manifestEnvironment ?? {}),
+    ...target.composeEnvironment,
+  });
+}
+
 function errorCode(error, fallback) {
   const message = error instanceof Error ? error.message : String(error ?? "");
   return /^acceptance_[a-z0-9_]+$/u.test(message) ? message : fallback;

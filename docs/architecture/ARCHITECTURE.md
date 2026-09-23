@@ -83,7 +83,7 @@ Detailed destructive recovery procedure belongs to [`OFFLINE_FULL_RESTORE.md`](.
 
 The build-configured Worker entry is `worker/http-security-root-entry.ts`, which owns the outer HTTP security-header boundary and delegates to `worker/schema-migrations-entry.ts`. The schema boundary owns pre-application schema readiness while bounded storage administration paths are intentionally delegated through before the ordinary schema-ready gate so recovery/inspection can still operate. Downstream traffic enters the explicit `worker/application.ts` composition boundary. `worker/application-router.ts` classifies requests using canonical route metadata, then all classifications enter `worker/security-composition.ts`.
 
-`security-composition.ts` now owns the first three extracted security gates. Controlled storage migration apply/status/reconcile is evaluated by `worker/middleware/storage-migration-apply.ts` and the existing `worker/storage-migration-apply-entry.ts`; any handled migration response short-circuits before maintenance. All remaining HTTP traffic then enters the existing dependency-injected `worker/maintenance-mode-gate.ts`, which preserves its recovery allowlist, public maintenance status, integration-health maintenance header and fail-closed behavior. Maintenance-approved HTTP traffic then enters `worker/middleware/service-admin-authentication.ts`, which preserves the existing local-mode administrative allowlist, constant-time `ADMIN_TOKEN` check and synthetic `service-admin@portal.local` environment adaptation before delegating to `worker/maintenance-control-root-entry.ts`. Scheduled execution is owned explicitly by `worker/application-scheduled.ts`; it enters the unchanged maintenance scheduled gate and then delegates directly to the remaining compatibility runtime, preserving the former service-admin wrapper's scheduled pass-through semantics. Vinext image optimization, administrative app-shell HTML rewriting and generic framework/static/RSC fallback are explicitly encapsulated by `worker/framework-http-entry.ts` / `worker/framework-http.ts`, while this checkpoint still reaches that owner through the compatibility chain.
+`security-composition.ts` now owns the first three extracted security gates. Controlled storage migration apply/status/reconcile is evaluated by `worker/middleware/storage-migration-apply.ts` and the existing `worker/storage-migration-apply-entry.ts`; any handled migration response short-circuits before maintenance. All remaining HTTP traffic then enters the existing dependency-injected `worker/maintenance-mode-gate.ts`, which preserves its recovery allowlist, public maintenance status, integration-health maintenance header and fail-closed behavior. Maintenance-approved HTTP traffic then enters `worker/middleware/service-admin-authentication.ts`, which preserves the existing local-mode administrative allowlist, constant-time `ADMIN_TOKEN` check and synthetic `service-admin@portal.local` environment adaptation before delegating to `worker/maintenance-control-root-entry.ts`. Scheduled execution is owned explicitly by `worker/application-scheduled.ts`; it enters the unchanged maintenance scheduled gate and then delegates directly to the remaining compatibility runtime, preserving the former service-admin wrapper's scheduled pass-through semantics. Vinext image optimization, administrative app-shell HTML rewriting and generic framework/static/RSC fallback are explicitly owned by `worker/framework-http-entry.ts` / `worker/framework-http.ts`; unmatched downstream traffic reaches that owner directly from `worker/operations-http-entry.ts` after the preserved upstream security/domain chain.
 
 The current chain is approximately:
 
@@ -93,26 +93,27 @@ worker/http-security-root-entry.ts
   -> application.ts
   -> application-router.ts
        -> canonical match/classification
-       -> security composition dispatch
-  -> security-composition.ts
-       -> middleware/storage-migration-apply.ts
-          -> storage-migration-apply-entry.ts (exact controlled migration paths only)
-       -> maintenance-mode-gate.ts
-       -> middleware/service-admin-authentication.ts
+       -> health-http.ts for application-owned health surfaces
+       -> security-composition.ts for non-health traffic
+            -> middleware/storage-migration-apply.ts
+               -> storage-migration-apply-entry.ts (exact controlled migration paths only)
+            -> maintenance-mode-gate.ts
+            -> middleware/service-admin-authentication.ts
   -> maintenance-control-root-entry.ts
   -> backup-selective-restore-root-entry.ts
   -> session-management-entry.ts
   -> diagnostics-entry.ts
-  -> settings-revisions-entry.ts
+  -> settings-lifecycle-root-entry.ts
   -> local-secure-entry.ts (local-auth adapter)
        -> middleware/local-security-routing.ts (ordinary local session/service-admin/origin routing)
   -> settings-source-safe-entry.ts
-  -> settings-source-entry.ts
-  -> settings-lifecycle-entry.ts
+       -> settings-source-entry.ts -> settings-lifecycle-entry.ts (source-aware paths)
+       -> settings-lifecycle-entry.ts (direct lifecycle paths)
   -> secure-entry.ts
+  -> backup-http-entry.ts
   -> freeipa-http-entry.ts
   -> operations-http-entry.ts
-  -> the retired central Worker tail
+  -> framework-http-entry.ts
 ```
 
 The explicit application/router/security-composition boundary is part of the **current application request architecture**. Storage migration apply/status/reconcile, maintenance and the outer service-admin authentication/adaptation boundary are now explicitly composed there. Local-session/service-admin-fallback/origin routing is now isolated in `worker/middleware/local-security-routing.ts` but deliberately executes at the historical `local-secure-entry.ts` position below the pre-local compatibility adapters; route/domain authorization, handler selection and most audit/error behavior remain compatibility-owned while #56 incrementally replaces them with explicit composition backed by parity tests.

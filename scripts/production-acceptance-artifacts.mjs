@@ -61,6 +61,11 @@ export async function writeProductionAcceptanceArtifacts({
   const runDirectory = path.join(historyDirectory, runId);
   const serialized = `${JSON.stringify(report, null, 2)}\n`;
 
+  const removed = await pruneProductionAcceptanceHistory(historyDirectory, {
+    retentionSeconds,
+    nowMs,
+  });
+
   await Promise.all([
     fs.mkdir(outputDirectory, { recursive: true }),
     fs.mkdir(runDirectory, { recursive: true }),
@@ -72,11 +77,6 @@ export async function writeProductionAcceptanceArtifacts({
     fs.writeFile(path.join(runDirectory, "report.json"), serialized),
     fs.writeFile(path.join(runDirectory, "report.html"), html),
   ]);
-
-  const removed = await pruneProductionAcceptanceHistory(historyDirectory, {
-    retentionSeconds,
-    nowMs,
-  });
 
   return Object.freeze({
     runId,

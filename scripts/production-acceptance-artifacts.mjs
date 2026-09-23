@@ -5,6 +5,8 @@ import { assertProductionAcceptanceReportSafe } from "./production-acceptance-co
 
 export const DEFAULT_PRODUCTION_ACCEPTANCE_RETENTION_SECONDS = 604_800;
 const MAX_RETENTION_SECONDS = 31_536_000;
+const OWNERSHIP_MARKER = ".portal-production-acceptance";
+const OWNERSHIP_MARKER_CONTENT = "portal-production-acceptance:v1\n";
 const RUN_ID_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z$/u;
 
 export function normalizeProductionAcceptanceRetentionSeconds(value, fallback = DEFAULT_PRODUCTION_ACCEPTANCE_RETENTION_SECONDS) {

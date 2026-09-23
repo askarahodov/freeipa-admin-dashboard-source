@@ -281,3 +281,29 @@ Before any later execution step, create `.env.acceptance` from the normal enviro
 The production-acceptance report contract is fail-closed: sensitive field names, cookie/authorization markers, caller-provided secret values and raw HTTP(S) URLs make the redaction gate fail. Later #61 checkpoints may execute the plan and attach JSON/HTML release evidence, but must pass this safety gate before persisting artifacts.
 
 Mutating P0/local integration runners remain separate and keep their existing explicit confirmation requirements.
+
+
+## 12. Read-only production/staging executor
+
+После генерации immutable plan подготовьте отдельный acceptance env-файл и запустите только из disposable/staging окружения:
+
+```bash
+cp .env.example .env.acceptance
+# заполните только dedicated staging/test credentials
+
+node scripts/production-acceptance-run.mjs \
+  --plan artifacts/production-acceptance/plan.json \
+  --output-dir artifacts/production-acceptance/run
+```
+
+Executor принимает только точный versioned manifest, созданный `production-acceptance-plan.mjs`: изменение baseline predicates, Compose arguments или добавление произвольных environment overrides приводит к fail-closed ошибке. Probe target ограничен loopback-адресами, поэтому read-only baseline не может случайно быть направлен на внешний production URL.
+
+Порядок выполнения:
+
+1. запускается isolated Compose project из manifest с immutable image digest и `--no-build`;
+2. readiness ожидается только в bounded timeout;
+3. выполняются liveness/readiness/dependencies/maintenance predicates из canonical manifest;
+4. `docker compose down --volumes --remove-orphans` выполняется даже после partial failure;
+5. JSON/HTML evidence записывается только после blocking report-safety scan.
+
+Raw stdout/stderr Compose не включается в release evidence. Отчёт содержит только bounded status/code metadata; startup, baseline и cleanup failures получают безопасные `acceptance_*` stage codes. Mutating, upgrade и restore scenarios этим checkpoint не включаются.

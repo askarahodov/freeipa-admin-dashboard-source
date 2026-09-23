@@ -65,6 +65,9 @@ const REMEDIATION_BY_FAILURE_CODE = Object.freeze({
   acceptance_schema_metadata_missing: "inspect_local_schema_readiness",
   acceptance_schema_version_mismatch: "inspect_local_schema_migrations",
   acceptance_cleanup_failed: "remove_isolated_acceptance_project",
+  acceptance_local_auth_rbac_failed: "inspect_local_auth_acceptance",
+  acceptance_p0_operational_failed: "inspect_p0_operational_acceptance",
+  acceptance_destructive_scenario_failed: "inspect_acceptance_scenarios",
 });
 
 export function productionAcceptanceRemediationCode(failureCode) {
@@ -163,6 +166,7 @@ export async function executeProductionAcceptance({
   startupTimeoutMs = DEFAULT_STARTUP_TIMEOUT_MS,
   probeIntervalMs = DEFAULT_PROBE_INTERVAL_MS,
   secretValues = [],
+  runPostBaseline = null,
 } = {}) {
   const validated = validateProductionAcceptanceManifest(manifest);
   if (typeof runCommand !== "function" || typeof probe !== "function") {
@@ -173,6 +177,9 @@ export async function executeProductionAcceptance({
   }
   if (!Number.isFinite(probeIntervalMs) || probeIntervalMs < 0) {
     throw new Error("acceptance_probe_interval_invalid");
+  }
+  if (runPostBaseline !== null && typeof runPostBaseline !== "function") {
+    throw new Error("acceptance_scenario_runner_invalid");
   }
 
   const started = now();
@@ -190,6 +197,7 @@ export async function executeProductionAcceptance({
   let cleanup = Object.freeze({ outcome: "pending", code: "cleanup_pending" });
   let cleanupStage = acceptanceStage("cleanup", "pending", "not_started");
   let portalSchema = null;
+  let scenarioStages = [];
 
   try {
     await runCommand(validated.compose.args, validated.compose.environment);
@@ -255,6 +263,18 @@ export async function executeProductionAcceptance({
       }
       await sleep(probeIntervalMs);
     }
+
+    if (outcome === "passed" && runPostBaseline) {
+      try {
+        const returnedStages = await runPostBaseline();
+        if (!Array.isArray(returnedStages)) throw new Error("acceptance_scenario_result_invalid");
+        scenarioStages = returnedStages;
+      } catch (error) {
+        scenarioStages = Array.isArray(error?.acceptanceStages) ? [...error.acceptanceStages] : [];
+        failureCode = errorCode(error, "acceptance_destructive_scenario_failed");
+        outcome = "failed";
+      }
+    }
   } catch (error) {
     if (composeStartStage.outcome === "pending") {
       failureCode = errorCode(error, "acceptance_compose_start_failed");
@@ -313,7 +333,7 @@ export async function executeProductionAcceptance({
       finishedAt: finished.toISOString(),
       durationMs: Math.max(0, finished.getTime() - started.getTime()),
     },
-    stages: [composeStartStage, baselineStage, cleanupStage],
+    stages: [composeStartStage, baselineStage, ...scenarioStages, cleanupStage],
     checks,
     cleanup,
   };

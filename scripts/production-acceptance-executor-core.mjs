@@ -62,6 +62,8 @@ const REMEDIATION_BY_FAILURE_CODE = Object.freeze({
   acceptance_compose_start_failed: "inspect_local_compose_start",
   acceptance_baseline_timeout: "inspect_local_health_and_dependencies",
   acceptance_baseline_execution_failed: "inspect_acceptance_runtime",
+  acceptance_schema_metadata_missing: "inspect_local_schema_readiness",
+  acceptance_schema_version_mismatch: "inspect_local_schema_migrations",
   acceptance_cleanup_failed: "remove_isolated_acceptance_project",
 });
 
@@ -121,6 +123,21 @@ export function evaluateAcceptanceCheck(check, response) {
   });
 }
 
+function readinessSchemaMetadata(response) {
+  const metadata = response?.json?.metadata;
+  const currentVersion = Number(metadata?.schemaVersion);
+  const latestVersion = Number(metadata?.latestSchemaVersion);
+  if (
+    !Number.isInteger(currentVersion)
+    || currentVersion < 0
+    || !Number.isInteger(latestVersion)
+    || latestVersion < 0
+  ) {
+    return null;
+  }
+  return Object.freeze({ currentVersion, latestVersion });
+}
+
 export function acceptanceCleanupCommand(manifest) {
   return Object.freeze([
     "docker",
@@ -172,6 +189,7 @@ export async function executeProductionAcceptance({
   let baselineStage = acceptanceStage("baseline", "pending", "not_started");
   let cleanup = Object.freeze({ outcome: "pending", code: "cleanup_pending" });
   let cleanupStage = acceptanceStage("cleanup", "pending", "not_started");
+  let portalSchema = null;
 
   try {
     await runCommand(validated.compose.args, validated.compose.environment);
@@ -182,7 +200,11 @@ export async function executeProductionAcceptance({
       for (const check of validated.baseline) {
         try {
           const response = await probe(check);
-          currentChecks.push(evaluateAcceptanceCheck(check, response));
+          const evaluated = evaluateAcceptanceCheck(check, response);
+          currentChecks.push(evaluated);
+          if (check.id === "readiness" && evaluated.outcome === "passed") {
+            portalSchema = readinessSchemaMetadata(response);
+          }
         } catch {
           currentChecks.push(Object.freeze({
             id: check.id,
@@ -194,6 +216,28 @@ export async function executeProductionAcceptance({
       }
       checks = currentChecks;
       if (checks.every((check) => check.outcome === "passed")) {
+        if (!portalSchema) {
+          outcome = "failed";
+          failureCode = "acceptance_schema_metadata_missing";
+          baselineStage = acceptanceStage(
+            "baseline",
+            "failed",
+            failureCode,
+            productionAcceptanceRemediationCode(failureCode),
+          );
+          break;
+        }
+        if (portalSchema.currentVersion !== portalSchema.latestVersion) {
+          outcome = "failed";
+          failureCode = "acceptance_schema_version_mismatch";
+          baselineStage = acceptanceStage(
+            "baseline",
+            "failed",
+            failureCode,
+            productionAcceptanceRemediationCode(failureCode),
+          );
+          break;
+        }
         outcome = "passed";
         failureCode = null;
         baselineStage = acceptanceStage("baseline", "passed", "baseline_healthy");
@@ -256,6 +300,8 @@ export async function executeProductionAcceptance({
   const finished = now();
   const report = {
     schemaVersion: PRODUCTION_ACCEPTANCE_REPORT_SCHEMA_VERSION,
+    manifestSchemaVersion: validated.schemaVersion,
+    portalSchema,
     outcome,
     failureCode,
     remediationCode: productionAcceptanceRemediationCode(failureCode),
@@ -299,7 +345,9 @@ export function renderProductionAcceptanceHtml(report) {
 <body>
 <h1>Production acceptance: ${escapeHtml(report.outcome)}</h1>
 <dl>
-<dt>Schema version</dt><dd>${escapeHtml(report.schemaVersion)}</dd>
+<dt>Report schema version</dt><dd>${escapeHtml(report.schemaVersion)}</dd>
+<dt>Manifest schema version</dt><dd>${escapeHtml(report.manifestSchemaVersion)}</dd>
+<dt>Portal schema version</dt><dd>${escapeHtml(report.portalSchema?.currentVersion ?? "unavailable")} / ${escapeHtml(report.portalSchema?.latestVersion ?? "unavailable")}</dd>
 <dt>Commit</dt><dd>${escapeHtml(report.source.commitSha)}</dd>
 <dt>Image digest</dt><dd>${escapeHtml(report.image.digest)}</dd>
 <dt>Compose project</dt><dd>${escapeHtml(report.compose.projectName)}</dd>

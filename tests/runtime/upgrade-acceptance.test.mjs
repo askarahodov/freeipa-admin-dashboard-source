@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   executeUpgradeAcceptance,
   upgradeComposeCommand,
+  upgradeImagePullCommand,
   validateUpgradeSourcePolicy,
 } from "../../scripts/upgrade-acceptance-core.mjs";
 
@@ -112,6 +113,14 @@ test("upgrade source policy accepts only a distinct immutable image from the tar
       targetCommitSha: targetCommit,
     }),
     /acceptance_upgrade_policy_invalid/u,
+  );
+});
+
+test("upgrade source pull is immutable and exact", () => {
+  assert.deepEqual(upgradeImagePullCommand(sourceImage), ["docker", "pull", sourceImage]);
+  assert.throws(
+    () => upgradeImagePullCommand("registry.example.test/portal/admin-dashboard:previous"),
+    /acceptance_image_digest_required/u,
   );
 });
 
@@ -224,12 +233,14 @@ test("upgrade acceptance seeds source state then verifies target schema login an
   });
   assert.deepEqual(commands.map((item) => item.command.slice(-3)), [
     ["down", "--volumes", "--remove-orphans"],
+    ["docker", "pull", sourceImage],
     ["--no-build", "--force-recreate", "dashboard"],
     ["compose.yaml", "stop", "dashboard"],
     ["--no-build", "--force-recreate", "dashboard"],
   ]);
   assert.deepEqual(commands.map((item) => item.environment.PORTAL_IMAGE), [
     targetImage,
+    undefined,
     sourceImage,
     sourceImage,
     targetImage,

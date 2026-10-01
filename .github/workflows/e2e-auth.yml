@@ -98,7 +98,7 @@ jobs:
 
       - name: Restore dashboard BuildKit cache
         if: steps.scope.outputs.browser_specs != ''
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: /tmp/e2e-dashboard-buildkit
           key: e2e-dashboard-buildkit-${{ runner.os }}-${{ hashFiles('Dockerfile', 'package-lock.json') }}-${{ github.sha }}
@@ -107,7 +107,7 @@ jobs:
 
       - name: Restore Playwright BuildKit cache
         if: steps.scope.outputs.browser_specs != ''
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: /tmp/e2e-playwright-buildkit
           key: e2e-playwright-buildkit-${{ runner.os }}-${{ hashFiles('e2e/Dockerfile', 'package-lock.json') }}-${{ github.sha }}
@@ -143,14 +143,14 @@ jobs:
 
       - name: Save dashboard BuildKit cache from trusted main
         if: steps.scope.outputs.browser_specs != '' && github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: /tmp/e2e-dashboard-buildkit
           key: e2e-dashboard-buildkit-${{ runner.os }}-${{ hashFiles('Dockerfile', 'package-lock.json') }}-${{ github.sha }}
 
       - name: Save Playwright BuildKit cache from trusted main
         if: steps.scope.outputs.browser_specs != '' && github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: /tmp/e2e-playwright-buildkit
           key: e2e-playwright-buildkit-${{ runner.os }}-${{ hashFiles('e2e/Dockerfile', 'package-lock.json') }}-${{ github.sha }}
